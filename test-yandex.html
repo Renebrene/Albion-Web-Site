@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Yandex Maps Test</title>
+
+<style>
+html, body, #map {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+
+#status {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 10000;
+    padding: 15px 20px;
+    background: white;
+    border-radius: 10px;
+    font-family: Arial;
+    box-shadow: 0 4px 20px rgba(0,0,0,.2);
+}
+</style>
+
+<script
+src="https://api-maps.yandex.ru/v3/?apikey=f16a6fd4-f404-4042-a0f1-ee9d83a7b47d&lang=ru_RU">
+</script>
+
+</head>
+
+<body>
+
+<div id="status">Загрузка Яндекс Карт...</div>
+<div id="map"></div>
+
+<script>
+async function init() {
+
+    const status = document.getElementById("status");
+
+    try {
+
+        await ymaps3.ready;
+
+        status.innerHTML =
+            "<b style='color:green'>✓ Яндекс Карты API работает</b>";
+
+        const {YMap, YMapDefaultSchemeLayer} = ymaps3;
+
+        const map = new YMap(
+            document.getElementById("map"),
+            {
+                location: {
+                    center: [39.7015, 47.2357],
+                    zoom: 11
+                }
+            }
+        );
+
+        map.addChild(
+            new YMapDefaultSchemeLayer()
+        );
+
+    } catch (error) {
+
+        console.error(error);
+
+        status.innerHTML =
+            "<b style='color:red'>Ошибка API</b><br>" +
+            String(error);
+
+    }
+}
+
+init();
+</script>
+
+</body>
+</html>

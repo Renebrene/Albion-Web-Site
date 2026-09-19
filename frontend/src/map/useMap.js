@@ -1,0 +1,925 @@
+import L from 'leaflet'
+import 'leaflet.markercluster'
+
+import { popupContent } from './popupContent'
+
+const DEFAULT_CENTER = [47.2357, 39.7015]
+const DEFAULT_ZOOM = 10
+
+let map = null
+let clusterGroup = null
+let regionLayer = null
+let centerChangeHandler = null
+
+// Точка поиска и визуальный радиус.
+let searchPointMarker = null
+let searchRadiusCircle = null
+
+let constructions = []
+let selectedMonths = []
+
+let renderTimer = null
+let resizeObserver = null
+
+const ALL_MONTHS = [
+  'Август',
+  'Сентябрь',
+  'Октябрь',
+  'Ноябрь',
+  'Декабрь'
+]
+
+/* =========================================================
+   HELPERS
+   ========================================================= */
+
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+}
+
+function isVideoScreen(item) {
+  return String(item?.type || '')
+    .trim()
+    .toLowerCase()
+    .includes('видеоэкран')
+}
+
+function getMonthValue(item, month) {
+  return (
+    item?.months?.[month] ??
+    item?.statuses?.[month] ??
+    ''
+  )
+}
+
+function isBusy(item, value) {
+  const s = String(value || '')
+    .trim()
+    .toLowerCase()
+
+  if (!s) return false
+
+  if (isVideoScreen(item)) {
+    return (
+      s === '100%' ||
+      s.includes('продан') ||
+      s.includes('занят')
+    )
+  }
+
+  return (
+    s.includes('продан') ||
+    s.includes('занят')
+  )
+}
+
+/*
+ * Физическая конструкция.
+ *
+ * Временная версия для data.js:
+ * город + адрес + номер.
+ *
+ * Потом при переходе на PostgreSQL этот ключ
+ * можно заменить на настоящий construction_id.
+ */
+function constructionKey(item) {
+  const city = String(item?.city || '').trim()
+  const address = String(
+    item?.address ||
+    item?.name ||
+    ''
+  ).trim()
+
+  const number = String(item?.number || '').trim()
+
+  return [
+    city,
+    address,
+    number
+  ].join('|').toLowerCase()
+}
+
+function normalizeItems(items) {
+  return Array.isArray(items)
+    ? items.filter(item => {
+        const lat = Number(item?.lat)
+        const lng = Number(item?.lng)
+
+        return (
+          Number.isFinite(lat) &&
+          Number.isFinite(lng)
+        )
+      })
+    : []
+}
+
+/*
+ * Группируем только уже отфильтрованные записи.
+ *
+ * Это принципиально:
+ *
+ * A прошла + B не прошла
+ * → в группе будет только A
+ *
+ * A прошла + B прошла
+ * → в группе A + B
+ */
+function groupConstructions(items) {
+  const groups = new Map()
+
+  for (const item of items) {
+    const key = constructionKey(item)
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        items: []
+      })
+    }
+
+    groups.get(key).items.push(item)
+  }
+
+  return Array.from(groups.values())
+}
+
+function uniqueSides(items) {
+  const result = []
+
+  for (const item of items) {
+    const side = String(item?.side || '')
+      .trim()
+      .toUpperCase()
+
+    /*
+     * Если сторона не указана — всё равно показываем запись.
+     */
+    if (!side) {
+      result.push(item)
+      continue
+    }
+
+    const exists = result.some(existing => {
+      const existingSide = String(existing?.side || '')
+        .trim()
+        .toUpperCase()
+
+      return existingSide === side
+    })
+
+    if (!exists) {
+      result.push(item)
+    }
+  }
+
+  return result
+}
+
+/* =========================================================
+   MARKER COLOR
+   ========================================================= */
+
+function markerColor(items) {
+  const months =
+    Array.isArray(selectedMonths) &&
+    selectedMonths.length
+      ? selectedMonths
+      : ALL_MONTHS
+
+  const sides = uniqueSides(items)
+
+  if (!sides.length) {
+    return '#2ea66d'
+  }
+
+  let busyCount = 0
+  let totalCount = 0
+
+  for (const item of sides) {
+    for (const month of months) {
+      totalCount += 1
+
+      if (
+        isBusy(
+          item,
+          getMonthValue(item, month)
+        )
+      ) {
+        busyCount += 1
+      }
+    }
+  }
+
+  if (busyCount === 0) {
+    return '#2ea66d'
+  }
+
+  if (busyCount === totalCount) {
+    return '#e24b42'
+  }
+
+  return '#e6a51c'
+}
+
+function markerIcon(items) {
+  const color = markerColor(items)
+
+  return L.divIcon({
+    className: 'albion-dot-wrapper',
+
+    html: `
+      <div
+        class="albion-dot"
+        style="
+          background:${escapeHtml(color)};
+        "
+      ></div>
+    `,
+
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
+    popupAnchor: [0, -9]
+  })
+}
+
+/* =========================================================
+   MAP
+   ========================================================= */
+
+function createMap(element) {
+  if (!element) {
+    throw new Error('Map element not found')
+  }
+
+  if (map) {
+    return map
+  }
+
+  map = L.map(element, {
+    center: DEFAULT_CENTER,
+    zoom: DEFAULT_ZOOM,
+
+    zoomControl: true,
+
+    preferCanvas: true,
+
+    attributionControl: true,
+    attributionControlOptions: {
+      prefix: false
+    }
+  })
+
+  // Убираем стандартный логотип и надпись Leaflet,
+  // оставляя атрибуцию OpenStreetMap.
+  map.attributionControl.setPrefix(false)
+
+  map.on('move', () => {
+    if (!map || !centerChangeHandler) {
+      return
+    }
+
+    const center = map.getCenter()
+
+    centerChangeHandler({
+      lat: center.lat,
+      lng: center.lng
+    })
+  })
+
+  L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    {
+      maxZoom: 19,
+
+      attribution:
+        '&copy; OpenStreetMap contributors',
+
+      crossOrigin: true
+    }
+  ).addTo(map)
+
+  clusterGroup = L.markerClusterGroup({
+    chunkedLoading: true,
+
+    chunkInterval: 100,
+
+    chunkDelay: 20,
+
+    removeOutsideVisibleBounds: true,
+
+    maxClusterRadius: 60,
+
+    disableClusteringAtZoom: 15,
+
+    spiderfyOnMaxZoom: true,
+
+    showCoverageOnHover: false,
+
+    zoomToBoundsOnClick: true
+  })
+
+  map.addLayer(clusterGroup)
+
+  resizeObserver = new ResizeObserver(() => {
+    invalidateSize()
+  })
+
+  resizeObserver.observe(element)
+
+  return map
+}
+
+/* =========================================================
+   MARKERS
+   ========================================================= */
+
+function createMarker(group) {
+  const items = uniqueSides(group.items)
+
+  if (!items.length) {
+    return null
+  }
+
+  /*
+   * Координаты берём из первой прошедшей стороны.
+   * Обычно A и B физически имеют одинаковые координаты.
+   */
+  const first = items[0]
+
+  const lat = Number(first.lat)
+  const lng = Number(first.lng)
+
+  if (
+    !Number.isFinite(lat) ||
+    !Number.isFinite(lng)
+  ) {
+    return null
+  }
+
+  const marker = L.marker(
+    [lat, lng],
+    {
+      icon: markerIcon(items),
+
+      keyboard: true,
+
+      riseOnHover: true,
+
+      title:
+        first.address ||
+        first.name ||
+        'Рекламная конструкция'
+    }
+  )
+
+  /*
+   * popupContent получает ВСЕ стороны,
+   * которые прошли фильтр.
+   */
+  const isDoublePopup = items.length >= 2
+
+  marker.bindPopup(
+    popupContent(items),
+    {
+      className: isDoublePopup
+        ? 'albion-popup albion-popup-double'
+        : 'albion-popup albion-popup-single',
+
+      maxWidth: isDoublePopup
+        ? 760
+        : 340,
+
+      minWidth: isDoublePopup
+        ? 700
+        : 300,
+
+      closeButton: true,
+
+      autoPan: true,
+
+      autoPanPadding: isDoublePopup
+        ? [40, 40]
+        : [30, 30]
+    }
+  )
+
+  return marker
+}
+
+function renderMarkers() {
+  if (!map || !clusterGroup) {
+    return
+  }
+
+  clusterGroup.clearLayers()
+
+  const normalized = normalizeItems(
+    constructions
+  )
+
+  const groups =
+    groupConstructions(normalized)
+
+  const markers = []
+
+  for (const group of groups) {
+    const marker = createMarker(group)
+
+    if (marker) {
+      markers.push(marker)
+    }
+  }
+
+  if (markers.length) {
+    clusterGroup.addLayers(markers)
+  }
+
+  console.log(
+    `Albion map: ${normalized.length} visible / ${constructions.length} filtered`
+  )
+
+  console.log(
+    `Albion map: ${groups.length} physical constructions / ${markers.length} markers`
+  )
+}
+
+function scheduleRender() {
+  if (renderTimer) {
+    clearTimeout(renderTimer)
+  }
+
+  renderTimer = setTimeout(() => {
+    renderTimer = null
+    renderMarkers()
+  }, 0)
+}
+
+/* =========================================================
+   PUBLIC DATA API
+   ========================================================= */
+
+function setConstructions(
+  items,
+  months = []
+) {
+  /*
+   * Фильтрация меняет только набор маркеров.
+   * Центр и масштаб карты сохраняем.
+   */
+  const currentCenter = map
+    ? map.getCenter()
+    : null
+
+  const currentZoom = map
+    ? map.getZoom()
+    : null
+
+  constructions = Array.isArray(items)
+    ? items
+    : []
+
+  selectedMonths =
+    Array.isArray(months)
+      ? months
+      : []
+
+  scheduleRender()
+
+  if (
+    map &&
+    currentCenter &&
+    Number.isFinite(currentZoom)
+  ) {
+    requestAnimationFrame(() => {
+      if (map) {
+        map.setView(
+          currentCenter,
+          currentZoom,
+          { animate: false }
+        )
+      }
+    })
+  }
+}
+
+function setCenterChangeHandler(handler) {
+  centerChangeHandler =
+    typeof handler === 'function'
+      ? handler
+      : null
+
+  if (map && centerChangeHandler) {
+    const center = map.getCenter()
+
+    centerChangeHandler({
+      lat: center.lat,
+      lng: center.lng
+    })
+  }
+}
+
+function getCoordinatesAtScreenPoint(clientX, clientY) {
+  if (!map) {
+    return null
+  }
+
+  const rect = map.getContainer().getBoundingClientRect()
+
+  const x = clientX - rect.left
+  const y = clientY - rect.top
+
+  const point = map.containerPointToLatLng([x, y])
+
+  return {
+    lat: point.lat,
+    lng: point.lng
+  }
+}
+
+function setMapDraggingEnabled(enabled) {
+  if (!map) {
+    return
+  }
+
+  if (enabled) {
+    map.dragging.enable()
+  } else {
+    map.dragging.disable()
+  }
+}
+
+function setSearchPoint(lat, lng) {
+  if (!map) {
+    return
+  }
+
+  const latitude = Number(lat)
+  const longitude = Number(lng)
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    return
+  }
+
+  const position = [latitude, longitude]
+
+  if (!searchPointMarker) {
+    searchPointMarker = L.marker(
+      position,
+      {
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 1000
+      }
+    ).addTo(map)
+  } else {
+    searchPointMarker.setLatLng(position)
+  }
+}
+
+function clearSearchPoint() {
+  if (!searchPointMarker) {
+    return
+  }
+
+  searchPointMarker.remove()
+  searchPointMarker = null
+}
+
+function setSearchRadius(lat, lng, radius) {
+  if (!map) {
+    return
+  }
+
+  const latitude = Number(lat)
+  const longitude = Number(lng)
+  const distance = Number(radius)
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(distance) ||
+    distance <= 0
+  ) {
+    return
+  }
+
+  const position = [latitude, longitude]
+
+  if (!searchRadiusCircle) {
+    searchRadiusCircle = L.circle(
+      position,
+      {
+        radius: distance,
+        color: '#e12a1f',
+        weight: 2,
+        opacity: 0.85,
+        fillColor: '#e12a1f',
+        fillOpacity: 0.10,
+        interactive: false
+      }
+    ).addTo(map)
+
+    if (searchRadiusCircle.bringToBack) {
+      searchRadiusCircle.bringToBack()
+    }
+  } else {
+    searchRadiusCircle.setLatLng(position)
+    searchRadiusCircle.setRadius(distance)
+  }
+}
+
+function clearSearchRadius() {
+  if (!searchRadiusCircle) {
+    return
+  }
+
+  searchRadiusCircle.remove()
+  searchRadiusCircle = null
+}
+
+function setMapCenter(lat, lng, zoom = 14) {
+  if (!map) {
+    return
+  }
+
+  const latitude = Number(lat)
+  const longitude = Number(lng)
+
+  if (
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude)
+  ) {
+    return
+  }
+
+  map.flyTo(
+    [latitude, longitude],
+    zoom,
+    {
+      duration: 0.8
+    }
+  )
+}
+
+function getVisibleConstructions() {
+  if (!map) {
+    return []
+  }
+
+  const bounds = map.getBounds()
+
+  return constructions.filter(item => {
+    const lat = Number(item?.lat)
+    const lng = Number(item?.lng)
+
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lng)
+    ) {
+      return false
+    }
+
+    return bounds.contains([lat, lng])
+  })
+}
+
+/* =========================================================
+   REGION
+   ========================================================= */
+
+async function loadRegion() {
+  if (!map) {
+    return
+  }
+
+  try {
+    const response = await fetch(
+      '/rostov-region.geojson'
+    )
+
+    if (!response.ok) {
+      throw new Error(
+        `GeoJSON error: ${response.status}`
+      )
+    }
+
+    const geojson = await response.json()
+
+    if (regionLayer) {
+      map.removeLayer(regionLayer)
+    }
+
+    regionLayer = L.geoJSON(
+      geojson,
+      {
+        /*
+         * Только граница.
+         *
+         * Карта остаётся нормальной OSM-картой,
+         * точки не перекрываются заливкой.
+         */
+        style: {
+          color: '#9aa5ad',
+          weight: 2,
+          opacity: 0.85,
+
+          fill: false,
+
+          fillOpacity: 0
+        },
+
+        interactive: false
+      }
+    )
+
+    regionLayer.addTo(map)
+
+    /*
+     * Границу отправляем назад,
+     * чтобы она не перекрывала маркеры.
+     */
+    if (regionLayer.bringToBack) {
+      regionLayer.bringToBack()
+    }
+
+    console.log(
+      'Albion Map: Ростовская область и маска загружены'
+    )
+  } catch (error) {
+    console.error(
+      'Albion Map: ошибка загрузки GeoJSON',
+      error
+    )
+  }
+}
+
+/* =========================================================
+   UTILS
+   ========================================================= */
+
+function invalidateSize() {
+  if (!map) {
+    return
+  }
+
+  setTimeout(() => {
+    map.invalidateSize()
+  }, 100)
+}
+
+function destroyMap() {
+  clearSearchPoint()
+  clearSearchRadius()
+  if (renderTimer) {
+    clearTimeout(renderTimer)
+    renderTimer = null
+  }
+
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+
+  if (regionLayer && map) {
+    map.removeLayer(regionLayer)
+  }
+
+  regionLayer = null
+
+  if (clusterGroup) {
+    clusterGroup.clearLayers()
+  }
+
+  clusterGroup = null
+
+  if (map) {
+    map.remove()
+  }
+
+  map = null
+  centerChangeHandler = null
+  constructions = []
+  selectedMonths = []
+}
+
+function fitToConstructions(items = constructions) {
+  if (!map) {
+    return
+  }
+
+  const normalized = normalizeItems(items)
+
+  if (!normalized.length) {
+    return
+  }
+
+  const bounds = L.latLngBounds(
+    normalized.map(item => [
+      Number(item.lat),
+      Number(item.lng)
+    ])
+  )
+
+  if (bounds.isValid()) {
+    map.fitBounds(bounds, {
+      padding: [30, 30],
+      maxZoom: 13
+    })
+  }
+}
+
+function focusToItems(items, predicate) {
+  if (!map) {
+    return
+  }
+
+  const source = Array.isArray(items) ? items : []
+
+  const matched = source.filter(item => {
+    try {
+      return typeof predicate === 'function'
+        ? predicate(item)
+        : true
+    } catch {
+      return false
+    }
+  })
+
+  const normalized = normalizeItems(matched)
+
+  if (!normalized.length) {
+    return
+  }
+
+  const points = normalized.map(item => [
+    Number(item.lat),
+    Number(item.lng)
+  ])
+
+  /*
+   * Одна точка:
+   * плавно переходим непосредственно к конструкции.
+   */
+  if (points.length === 1) {
+    map.flyTo(points[0], 14, {
+      duration: 0.8
+    })
+    return
+  }
+
+  /*
+   * Несколько конструкций:
+   * показываем весь город/район.
+   */
+  const bounds = L.latLngBounds(points)
+
+  if (bounds.isValid()) {
+    map.flyToBounds(bounds, {
+      padding: [60, 60],
+      maxZoom: 14,
+      duration: 0.8
+    })
+  }
+}
+
+/* =========================================================
+   EXPORT
+   ========================================================= */
+
+export function useMap() {
+  return {
+    createMap,
+
+    setConstructions,
+
+    getVisibleConstructions,
+
+    loadRegion,
+
+    invalidateSize,
+
+    fitToConstructions,
+    focusToItems,
+    setCenterChangeHandler,
+    setMapCenter,
+
+    setSearchPoint,
+    clearSearchPoint,
+
+    getCoordinatesAtScreenPoint,
+    setMapDraggingEnabled,
+
+    setSearchRadius,
+    clearSearchRadius,
+
+    destroyMap
+  }
+}

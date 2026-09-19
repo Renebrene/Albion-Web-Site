@@ -1,0 +1,1023 @@
+// app global css
+
+/* Albion Leaflet markers */
+
+.albion-marker-wrapper {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.albion-marker {
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  border: 3px solid #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .28);
+  display: grid;
+  place-items: center;
+}
+
+.albion-marker span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fff;
+  display: block;
+}
+
+/* =========================================================
+   ALBION MAP POPUP — FINAL
+   ========================================================= */
+
+.albion-popup .leaflet-popup-content {
+  margin: 0 !important;
+  width: 300px !important;
+}
+
+.leaflet-popup-content-wrapper {
+  padding: 0 !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+}
+
+.popup {
+  width: 100%;
+  box-sizing: border-box;
+
+  padding: 17px 20px 18px;
+
+  color: #17212b;
+  text-align: center;
+}
+
+/* Цена — главный акцент */
+.popup-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+
+  margin-bottom: 11px;
+
+  white-space: nowrap;
+}
+
+.popup-price-value {
+  color: #e12a1f !important;
+
+  font-size: 30px;
+  line-height: .95;
+
+  font-weight: 950;
+  letter-spacing: -1.2px;
+}
+
+.popup-price-currency {
+  color: #e12a1f !important;
+
+  font-size: 18px;
+  line-height: 1;
+
+  font-weight: 900;
+}
+
+.popup-price-period {
+  color: #e12a1f !important;
+
+  font-size: 10px;
+  line-height: 1;
+
+  font-weight: 700;
+
+  opacity: .8;
+}
+
+/* Тип + размер */
+.popup-type {
+  margin-bottom: 6px;
+
+  color: #17212b !important;
+
+  font-size: 15px;
+  line-height: 1.15;
+
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.popup-type strong {
+  font-weight: 850;
+}
+
+.popup-type .popup-size {
+  color: #65727b;
+
+  font-size: 10px;
+  font-weight: 400;
+}
+
+/* Город */
+.popup-title {
+  margin-bottom: 5px;
+
+  color: #17212b;
+
+  font-size: 16px;
+  line-height: 1.15;
+
+  text-align: center;
+}
+
+.popup-title strong {
+  font-weight: 850;
+}
+
+/* Адрес */
+.popup-address {
+  color: #65727b;
+
+  font-size: 12px;
+  line-height: 1.35;
+
+  text-align: center;
+}
+
+/* Сторона */
+.popup-meta {
+  display: flex;
+  justify-content: center;
+
+  margin-top: 12px;
+  padding-top: 10px;
+
+  border-top: 1px solid #edf0f2;
+}
+
+.popup-meta > div {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 3px;
+}
+
+.popup-meta span {
+  color: #8a959c;
+
+  font-size: 9px;
+  line-height: 1;
+
+  text-transform: uppercase;
+}
+
+.popup-meta b {
+  color: #34414a;
+
+  font-size: 12px;
+  line-height: 1.2;
+
+  font-weight: 750;
+}
+
+/* Месяцы */
+.popup-months {
+  margin-top: 11px;
+  padding-top: 9px;
+
+  border-top: 1px solid #edf0f2;
+}
+
+.popup-month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 15px;
+
+  padding: 4px 0;
+}
+
+.popup-month span {
+  color: #65727b;
+
+  font-size: 11px;
+}
+
+.popup-month strong {
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.popup-month strong.free {
+  color: #2ea66d;
+}
+
+.popup-month strong.reserve {
+  color: #e6a51c;
+}
+
+.popup-month strong.approval {
+  color: #d58a16;
+}
+
+.popup-month strong.busy {
+  color: #e24b42;
+}
+
+/* Фото */
+.popup-photo-link {
+  display: block;
+
+  margin-top: 11px;
+  padding-top: 9px;
+
+  border-top: 1px solid #edf0f2;
+
+  color: #17212b;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  text-decoration: none;
+}
+
+.popup-photo-link:hover {
+  text-decoration: underline;
+}
+
+/* =========================================================
+   ALBION MAP MARKERS — FORCE VISIBLE
+   ========================================================= */
+
+.albion-dot-wrapper {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.albion-dot {
+  width: 16px !important;
+  height: 16px !important;
+  min-width: 16px !important;
+  min-height: 16px !important;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  border-radius: 50% !important;
+  border: 2px solid #ffffff !important;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.45) !important;
+  box-sizing: border-box !important;
+}
+
+.marker-cluster {
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* =========================================================
+   ALBION — SINGLE / DOUBLE SIDE POPUP
+   ========================================================= */
+
+.albion-popup .leaflet-popup-content {
+  margin: 0 !important;
+}
+
+.albion-popup .leaflet-popup-content-wrapper {
+  padding: 0 !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+}
+
+.albion-popup .leaflet-popup-tip {
+  box-shadow: none !important;
+}
+
+.popup {
+  box-sizing: border-box;
+  padding: 16px 18px 18px;
+  color: #17212b;
+  text-align: center;
+}
+
+.popup-single {
+  width: 300px;
+}
+
+.popup-double {
+  width: 720px;
+  max-width: calc(100vw - 50px);
+}
+
+.popup-header {
+  text-align: center;
+}
+
+.popup-title {
+  margin-bottom: 4px;
+  color: #17212b;
+  font-size: 16px;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.popup-title strong {
+  font-weight: 850;
+}
+
+.popup-address {
+  color: #65727b;
+  font-size: 12px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.popup-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.popup-side-card {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 12px 12px 13px;
+  border: 1px solid #e6eaed;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.popup-side-single {
+  margin-top: 12px;
+}
+
+.popup-side-single .popup-side-card {
+  border: 0;
+  padding: 0;
+}
+
+.popup-side {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  margin-bottom: 9px;
+}
+
+.popup-side-label {
+  color: #89949b;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.popup-side-value {
+  font-size: 17px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.popup-side-A {
+  color: #e12a1f !important;
+}
+
+.popup-side-B {
+  color: #3977a8 !important;
+}
+
+.popup-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+  margin-bottom: 9px;
+  white-space: nowrap;
+}
+
+.popup-price-value {
+  color: #e12a1f !important;
+  font-size: 26px;
+  line-height: .95;
+  font-weight: 950;
+  letter-spacing: -1px;
+}
+
+.popup-price-currency {
+  color: #e12a1f !important;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.popup-price-period {
+  color: #e12a1f !important;
+  font-size: 10px;
+  font-weight: 700;
+  opacity: .8;
+}
+
+.popup-type {
+  margin-bottom: 7px;
+  color: #17212b !important;
+  font-size: 14px;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.popup-type strong {
+  font-weight: 850;
+}
+
+.popup-size {
+  display: inline-block;
+  margin-left: 4px;
+  color: #78848b;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.popup-months {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #edf0f2;
+}
+
+.popup-month {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+}
+
+.popup-month-name {
+  color: #65727b;
+  font-size: 10px;
+  text-align: left;
+}
+
+.popup-month strong {
+  font-size: 10px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.popup-month strong.free {
+  color: #2ea66d;
+}
+
+.popup-month strong.reserve {
+  color: #e6a51c;
+}
+
+.popup-month strong.approval {
+  color: #d58a16;
+}
+
+.popup-month strong.busy {
+  color: #e24b42;
+}
+
+.popup-photo-link {
+  display: block;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #edf0f2;
+  color: #17212b;
+  font-size: 10px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.popup-photo-link:hover {
+  text-decoration: underline;
+}
+
+.popup-empty {
+  padding: 20px;
+  color: #65727b;
+}
+
+@media (max-width: 760px) {
+  .popup-double {
+    width: 330px;
+    max-width: calc(100vw - 50px);
+  }
+
+  .popup-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   LEAFLET POPUP WIDTH — SINGLE / DOUBLE
+   ========================================================= */
+
+/* Обычный popup */
+
+.albion-popup-single .leaflet-popup-content-wrapper {
+  width: 340px !important;
+  max-width: 340px !important;
+}
+
+.albion-popup-single .leaflet-popup-content {
+  width: 300px !important;
+  max-width: 300px !important;
+  margin: 0 !important;
+}
+
+
+/* Двойной popup */
+
+.albion-popup-double .leaflet-popup-content-wrapper {
+  width: 760px !important;
+  max-width: 760px !important;
+  min-width: 700px !important;
+}
+
+.albion-popup-double .leaflet-popup-content {
+  width: 720px !important;
+  max-width: 720px !important;
+  min-width: 660px !important;
+  margin: 0 !important;
+}
+
+
+/* Сам контейнер двух сторон */
+
+.albion-popup-double .popup-double {
+  width: 720px !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}
+
+
+/* Две стороны строго рядом */
+
+.albion-popup-double .popup-sides {
+  width: 100%;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+  gap: 14px !important;
+}
+
+
+/* Чтобы содержимое карточек не раздвигало popup */
+
+.albion-popup-double .popup-side-card {
+  min-width: 0 !important;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+
+/* На небольшом экране */
+
+@media (max-width: 800px) {
+
+  .albion-popup-double .leaflet-popup-content-wrapper {
+    width: 340px !important;
+    max-width: calc(100vw - 40px) !important;
+    min-width: 0 !important;
+  }
+
+  .albion-popup-double .leaflet-popup-content {
+    width: 320px !important;
+    max-width: calc(100vw - 60px) !important;
+    min-width: 0 !important;
+  }
+
+  .albion-popup-double .popup-double {
+    width: 320px !important;
+  }
+
+  .albion-popup-double .popup-sides {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* =========================================================
+   ALBION POPUP — COMPACT VISUAL VERSION
+   ========================================================= */
+
+.albion-popup .leaflet-popup-content-wrapper {
+  padding: 0 !important;
+  border-radius: 15px !important;
+  overflow: hidden;
+}
+
+.albion-popup .leaflet-popup-content {
+  margin: 0 !important;
+}
+
+.popup {
+  box-sizing: border-box;
+  padding: 14px;
+  color: #17212b;
+  text-align: center;
+}
+
+.popup-single {
+  width: 300px;
+}
+
+.popup-double {
+  width: 700px;
+  max-width: calc(100vw - 60px);
+}
+
+.popup-header {
+  margin-bottom: 9px;
+}
+
+.popup-title {
+  color: #17212b;
+  font-size: 15px;
+  line-height: 1.1;
+}
+
+.popup-title strong {
+  font-weight: 850;
+}
+
+.popup-address {
+  margin-top: 3px;
+  color: #65727b;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.popup-sides {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.popup-double .popup-sides {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.popup-side-card {
+  min-width: 0;
+  padding: 10px 11px 11px;
+  border: 1px solid #e5e9ec;
+  border-radius: 11px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.popup-side-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.popup-side {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.popup-side-label {
+  color: #89949b;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.popup-side-value {
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.popup-side-A {
+  color: #e12a1f !important;
+}
+
+.popup-side-B {
+  color: #3977a8 !important;
+}
+
+.popup-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.popup-price-value {
+  color: #e12a1f !important;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -.5px;
+}
+
+.popup-price-currency {
+  color: #e12a1f !important;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.popup-price-period {
+  color: #e12a1f !important;
+  font-size: 8px;
+  font-weight: 700;
+  opacity: .75;
+}
+
+.popup-type {
+  color: #17212b !important;
+  font-size: 13px;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.popup-type strong {
+  font-weight: 850;
+}
+
+.popup-size {
+  margin-left: 4px;
+  color: #78848b;
+  font-size: 10px;
+  font-weight: 400;
+}
+
+/* превью */
+
+.popup-photo {
+  display: block;
+  width: 100%;
+  height: 72px;
+  margin-top: 8px;
+  border-radius: 7px;
+  overflow: hidden;
+  background: #f1f3f4;
+}
+
+.popup-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.popup-photo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #a0a8ad;
+  font-size: 9px;
+}
+
+/* месяцы */
+
+.popup-months {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin-top: 9px;
+}
+
+.popup-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 21px;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 8px;
+  line-height: 1;
+  font-weight: 850;
+  letter-spacing: .1px;
+}
+
+.popup-month.free {
+  background: #2ea66d;
+}
+
+.popup-month.reserve {
+  background: #e6a51c;
+}
+
+.popup-month.busy {
+  background: #e24b42;
+}
+
+.popup-month.empty {
+  background: #aeb6bb;
+}
+
+@media (max-width: 760px) {
+  .popup-double {
+    width: 320px;
+    max-width: calc(100vw - 45px);
+  }
+
+  .popup-double .popup-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================================================
+   ALBION CARDS — CONSTRUCTION / SIDE / MONTHS
+   ========================================================= */
+
+.construction-card {
+  overflow: hidden;
+}
+
+.card-content {
+  padding: 15px 17px 16px;
+}
+
+/* конструкция + цена */
+
+.card-topline {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  margin-bottom: 9px;
+}
+
+.card-type {
+  flex: 1 1 auto;
+  min-width: 0;
+
+  color: #17212b;
+  font-size: 14px;
+  line-height: 1.15;
+
+  text-transform: uppercase;
+  letter-spacing: .1px;
+}
+
+.card-type strong {
+  font-weight: 900;
+}
+
+.card-size {
+  margin-left: 5px;
+
+  color: #65727b;
+  font-size: 11px;
+  font-weight: 400;
+
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.card-price-inline {
+  flex: 0 0 auto;
+
+  display: flex;
+  align-items: baseline;
+
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.card-price-inline .price-value {
+  color: #e12a1f;
+
+  font-size: 21px;
+  line-height: 1;
+
+  font-weight: 900;
+  letter-spacing: -.5px;
+}
+
+.card-price-inline .price-currency {
+  color: #e12a1f;
+
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.card-price-inline .price-period {
+  color: #89949b;
+
+  font-size: 9px;
+  font-weight: 600;
+}
+
+/* город */
+
+.construction-card h2 {
+  margin: 0 0 4px;
+
+  color: #17212b;
+
+  font-size: 15px;
+  line-height: 1.15;
+
+  font-weight: 750;
+}
+
+/* адрес */
+
+.card-address {
+  color: #65727b;
+
+  font-size: 11px;
+  line-height: 1.35;
+
+  white-space: normal;
+}
+
+.card-side {
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.card-side.side-a {
+  color: #e12a1f;
+}
+
+.card-side.side-b {
+  color: #3977a8;
+}
+
+/* месяцы */
+
+.card-months {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  margin-top: 11px;
+  padding-top: 9px;
+
+  border-top: 1px solid #edf0f2;
+}
+
+.card-month {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 36px;
+  height: 22px;
+
+  border-radius: 5px;
+
+  color: #fff;
+
+  font-size: 8px;
+  line-height: 1;
+
+  font-weight: 850;
+  letter-spacing: .1px;
+}
+
+.card-month.free {
+  background: #2ea66d;
+}
+
+.card-month.reserve {
+  background: #e6a51c;
+}
+
+.card-month.busy {
+  background: #e24b42;
+}
+
+.card-month.empty {
+  background: #aeb6bb;
+}
+
+/* мобильная версия */
+
+@media (max-width: 600px) {
+
+  .card-topline {
+    align-items: flex-start;
+  }
+
+  .card-type {
+    font-size: 13px;
+  }
+
+  .card-size {
+    font-size: 10px;
+  }
+
+  .card-price-inline .price-value {
+    font-size: 18px;
+  }
+
+  .card-month {
+    width: 34px;
+  }
+}

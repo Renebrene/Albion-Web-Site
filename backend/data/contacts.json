@@ -1,0 +1,235 @@
+{
+  "seo": {
+    "title": "Контакты — ALBION",
+    "description": "Контакты рекламного агентства ALBION в Ростове-на-Дону."
+  },
+  "hero": {
+    "eyebrow": "ALBION · КОНТАКТЫ",
+    "title": "Давайте обсудим вашу задачу",
+    "text": "Подберём рекламные конструкции, рассчитаем размещение и ответим на вопросы по производству и рекламе."
+  },
+  "general": {
+    "phone": "+7 (863) 320-30-20",
+    "email": "reclama@albion.su",
+    "additionalEmails": [
+      "albion3@albion.su"
+    ],
+    "socials": []
+  },
+  "offices": [
+    {
+      "id": "central-office",
+      "name": "Центральный офис",
+      "address": "344002, Ростов-на-Дону, ул. Социалистическая, 73, оф. 19",
+      "phone": "+7 (863) 320-30-20",
+      "email": "reclama@albion.su",
+      "additionalEmails": [
+        "albion3@albion.su"
+      ],
+      "schedule": "Пн–сб с 09:00 до 18:00",
+      "lat": null,
+      "lng": null,
+      "image": "",
+      "active": true,
+      "sortOrder": 10
+    },
+    {
+      "id": "production-base",
+      "name": "Производственная база",
+      "address": "344064, г. Ростов-на-Дону, пер. Радиаторный, 7E",
+      "phone": "+7 (863) 223-18-56",
+      "email": "baza@albion.su",
+      "additionalEmails": [],
+      "schedule": "Пн–сб с 08:00 до 17:00",
+      "lat": null,
+      "lng": null,
+      "image": "",
+      "active": true,
+      "sortOrder": 20
+    }
+  ],
+  "departments": [
+    {
+      "id": "placement",
+      "name": "Менеджеры отдела размещения рекламы",
+      "active": true,
+      "sortOrder": 10,
+      "employees": [
+        {
+          "id": "elena-ivanova",
+          "name": "Елена Иванова",
+          "position": "Менеджер отдела размещения",
+          "phone": "+7 (863) 320-30-20",
+          "extension": "166",
+          "email": "albion2@albion.su",
+          "photo": "",
+          "active": true,
+          "sortOrder": 10
+        },
+        {
+          "id": "elena-marysheva",
+          "name": "Елена Марышева",
+          "position": "Менеджер отдела размещения рекламы",
+          "phone": "+7 (863) 320-30-20",
+          "extension": "127",
+          "email": "board@albion.su",
+          "photo": "",
+          "active": true,
+          "sortOrder": 20
+        },
+        {
+          "id": "angelina-krivoshlykova",
+          "name": "Ангелина Кривошлыкова",
+          "position": "Менеджер отдела размещения рекламы",
+          "phone": "+7 (863) 320-30-20",
+          "extension": "177",
+          "email": "albion1982@albion.su",
+          "photo": "",
+          "active": true,
+          "sortOrder": 30
+        },
+        {
+          "id": "tatiana-putilina",
+          "name": "Татьяна Путилина",
+          "position": "Менеджер отдела размещения рекламы",
+          "phone": "+7 (863) 320-30-20",
+          "extension": "118",
+          "email": "unr@albion.su",
+          "photo": "",
+          "active": true,
+          "sortOrder": 40
+        },
+        {
+          "id": "ilya-annin",
+          "name": "Аннин Илья Анатольевич",
+          "position": "Менеджер отдела размещения рекламы",
+          "phone": "+7 (863) 320-30-20",
+          "extension": "",
+          "email": "reclama@albion.su",
+          "photo": "",
+          "active": true,
+          "sortOrder": 50
+        }
+      ]
+    },
+    {
+      "id": "other",
+      "name": "Специалисты и руководители других отделов",
+      "active": true,
+      "sortOrder": 20,
+      "employees": [
+        {
+          "id": "vyacheslav-sukhomlinov",
+          "name": "Сухомлинов Вячеслав Николаевич",
+          "position": "Генеральный директор",
+          "phone": "",
+          "extension": "",
+          "email": "",
+          "photo": "",
+          "active": true,
+          "sortOrder": 10
+        },
+        {
+          "id": "natalia-teplinskaya",
+          "name": "Теплинская Наталья",
+          "position": "Коммерческий директор",
+          "phone": "",
+          "extension": "",
+          "email": "tepl@albion.su",
+          "photo": "",
+          "active": true,
+          "sortOrder": 20
+        },
+        {
+          "id": "mikhail-schastnev",
+          "name": "Счастнев Михаил Борисович",
+          "position": "Технический директор",
+          "phone": "",
+          "extension": "",
+          "email": "",
+          "photo": "",
+          "active": true,
+          "sortOrder": 30
+        },
+        {
+          "id": "galina-sedush",
+          "name": "Седуш Галина Николаевна",
+          "position": "Главный бухгалтер",
+          "phone": "",
+          "extension": "",
+          "email": "",
+          "photo": "",
+          "active": true,
+          "sortOrder": 40
+        },
+        {
+          "id": "olga-butovchenko",
+          "name": "Ольга Бутовченко",
+          "position": "Менеджер типографии",
+          "phone": "+7 (863) 320-30-20",
+          "extension": "167",
+          "email": "klient@albion.su",
+          "photo": "",
+          "active": true,
+          "sortOrder": 50
+        },
+        {
+          "id": "dmitry-krivoshlykov",
+          "name": "Дмитрий Кривошлыков",
+          "position": "Начальник ПХБ",
+          "phone": "+7 (863) 223-18-56",
+          "extension": "",
+          "email": "baza@albion.su",
+          "photo": "",
+          "active": true,
+          "sortOrder": 60
+        },
+        {
+          "id": "elena-golovko",
+          "name": "Головко Елена Васильевна",
+          "position": "Офис-менеджер",
+          "phone": "+7 (863) 320-30-20",
+          "extension": "102",
+          "email": "",
+          "photo": "",
+          "active": true,
+          "sortOrder": 70
+        }
+      ]
+    }
+  ],
+  "callback": {
+    "title": "Остались вопросы?",
+    "text": "Позвоните нам или оставьте свои данные — мы свяжемся с вами и поможем подобрать решение.",
+    "enabled": true,
+    "fields": [
+      {
+        "name": "name",
+        "label": "Ваше имя",
+        "type": "text",
+        "required": true
+      },
+      {
+        "name": "phone",
+        "label": "Ваш телефон",
+        "type": "tel",
+        "required": true
+      },
+      {
+        "name": "email",
+        "label": "Адрес электронной почты",
+        "type": "email",
+        "required": false
+      },
+      {
+        "name": "message",
+        "label": "Комментарий",
+        "type": "textarea",
+        "required": false
+      }
+    ],
+    "recipientEmails": [
+      "reclama@albion.su"
+    ]
+  }
+}

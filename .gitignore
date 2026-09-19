@@ -1,0 +1,34 @@
+# Secrets / local environment
+.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Frontend dependencies and build output
+frontend/node_modules/
+frontend/dist/
+frontend/.quasar/
+
+# Logs
+*.log
+
+# Temporary import data
+tmp/
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local working backups
+*.bak
+*.backup
+*.before-*
+*.old-*
+*.backup*
