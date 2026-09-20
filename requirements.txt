@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+psycopg[binary]
+pwdlib
+openpyxl
+xlrd
+Pillow
+pillow-heif==1.7.0

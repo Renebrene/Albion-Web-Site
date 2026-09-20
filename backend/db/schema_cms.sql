@@ -156,6 +156,47 @@ CREATE TABLE IF NOT EXISTS media (
 
 
 -- ============================================================
+-- MEDIA VARIANTS
+-- Варианты оптимизированных изображений:
+-- large — основной файл,
+-- card — карточка,
+-- thumb — миниатюра.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS media_variants (
+    id BIGSERIAL PRIMARY KEY,
+    media_id BIGINT NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+    variant TEXT NOT NULL,
+    storage_path TEXT NOT NULL UNIQUE,
+    mime_type TEXT NOT NULL,
+    file_size BIGINT NOT NULL,
+    width INTEGER NOT NULL,
+    height INTEGER NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT media_variants_variant_check
+        CHECK (variant IN ('large', 'card', 'thumb')),
+    CONSTRAINT media_variants_file_size_check
+        CHECK (file_size >= 0),
+    CONSTRAINT media_variants_width_check
+        CHECK (width > 0),
+    CONSTRAINT media_variants_height_check
+        CHECK (height > 0),
+    CONSTRAINT media_variants_media_variant_unique
+        UNIQUE (media_id, variant)
+);
+
+CREATE INDEX IF NOT EXISTS idx_media_variants_media
+    ON media_variants(media_id);
+
+GRANT SELECT, INSERT, UPDATE, DELETE
+    ON media_variants TO albion_app;
+
+GRANT USAGE, SELECT, UPDATE
+    ON SEQUENCE media_variants_id_seq TO albion_app;
+
+
+-- ============================================================
 -- PAGE BLOCK MEDIA
 -- ============================================================
 
