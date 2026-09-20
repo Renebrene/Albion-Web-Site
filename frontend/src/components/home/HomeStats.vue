@@ -20,15 +20,43 @@
 
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { getConstructions } from '@/services/api'
+import { getConstructions, getPage } from '@/services/api'
 
 const constructions = ref([])
+
+const cmsContent = ref({
+  founding_year: '1995',
+  labels: {
+    constructions: 'рекламных конструкций',
+    cities: 'городов и территорий',
+    types: 'форматов рекламы'
+  }
+})
 
 onMounted(async () => {
   try {
     constructions.value = await getConstructions()
   } catch (error) {
     console.error('Не удалось загрузить статистику:', error)
+  }
+
+  try {
+    const page = await getPage('home')
+    const block = page?.blocks?.find((item) => item.key === 'stats')
+    const content = block?.content
+
+    if (content && typeof content === 'object') {
+      cmsContent.value = {
+        ...cmsContent.value,
+        ...content,
+        labels: {
+          ...cmsContent.value.labels,
+          ...(content.labels || {})
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('Не удалось загрузить настройки статистики из CMS:', error)
   }
 })
 
@@ -51,18 +79,18 @@ const types = computed(() => {
 const stats = computed(() => [
   {
     value: constructions.value.length || '—',
-    label: 'рекламных конструкций'
+    label: cmsContent.value.labels.constructions
   },
   {
     value: cities.value || '—',
-    label: 'городов и территорий'
+    label: cmsContent.value.labels.cities
   },
   {
     value: types.value || '—',
-    label: 'форматов рекламы'
+    label: cmsContent.value.labels.types
   },
   {
-    value: '1995',
+    value: cmsContent.value.founding_year || '—',
     label: 'год основания'
   }
 ])

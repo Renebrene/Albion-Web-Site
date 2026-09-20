@@ -47,6 +47,26 @@ const routes = [
   },
 
   {
+    path: '/administration',
+    component: () => import('@/layouts/AdministrationLayout.vue'),
+
+    children: [
+      {
+        path: '',
+        component: () => import('@/pages/AdministrationLoginPage.vue')
+      },
+      {
+        path: 'dashboard',
+        component: () => import('@/pages/AdministrationDashboardPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      }
+    ]
+  },
+
+
+  {
     path: '/:catchAll(.*)*',
     component: () => import('@/pages/ErrorNotFound.vue')
   }

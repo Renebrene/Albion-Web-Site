@@ -26,3 +26,15 @@ export function getAbout() {
 export function getContacts() {
   return request('/contacts')
 }
+
+export function getPage(slug) {
+  return request(`/pages/${encodeURIComponent(slug)}`)
+}
+
+export function getNews() {
+  return request('/news')
+}
+
+export function getNewsItem(slug) {
+  return request(`/news/${encodeURIComponent(slug)}`)
+}

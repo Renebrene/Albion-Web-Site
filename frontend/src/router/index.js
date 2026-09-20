@@ -34,5 +34,22 @@ export default defineRouter((/* { store, ssrContext } */) => {
     history: createHistory(import.meta.env.QUASAR_VUE_ROUTER_BASE)
   })
 
+  Router.beforeEach((to) => {
+    if (!to.meta.requiresAdmin) {
+      return true
+    }
+
+    const token = sessionStorage.getItem('albion_admin_token')
+
+    if (!token) {
+      return {
+        path: '/administration',
+        replace: true
+      }
+    }
+
+    return true
+  })
+
   return Router
 })

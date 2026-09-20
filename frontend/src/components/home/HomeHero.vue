@@ -4,128 +4,99 @@
       v-model="slide"
       animated
       infinite
-      autoplay
+      :autoplay="autoplay"
       transition-prev="slide-right"
       transition-next="slide-left"
       class="hero-carousel"
     >
       <q-carousel-slide
-        name="network"
+        v-for="item in slides"
+        :key="item.key"
+        :name="item.key"
         class="hero-slide"
+        :class="{ 'hero-slide-dark': item.type === 'production' }"
       >
         <div class="hero-inner">
           <div class="hero-content">
-            <div class="hero-kicker">НАРУЖНАЯ РЕКЛАМА · ALBION</div>
+            <div class="hero-kicker">
+              {{ item.kicker }}
+            </div>
 
-            <h1>
-              Ваша реклама
-              <span>работает на результат</span>
-            </h1>
+            <component
+              :is="item.type === 'network' ? 'h1' : 'h2'"
+            >
+              {{ item.title }}
+              <span>{{ item.title_accent }}</span>
+            </component>
 
             <p>
-              Рекламные конструкции в Ростове-на-Дону
-              и городах Ростовской области.
+              {{ item.text }}
             </p>
 
             <div class="hero-actions">
               <q-btn
+                v-if="item.primary_button"
                 unelevated
-                label="Подобрать конструкцию"
+                :label="item.primary_button.label"
                 class="hero-primary"
-                to="/vozmozhnosti"
+                :to="item.primary_button.to"
               />
 
               <q-btn
+                v-if="item.secondary_button"
                 flat
-                label="О компании"
+                :label="item.secondary_button.label"
                 class="hero-secondary"
-                to="/o-kompanii"
+                :to="item.secondary_button.to"
               />
             </div>
           </div>
 
-          <div class="hero-visual">
-            <div class="visual-card visual-card-main">
-              <div class="visual-label">РЕКЛАМНАЯ СЕТЬ</div>
-              <div class="visual-number">1569</div>
-              <div class="visual-text">конструкций в базе</div>
+          <div
+            class="hero-visual"
+            :class="{
+              'hero-visual-production': item.type === 'production',
+              'hero-visual-digital': item.type === 'digital'
+            }"
+          >
+            <template v-if="item.type === 'network'">
+              <div class="visual-card visual-card-main">
+                <div class="visual-label">
+                  {{ item.visual?.label }}
+                </div>
+
+                <div class="visual-number">
+                  {{ item.visual?.number }}
+                </div>
+
+                <div class="visual-text">
+                  {{ item.visual?.text }}
+                </div>
+              </div>
+
+              <div class="visual-card visual-card-small">
+                <strong>
+                  {{ item.visual?.small_value }}
+                </strong>
+
+                <span>
+                  {{ item.visual?.small_text }}
+                </span>
+              </div>
+            </template>
+
+            <div
+              v-else-if="item.type === 'production'"
+              class="production-word"
+            >
+              {{ item.visual?.text }}
             </div>
 
-            <div class="visual-card visual-card-small">
-              <strong>30+</strong>
-              <span>лет на рынке</span>
-            </div>
-          </div>
-        </div>
-      </q-carousel-slide>
-
-      <q-carousel-slide
-        name="production"
-        class="hero-slide hero-slide-dark"
-      >
-        <div class="hero-inner">
-          <div class="hero-content">
-            <div class="hero-kicker">ALBION · КОМПЛЕКСНЫЕ РЕШЕНИЯ</div>
-
-            <h2>
-              От идеи
-              <span>до размещения</span>
-            </h2>
-
-            <p>
-              Производство рекламы, брендинг, полиграфия,
-              транспортная реклама и монтаж.
-            </p>
-
-            <div class="hero-actions">
-              <q-btn
-                unelevated
-                label="Наши направления"
-                class="hero-primary"
-                to="/napravleniya"
-              />
-            </div>
-          </div>
-
-          <div class="hero-visual hero-visual-production">
-            <div class="production-word">
-              ALBION
-            </div>
-          </div>
-        </div>
-      </q-carousel-slide>
-
-      <q-carousel-slide
-        name="digital"
-        class="hero-slide"
-      >
-        <div class="hero-inner">
-          <div class="hero-content">
-            <div class="hero-kicker">DIGITAL · НОВЫЙ ФОРМАТ</div>
-
-            <h2>
-              Цифровая реклама
-              <span>в местах с высоким трафиком</span>
-            </h2>
-
-            <p>
-              Видеоформаты и современные рекламные поверхности
-              для заметных кампаний.
-            </p>
-
-            <div class="hero-actions">
-              <q-btn
-                unelevated
-                label="Смотреть возможности"
-                class="hero-primary"
-                to="/vozmozhnosti"
-              />
-            </div>
-          </div>
-
-          <div class="hero-visual hero-visual-digital">
-            <div class="digital-screen">
-              DIGITAL
+            <div
+              v-else-if="item.type === 'digital'"
+              class="digital-screen"
+            >
+              {{ item.visual?.text }}
             </div>
           </div>
         </div>
@@ -139,10 +110,10 @@
           <div class="hero-dots">
             <button
               v-for="item in slides"
-              :key="item"
+              :key="item.key"
               class="hero-dot"
-              :class="{ active: slide === item }"
-              @click="slide = item"
+              :class="{ active: slide === item.key }"
+              @click="slide = item.key"
             />
           </div>
         </q-carousel-control>
@@ -152,15 +123,85 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { getPage } from '@/services/api'
 
 const slide = ref('network')
+const autoplay = ref(true)
 
-const slides = [
-  'network',
-  'production',
-  'digital'
+const fallbackSlides = [
+  {
+    key: 'network',
+    type: 'network',
+    kicker: 'НАРУЖНАЯ РЕКЛАМА · ALBION',
+    title: 'Ваша реклама',
+    title_accent: 'работает на результат',
+    text: 'Рекламные конструкции в Ростове-на-Дону и городах Ростовской области.',
+    primary_button: {
+      label: 'Подобрать конструкцию',
+      to: '/vozmozhnosti'
+    },
+    secondary_button: {
+      label: 'О компании',
+      to: '/o-kompanii'
+    },
+    visual: {
+      label: 'РЕКЛАМНАЯ СЕТЬ',
+      number: '1569',
+      text: 'конструкций в базе',
+      small_value: '30+',
+      small_text: 'лет на рынке'
+    }
+  },
+  {
+    key: 'production',
+    type: 'production',
+    kicker: 'ALBION · КОМПЛЕКСНЫЕ РЕШЕНИЯ',
+    title: 'От идеи',
+    title_accent: 'до размещения',
+    text: 'Производство рекламы, брендинг, полиграфия, транспортная реклама и монтаж.',
+    primary_button: {
+      label: 'Наши направления',
+      to: '/napravleniya'
+    },
+    visual: {
+      text: 'ALBION'
+    }
+  },
+  {
+    key: 'digital',
+    type: 'digital',
+    kicker: 'DIGITAL · НОВЫЙ ФОРМАТ',
+    title: 'Цифровая реклама',
+    title_accent: 'в местах с высоким трафиком',
+    text: 'Видеоформаты и современные рекламные поверхности для заметных кампаний.',
+    primary_button: {
+      label: 'Смотреть возможности',
+      to: '/vozmozhnosti'
+    },
+    visual: {
+      text: 'DIGITAL'
+    }
+  }
 ]
+
+const slides = ref(fallbackSlides)
+
+onMounted(async () => {
+  try {
+    const page = await getPage('home')
+    const hero = page?.blocks?.find((block) => block.key === 'hero')
+    const cmsSlides = hero?.content?.slides
+
+    if (Array.isArray(cmsSlides) && cmsSlides.length > 0) {
+      slides.value = cmsSlides
+      slide.value = cmsSlides[0].key
+      autoplay.value = hero.content.autoplay !== false
+    }
+  } catch (error) {
+    console.warn('Не удалось загрузить Hero из CMS:', error)
+  }
+})
 </script>
 
 <style scoped>

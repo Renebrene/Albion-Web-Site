@@ -29,7 +29,7 @@ export default defineConfig((/* ctx */) => {
         // node: 'node22'
       },
 
-      vueRouterMode: 'hash', // available values: 'hash', 'history'
+      vueRouterMode: 'history', // available values: 'hash', 'history'
 
       // 👇 ДОБАВЛЕНО: Разрешаем конкретный хост для Vite
       extendViteConf(viteConf) {
@@ -56,7 +56,7 @@ export default defineConfig((/* ctx */) => {
 
       proxy: {
         '/api': {
-          target: 'http://127.0.0.1:8000',
+          target: 'http://127.0.0.1:18001',
           changeOrigin: true
         }
       }
