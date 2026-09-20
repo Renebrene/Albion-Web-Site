@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -7,6 +7,8 @@ from backend.services.about_service import get_about
 from backend.services.contacts_service import get_contacts
 from backend.services.news_service import get_news, get_news_item
 from backend.services.page_service import get_page
+from backend.services.media_service import MediaValidationError, save_image
+
 from backend.services.auth_api import (
     LoginRequest,
     login_admin,
@@ -90,6 +92,52 @@ def admin_login(
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
+
+
+ALLOWED_MEDIA_SUBDIRS = {
+    "news",
+    "about",
+    "contacts",
+    "employees",
+    "constructions",
+    "misc",
+}
+
+
+@app.post("/api/admin/media")
+async def admin_upload_media(
+    file: UploadFile = File(...),
+    alt: str | None = Form(default=None),
+    title: str | None = Form(default=None),
+    storage_subdir: str = Form(default="news"),
+    auth=Depends(require_admin),
+):
+    if storage_subdir not in ALLOWED_MEDIA_SUBDIRS:
+        raise HTTPException(
+            status_code=400,
+            detail="Недопустимый раздел хранения",
+        )
+
+    file_bytes = await file.read()
+
+    try:
+        result = save_image(
+            file_bytes,
+            file.filename or "upload",
+            alt=alt,
+            title=title,
+            storage_subdir=storage_subdir,
+        )
+    except MediaValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "success": True,
+        "media": result,
+    }
 
 
 @app.get("/api/admin/me")

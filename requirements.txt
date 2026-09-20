@@ -6,3 +6,5 @@ openpyxl
 xlrd
 Pillow
 pillow-heif==1.7.0
+
+python-multipart
