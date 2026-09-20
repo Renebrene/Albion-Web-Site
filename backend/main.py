@@ -1,7 +1,8 @@
 from fastapi import Depends, FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.services.data_service import get_data
+from backend.services.data_service import PROJECT_DIR, get_data
 from backend.services.about_service import get_about
 from backend.services.contacts_service import get_contacts
 from backend.services.news_service import get_news, get_news_item
@@ -18,6 +19,12 @@ app = FastAPI(
     title="Albion API",
     version="1.0.0",
 )
+
+STORAGE_ROOT = PROJECT_DIR / "storage"
+STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
+
+app.mount("/storage", StaticFiles(directory=STORAGE_ROOT), name="storage")
+
 
 app.add_middleware(
     CORSMiddleware,
