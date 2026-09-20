@@ -32,3 +32,6 @@ Thumbs.db
 *.before-*
 *.old-*
 *.backup*
+
+# Media storage
+storage/

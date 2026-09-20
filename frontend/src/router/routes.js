@@ -61,6 +61,13 @@ const routes = [
         meta: {
           requiresAdmin: true
         }
+      },
+      {
+        path: 'media',
+        component: () => import('@/pages/AdministrationMediaPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
       }
     ]
   },
