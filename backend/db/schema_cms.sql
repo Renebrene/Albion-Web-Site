@@ -130,6 +130,20 @@ CREATE TABLE IF NOT EXISTS about_production_items (
 
 
 -- ============================================================
+-- MEDIA CATEGORIES
+-- Виртуальные категории. Физические файлы не перемещаются.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS media_categories (
+    id BIGSERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+
+-- ============================================================
 -- MEDIA
 -- Файлы физически находятся в /storage.
 -- PostgreSQL хранит только метаданные и относительный путь.
@@ -139,6 +153,7 @@ CREATE TABLE IF NOT EXISTS media (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT gen_random_uuid(),
     original_name TEXT NOT NULL,
+    category_id BIGINT REFERENCES media_categories(id) ON DELETE SET NULL,
     storage_path TEXT NOT NULL UNIQUE,
     mime_type TEXT NOT NULL,
     file_size BIGINT NOT NULL,

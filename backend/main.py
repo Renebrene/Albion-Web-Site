@@ -7,7 +7,17 @@ from backend.services.about_service import get_about
 from backend.services.contacts_service import get_contacts
 from backend.services.news_service import get_news, get_news_item
 from backend.services.page_service import get_page
-from backend.services.media_service import MediaValidationError, save_image
+from backend.services.media_service import (
+    MediaValidationError,
+    create_media_category,
+    delete_media,
+    list_media,
+    list_media_categories,
+    save_image,
+    update_media,
+)
+
+from backend.search.api import SearchRequest, SearchResponse, execute_search
 
 from backend.services.auth_api import (
     LoginRequest,
@@ -45,6 +55,12 @@ def health():
 @app.get("/api/constructions")
 def constructions():
     return get_data()
+
+
+
+@app.post("/api/search", response_model=SearchResponse)
+def search(data: SearchRequest):
+    return execute_search(data)
 
 
 @app.get("/api/contacts")
@@ -94,30 +110,14 @@ def admin_login(
     )
 
 
-ALLOWED_MEDIA_SUBDIRS = {
-    "news",
-    "about",
-    "contacts",
-    "employees",
-    "constructions",
-    "misc",
-}
-
-
 @app.post("/api/admin/media")
 async def admin_upload_media(
     file: UploadFile = File(...),
     alt: str | None = Form(default=None),
     title: str | None = Form(default=None),
-    storage_subdir: str = Form(default="news"),
+    category_id: int = Form(default=1),
     auth=Depends(require_admin),
 ):
-    if storage_subdir not in ALLOWED_MEDIA_SUBDIRS:
-        raise HTTPException(
-            status_code=400,
-            detail="Недопустимый раздел хранения",
-        )
-
     file_bytes = await file.read()
 
     try:
@@ -126,8 +126,109 @@ async def admin_upload_media(
             file.filename or "upload",
             alt=alt,
             title=title,
-            storage_subdir=storage_subdir,
+            category_id=category_id,
         )
+    except MediaValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "success": True,
+        "media": result,
+    }
+
+
+
+@app.post("/api/admin/media/categories")
+def admin_create_media_category(
+    name: str = Form(...),
+    auth=Depends(require_admin),
+):
+    try:
+        category = create_media_category(name)
+    except MediaValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "success": True,
+        "category": category,
+    }
+
+
+@app.get("/api/admin/media/categories")
+def admin_list_media_categories(auth=Depends(require_admin)):
+    return {
+        "success": True,
+        "categories": list_media_categories(),
+    }
+
+
+@app.get("/api/admin/media")
+def admin_list_media(auth=Depends(require_admin)):
+    return {
+        "success": True,
+        "media": list_media(),
+    }
+
+
+@app.patch("/api/admin/media/{media_id}")
+def admin_update_media(
+    media_id: int,
+    original_name: str | None = Form(default=None),
+    category_id: int | None = Form(default=None),
+    auth=Depends(require_admin),
+):
+    try:
+        result = update_media(
+            media_id,
+            original_name=original_name,
+            category_id=category_id,
+            category_id_provided=category_id is not None,
+        )
+    except MediaValidationError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "success": True,
+        "media": result,
+    }
+
+
+@app.patch("/api/admin/media/{media_id}")
+def admin_update_media(
+    media_id: int,
+    original_name: str | None = Form(default=None),
+    category_id: int | None = Form(default=None),
+    auth=Depends(require_admin),
+):
+    try:
+        result = update_media(
+            media_id,
+            original_name=original_name,
+            category_id=category_id,
+            category_id_provided=category_id is not None,
+        )
+    except MediaValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"success": True, "media": result}
+
+
+@app.delete("/api/admin/media/{media_id}")
+def admin_delete_media(
+    media_id: int,
+    auth=Depends(require_admin),
+):
+    try:
+        result = delete_media(media_id)
     except MediaValidationError as exc:
         raise HTTPException(
             status_code=400,
