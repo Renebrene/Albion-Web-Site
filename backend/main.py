@@ -202,23 +202,6 @@ def admin_update_media(
     }
 
 
-@app.patch("/api/admin/media/{media_id}")
-def admin_update_media(
-    media_id: int,
-    original_name: str | None = Form(default=None),
-    category_id: int | None = Form(default=None),
-    auth=Depends(require_admin),
-):
-    try:
-        result = update_media(
-            media_id,
-            original_name=original_name,
-            category_id=category_id,
-            category_id_provided=category_id is not None,
-        )
-    except MediaValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
     return {"success": True, "media": result}
 
 
