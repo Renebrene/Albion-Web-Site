@@ -30,9 +30,9 @@
             v-model="file"
             outlined
             clearable
-            accept=".jpg,.jpeg,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,image/*"
+            accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,image/*"
             label="Файл изображения"
-            hint="JPEG, PNG, WEBP, HEIC, TIFF, BMP, PSD или GIF"
+            hint="JPEG, JFIF, JPE, PNG, WEBP, HEIC, TIFF, BMP, PSD или GIF"
             :disable="uploading"
           />
 
