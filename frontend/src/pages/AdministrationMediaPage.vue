@@ -660,9 +660,57 @@
             </div>
           </q-card>
         </div>
+      <div v-if="mediaStats" class="media-stats">
+        <div class="media-stats__item">
+          <span class="media-stats__label">ФАЙЛЫ</span>
+          <strong>{{ mediaStats.overview.total_files }}</strong>
+          <span>{{ mediaStats.overview.used_files }} используется · {{ formatStatsBytes(mediaStats.overview.size_bytes) }}</span>
+        </div>
+        <div class="media-stats__item">
+          <span class="media-stats__label">ХРАНИЛИЩЕ</span>
+          <strong>{{ formatStatsPercent(mediaStats.storage.free_percent) }}</strong>
+          <span>{{ formatStatsBytes(mediaStats.storage.used_bytes) }} из {{ formatStatsBytes(mediaStats.storage.total_bytes) }}</span>
+        </div>
+        <div class="media-stats__item">
+          <span class="media-stats__label">CPU СЕРВЕРА</span>
+          <strong>{{ formatStatsPercent(mediaStats.cpu_percent) }}</strong>
+          <span>текущая загрузка</span>
+        </div>
+
+        <div class="media-stats__item media-stats__item--wide">
+          <span class="media-stats__label">КАТЕГОРИИ</span>
+          <div v-for="category in mediaStats.categories" :key="category.id" class="media-stats__row">
+            <span>{{ category.name }}</span>
+            <span>{{ category.total_files }} / {{ category.used_files }} · {{ formatStatsBytes(category.size_bytes) }}</span>
+          </div>
+        </div>
+
+        <div class="media-stats__item media-stats__item--wide">
+          <span class="media-stats__label">ТИПЫ</span>
+          <div class="media-stats__row">
+            <span>Фото</span>
+            <span>{{ mediaStats.types.photos.total_files }} · {{ formatStatsBytes(mediaStats.types.photos.size_bytes) }}</span>
+          </div>
+          <div class="media-stats__row">
+            <span>Видео</span>
+            <span>{{ mediaStats.types.videos.total_files }} · {{ formatStatsBytes(mediaStats.types.videos.size_bytes) }}</span>
+          </div>
+          <div class="media-stats__row">
+            <span>Другое</span>
+            <span>{{ mediaStats.types.other.total_files }} · {{ formatStatsBytes(mediaStats.types.other.size_bytes) }}</span>
+          </div>
+          <div v-for="extension in mediaStats.types.extensions" :key="extension.extension" class="media-stats__row">
+            <span>.{{ extension.extension }}</span>
+            <span>{{ extension.total_files }} · {{ formatStatsBytes(extension.size_bytes) }}</span>
+          </div>
+
+        </div>
+      </div>
+
       </section>
     </div>
   </q-page>
+
 </template>
 
 <script setup>
@@ -698,6 +746,10 @@ const loadingMoreMedia = ref(false)
 const loadingMedia = ref(false)
 const catalogError = ref('')
 const deletingId = ref(null)
+const mediaStats = ref(null)
+const loadingMediaStats = ref(false)
+const mediaStatsError = ref('')
+const mediaStatsTimer = ref(null)
 
 const mediaCategories = ref([])
 const loadingCategories = ref(false)
@@ -828,6 +880,22 @@ function formatFileSize(bytes) {
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
+}
+
+function formatStatsBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "—"
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
+}
+
+function formatStatsPercent(value) {
+  if (!Number.isFinite(value)) {
+    return "—"
+  }
+
+  return `${value.toFixed(1)}%`
 }
 
 function formatDate(value) {
@@ -1160,6 +1228,45 @@ async function loadMedia() {
     loadingMedia.value = false
   }
 }
+async function loadMediaStats() {
+  const token = await getAdminToken()
+
+  if (!token) {
+    return
+  }
+
+  loadingMediaStats.value = true
+  mediaStatsError.value = ""
+
+  try {
+    const response = await fetch("/api/admin/media/stats", {
+      headers: {
+        Authorization: `Bearer ${token}`
+      }
+    })
+
+    if (response.status === 401) {
+      sessionStorage.removeItem("albion_admin_token")
+      await router.replace("/administration")
+      return
+    }
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      mediaStatsError.value =
+        data?.detail || "Не удалось загрузить статистику медиа"
+      return
+    }
+
+    mediaStats.value = data
+  } catch {
+    mediaStatsError.value = "Не удалось загрузить статистику медиа"
+  } finally {
+    loadingMediaStats.value = false
+  }
+}
+
 
 async function loadMoreMedia() {
   if (loadingMedia.value || loadingMoreMedia.value || !mediaHasMore.value) {
@@ -1461,6 +1568,8 @@ async function deleteMedia(item) {
     if (result.value?.id === item.id) {
       result.value = null
     }
+
+    await loadMediaStats()
   } catch {
     catalogError.value = 'Не удалось выполнить запрос к серверу'
   } finally {
@@ -1471,9 +1580,19 @@ async function deleteMedia(item) {
 onMounted(() => {
   loadMediaCategories()
   loadMedia()
+  loadMediaStats()
+
+  mediaStatsTimer.value = window.setInterval(() => {
+    loadMediaStats()
+  }, 30000)
 })
 
 onBeforeUnmount(() => {
+  if (mediaStatsTimer.value) {
+    window.clearInterval(mediaStatsTimer.value)
+    mediaStatsTimer.value = null
+  }
+
   if (previewObjectUrl) {
     URL.revokeObjectURL(previewObjectUrl)
   }
@@ -2044,6 +2163,57 @@ onBeforeUnmount(() => {
   .media-grid--medium {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+.media-stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+  margin-top: 12px;
+  padding: 8px 12px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.media-stats__item,
+.media-stats__item--wide {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 1 auto;
+  gap: 4px;
+  min-width: 0;
+}
+
+.media-stats__label {
+  margin-right: 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #777;
+}
+
+.media-stats__item strong {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.media-stats__item > span:not(.media-stats__label) {
+  font-size: 12px;
+  color: #666;
+}
+
+.media-stats__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 10px;
+  font-size: 12px;
+}
+
+.media-stats__row span:last-child {
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {

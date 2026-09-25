@@ -3,8 +3,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+import shutil
 from subprocess import CompletedProcess, run
 from uuid import uuid4
+import psutil
 
 import pillow_heif
 from PIL import Image, ImageCms, ImageOps, UnidentifiedImageError
@@ -334,6 +336,10 @@ def _insert_media(
 
         row = cur.fetchone()
 
+    disk = shutil.disk_usage(STORAGE_ROOT)
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+
+
     return {
         "id": row[0],
         "uuid": str(row[1]),
@@ -390,6 +396,10 @@ def _insert_variant(
         )
 
         row = cur.fetchone()
+
+    disk = shutil.disk_usage(STORAGE_ROOT)
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+
 
     return {
         "id": row[0],
@@ -570,6 +580,10 @@ def create_media_category(name: str) -> dict:
             )
             row = cur.fetchone()
 
+    disk = shutil.disk_usage(STORAGE_ROOT)
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+
+
     return {
         "id": row[0],
         "name": row[1],
@@ -638,6 +652,10 @@ def update_media(
                 values,
             )
             row = cur.fetchone()
+
+    disk = shutil.disk_usage(STORAGE_ROOT)
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+
 
     return {
         "id": row[0],
@@ -735,6 +753,10 @@ def delete_media(media_id: int) -> dict:
             file_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+    disk = shutil.disk_usage(STORAGE_ROOT)
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+
 
     return {
         "id": media_id,
@@ -1085,3 +1107,135 @@ def save_image(
         for path in created_files:
             path.unlink(missing_ok=True)
         raise
+
+def get_media_stats() -> dict:
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_files,
+                    COUNT(*) FILTER (
+                        WHERE EXISTS (SELECT 1 FROM news_media nm WHERE nm.media_id = media.id) OR EXISTS (SELECT 1 FROM page_block_media pbm WHERE pbm.media_id = media.id)
+                    ) AS used_files,
+                    COALESCE(SUM(file_size), 0) AS size_bytes
+                FROM media
+                """
+            )
+            overview = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT
+                    mc.id,
+                    mc.name,
+                    COUNT(m.id) AS total_files,
+                    COUNT(m.id) FILTER (
+                        WHERE EXISTS (SELECT 1 FROM news_media nm WHERE nm.media_id = m.id) OR EXISTS (SELECT 1 FROM page_block_media pbm WHERE pbm.media_id = m.id)
+                    ) AS used_files,
+                    COALESCE(SUM(m.file_size), 0) AS size_bytes
+                FROM media_categories mc
+                LEFT JOIN media m
+                    ON mc.id = ANY(m.category_id)
+                GROUP BY mc.id, mc.name, mc.sort_order
+                ORDER BY mc.sort_order, mc.id
+                """
+            )
+            categories = [
+                {
+                    "id": row[0],
+                    "name": row[1],
+                    "total_files": row[2],
+                    "used_files": row[3],
+                    "size_bytes": row[4],
+                }
+                for row in cur.fetchall()
+            ]
+
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE mime_type LIKE 'image/%'),
+                    COALESCE(
+                        SUM(file_size) FILTER (WHERE mime_type LIKE 'image/%'),
+                        0
+                    ),
+                    COUNT(*) FILTER (WHERE mime_type LIKE 'video/%'),
+                    COALESCE(
+                        SUM(file_size) FILTER (WHERE mime_type LIKE 'video/%'),
+                        0
+                    ),
+                    COUNT(*) FILTER (
+                        WHERE mime_type NOT LIKE 'image/%'
+                          AND mime_type NOT LIKE 'video/%'
+                    ),
+                    COALESCE(
+                        SUM(file_size) FILTER (
+                            WHERE mime_type NOT LIKE 'image/%'
+                              AND mime_type NOT LIKE 'video/%'
+                        ),
+                        0
+                    )
+                FROM media
+                """
+            )
+            type_row = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT
+                    CASE
+                        WHEN original_name ~ '\\.[^.]+$'
+                        THEN lower(substring(original_name from '\\.([^.]+)$'))
+                        ELSE 'без расширения'
+                    END AS extension,
+                    COUNT(*) AS total_files,
+                    COALESCE(SUM(file_size), 0) AS size_bytes
+                FROM media
+                GROUP BY extension
+                ORDER BY total_files DESC, extension
+                """
+            )
+            extensions = [
+                {
+                    "extension": row[0],
+                    "total_files": row[1],
+                    "size_bytes": row[2],
+                }
+                for row in cur.fetchall()
+            ]
+
+    disk = shutil.disk_usage(STORAGE_ROOT)
+    cpu_percent = psutil.cpu_percent(interval=0.1)
+
+
+    return {
+        "overview": {
+            "total_files": overview[0],
+            "used_files": overview[1],
+            "size_bytes": overview[2],
+        },
+        "categories": categories,
+        "types": {
+            "photos": {
+                "total_files": type_row[0],
+                "size_bytes": type_row[1],
+            },
+            "videos": {
+                "total_files": type_row[2],
+                "size_bytes": type_row[3],
+            },
+            "other": {
+                "total_files": type_row[4],
+                "size_bytes": type_row[5],
+            },
+            "extensions": extensions,
+        },
+        "storage": {
+            "total_bytes": disk.total,
+            "used_bytes": disk.used,
+            "free_bytes": disk.free,
+            "free_percent": round((disk.free / disk.total) * 100, 1) if disk.total else 0,
+        },
+        "cpu_percent": cpu_percent,
+}

@@ -13,6 +13,7 @@ from backend.services.media_service import (
     delete_media,
     list_media,
     list_media_categories,
+    get_media_stats,
     save_image,
     save_video,
     update_media,
@@ -178,6 +179,14 @@ def admin_list_media_categories(auth=Depends(require_admin)):
     return {
         "success": True,
         "categories": list_media_categories(),
+    }
+
+
+@app.get("/api/admin/media/stats")
+def admin_media_stats(auth=Depends(require_admin)):
+    return {
+        "success": True,
+        **get_media_stats(),
     }
 
 
