@@ -14,6 +14,7 @@ from backend.services.media_service import (
     list_media,
     list_media_categories,
     save_image,
+    save_video,
     update_media,
 )
 
@@ -115,19 +116,30 @@ async def admin_upload_media(
     file: UploadFile = File(...),
     alt: str | None = Form(default=None),
     title: str | None = Form(default=None),
-    category_id: int = Form(default=1),
+    category_id: list[int] = Form(default=[1]),
+    preview_time: float | None = Form(default=None),
     auth=Depends(require_admin),
 ):
     file_bytes = await file.read()
 
     try:
-        result = save_image(
-            file_bytes,
-            file.filename or "upload",
-            alt=alt,
-            title=title,
-            category_id=category_id,
-        )
+        if file.content_type and file.content_type.startswith("video/"):
+            result = save_video(
+                file_bytes,
+                file.filename or "upload",
+                alt=alt,
+                title=title,
+                category_id=category_id,
+                preview_time=preview_time,
+            )
+        else:
+            result = save_image(
+                file_bytes,
+                file.filename or "upload",
+                alt=alt,
+                title=title,
+                category_id=category_id,
+            )
     except MediaValidationError as exc:
         raise HTTPException(
             status_code=400,
@@ -180,7 +192,7 @@ def admin_list_media(auth=Depends(require_admin)):
 def admin_update_media(
     media_id: int,
     original_name: str | None = Form(default=None),
-    category_id: int | None = Form(default=None),
+    category_id: list[int] | None = Form(default=None),
     auth=Depends(require_admin),
 ):
     try:
@@ -202,7 +214,6 @@ def admin_update_media(
     }
 
 
-    return {"success": True, "media": result}
 
 
 @app.delete("/api/admin/media/{media_id}")

@@ -153,7 +153,7 @@ CREATE TABLE IF NOT EXISTS media (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT gen_random_uuid(),
     original_name TEXT NOT NULL,
-    category_id BIGINT REFERENCES media_categories(id) ON DELETE SET NULL,
+    category_id BIGINT[],
     storage_path TEXT NOT NULL UNIQUE,
     mime_type TEXT NOT NULL,
     file_size BIGINT NOT NULL,

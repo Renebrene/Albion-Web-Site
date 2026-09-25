@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from io import BytesIO
 from pathlib import Path
+from subprocess import CompletedProcess, run
 from uuid import uuid4
 
 import pillow_heif
@@ -13,9 +14,28 @@ from backend.services.data_service import PROJECT_DIR, get_connection
 
 pillow_heif.register_heif_opener()
 
+def _normalize_category_ids(category_id: list[int] | None) -> list[int]:
+    category_ids = list(dict.fromkeys(category_id or [1]))
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT COUNT(*) FROM media_categories WHERE id = ANY(%s)",
+                (category_ids,),
+            )
+            if cur.fetchone()[0] != len(category_ids):
+                raise MediaValidationError("Одна или несколько категорий не найдены")
+    return category_ids
+
+
 STORAGE_ROOT = PROJECT_DIR / "storage"
 
 MAX_INPUT_FILE_SIZE = 40 * 1024 * 1024
+VIDEO_MAX_INPUT_FILE_SIZE = 100 * 1024 * 1024
+VIDEO_MAX_SIDE = 800
+VIDEO_PRESET = "medium"
+VIDEO_CRF = 23
+VIDEO_AUDIO_BITRATE = "128k"
+VIDEO_PREVIEW_QUALITY = 82
 MAX_PIXELS = 50_000_000
 
 VARIANT_SIZES = {
@@ -272,7 +292,8 @@ def _insert_media(
     height: int,
     alt: str | None,
     title: str | None,
-    category_id: int | None,
+    category_id: list[int] | None,
+    preview_path: Path | None = None,
 ) -> dict:
     with conn.cursor() as cur:
         cur.execute(
@@ -287,12 +308,13 @@ def _insert_media(
                 height,
                 alt,
                 title,
-                category_id
+                category_id,
+                preview_path
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id, uuid, original_name, storage_path,
                       mime_type, file_size, width, height,
-                      alt, title, created_at, updated_at
+                      alt, title, category_id, preview_path, created_at, updated_at
             """,
             (
                 media_uuid,
@@ -305,6 +327,7 @@ def _insert_media(
                 alt,
                 title,
                 category_id,
+                str(preview_path) if preview_path else None,
             ),
         )
 
@@ -321,8 +344,10 @@ def _insert_media(
         "height": row[7],
         "alt": row[8],
         "title": row[9],
-        "created_at": row[10].isoformat() if row[10] else None,
-        "updated_at": row[11].isoformat() if row[11] else None,
+        "category_id": row[10],
+        "preview_path": row[11],
+        "created_at": row[12].isoformat() if row[12] else None,
+        "updated_at": row[13].isoformat() if row[13] else None,
     }
 
 
@@ -386,7 +411,15 @@ def list_media() -> list[dict]:
                     m.uuid,
                     m.original_name,
                     m.category_id,
-                    mc.name AS category_name,
+                    COALESCE(
+                        ARRAY(
+                            SELECT mc.name
+                            FROM media_categories mc
+                            WHERE mc.id = ANY(m.category_id)
+                            ORDER BY mc.sort_order, mc.name, mc.id
+                        ),
+                        ARRAY[]::TEXT[]
+                    ) AS category_names,
                     m.storage_path,
                     m.mime_type,
                     m.file_size,
@@ -394,6 +427,7 @@ def list_media() -> list[dict]:
                     m.height,
                     m.alt,
                     m.title,
+                    m.preview_path,
                     m.created_at,
                     m.updated_at,
                     EXISTS (
@@ -407,8 +441,6 @@ def list_media() -> list[dict]:
                         WHERE pbm.media_id = m.id
                     ) AS used_in_pages
                 FROM media m
-                LEFT JOIN media_categories mc
-                    ON mc.id = m.category_id
                 ORDER BY m.created_at DESC, m.id DESC
                 """
             )
@@ -461,7 +493,8 @@ def list_media() -> list[dict]:
                         "uuid": str(row[1]),
                         "original_name": row[2],
                         "category_id": row[3],
-                        "category_name": row[4],
+                        "category_names": row[4],
+                        "category_name": ", ".join(row[4]) if row[4] else "Разное",
                         "storage_path": row[5],
                         "mime_type": row[6],
                         "file_size": row[7],
@@ -469,10 +502,11 @@ def list_media() -> list[dict]:
                         "height": row[9],
                         "alt": row[10],
                         "title": row[11],
-                        "created_at": row[12].isoformat() if row[12] else None,
-                        "updated_at": row[13].isoformat() if row[13] else None,
-                        "used_in_news": row[14],
-                        "used_in_pages": row[15],
+                        "preview_path": row[12],
+                        "created_at": row[13].isoformat() if row[13] else None,
+                        "updated_at": row[14].isoformat() if row[14] else None,
+                        "used_in_news": row[15],
+                        "used_in_pages": row[16],
                         "variants": variants,
                     }
                 )
@@ -546,7 +580,7 @@ def update_media(
     media_id: int,
     *,
     original_name: str | None = None,
-    category_id: int | None = None,
+    category_id: list[int] | None = None,
     category_id_provided: bool = False,
 ) -> dict:
     if original_name is not None:
@@ -568,13 +602,14 @@ def update_media(
             if cur.fetchone() is None:
                 raise MediaValidationError("Медиафайл не найден")
 
-            if category_id_provided and category_id is not None:
+            if category_id_provided:
+                category_id = category_id or [1]
                 cur.execute(
-                    "SELECT id FROM media_categories WHERE id = %s",
+                    "SELECT COUNT(*) FROM media_categories WHERE id = ANY(%s)",
                     (category_id,),
                 )
-                if cur.fetchone() is None:
-                    raise MediaValidationError("Категория не найдена")
+                if cur.fetchone()[0] != len(set(category_id)):
+                    raise MediaValidationError("Одна или несколько категорий не найдены")
 
             fields = []
             values = []
@@ -584,11 +619,8 @@ def update_media(
                 values.append(original_name)
 
             if category_id_provided:
-                if category_id is None:
-                    fields.append("category_id = NULL")
-                else:
-                    fields.append("category_id = %s")
-                    values.append(category_id)
+                fields.append("category_id = %s")
+                values.append(category_id)
 
             fields.append("updated_at = NOW()")
             values.append(media_id)
@@ -619,7 +651,8 @@ def delete_media(media_id: int) -> dict:
                 """
                 SELECT
                     id,
-                    storage_path
+                    storage_path,
+                    preview_path
                 FROM media
                 WHERE id = %s
                 """,
@@ -676,6 +709,7 @@ def delete_media(media_id: int) -> dict:
                 )
 
             storage_path = Path(row[1])
+            preview_path = Path(row[2]) if row[2] else None
 
             cur.execute(
                 """
@@ -690,6 +724,9 @@ def delete_media(media_id: int) -> dict:
         *[STORAGE_ROOT / path for path in variant_paths],
     ]
 
+    if preview_path:
+        files_to_delete.append(STORAGE_ROOT / preview_path)
+
     for file_path in files_to_delete:
         try:
             file_path.unlink(missing_ok=True)
@@ -701,16 +738,210 @@ def delete_media(media_id: int) -> dict:
         "deleted": True,
     }
 
+def save_video(
+    file_bytes: bytes,
+    original_name: str,
+    *,
+    alt: str | None = None,
+    title: str | None = None,
+    category_id: list[int] | None = None,
+    preview_time: float | None = None,
+) -> dict:
+    if not file_bytes:
+        raise MediaValidationError("Файл пустой")
+
+    category_id = _normalize_category_ids(category_id)
+
+    if len(file_bytes) > VIDEO_MAX_INPUT_FILE_SIZE:
+        raise MediaValidationError(
+            "Размер исходного видео превышает 100 МБ"
+        )
+
+    media_uuid = uuid4()
+    relative_dir = Path("media")
+    absolute_dir = STORAGE_ROOT / relative_dir
+    absolute_dir.mkdir(parents=True, exist_ok=True)
+
+    temp_dir = STORAGE_ROOT / ".tmp"
+    temp_dir.mkdir(parents=True, exist_ok=True)
+
+    input_path = temp_dir / f"{media_uuid}-input"
+    output_path = absolute_dir / f"{media_uuid}.mp4"
+    preview_path = absolute_dir / f"{media_uuid}-preview.webp"
+
+    created_files: list[Path] = []
+
+    try:
+        input_path.write_bytes(file_bytes)
+
+        probe = run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-select_streams", "v:0",
+                "-show_entries", "stream=width,height",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(input_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        duration_probe = run(
+            [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(input_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if probe.returncode != 0:
+            raise MediaValidationError(
+                "Не удалось определить параметры видео"
+            )
+
+        if duration_probe.returncode != 0 or not duration_probe.stdout.strip():
+            raise MediaValidationError(
+                "Не удалось определить длительность видео"
+            )
+        dimensions = probe.stdout.strip().splitlines()
+
+        if len(dimensions) != 2:
+            raise MediaValidationError(
+                "Не удалось определить параметры видео"
+            )
+
+        try:
+            source_width = int(dimensions[0])
+            source_height = int(dimensions[1])
+            duration = float(duration_probe.stdout.strip())
+        except ValueError as exc:
+            raise MediaValidationError(
+                "Некорректные размеры видео"
+            ) from exc
+
+        if source_width <= 0 or source_height <= 0 or duration <= 0:
+            raise MediaValidationError("Некорректные параметры видео")
+
+        if preview_time is None:
+            selected_preview_time = duration * 0.10
+        else:
+            selected_preview_time = max(0.0, min(float(preview_time), duration))
+
+
+        scale = min(
+            1.0,
+            VIDEO_MAX_SIDE / max(source_width, source_height),
+        )
+
+        output_width = max(2, int(source_width * scale) // 2 * 2)
+        output_height = max(2, int(source_height * scale) // 2 * 2)
+
+        encode = run(
+            [
+                "ffmpeg",
+                "-y",
+                "-i", str(input_path),
+                "-vf", f"scale={output_width}:{output_height}:flags=lanczos",
+                "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264",
+                "-preset", VIDEO_PRESET,
+                "-crf", str(VIDEO_CRF),
+                "-pix_fmt", "yuv420p",
+                "-c:a", "aac",
+                "-b:a", VIDEO_AUDIO_BITRATE,
+                "-movflags", "+faststart",
+                str(output_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if encode.returncode != 0 or not output_path.exists():
+            raise MediaValidationError(
+                "Не удалось обработать видео"
+            )
+
+        created_files.append(output_path)
+
+        preview = run(
+            [
+                "ffmpeg",
+                "-y",
+                "-ss", str(selected_preview_time),
+                "-i", str(output_path),
+                "-frames:v", "1",
+                "-vf", f"scale={output_width}:{output_height}:flags=lanczos",
+                "-c:v", "libwebp",
+                "-q:v", str(VIDEO_PREVIEW_QUALITY),
+                str(preview_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        if preview.returncode != 0 or not preview_path.exists():
+            raise MediaValidationError(
+                "Не удалось создать превью видео"
+            )
+
+        created_files.append(preview_path)
+        with get_connection() as conn:
+            result = _insert_media(
+                conn,
+                media_uuid=media_uuid,
+                original_name=original_name,
+                storage_path=output_path.relative_to(STORAGE_ROOT),
+                mime_type="video/mp4",
+                file_size=output_path.stat().st_size,
+                width=output_width,
+                height=output_height,
+                alt=alt,
+                title=title,
+                category_id=category_id,
+                preview_path=(
+                    preview_path.relative_to(STORAGE_ROOT)
+                    if preview_path.exists()
+                    else None
+                ),
+            )
+
+        result["variants"] = []
+
+        if preview_path.exists():
+            result["preview_path"] = str(
+                preview_path.relative_to(STORAGE_ROOT)
+            )
+
+        return result
+
+    except Exception as exc:
+        for file_path in created_files:
+            file_path.unlink(missing_ok=True)
+        raise
+    finally:
+        input_path.unlink(missing_ok=True)
+
 def save_image(
     file_bytes: bytes,
     original_name: str,
     *,
     alt: str | None = None,
     title: str | None = None,
-    category_id: int | None = 1,
+    category_id: list[int] | None = None,
+    preview_time: float | None = None,
 ) -> dict:
     if not file_bytes:
         raise MediaValidationError("Файл пустой")
+
+    category_id = _normalize_category_ids(category_id)
 
     if len(file_bytes) > MAX_INPUT_FILE_SIZE:
         raise MediaValidationError(

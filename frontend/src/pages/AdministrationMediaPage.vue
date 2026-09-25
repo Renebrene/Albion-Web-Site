@@ -4,8 +4,6 @@
       <header class="media-header">
         <div>
           <div class="media-brand">ALBION</div>
-          <h1>Медиа</h1>
-          <p>Загрузка и управление изображениями сайта</p>
         </div>
 
         <q-btn
@@ -18,10 +16,9 @@
 
       <q-card flat bordered class="media-card">
         <q-card-section>
-          <div class="section-title">Загрузка изображения</div>
+          <div class="section-title">Загрузка медиафайла</div>
           <div class="section-description">
-            После загрузки система автоматически создаст необходимые варианты
-            изображения.
+            Изображения автоматически подготавливаются в нужных вариантах, видео — в MP4 с превью.
           </div>
         </q-card-section>
 
@@ -30,13 +27,14 @@
             v-model="file"
             outlined
             clearable
-            accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,image/*"
-            label="Файл изображения"
-            hint="JPEG, JFIF, JPE, PNG, WEBP, HEIC, TIFF, BMP, PSD или GIF"
+            accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,.mp4,.mov,.webm,.avi,.mkv,.m4v,.mpeg,.mpg, image/*, video/*"
+            label="Файл изображения или видео"
+            hint="Изображения: JPEG, PNG, WEBP, HEIC, TIFF, BMP, PSD, GIF. Видео: MP4, MOV, WEBM, AVI, MKV и другие форматы."
             :disable="uploading"
           />
 
           <div class="metadata-grid">
+
             <q-input
               v-model="alt"
               outlined
@@ -57,6 +55,8 @@
             <div class="category-select-wrap">
               <q-select
                 v-model="uploadCategoryId"
+                multiple
+                use-chips
                 outlined
                 emit-value
                 map-options
@@ -80,11 +80,15 @@
 
           <div v-if="previewUrl" class="preview-wrap">
             <div class="preview-label">Предпросмотр</div>
-            <img
-              :src="previewUrl"
-              alt="Предпросмотр"
-              class="preview-image"
-            />
+
+            <video v-if="isVideoFile" ref="videoPreviewRef" :src="previewUrl" class="preview-image" controls preload="metadata" @loadedmetadata="onVideoMetadataLoaded" />
+
+            <img v-else :src="previewUrl" alt="Предпросмотр" class="preview-image" />
+
+            <div v-if="isVideoFile && videoDuration > 0" class="video-frame-picker">
+              <div class="video-frame-picker-label">Кадр для превью: {{ previewTime.toFixed(1) }} сек.</div>
+              <q-slider v-model="previewTime" :min="0" :max="videoDuration" :step="0.1" label :disable="uploading" @update:model-value="(value) => { if (videoPreviewRef) videoPreviewRef.currentTime = value }" />
+            </div>
           </div>
 
           <q-btn
@@ -107,6 +111,7 @@
           </q-card-section>
 
           <q-card-section>
+
             <q-input
               v-model="newCategoryName"
               outlined
@@ -146,6 +151,7 @@
           </q-card-section>
 
           <q-card-section class="q-gutter-md">
+
             <q-input
               v-model="editOriginalName"
               outlined
@@ -156,6 +162,8 @@
 
             <q-select
               v-model="editCategoryId"
+              multiple
+              use-chips
               outlined
               emit-value
               map-options
@@ -286,6 +294,7 @@
         <q-card flat bordered class="catalog-filters">
           <q-card-section>
             <div class="filters-grid">
+
               <q-input
                 v-model="searchQuery"
                 outlined
@@ -293,18 +302,6 @@
                 clearable
                 label="Поиск"
                 placeholder="Имя файла, Alt или Title"
-              />
-
-              <q-select
-                v-model="filterCategoryId"
-                outlined
-                dense
-                clearable
-                emit-value
-                map-options
-                label="Раздел хранения"
-                :options="mediaCategories.map((category) => ({ label: category.name, value: category.id }))"
-                :loading="loadingCategories"
               />
 
               <q-input
@@ -324,6 +321,35 @@
                 type="date"
                 label="Дата до"
               />
+
+              <q-select
+                v-model="filterCategoryId"
+                multiple
+                use-chips
+                outlined
+                dense
+                clearable
+                emit-value
+                map-options
+                label="Раздел хранения"
+                :options="mediaCategories.map((category) => ({ label: category.name, value: category.id }))"
+                :loading="loadingCategories"
+              />
+
+              <q-select
+                v-model="filterMediaType"
+                outlined
+                dense
+                emit-value
+                map-options
+                label="Тип медиа"
+                :options="[
+                  { label: 'ВСЕ', value: 'all' },
+                  { label: 'ФОТО', value: 'photo' },
+                  { label: 'ВИДЕО', value: 'video' }
+                ]"
+              />
+
             </div>
 
             <div class="catalog-toolbar">
@@ -411,8 +437,18 @@
             class="media-item"
           >
             <div class="media-thumbnail-wrap">
+              <video
+                v-if="viewMode === 'medium' && item.mime_type?.startsWith('video/')"
+                :src="storageUrl(item.storage_path)"
+                :poster="thumbnailUrl(item)"
+                class="media-thumbnail media-thumbnail--video"
+                controls
+                preload="metadata"
+                playsinline
+              />
+
               <img
-                v-if="thumbnailUrl(item)"
+                v-else-if="thumbnailUrl(item)"
                 :src="thumbnailUrl(item)"
                 :alt="item.alt || item.original_name"
                 class="media-thumbnail"
@@ -430,6 +466,9 @@
               </div>
 
               <div class="media-item-name" :title="item.original_name">
+                <span class="media-type-icon" :class="{ 'media-type-icon--video': item.mime_type?.startsWith('video/') }">
+                  {{ item.mime_type?.startsWith('video/') ? '▶' : '▣' }}
+                </span>
                 {{ item.original_name }}
               </div>
 
@@ -538,6 +577,10 @@ const uploading = ref(false)
 const error = ref('')
 const result = ref(null)
 const previewUrl = ref('')
+const videoDuration = ref(0)
+const previewTime = ref(0)
+const isVideoFile = ref(false)
+const videoPreviewRef = ref(null)
 let previewObjectUrl = ''
 
 const mediaItems = ref([])
@@ -547,8 +590,9 @@ const deletingId = ref(null)
 
 const mediaCategories = ref([])
 const loadingCategories = ref(false)
-const uploadCategoryId = ref(1)
-const filterCategoryId = ref(null)
+const uploadCategoryId = ref([1])
+const filterCategoryId = ref([])
+const filterMediaType = ref('all')
 
 const categoryDialog = ref(false)
 const newCategoryName = ref('')
@@ -556,7 +600,7 @@ const creatingCategory = ref(false)
 const editDialog = ref(false)
 const editingMedia = ref(null)
 const editOriginalName = ref('' )
-const editCategoryId = ref(null)
+const editCategoryId = ref([])
 const savingMedia = ref(false)
 
 const searchQuery = ref('')
@@ -576,8 +620,8 @@ const smallColumnsOptions = [
 
 const viewModeOptions = [
   { label: 'Таблица', value: 'table' },
-  { label: 'Мелкие', value: 'small' },
-  { label: 'Средние', value: 'medium' },
+  { label: 'Компакт', value: 'small' },
+  { label: 'Полный', value: 'medium' },
 ]
 
 
@@ -588,6 +632,10 @@ watch(file, (newFile) => {
   }
 
   previewUrl.value = ''
+  videoDuration.value = 0
+  previewTime.value = 0
+  isVideoFile.value = false
+  videoPreviewRef.value = null
 
   const selectedFile = Array.isArray(newFile)
     ? newFile[0]
@@ -596,8 +644,21 @@ watch(file, (newFile) => {
   if (selectedFile instanceof File) {
     previewObjectUrl = URL.createObjectURL(selectedFile)
     previewUrl.value = previewObjectUrl
+    isVideoFile.value = selectedFile.type.startsWith('video/')
   }
 })
+
+function onVideoMetadataLoaded() {
+  const video = videoPreviewRef.value
+
+  if (!video || !Number.isFinite(video.duration)) {
+    return
+  }
+
+  videoDuration.value = video.duration
+  previewTime.value = Math.min(video.duration * 0.1, video.duration)
+  video.currentTime = previewTime.value
+}
 
 
 function storageUrl(path) {
@@ -605,6 +666,10 @@ function storageUrl(path) {
 }
 
 function thumbnailUrl(item) {
+  if (item.mime_type?.startsWith('video/') && item.preview_path) {
+    return storageUrl(item.preview_path)
+  }
+
   const thumb = item.variants?.find(
     (variant) => variant.variant === 'thumb'
   )
@@ -661,7 +726,15 @@ const filteredMediaItems = computed(() => {
       }
     }
 
-    if (filterCategoryId.value !== null && item.category_id !== filterCategoryId.value) {
+    if (filterMediaType.value === "video" && !item.mime_type?.startsWith("video/")) {
+      return false
+    }
+
+    if (filterMediaType.value === "photo" && item.mime_type?.startsWith("video/")) {
+      return false
+    }
+
+    if (filterCategoryId.value.length && !filterCategoryId.value.some((categoryId) => item.category_id?.includes(categoryId))) {
       return false
     }
 
@@ -696,7 +769,8 @@ const filteredMediaItems = computed(() => {
 const hasActiveFilters = computed(() => {
   return Boolean(
     searchQuery.value ||
-    filterCategoryId.value !== null ||
+    filterCategoryId.value.length > 0 ||
+    filterMediaType.value !== "all" ||
     dateFrom.value ||
     dateTo.value
   )
@@ -704,8 +778,9 @@ const hasActiveFilters = computed(() => {
 
 function resetFilters() {
   searchQuery.value = ''
-  filterCategoryId.value = null
+  filterCategoryId.value = []
   dateFrom.value = ''
+  filterMediaType.value = "all"
   dateTo.value = ''
 }
 
@@ -766,7 +841,7 @@ async function createCategory() {
 
     if (category) {
       mediaCategories.value = [...mediaCategories.value, category].sort((a, b) => a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.name.localeCompare(b.name, "ru"))
-      uploadCategoryId.value = category.id
+      uploadCategoryId.value = [...uploadCategoryId.value, category.id]
     }
 
     newCategoryName.value = ""
@@ -781,7 +856,7 @@ async function createCategory() {
 function openEditMedia(item) {
   editingMedia.value = item
   editOriginalName.value = item.original_name || ''
-  editCategoryId.value = item.category_id ?? uploadCategoryId.value ?? mediaCategories.value[0]?.id ?? null
+  editCategoryId.value = Array.isArray(item.category_id) ? item.category_id : item.category_id != null ? [item.category_id] : [...uploadCategoryId.value]
   catalogError.value = ''
   editDialog.value = true
 }
@@ -798,7 +873,7 @@ async function saveMediaEdit() {
     return
   }
 
-  if (editCategoryId.value === null || editCategoryId.value === undefined) {
+  if (!editCategoryId.value.length) {
     catalogError.value = 'Выберите категорию'
     return
   }
@@ -814,7 +889,7 @@ async function saveMediaEdit() {
 
   const formData = new FormData()
   formData.append('original_name', name)
-  formData.append('category_id', String(editCategoryId.value))
+  editCategoryId.value.forEach((categoryId) => formData.append('category_id', String(categoryId)))
 
   try {
     const response = await fetch(`/api/admin/media/${editingMedia.value.id}`, {
@@ -884,10 +959,10 @@ async function loadMediaCategories() {
     if (
       mediaCategories.value.length &&
       !mediaCategories.value.some(
-        (category) => category.id === uploadCategoryId.value
+        (category) => uploadCategoryId.value.includes(category.id)
       )
     ) {
-      uploadCategoryId.value = mediaCategories.value[0].id
+      uploadCategoryId.value = [mediaCategories.value[0].id]
     }
   } catch {
     catalogError.value = 'Не удалось загрузить категории'
@@ -952,7 +1027,10 @@ async function uploadMedia() {
 
   const formData = new FormData()
   formData.append('file', file.value)
-  formData.append('category_id', String(uploadCategoryId.value))
+  uploadCategoryId.value.forEach((categoryId) => formData.append('category_id', String(categoryId)))
+  if (isVideoFile.value && videoDuration.value > 0) {
+    formData.append('preview_time', String(previewTime.value))
+  }
 
   if (alt.value.trim()) {
     formData.append('alt', alt.value.trim())
@@ -1199,7 +1277,9 @@ onBeforeUnmount(() => {
 .preview-image {
   display: block;
   width: 100%;
-  max-height: 280px;
+  max-width: 100%;
+  height: auto;
+  max-height: 420px;
   object-fit: contain;
   border-radius: 12px;
   background: #f3f5f6;
@@ -1302,7 +1382,7 @@ onBeforeUnmount(() => {
 
 .filters-grid {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr 1fr;
   gap: 12px;
 }
 
@@ -1329,6 +1409,20 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.media-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  margin-right: 5px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.media-type-icon--video {
+  opacity: 1;
+}
+
 .media-grid {
   display: grid;
   gap: 18px;
@@ -1336,7 +1430,6 @@ onBeforeUnmount(() => {
 
 .media-grid--small {
   grid-template-columns: repeat(var(--media-small-columns, 6), minmax(0, 1fr));
-
 }
 
 .media-grid--small .media-item {
@@ -1350,11 +1443,21 @@ onBeforeUnmount(() => {
   background: #f3f5f6;
 }
 
-.media-grid--small .media-thumbnail {
+.media-grid--medium .media-thumbnail-wrap {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #f3f5f6;
+}
+
+.media-grid--small .media-thumbnail,
+.media-grid--medium .media-thumbnail {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 .media-grid--small .media-item-content {
@@ -1387,10 +1490,10 @@ onBeforeUnmount(() => {
   font-size: 11px;
   line-height: 1.25;
 }
+
 .media-grid--medium {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
-
 
 .media-grid--table {
   display: grid;
