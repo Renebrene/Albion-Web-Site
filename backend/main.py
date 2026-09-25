@@ -115,6 +115,7 @@ def admin_login(
 async def admin_upload_media(
     file: UploadFile = File(...),
     alt: str | None = Form(default=None),
+    original_name: str | None = Form(default=None),
     title: str | None = Form(default=None),
     category_id: list[int] = Form(default=[1]),
     preview_time: float | None = Form(default=None),
@@ -126,7 +127,7 @@ async def admin_upload_media(
         if file.content_type and file.content_type.startswith("video/"):
             result = save_video(
                 file_bytes,
-                file.filename or "upload",
+                original_name or file.filename or "upload",
                 alt=alt,
                 title=title,
                 category_id=category_id,
@@ -135,7 +136,7 @@ async def admin_upload_media(
         else:
             result = save_image(
                 file_bytes,
-                file.filename or "upload",
+                original_name or file.filename or "upload",
                 alt=alt,
                 title=title,
                 category_id=category_id,
@@ -181,10 +182,21 @@ def admin_list_media_categories(auth=Depends(require_admin)):
 
 
 @app.get("/api/admin/media")
-def admin_list_media(auth=Depends(require_admin)):
+def admin_list_media(
+    limit: int = 30,
+    offset: int = 0,
+    auth=Depends(require_admin),
+):
+    limit = max(1, min(limit, 100))
+    offset = max(0, offset)
+
+    media = list_media(limit=limit + 1, offset=offset)
+    has_more = len(media) > limit
+
     return {
         "success": True,
-        "media": list_media(),
+        "media": media[:limit],
+        "has_more": has_more,
     }
 
 

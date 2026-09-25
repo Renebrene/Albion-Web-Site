@@ -24,85 +24,186 @@
 
         <q-card-section class="form-section">
           <q-file
+            ref="filePicker"
             v-model="file"
-            outlined
-            clearable
+            multiple
+            @update:model-value="prepareUploadQueue"
             accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,.mp4,.mov,.webm,.avi,.mkv,.m4v,.mpeg,.mpg, image/*, video/*"
-            label="Файл изображения или видео"
-            hint="Изображения: JPEG, PNG, WEBP, HEIC, TIFF, BMP, PSD, GIF. Видео: MP4, MOV, WEBM, AVI, MKV и другие форматы."
             :disable="uploading"
+            class="hidden-file-picker"
           />
 
-          <div class="metadata-grid">
-
-            <q-input
-              v-model="alt"
-              outlined
-              label="Alt"
-              placeholder="Описание изображения"
+          <div class="upload-main-action">
+            <q-btn
+              unelevated
+              no-caps
+              color="primary"
+              label="ЗАГРУЗИТЬ ФАЙЛЫ"
+              :loading="uploading"
               :disable="uploading"
+              class="upload-button"
+              @click="filePicker?.pickFiles()"
             />
-
-            <q-input
-              v-model="title"
-              outlined
-              label="Title"
-              placeholder="Заголовок изображения"
-              :disable="uploading"
-            />
-
-
-            <div class="category-select-wrap">
-              <q-select
-                v-model="uploadCategoryId"
-                multiple
-                use-chips
-                outlined
-                emit-value
-                map-options
-                label="Раздел хранения"
-                :options="mediaCategories.map((category) => ({ label: category.name, value: category.id }))"
-                :disable="uploading"
-              />
-
-              <q-btn
-                outline
-                square
-                icon="add"
-                aria-label="Добавить раздел"
-                @click="newCategoryName = ''; categoryDialog = true"
-                title="Добавить раздел"
-                :disable="uploading"
-              />
-            </div>
-
           </div>
-
-          <div v-if="previewUrl" class="preview-wrap">
-            <div class="preview-label">Предпросмотр</div>
-
-            <video v-if="isVideoFile" ref="videoPreviewRef" :src="previewUrl" class="preview-image" controls preload="metadata" @loadedmetadata="onVideoMetadataLoaded" />
-
-            <img v-else :src="previewUrl" alt="Предпросмотр" class="preview-image" />
-
-            <div v-if="isVideoFile && videoDuration > 0" class="video-frame-picker">
-              <div class="video-frame-picker-label">Кадр для превью: {{ previewTime.toFixed(1) }} сек.</div>
-              <q-slider v-model="previewTime" :min="0" :max="videoDuration" :step="0.1" label :disable="uploading" @update:model-value="(value) => { if (videoPreviewRef) videoPreviewRef.currentTime = value }" />
-            </div>
-          </div>
-
-          <q-btn
-            unelevated
-            no-caps
-            color="primary"
-            label="Загрузить"
-            :loading="uploading"
-            :disable="!file"
-            class="upload-button"
-            @click="uploadMedia"
-          />
         </q-card-section>
       </q-card>
+
+      <q-dialog v-model="uploadDialog" persistent>
+        <q-card class="upload-queue-dialog">
+          <q-card-section>
+            <div class="section-title">Добавление медиафайлов</div>
+            <div class="section-description">
+              Подготовьте параметры файлов перед добавлением в хранилище.
+            </div>
+          </q-card-section>
+
+          <q-card-section>
+            <q-linear-progress
+              :value="uploadProgress / 100"
+              size="8px"
+              rounded
+              class="q-mb-md"
+            />
+
+            <div class="upload-progress-text">
+              {{ Math.round(uploadProgress) }}%
+            </div>
+
+            <div class="upload-queue-list">
+              <div
+                v-for="(item, index) in uploadQueue"
+                :key="`${item.file.name}-${index}`"
+                class="upload-queue-item"
+              >
+                <div class="upload-queue-preview">
+                  <video
+                    v-if="item.file.type.startsWith('video/')"
+                    :src="queuePreviewUrl(item)"
+                    muted
+                  />
+                  <img
+                    v-else
+                    :src="queuePreviewUrl(item)"
+                  />
+                </div>
+
+                <div class="upload-queue-fields">
+                  <q-input
+                    v-model="item.name"
+                    outlined
+                    dense
+                    label="Имя файла"
+                    :disable="uploading || item.status !== 'pending'"
+                  />
+
+                  <q-input
+                    v-model="item.alt"
+                    outlined
+                    dense
+                    label="Описание"
+                    :disable="uploading || item.status !== 'pending'"
+                  />
+
+                  <div class="category-select-wrap">
+                    <q-select
+                      v-model="item.categoryId"
+                      multiple
+                      use-chips
+                      outlined
+                      dense
+                      emit-value
+                      map-options
+                      label="Категория"
+                      :options="mediaCategories.map((category) => ({ label: category.name, value: category.id }))"
+                      :disable="uploading || item.status !== 'pending'"
+                    />
+
+                    <q-btn
+                      outline
+                      square
+                      icon="add"
+                      aria-label="Добавить категорию"
+                      title="Добавить категорию"
+                      :disable="uploading"
+                      @click="newCategoryName = ''; categoryDialog = true"
+                    />
+                  </div>
+                </div>
+
+                <div class="upload-queue-status">
+                  <q-spinner
+                    v-if="item.status === 'uploading'"
+                    size="20px"
+                  />
+                  <q-icon
+                    v-else-if="item.status === 'success'"
+                    name="check_circle"
+                    color="positive"
+                  />
+                  <q-icon
+                    v-else-if="item.status === 'excluded'"
+                    name="remove_circle"
+                    color="grey-6"
+                  />
+                  <q-icon
+                    v-else-if="item.status === 'error'"
+                    name="error"
+                    color="negative"
+                  />
+                  <span v-if="item.status === 'error'">{{ item.error }}</span>
+                </div>
+
+                <div class="upload-queue-actions">
+                  <q-btn
+                    flat
+                    round
+                    icon="check"
+                    color="positive"
+                    aria-label="Добавить файл"
+                    title="Добавить файл"
+                    :disable="uploading || item.status !== 'pending'"
+                    @click="uploadSingleQueue(item)"
+                  />
+
+                  <q-btn
+                    flat
+                    round
+                    icon="close"
+                    color="negative"
+                    aria-label="Удалить из очереди"
+                    title="Не добавлять файл"
+                    :disable="uploading || item.status !== 'pending'"
+                    @click="uploadDialog = false"
+                  />
+                </div>
+              </div>
+            </div>
+          </q-card-section>
+
+          <q-card-actions
+            v-if="uploadQueue.length > 1"
+            align="right"
+          >
+            <q-btn
+              flat
+              no-caps
+              label="ЗАКРЫТЬ"
+              :disable="uploading"
+              @click="uploadDialog = false"
+            />
+
+            <q-btn
+              unelevated
+              color="primary"
+              no-caps
+              label="ДОБАВИТЬ ВСЕ"
+              @click="uploadAllQueue"
+              :disable="uploading || !uploadQueue.some((item) => item.status === 'pending')"
+            />
+          </q-card-actions>
+        </q-card>
+      </q-dialog>
+
 
       <q-dialog v-model="categoryDialog">
         <q-card style="min-width: 360px; max-width: 90vw;">
@@ -426,7 +527,7 @@
 
         <div
           v-else
-          :class="['media-grid', `media-grid--${viewMode}`]"
+          ref="mediaGridRef" :class="['media-grid', `media-grid--${viewMode}`]" @scroll.passive="handleMediaGridScroll"
           :style="viewMode === 'small' ? { '--media-small-columns': smallColumns } : undefined"
         >
           <q-card
@@ -571,6 +672,7 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 
 const file = ref(null)
+const filePicker = ref(null)
 const alt = ref('')
 const title = ref('')
 const uploading = ref(false)
@@ -582,8 +684,17 @@ const previewTime = ref(0)
 const isVideoFile = ref(false)
 const videoPreviewRef = ref(null)
 let previewObjectUrl = ''
+const uploadQueue = ref([])
+const uploadDialog = ref(false)
+const uploadProgress = ref(0)
+const uploadCurrentIndex = ref(-1)
 
 const mediaItems = ref([])
+const mediaGridRef = ref(null)
+const mediaPageSize = 30
+const mediaOffset = ref(0)
+const mediaHasMore = ref(true)
+const loadingMoreMedia = ref(false)
 const loadingMedia = ref(false)
 const catalogError = ref('')
 const deletingId = ref(null)
@@ -647,6 +758,38 @@ watch(file, (newFile) => {
     isVideoFile.value = selectedFile.type.startsWith('video/')
   }
 })
+function prepareUploadQueue(files) {
+  const selectedFiles = Array.from(files || []).filter((item) => item instanceof File)
+
+  if (!selectedFiles.length) {
+    return
+  }
+
+  uploadQueue.value = selectedFiles.map((item) => ({
+    file: item,
+    name: item.name,
+    alt: "",
+    categoryId: [1],
+    status: "pending",
+    error: ""
+  }))
+
+  uploadProgress.value = 0
+  uploadCurrentIndex.value = -1
+  uploadDialog.value = true
+}
+
+
+function queuePreviewUrl(item) {
+  if (!item.previewUrl) {
+    item.previewUrl = URL.createObjectURL(item.file)
+  }
+
+  return item.previewUrl
+}
+
+
+
 
 function onVideoMetadataLoaded() {
   const video = videoPreviewRef.value
@@ -979,14 +1122,20 @@ async function loadMedia() {
   }
 
   loadingMedia.value = true
+  loadingMoreMedia.value = false
   catalogError.value = ''
+  mediaOffset.value = 0
+  mediaHasMore.value = true
 
   try {
-    const response = await fetch('/api/admin/media', {
-      headers: {
-        Authorization: `Bearer ${token}`
+    const response = await fetch(
+      `/api/admin/media?limit=${mediaPageSize}&offset=0`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       }
-    })
+    )
 
     if (response.status === 401) {
       sessionStorage.removeItem('albion_admin_token')
@@ -1003,10 +1152,195 @@ async function loadMedia() {
     }
 
     mediaItems.value = data?.media || []
+    mediaOffset.value = mediaItems.value.length
+    mediaHasMore.value = data?.has_more === true
   } catch {
     catalogError.value = 'Не удалось выполнить запрос к серверу'
   } finally {
     loadingMedia.value = false
+  }
+}
+
+async function loadMoreMedia() {
+  if (loadingMedia.value || loadingMoreMedia.value || !mediaHasMore.value) {
+    return
+  }
+
+  const token = await getAdminToken()
+
+  if (!token) {
+    return
+  }
+
+  loadingMoreMedia.value = true
+
+  try {
+    const response = await fetch(
+      `/api/admin/media?limit=${mediaPageSize}&offset=${mediaOffset.value}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    )
+
+    if (response.status === 401) {
+      sessionStorage.removeItem("albion_admin_token")
+      await router.replace("/administration")
+      return
+    }
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      catalogError.value =
+        data?.detail || "Не удалось загрузить следующие файлы"
+      return
+    }
+
+    const newItems = data?.media || []
+    mediaItems.value = [...mediaItems.value, ...newItems]
+    mediaOffset.value += newItems.length
+    mediaHasMore.value = data?.has_more === true
+  } catch {
+    catalogError.value = "Не удалось выполнить запрос к серверу"
+  } finally {
+    loadingMoreMedia.value = false
+  }
+}
+
+function handleMediaGridScroll(event) {
+  const element = event.currentTarget
+  if (!element) return
+
+  const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
+  if (remaining < 600) loadMoreMedia()
+}
+
+async function uploadQueueItem(item) {
+  const token = await getAdminToken()
+
+  if (!token) {
+    return false
+  }
+
+  item.status = "uploading"
+  item.error = ""
+
+  const formData = new FormData()
+  formData.append("file", item.file)
+  formData.append("original_name", item.name.trim() || item.file.name)
+  item.categoryId.forEach((categoryId) => formData.append("category_id", String(categoryId)))
+
+  if (item.alt.trim()) {
+    formData.append("alt", item.alt.trim())
+  }
+
+  if (item.title?.trim()) {
+    formData.append("title", item.title.trim())
+  }
+
+  if (item.file.type.startsWith("video/") && item.previewTime > 0) {
+    formData.append("preview_time", String(item.previewTime))
+  }
+
+  try {
+    const response = await fetch("/api/admin/media", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`
+      },
+      body: formData
+    })
+
+    if (response.status === 401) {
+      sessionStorage.removeItem("albion_admin_token")
+      await router.replace("/administration")
+      return false
+    }
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      item.status = "error"
+      item.error = data?.detail || "Не удалось загрузить файл"
+      return false
+    }
+
+    item.status = "success"
+    item.result = data?.media || null
+    return true
+  } catch {
+    item.status = "error"
+    item.error = "Не удалось выполнить запрос к серверу"
+    return false
+  }
+}
+async function uploadSingleQueue(item) {
+  uploading.value = true
+  uploadProgress.value = 0
+  uploadCurrentIndex.value = uploadQueue.value.indexOf(item)
+
+  try {
+    const success = await uploadQueueItem(item)
+    uploadProgress.value = success ? 100 : 0
+
+    if (success) {
+      await loadMedia()
+
+      if (uploadQueue.value.length === 1) {
+        uploadDialog.value = false
+      }
+    }
+  } finally {
+    uploading.value = false
+    uploadCurrentIndex.value = -1
+  }
+}
+
+async function uploadAllQueue() {
+  const items = uploadQueue.value.filter((item) => item.status === "pending")
+
+  if (!items.length) {
+    return
+  }
+
+  items.forEach((item) => {
+    item.name = item.file.name
+    item.alt = ""
+    item.categoryId = [1]
+    item.status = "pending"
+    item.error = ""
+  })
+
+  uploading.value = true
+  uploadProgress.value = 0
+  uploadCurrentIndex.value = -1
+
+  let completed = 0
+  let allUploaded = true
+
+  try {
+    for (let index = 0; index < items.length; index += 1) {
+      uploadCurrentIndex.value = uploadQueue.value.indexOf(items[index])
+      const success = await uploadQueueItem(items[index])
+
+      if (!success) {
+        allUploaded = false
+      }
+
+      completed += 1
+      uploadProgress.value = (completed / items.length) * 100
+    }
+
+    await loadMedia()
+
+    if (allUploaded) {
+      uploadDialog.value = false
+    }
+  } finally {
+    uploading.value = false
+    uploadCurrentIndex.value = -1
   }
 }
 
@@ -1146,11 +1480,101 @@ onBeforeUnmount(() => {
 })
 </script>
 
+
 <style scoped>
 .media-page {
   min-height: 100vh;
   padding: 32px 24px;
 }
+
+/* upload queue */
+.upload-queue-dialog {
+  width: min(1100px, 94vw);
+  max-width: 1100px;
+}
+
+.upload-queue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.upload-queue-item {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr) auto auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--q-separator-color);
+  border-radius: 8px;
+}
+
+.upload-queue-preview {
+  width: 180px;
+  height: 110px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #f3f3f3;
+}
+
+.upload-queue-preview img,
+.upload-queue-preview video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.upload-queue-fields {
+  min-width: 0;
+}
+
+.upload-queue-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  max-width: 180px;
+  font-size: 12px;
+  color: var(--q-negative);
+}
+
+.upload-queue-status span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-queue-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+@media (max-width: 700px) {
+  .upload-queue-item {
+    grid-template-columns: 110px minmax(0, 1fr) auto;
+  }
+
+  .upload-queue-preview {
+    width: 110px;
+    height: 70px;
+  }
+
+  .upload-queue-status {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+
+  .upload-queue-actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+}
+
 
 .media-container {
   width: 100%;
@@ -1424,6 +1848,11 @@ onBeforeUnmount(() => {
 }
 
 .media-grid {
+  max-height: 70vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+
   display: grid;
   gap: 18px;
 }

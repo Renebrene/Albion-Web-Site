@@ -22,6 +22,7 @@ def _normalize_category_ids(category_id: list[int] | None) -> list[int]:
                 "SELECT COUNT(*) FROM media_categories WHERE id = ANY(%s)",
                 (category_ids,),
             )
+
             if cur.fetchone()[0] != len(category_ids):
                 raise MediaValidationError("Одна или несколько категорий не найдены")
     return category_ids
@@ -401,7 +402,7 @@ def _insert_variant(
     }
 
 
-def list_media() -> list[dict]:
+def list_media(limit: int = 30, offset: int = 0) -> list[dict]:
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(
@@ -442,7 +443,9 @@ def list_media() -> list[dict]:
                     ) AS used_in_pages
                 FROM media m
                 ORDER BY m.created_at DESC, m.id DESC
-                """
+                LIMIT %s OFFSET %s
+                """,
+                (limit, offset),
             )
 
             rows = cur.fetchall()
