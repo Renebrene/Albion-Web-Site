@@ -87,6 +87,10 @@ CREATE TABLE IF NOT EXISTS surfaces (
     side TEXT NOT NULL,
     name TEXT,
 
+    -- Стабильный SHA-256 идентификатор импортированной поверхности.
+    -- Может повторяться для ошибочно продублированных строк исходного Excel.
+    surface_hash TEXT,
+
     external_number TEXT,
     temporary_identifier TEXT,
 
@@ -169,6 +173,62 @@ CREATE TABLE IF NOT EXISTS surface_availability (
 );
 
 -- ============================================================
+-- CONSTRUCTION MEDIA
+-- Локальные варианты фото/карты рекламной поверхности.
+-- Не входят в обычную CMS-медиатеку.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS construction_imports (
+    id BIGSERIAL PRIMARY KEY,
+    import_key TEXT NOT NULL UNIQUE,
+
+    status TEXT NOT NULL
+        CHECK (status IN ('active', 'obsolete', 'failed')),
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    finished_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS construction_media (
+    id BIGSERIAL PRIMARY KEY,
+    uuid UUID NOT NULL DEFAULT gen_random_uuid(),
+
+    import_id BIGINT
+        REFERENCES construction_imports(id) ON DELETE SET NULL,
+
+    surface_id BIGINT
+        REFERENCES surfaces(id) ON DELETE SET NULL,
+
+    surface_hash TEXT,
+
+    media_type TEXT NOT NULL
+        CHECK (media_type IN ('photo', 'map')),
+
+    -- Исходная внешняя ссылка Yandex.
+    original_url TEXT,
+
+    original_name TEXT,
+    mime_type TEXT,
+    file_size BIGINT,
+
+    width INTEGER,
+    height INTEGER,
+
+    -- Локально сохраняются только обработанные варианты.
+    large_path TEXT,
+    card_path TEXT,
+    thumb_path TEXT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT construction_media_uuid_unique UNIQUE (uuid),
+
+    CONSTRAINT construction_media_import_hash_type_unique
+        UNIQUE (import_id, surface_hash, media_type)
+);
+
+-- ============================================================
 -- INDEXES
 -- ============================================================
 
@@ -194,6 +254,9 @@ CREATE INDEX IF NOT EXISTS idx_surfaces_location
     ON surfaces
     USING GIST (location);
 
+CREATE INDEX IF NOT EXISTS idx_surfaces_surface_hash
+    ON surfaces (surface_hash);
+
 CREATE INDEX IF NOT EXISTS idx_surfaces_construction
     ON surfaces (construction_id);
 
@@ -211,6 +274,15 @@ CREATE INDEX IF NOT EXISTS idx_surfaces_legacy_id
 
 CREATE INDEX IF NOT EXISTS idx_surfaces_active
     ON surfaces (is_active);
+
+CREATE INDEX IF NOT EXISTS idx_construction_media_surface
+    ON construction_media (surface_id);
+
+CREATE INDEX IF NOT EXISTS idx_construction_media_type
+    ON construction_media (media_type);
+
+CREATE INDEX IF NOT EXISTS idx_construction_media_surface_hash_type
+    ON construction_media (surface_hash, media_type);
 
 CREATE INDEX IF NOT EXISTS idx_availability_surface
     ON surface_availability (surface_id);

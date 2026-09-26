@@ -35,3 +35,6 @@ Thumbs.db
 
 # Media storage
 storage/
+
+# Local input files
+input/

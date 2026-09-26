@@ -2,13 +2,14 @@ import json
 import os
 import re
 from collections import Counter
+from datetime import datetime
 from pathlib import Path
 
 import psycopg
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
-JSON_FILE = PROJECT_DIR / "tmp" / "import.json"
+JSON_FILE = PROJECT_DIR / "tmp" / "constructions_import.json"
 ENV_FILE = PROJECT_DIR / ".env"
 
 
@@ -196,9 +197,9 @@ def main():
         "type",
         "size",
         "price",
-        "number",
-        "photo",
-        "map",
+        "external_number",
+        "photo_url",
+        "map_url",
         "months",
         "statuses",
     ]
@@ -264,6 +265,32 @@ def main():
 
     with db_connection() as conn:
         with conn.cursor() as cur:
+
+            # -------------------------------------------------
+            # Новая версия импорта конструкций.
+            # Создаётся в той же транзакции, что и весь импорт.
+            # При ошибке вся транзакция откатится вместе с этой
+            # записью, а предыдущая версия останется активной.
+            # -------------------------------------------------
+
+            import_key = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+            cur.execute(
+                """
+                INSERT INTO construction_imports (
+                    import_key,
+                    status
+                )
+                VALUES (%s, 'failed')
+                RETURNING id
+                """,
+                (import_key,),
+            )
+
+            import_id = cur.fetchone()[0]
+
+            print(f"Import ID:    {import_id}")
+            print(f"Import key:   {import_key}")
 
             # -------------------------------------------------
             # Каждый импорт полностью пересобирает раздел
@@ -396,7 +423,7 @@ def main():
                         "не найдена construction"
                     )
 
-                number = clean(item.get("number"))
+                number = clean(item.get("external_number"))
                 side = clean(item.get("side"))
 
                 if not side:
@@ -430,13 +457,14 @@ def main():
                         location,
                         latitude,
                         longitude,
+                        surface_hash,
                         is_active
                     )
                     VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s,
                         %s, %s,
                         ST_GeomFromText(%s, 4326),
-                        %s, %s,
+                        %s, %s, %s,
                         TRUE
                     )
                     RETURNING id
@@ -453,11 +481,12 @@ def main():
                         clean(item.get("type")) or None,
                         clean(item.get("size")) or None,
                         clean(item.get("price")) or None,
-                        clean(item.get("photo")) or None,
-                        clean(item.get("map")) or None,
+                        clean(item.get("photo_url")) or None,
+                        clean(item.get("map_url")) or None,
                         location,
                         lat,
                         lng,
+                        clean(item.get("surface_hash")) or None,
                     ),
                 )
 
@@ -637,10 +666,40 @@ def main():
             ):
                 print(f"{status:12} {count}")
 
-            # Если все проверки прошли, контекст with сделает COMMIT.
+            # -------------------------------------------------
+            # Финализируем новую версию только после всех
+            # контрольных проверок.
+            #
+            # Все операции находятся в одной транзакции:
+            # если здесь или при выходе из with произойдёт
+            # ошибка, PostgreSQL откатит весь импорт.
+            # -------------------------------------------------
+
+            cur.execute(
+                """
+                UPDATE construction_imports
+                SET status = 'obsolete'
+                WHERE status = 'active'
+                  AND id <> %s
+                """,
+                (import_id,),
+            )
+
+            cur.execute(
+                """
+                UPDATE construction_imports
+                SET
+                    status = 'active',
+                    finished_at = NOW()
+                WHERE id = %s
+                """,
+                (import_id,),
+            )
+
             print()
             print("=" * 70)
             print("ALL CHECKS PASSED")
+            print(f"ACTIVE IMPORT: {import_id} / {import_key}")
             print("COMMIT")
             print("=" * 70)
 

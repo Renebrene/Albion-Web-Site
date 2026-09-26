@@ -68,6 +68,13 @@ const routes = [
         meta: {
           requiresAdmin: true
         }
+      },
+      {
+        path: 'constructions',
+        component: () => import('@/pages/AdministrationConstructionsPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
       }
     ]
   },

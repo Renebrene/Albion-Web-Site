@@ -92,10 +92,13 @@ def get_data():
             s.side,
             s.size,
             s.type,
+            s.light,
+            s.material,
 
             a.month,
             a.raw_value,
-            a.status
+            a.status,
+            a.price
 
         FROM surfaces s
         JOIN constructions c
@@ -134,13 +137,17 @@ def get_data():
                     side,
                     size,
                     media_type,
+                    light,
+                    material,
                     month,
                     raw_value,
                     db_status,
+                    month_price,
                 ) = row
 
                 if surface_id not in records:
                     records[surface_id] = {
+                        "id": surface_id,
                         "address": _text(address),
                         "city": _text(city),
                         "district": _text(district),
@@ -152,6 +159,8 @@ def get_data():
                         "number": _text(external_number),
                         "photo": _text(photo),
                         "price": _text(price),
+                        "light": _text(light),
+                        "material": _text(material),
                         "side": _text(side),
                         "size": _text(size),
                         "statuses": {},
@@ -166,6 +175,9 @@ def get_data():
                     records[surface_id]["statuses"][month_name] = _status(
                         db_status
                     )
+                    records[surface_id].setdefault("month_prices", {})[
+                        month_name
+                    ] = _text(month_price)
 
     result = []
 
@@ -173,6 +185,7 @@ def get_data():
         for month_name in MONTHS.values():
             item["months"].setdefault(month_name, "")
             item["statuses"].setdefault(month_name, "Свободно")
+            item.setdefault("month_prices", {}).setdefault(month_name, "")
 
         result.append(item)
 

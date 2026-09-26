@@ -57,6 +57,7 @@ SUPPORTED_FORMATS = {
     "BMP",
     "PSD",
     "GIF",
+    "MPO",
 }
 
 
