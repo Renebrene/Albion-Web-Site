@@ -42,15 +42,29 @@ WRITE_VARIANTS_LOCK = Lock()
 
 
 def safe_filename(value: str) -> str:
-    value = value.replace("/", " ").replace("\\", " ")
+    value = str(value or "")
 
-    value = re.sub(r'[:*?"<>|]', "", value)
+    # Убираем управляющие символы.
+    value = re.sub(r"[\x00-\x1f\x7f]", "", value)
+
+    # Слеши превращаем в разделитель.
+    value = value.replace("/", "_").replace("\\", "_")
+
+    # Разрешаем кириллицу, латиницу, цифры и безопасные символы.
+    value = re.sub(
+        r"[^A-Za-zА-Яа-яЁё0-9\s.,()_-]",
+        "_",
+        value,
+    )
+
+    # Нормализуем пробелы и повторяющиеся разделители.
     value = re.sub(r"\s+", " ", value).strip()
+    value = re.sub(r"_+", "_", value)
 
-    if not value:
-        value = "construction"
+    # Не оставляем разделители по краям.
+    value = value.strip(" ._")
 
-    return value[:180]
+    return value or "construction"
 
 
 def build_filename(
@@ -231,153 +245,6 @@ def write_variants(
     return paths
 
 
-def already_imported(
-    conn,
-    import_id: int,
-    media_type: str,
-    surface_hash: str,
-    original_url: str,
-) -> bool:
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT id
-            FROM construction_media
-            WHERE import_id = %s
-              AND surface_hash = %s
-              AND media_type = %s
-              AND original_url = %s
-            LIMIT 1
-            """,
-            (
-                import_id,
-                surface_hash,
-                media_type,
-                original_url,
-            ),
-        )
-
-        return cur.fetchone() is not None
-
-
-def find_previous_media(
-    conn,
-    *,
-    import_id: int,
-    surface_hash: str,
-    media_type: str,
-) -> dict | None:
-    with conn.cursor() as cur:
-        cur.execute(
-            """
-            SELECT
-                cm.id,
-                cm.import_id,
-                ci.import_key,
-                cm.surface_hash,
-                cm.media_type,
-                cm.original_url,
-                cm.original_name,
-                cm.mime_type,
-                cm.file_size,
-                cm.width,
-                cm.height,
-                cm.large_path,
-                cm.card_path,
-                cm.thumb_path
-            FROM construction_media cm
-            JOIN construction_imports ci
-              ON ci.id = cm.import_id
-            WHERE cm.import_id <> %s
-              AND cm.surface_hash = %s
-              AND cm.media_type = %s
-              AND (
-                    cm.large_path IS NOT NULL
-                 OR cm.card_path IS NOT NULL
-                 OR cm.thumb_path IS NOT NULL
-              )
-            ORDER BY cm.import_id DESC, cm.id DESC
-            LIMIT 1
-            """,
-            (
-                import_id,
-                surface_hash,
-                media_type,
-            ),
-        )
-
-        row = cur.fetchone()
-
-    if not row:
-        return None
-
-    columns = [
-        "id",
-        "import_id",
-        "import_key",
-        "surface_hash",
-        "media_type",
-        "original_url",
-        "original_name",
-        "mime_type",
-        "file_size",
-        "width",
-        "height",
-        "large_path",
-        "card_path",
-        "thumb_path",
-    ]
-
-    return dict(zip(columns, row))
-
-
-def copy_previous_variants(
-    *,
-    previous_media: dict,
-    import_key: str,
-    media_type: str,
-) -> dict[str, str]:
-    variant_dirs = get_variant_dirs(import_key)
-    paths: dict[str, str] = {}
-
-    for variant in ("large", "card", "thumb"):
-        previous_path = previous_media.get(f"{variant}_path")
-
-        if not previous_path:
-            continue
-
-        source = PROJECT_DIR / previous_path
-
-        if not source.is_file():
-            raise RuntimeError(
-                f"Не найден старый файл {variant}: {source}"
-            )
-
-        destination = variant_dirs[media_type][variant] / (
-            source.name
-        )
-
-        tmp_path = destination.with_suffix(
-            destination.suffix + ".tmp"
-        )
-
-        import shutil
-
-        shutil.copy2(source, tmp_path)
-        os.replace(tmp_path, destination)
-
-        paths[variant] = str(
-            destination.relative_to(PROJECT_DIR)
-        )
-
-    if not paths:
-        raise RuntimeError(
-            "У предыдущей версии нет доступных файлов"
-        )
-
-    return paths
-
-
 def save_media_record(
     conn,
     *,
@@ -467,15 +334,6 @@ def process_surface(
         media_type,
     )
 
-    if already_imported(
-        conn,
-        import_id,
-        media_type,
-        surface_hash,
-        url,
-    ):
-        return f"SKIP {media_type}: {filename}"
-
     if dry_run:
         return f"DRY {media_type}: {filename}"
 
@@ -523,43 +381,8 @@ def process_surface(
             f"{image.width}x{image.height}"
         )
 
-    except Exception as download_error:
-        previous_media = find_previous_media(
-            conn,
-            import_id=import_id,
-            surface_hash=surface_hash,
-            media_type=media_type,
-        )
-
-        if not previous_media:
-            raise
-
-        paths = copy_previous_variants(
-            previous_media=previous_media,
-            import_key=import_key,
-            media_type=media_type,
-        )
-
-        save_media_record(
-            conn,
-            import_id=import_id,
-            surface_id=surface_id,
-            surface_hash=surface_hash,
-            media_type=media_type,
-            original_url=previous_media["original_url"],
-            original_name=previous_media["original_name"],
-            mime_type=previous_media["mime_type"],
-            file_size=previous_media["file_size"],
-            width=previous_media["width"],
-            height=previous_media["height"],
-            paths=paths,
-        )
-
-        return (
-            f"FALLBACK {media_type}: "
-            f"{previous_media['original_name']} "
-            f"(download error: {download_error})"
-        )
+    except Exception:
+        raise
 
 
 def load_surfaces(conn):
@@ -689,7 +512,7 @@ def main() -> None:
                         exc,
                     )
 
-        with ThreadPoolExecutor(max_workers=10) as executor:
+        with ThreadPoolExecutor(max_workers=12) as executor:
             futures = [
                 executor.submit(process_task, task)
                 for task in tasks

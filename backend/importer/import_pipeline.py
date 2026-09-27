@@ -1,19 +1,62 @@
 from __future__ import annotations
 
 import argparse
+import json
+import os
 import shutil
+import subprocess
+import sys
 from datetime import datetime
 from pathlib import Path
-
-from excel_to_json import convert
-from json_to_postgres import main as import_to_postgres
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 INPUT_DIR = PROJECT_DIR / "input"
 TMP_DIR = PROJECT_DIR / "tmp"
-ARCHIVE_DIR = PROJECT_DIR / "archive"
-JSON_FILE = TMP_DIR / "import.json"
+IMPORT_DIR = TMP_DIR / "import"
+ARCHIVE_DIR = PROJECT_DIR / "archive" / "constructions"
+
+
+def load_project_env() -> dict[str, str]:
+    env: dict[str, str] = {}
+
+    env_file = PROJECT_DIR / ".env"
+    if not env_file.exists():
+        return env
+
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+
+        if key.startswith("ALBION_DB_"):
+            env[key] = value
+
+    return env
+
+
+def run_stage(module: str, *, env: dict[str, str] | None = None) -> None:
+    command_env = os.environ.copy()
+    command_env.update(load_project_env())
+
+    if env:
+        command_env.update(env)
+
+    result = subprocess.run(
+        [sys.executable, "-m", module],
+        cwd=PROJECT_DIR,
+        env=command_env,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"Стадия {module} завершилась с кодом {result.returncode}"
+        )
 
 
 def find_source_file() -> Path:
@@ -39,107 +82,278 @@ def find_source_file() -> Path:
     return files[0]
 
 
-def archive_source(source: Path) -> Path:
-    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+def find_import_key() -> str:
+    staging_files = sorted(
+        IMPORT_DIR.glob("*/staging.sqlite"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    destination = ARCHIVE_DIR / f"{timestamp}_{source.name}"
+    if not staging_files:
+        raise RuntimeError(
+            "После staging не найден staging.sqlite"
+        )
+
+    return staging_files[0].parent.name
+
+
+def read_load_result(import_key: str) -> dict:
+    result_path = IMPORT_DIR / import_key / "load_result.json"
+
+    if not result_path.exists():
+        raise RuntimeError(
+            f"Результат PostgreSQL import не найден: {result_path}"
+        )
+
+    return json.loads(result_path.read_text(encoding="utf-8"))
+
+
+def archive_source(source: Path, import_key: str) -> Path:
+    archive_root = ARCHIVE_DIR / import_key
+    archive_root.mkdir(parents=True, exist_ok=True)
+
+    destination = archive_root / "source.xlsx"
 
     if destination.exists():
         raise RuntimeError(
-            f"Архивный файл уже существует: {destination}"
+            f"Архивный source.xlsx уже существует: {destination}"
         )
 
-    shutil.move(str(source), str(destination))
+    shutil.copy2(source, destination)
     return destination
 
 
-def cleanup_json() -> None:
-    if JSON_FILE.exists():
-        JSON_FILE.unlink()
+def archive_database(import_key: str) -> Path:
+    staging_db = IMPORT_DIR / import_key / "staging.sqlite"
+    archive_root = ARCHIVE_DIR / import_key
+    destination = archive_root / "database.dump"
+
+    archive_root.mkdir(parents=True, exist_ok=True)
+
+    password = None
+    env_file = PROJECT_DIR / ".env"
+
+    if env_file.exists():
+        for line in env_file.read_text(encoding="utf-8").splitlines():
+            if line.startswith("ALBION_DB_PASSWORD="):
+                password = line.split("=", 1)[1].strip()
+                break
+
+    if not password:
+        raise RuntimeError(
+            "Не найден ALBION_DB_PASSWORD в .env"
+        )
+
+    dump_command = [
+        "pg_dump",
+        "-Fc",
+        "-h",
+        os.getenv("ALBION_DB_HOST", "127.0.0.1"),
+        "-p",
+        os.getenv("ALBION_DB_PORT", "5432"),
+        "-U",
+        os.getenv("ALBION_DB_USER", "albion_app"),
+        "-d",
+        os.getenv("ALBION_DB_NAME", "albion"),
+        "-f",
+        str(destination),
+    ]
+
+    command_env = os.environ.copy()
+    command_env["PGPASSWORD"] = password
+
+    result = subprocess.run(
+        dump_command,
+        cwd=PROJECT_DIR,
+        env=command_env,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"pg_dump завершился с кодом {result.returncode}"
+        )
+
+    return destination
 
 
-def run(dry_run: bool = False) -> None:
-    TMP_DIR.mkdir(parents=True, exist_ok=True)
-    ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+def archive_old_import_media(import_key: str) -> Path:
+    source = (
+        PROJECT_DIR
+        / "storage"
+        / "constructions"
+        / "imports"
+        / import_key
+    )
+    destination = ARCHIVE_DIR / import_key / "media"
 
+    if not source.exists():
+        raise RuntimeError(
+            f"Processed media старого import не найден: {source}"
+        )
+
+    if destination.exists():
+        return destination
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source, destination)
+
+    return destination
+
+
+def cleanup_import_temp(import_key: str) -> None:
+    import_root = IMPORT_DIR / import_key
+
+    if import_root.exists():
+        shutil.rmtree(import_root)
+
+
+def cleanup_import_storage(import_key: str) -> None:
+    storage_root = (
+        PROJECT_DIR
+        / "storage"
+        / "constructions"
+        / "imports"
+        / import_key
+    )
+
+    if storage_root.exists():
+        shutil.rmtree(storage_root)
+
+
+def cleanup_old_archives(*, keep: int = 5) -> list[str]:
+    archives = sorted(
+        (
+            path
+            for path in ARCHIVE_DIR.iterdir()
+            if path.is_dir()
+        ),
+        key=lambda path: path.name,
+        reverse=True,
+    )
+
+    old_archives = archives[keep:]
+    removed = []
+
+    for archive in old_archives:
+        shutil.rmtree(archive)
+        removed.append(archive.name)
+
+    return removed
+
+
+def run(*, commit: bool) -> None:
     source = find_source_file()
 
     print("=" * 70)
-    print("ALBION IMPORT PIPELINE")
+    print("ALBION CONSTRUCTION IMPORT PIPELINE")
     print("=" * 70)
     print(f"Источник: {source}")
-    print(f"JSON:     {JSON_FILE}")
-    print(f"Архив:    {ARCHIVE_DIR}")
+    print(f"Режим:    {'COMMIT' if commit else 'DRY-RUN'}")
 
     print()
     print("===== STEP 1: EXCEL → JSON =====")
-    generated_json = convert()
-
-    if generated_json != JSON_FILE:
-        raise RuntimeError(
-            f"Excel importer создал неожиданный JSON: {generated_json}"
-        )
-
-    if not JSON_FILE.exists():
-        raise RuntimeError(
-            f"После Excel → JSON файл не найден: {JSON_FILE}"
-        )
+    run_stage("backend.importer.constructions_excel_to_json")
 
     print()
-    print(f"JSON создан: {JSON_FILE}")
+    print("===== STEP 2: JSON → SQLITE STAGING =====")
+    run_stage("backend.importer.staging")
 
-    if dry_run:
+    import_key = find_import_key()
+
+    print()
+    print(f"Import key: {import_key}")
+
+    print()
+    print("===== STEP 3: DOWNLOAD MEDIA =====")
+    run_stage("backend.importer.construction_media_download")
+
+    print()
+    print("===== STEP 4: CREATE PREVIEWS =====")
+    run_stage("backend.importer.construction_media_preview")
+
+    print()
+    print("===== STEP 5: SQLITE → POSTGRESQL =====")
+    run_stage(
+        "backend.importer.staging_to_postgres",
+        env={
+            "ALBION_IMPORT_DRY_RUN": "0" if commit else "1",
+        },
+    )
+
+    old_active_import_key = None
+
+    if commit:
+        load_result = read_load_result(import_key)
+        old_active_import_key = load_result.get("old_active_import_key")
+
+        print()
+        print(f"Предыдущий ACTIVE import: {old_active_import_key or 'нет'}")
+
+    if not commit:
+        print()
+        print("===== DRY-RUN CLEANUP =====")
+        cleanup_import_temp(import_key)
+
+        storage_import = (
+            PROJECT_DIR
+            / "storage"
+            / "constructions"
+            / "imports"
+            / import_key
+        )
+
+        if storage_import.exists():
+            shutil.rmtree(storage_import)
+
+        print(f"tmp/import/{import_key}: удалён")
+        print(f"storage/.../{import_key}: удалён")
+
         print()
         print("=" * 70)
         print("DRY-RUN COMPLETE")
-        print("PostgreSQL не изменён")
-        print("Excel не перемещён")
-        print("JSON не удалён")
+        print("PostgreSQL: НЕ ИЗМЕНЁН")
+        print("Исходный Excel: НЕ ИЗМЕНЁН")
+        print("Временные media: УДАЛЕНЫ")
         print("=" * 70)
         return
 
-    try:
-        print()
-        print("===== STEP 2: JSON → POSTGRESQL =====")
-        import_to_postgres()
+    print()
+    print("===== STEP 6: ARCHIVE =====")
 
-    except Exception:
-        cleanup_json()
+    archived_source = archive_source(source, import_key)
+    print(f"source.xlsx:   {archived_source}")
 
-        print()
-        print("=" * 70)
-        print("IMPORT FAILED")
-        print("Исходный Excel оставлен в input/")
-        print("Временный JSON удалён")
-        print("PostgreSQL-транзакция откатывается автоматически")
-        print("=" * 70)
-        raise
+    archived_db = archive_database(import_key)
+    print(f"database.dump: {archived_db}")
+
+    if old_active_import_key:
+        archived_media = archive_old_import_media(
+            old_active_import_key
+        )
+        print(f"old media:     {archived_media}")
+
+        cleanup_import_storage(old_active_import_key)
+        print(
+            "storage/constructions/imports/"
+            f"{old_active_import_key}: удалён"
+        )
+    else:
+        print("Предыдущего ACTIVE import нет: media архивировать не нужно.")
 
     print()
-    print("===== STEP 3: ARCHIVE SOURCE =====")
-
-    try:
-        archived = archive_source(source)
-    except Exception as exc:
-        cleanup_json()
-
-        print()
-        print("=" * 70)
-        print("DATABASE IMPORT SUCCEEDED")
-        print("ARCHIVE FAILED")
-        print(f"Исходный Excel всё ещё находится в input/: {source}")
-        print(f"Причина: {exc}")
-        print("Временный JSON удалён")
-        print("=" * 70)
-        raise
-
-    print(f"Excel перемещён: {archived}")
+    print("===== STEP 7: CLEANUP =====")
+    cleanup_import_temp(import_key)
+    print(f"tmp/import/{import_key}: удалён")
 
     print()
-    print("===== STEP 4: CLEANUP JSON =====")
-    cleanup_json()
-    print(f"JSON удалён: {JSON_FILE}")
+    print("===== ARCHIVE RETENTION =====")
+    removed_archives = cleanup_old_archives(keep=5)
+
+    if removed_archives:
+        for archive_name in removed_archives:
+            print(f"Удалён старый архив: {archive_name}")
+    else:
+        print("Удаление не требуется: архивов не больше 5.")
 
     print()
     print("=" * 70)
@@ -149,16 +363,20 @@ def run(dry_run: bool = False) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Безопасный импорт Albion: Excel → JSON → PostgreSQL → archive"
+        description=(
+            "Безопасный импорт конструкций: "
+            "Excel → SQLite → media → PostgreSQL → archive"
+        )
     )
+
     parser.add_argument(
-        "--dry-run",
+        "--commit",
         action="store_true",
-        help="только Excel → JSON, без PostgreSQL, архивации и удаления JSON",
+        help="выполнить реальный PostgreSQL COMMIT и архивирование",
     )
 
     args = parser.parse_args()
-    run(dry_run=args.dry_run)
+    run(commit=args.commit)
 
 
 if __name__ == "__main__":

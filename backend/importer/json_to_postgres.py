@@ -281,7 +281,7 @@ def main():
                     import_key,
                     status
                 )
-                VALUES (%s, 'failed')
+                VALUES (%s, 'staging')
                 RETURNING id
                 """,
                 (import_key,),
@@ -675,26 +675,8 @@ def main():
             # ошибка, PostgreSQL откатит весь импорт.
             # -------------------------------------------------
 
-            cur.execute(
-                """
-                UPDATE construction_imports
-                SET status = 'obsolete'
-                WHERE status = 'active'
-                  AND id <> %s
-                """,
-                (import_id,),
-            )
-
-            cur.execute(
-                """
-                UPDATE construction_imports
-                SET
-                    status = 'active',
-                    finished_at = NOW()
-                WHERE id = %s
-                """,
-                (import_id,),
-            )
+            # Новый импорт остаётся staging до завершения
+            # всех последующих этапов pipeline.
 
             print()
             print("=" * 70)

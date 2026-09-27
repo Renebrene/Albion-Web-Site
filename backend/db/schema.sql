@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS construction_imports (
     import_key TEXT NOT NULL UNIQUE,
 
     status TEXT NOT NULL
-        CHECK (status IN ('active', 'obsolete', 'failed')),
+        CHECK (status IN ('active', 'staging', 'obsolete', 'failed')),
 
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     finished_at TIMESTAMPTZ
