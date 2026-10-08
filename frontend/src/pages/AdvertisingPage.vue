@@ -65,10 +65,12 @@
           </div>
 
           <MapSearch
-            v-if="workspaceMode !== 'point'"
-            v-model="searchQuery"
+            v-model="topSearchValue"
             :count="displayedConstructions.length"
-            @search="onMapSearch"
+            :show-mode="workspaceMode === 'point'"
+            :mode="topSearchMode"
+            @update:mode="topSearchMode = $event"
+            @search="onTopSearch"
           />
         </div>
 
@@ -651,7 +653,7 @@ function onMapSearch() {
 
 const pointCoordinates = ref('47.2357, 39.7015')
 const pointAddress = ref('')
-const pointRadius = ref(3000)
+const pointRadius = ref(1000)
 
 /* Шаги радиуса поиска (метры). */
 const RADIUS_STEPS = [50, 100, 200, 300, 500, 800, 1000, 1500, 2000, 3000]
@@ -922,6 +924,51 @@ const displayedConstructions = computed(() =>
 /* Из панели точки: открыть закладку «Список» с найденными результатами. */
 function openListFromPoint() {
   workspaceMode.value = 'list'
+}
+
+/*
+ * Поиск в верхней плавающей строке.
+ * В режиме точки — координаты/адрес (переключатель на краю поля),
+ * в остальных режимах — обычный поиск по адресу/городу/номеру.
+ */
+const topSearchMode = ref('coords')
+
+const topSearchValue = computed({
+  get() {
+    if (workspaceMode.value === 'point') {
+      return topSearchMode.value === 'coords'
+        ? pointCoordinates.value
+        : pointAddress.value
+    }
+
+    return searchQuery.value
+  },
+
+  set(value) {
+    if (workspaceMode.value === 'point') {
+      if (topSearchMode.value === 'coords') {
+        pointCoordinates.value = value
+      } else {
+        pointAddress.value = value
+      }
+    } else {
+      searchQuery.value = value
+    }
+  }
+})
+
+function onTopSearch() {
+  if (workspaceMode.value === 'point') {
+    if (topSearchMode.value === 'coords') {
+      executePointSearch()
+    } else {
+      executeAddressSearch()
+    }
+
+    return
+  }
+
+  onMapSearch()
 }
 
 
@@ -2166,51 +2213,27 @@ onMounted(async () => {
   color: #17212b;
 }
 
-.point-map-crosshair::before,
-.point-map-crosshair::after,
-.point-map-crosshair span::before,
-.point-map-crosshair span::after {
+/* Мишень поиска: двойное кольцо (тёмное + акцент) и центральная точка. */
+.point-map-crosshair::before {
   content: '';
 
   position: absolute;
+  inset: 3px;
 
-  background: #17212b;
+  border: 2px solid rgba(23, 33, 43, .8);
+  border-radius: 50%;
 
-  opacity: .75;
-
-  border-radius: 2px;
-}
-
-.point-map-crosshair::before {
-  left: 18px;
-  top: 0;
-
-  width: 2px;
-  height: 11px;
+  box-shadow: 0 1px 6px rgba(23, 33, 43, .18);
 }
 
 .point-map-crosshair::after {
-  left: 18px;
-  bottom: 0;
+  content: '';
 
-  width: 2px;
-  height: 11px;
-}
+  position: absolute;
+  inset: 10px;
 
-.point-map-crosshair span::before {
-  left: 0;
-  top: 18px;
-
-  width: 11px;
-  height: 2px;
-}
-
-.point-map-crosshair span::after {
-  right: 0;
-  top: 18px;
-
-  width: 11px;
-  height: 2px;
+  border: 2px solid var(--albion-accent);
+  border-radius: 50%;
 }
 
 .point-map-crosshair span {
@@ -2219,15 +2242,35 @@ onMounted(async () => {
   left: 50%;
   top: 50%;
 
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
 
   transform: translate(-50%, -50%);
 
-  border: 2px solid #17212b;
+  border: 2px solid #fff;
   border-radius: 50%;
 
-  background: rgba(255,255,255,.9);
+  background: var(--albion-accent);
+
+  box-shadow: 0 1px 4px rgba(23, 33, 43, .4);
+}
+
+/* Точка выбрана и ждёт фиксации — мягкая пульсация. */
+.point-map-crosshair.pending::before {
+  border-color: var(--albion-accent);
+
+  animation: crosshair-pulse 1.4s ease-out infinite;
+}
+
+@keyframes crosshair-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(225, 42, 31, 0);
+  }
+
+  50% {
+    box-shadow: 0 0 0 8px rgba(225, 42, 31, .12);
+  }
 }
 
 </style>

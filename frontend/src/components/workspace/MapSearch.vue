@@ -5,10 +5,31 @@
     <input
       :value="modelValue"
       type="search"
-      placeholder="Поиск по адресу, городу или номеру"
+      :placeholder="placeholder"
       @input="$emit('update:modelValue', $event.target.value)"
       @keydown.enter="onSearch"
     >
+
+    <div
+      v-if="showMode"
+      class="search-mode"
+    >
+      <button
+        type="button"
+        :class="{ active: mode === 'coords' }"
+        @click="$emit('update:mode', 'coords')"
+      >
+        Координаты
+      </button>
+
+      <button
+        type="button"
+        :class="{ active: mode === 'address' }"
+        @click="$emit('update:mode', 'address')"
+      >
+        Адрес
+      </button>
+    </div>
 
     <button
       type="button"
@@ -22,7 +43,9 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed } from 'vue'
+
+const props = defineProps({
   modelValue: {
     type: String,
     default: ''
@@ -31,13 +54,35 @@ defineProps({
   count: {
     type: Number,
     default: 0
+  },
+
+  /* Переключатель Координаты/Адрес — только в режиме поиска по точке. */
+  showMode: {
+    type: Boolean,
+    default: false
+  },
+
+  mode: {
+    type: String,
+    default: 'coords'
   }
 })
 
 const emit = defineEmits([
   'update:modelValue',
+  'update:mode',
   'search'
 ])
+
+const placeholder = computed(() => {
+  if (!props.showMode) {
+    return 'Поиск по адресу, городу или номеру'
+  }
+
+  return props.mode === 'coords'
+    ? 'Координаты: 47.2315, 39.7233'
+    : 'Введите адрес'
+})
 
 function onSearch() {
   emit('search')
@@ -100,6 +145,43 @@ function onSearch() {
 
 .search-card input::placeholder {
   color: #9aa5ac;
+}
+
+/* Переключатель Координаты/Адрес — на краю поля */
+.search-mode {
+  flex: 0 0 auto;
+
+  display: flex;
+  gap: 2px;
+
+  padding: 2px;
+
+  border-radius: 7px;
+  background: #f1f3f4;
+}
+
+.search-mode button {
+  height: 24px;
+  padding: 0 7px;
+
+  border: 0;
+  border-radius: 5px;
+
+  background: transparent;
+  color: #7b878f;
+
+  cursor: pointer;
+
+  font-size: 9px;
+  font-weight: 800;
+
+  white-space: nowrap;
+}
+
+.search-mode button.active {
+  background: #fff;
+  color: #17212b;
+  box-shadow: 0 1px 4px rgba(20, 30, 40, .12);
 }
 
 /* иконка поиска — справа */
