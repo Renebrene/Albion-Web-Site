@@ -9,6 +9,8 @@
 // базовые стили (см. src/css/app.scss). При любой ошибке тихо выходим,
 // оставляя значения по умолчанию, объявленные в :root.
 
+import { setMapEngine } from '../config/mapConfig'
+
 const SYSTEM_FONT_STACK =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif"
 
@@ -31,24 +33,24 @@ function resolveSize(value) {
   return null
 }
 
-export async function applySiteSettings() {
+async function loadAndApply() {
   let settings
 
   try {
     const response = await fetch('/api/settings')
 
     if (!response.ok) {
-      return
+      return null
     }
 
     settings = await response.json()
   } catch (exc) {
     /* оставляем дефолты из :root */
-    return
+    return null
   }
 
   if (!settings || typeof settings !== 'object') {
-    return
+    return null
   }
 
   const root = document.documentElement
@@ -72,6 +74,29 @@ export async function applySiteSettings() {
   set('--albion-text', settings.color_text)
   set('--albion-radius-cards', settings.radius_cards)
   set('--albion-radius-buttons', settings.radius_buttons)
+
+  /* Оператор карты: 'osm' | 'yandex' (см. config/mapConfig.js). */
+  setMapEngine(settings.map_engine)
+
+  return settings
+}
+
+/*
+ * Один запрос настроек на всё приложение (кэшируем промис).
+ * Карта дожидается его, чтобы узнать выбранного оператора.
+ */
+let settingsPromise = null
+
+export function ensureSiteSettings() {
+  if (!settingsPromise) {
+    settingsPromise = loadAndApply()
+  }
+
+  return settingsPromise
+}
+
+export function applySiteSettings() {
+  return ensureSiteSettings()
 }
 
 export default applySiteSettings

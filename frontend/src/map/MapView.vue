@@ -5,7 +5,8 @@
 <script setup>
 import { ref, shallowRef, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 
-import { MAP_ENGINE } from '../config/mapConfig'
+import { mapEngine } from '../config/mapConfig'
+import { ensureSiteSettings } from '../boot/settings'
 import { useMap } from './useMap'
 import { useYandexMap } from './useYandexMap'
 import { loadYandexMaps } from './yandexLoader'
@@ -46,7 +47,7 @@ const mapElement = ref(null)
  * Выбирается один раз при монтировании.
  */
 const mapApi = shallowRef(null)
-const activeEngine = ref(MAP_ENGINE)
+const activeEngine = ref('')
 
 /* CSS Leaflet грузим только если реально используется Leaflet-движок. */
 async function loadLeafletCss() {
@@ -56,12 +57,14 @@ async function loadLeafletCss() {
 }
 
 /*
- * Выбор движка по флагу MAP_ENGINE.
+ * Выбор движка по оператору из админ-настроек ('osm' | 'yandex').
  * Для Yandex сначала догружаем API; при любой ошибке
  * молча откатываемся на Leaflet.
  */
 async function resolveEngine() {
-  if (MAP_ENGINE === 'yandex') {
+  await ensureSiteSettings()
+
+  if (mapEngine.value === 'yandex') {
     try {
       await loadYandexMaps()
       activeEngine.value = 'yandex'

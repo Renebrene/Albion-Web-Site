@@ -1,20 +1,32 @@
 /*
- * Выбор движка карты.
+ * Оператор карты.
  *
- * 'yandex'  — Yandex Maps JS API 2.1 (основной вариант);
- * 'leaflet' — Leaflet + markercluster (фолбэк).
+ * Значение приходит из админ-настроек (ключ `map_engine` в /api/settings):
+ *   'osm'    — Leaflet + OpenStreetMap;
+ *   'yandex' — Yandex Maps JS API 2.1.
  *
- * Если загрузка Yandex API не удалась, MapView автоматически
- * откатывается на Leaflet (см. src/map/MapView.vue).
+ * Архитектура сохранена: оба движка на месте, выбор — по этому флагу,
+ * при недоступности Яндекс-API карта молча откатывается на Leaflet
+ * (см. src/map/MapView.vue).
  */
-export const MAP_ENGINE = 'yandex'
+import { ref } from 'vue'
+
+/* Значение по умолчанию, пока настройки не загрузились / недоступны. */
+export const DEFAULT_MAP_ENGINE = 'osm'
 
 /*
  * Ключ Yandex Maps JS API 2.1.
  *
- * Берём из .env (VITE_YANDEX_MAPS_KEY), при отсутствии —
- * демонстрационный ключ по умолчанию.
+ * Берём из .env (VITE_YANDEX_MAPS_KEY), при отсутствии — ключ по умолчанию.
  */
 export const YANDEX_MAPS_KEY =
   (import.meta.env && import.meta.env.VITE_YANDEX_MAPS_KEY) ||
   '892d3b65-eb5c-4c57-92d8-666266f880fa'
+
+/* Активный оператор карты (реактивно). */
+export const mapEngine = ref(DEFAULT_MAP_ENGINE)
+
+/* Допустимые значения — 'osm' | 'yandex'. */
+export function setMapEngine(value) {
+  mapEngine.value = value === 'yandex' ? 'yandex' : 'osm'
+}

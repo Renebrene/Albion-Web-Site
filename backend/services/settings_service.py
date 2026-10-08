@@ -93,6 +93,16 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "type": "number",
         "default": "10",
     },
+    {
+        "key": "map_engine",
+        "label": "Оператор карты",
+        "type": "select",
+        "options": [
+            {"label": "OpenStreetMap (Leaflet)", "value": "osm"},
+            {"label": "Яндекс.Карты", "value": "yandex"},
+        ],
+        "default": "osm",
+    },
 ]
 
 # Список ключей в порядке формы (для фронта)
