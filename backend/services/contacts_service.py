@@ -1,18 +1,73 @@
+from urllib.parse import quote
+
 from backend.services.data_service import get_connection
+
+
+def _media_url(conn, media_id, variant: str = "card") -> str:
+    """Возвращает публичный URL картинки из медиа-хранилища
+    (предпочтительно вариант ``card``, иначе основной файл).
+
+    Изображение всегда отдаётся с ведущим слэшем, чтобы не ломаться
+    на вложенных роутах (/kontakty и т.п.).
+    """
+    if not media_id:
+        return ""
+
+    row = conn.execute(
+        """
+        SELECT
+            (SELECT storage_path
+               FROM media_variants mv
+              WHERE mv.media_id = m.id AND mv.variant = %s
+              LIMIT 1),
+            m.storage_path
+        FROM media m
+        WHERE m.id = %s
+        """,
+        (variant, media_id),
+    ).fetchone()
+
+    if row is None:
+        return ""
+
+    path = row[0] or row[1]
+
+    if not path:
+        return ""
+
+    # storage_path хранится относительно /storage (например
+    # "media/xxx.png"). Публичный URL — со слэш-префиксом /storage/.
+    path = path.lstrip("/")
+
+    if path.startswith("storage/"):
+        return "/" + path
+
+    return "/storage/" + path
+
+
+def _yandex_maps_url(address: str) -> str:
+    """Строит ссылку «смотреть на карте» для Яндекс.Карт.
+
+    Адрес может содержать переносы строк (текст карточки) — для
+    поискового запроса схлопываем пробельные символы в запятую.
+    """
+    cleaned = " ".join(
+        part.strip()
+        for part in address.replace("\n", ",").split(",")
+        if part.strip()
+    )
+
+    if not cleaned:
+        return ""
+
+    return "https://yandex.ru/maps/?text=" + quote(cleaned)
 
 
 def get_contacts():
     with get_connection() as conn:
         settings = conn.execute(
             """
-            SELECT
-                seo_title,
-                seo_description,
-                hero_eyebrow,
-                hero_title,
-                hero_text,
-                phone,
-                email
+            SELECT seo_title, seo_description, phone, email
             FROM contact_settings
             WHERE id = 1
             """
@@ -42,6 +97,7 @@ def get_contacts():
                 schedule,
                 latitude,
                 longitude,
+                media_id,
                 sort_order,
                 is_active
             FROM contact_offices
@@ -54,11 +110,14 @@ def get_contacts():
             """
             SELECT office_id, email
             FROM contact_office_emails
+            WHERE office_id IN (
+                SELECT id FROM contact_offices WHERE is_active = TRUE
+            )
             ORDER BY office_id, sort_order
             """
         ).fetchall()
 
-        office_emails = {}
+        office_emails: dict[int, list[str]] = {}
         for office_id, email in office_emails_rows:
             office_emails.setdefault(office_id, []).append(email)
 
@@ -74,22 +133,29 @@ def get_contacts():
                 schedule,
                 latitude,
                 longitude,
+                media_id,
                 sort_order,
                 is_active,
             ) = row
+
+            emails = [email] if email else []
+
+            for extra in office_emails.get(office_id, []):
+                if extra and extra not in emails:
+                    emails.append(extra)
 
             offices.append(
                 {
                     "id": external_key,
                     "name": name,
                     "address": address,
+                    "mapUrl": _yandex_maps_url(address or ""),
                     "phone": phone,
-                    "email": email,
-                    "additionalEmails": office_emails.get(office_id, []),
+                    "emails": emails,
                     "schedule": schedule,
                     "lat": latitude,
                     "lng": longitude,
-                    "image": "",
+                    "image": _media_url(conn, media_id),
                     "sortOrder": sort_order,
                     "active": is_active,
                 }
@@ -116,9 +182,12 @@ def get_contacts():
                 external_key,
                 name,
                 position,
+                subdivision,
                 phone,
                 extension,
+                personal_phone,
                 email,
+                media_id,
                 sort_order,
                 is_active
             FROM contact_employees
@@ -127,16 +196,19 @@ def get_contacts():
             """
         ).fetchall()
 
-        employees_by_department = {}
+        employees_by_department: dict[int, list] = {}
         for row in employees_rows:
             (
                 department_id,
                 external_key,
                 name,
                 position,
+                subdivision,
                 phone,
                 extension,
+                personal_phone,
                 email,
+                media_id,
                 sort_order,
                 is_active,
             ) = row
@@ -147,14 +219,16 @@ def get_contacts():
             ).append(
                 {
                     "id": external_key,
-                    "name": name,
-                    "position": position,
-                    "phone": phone,
-                    "extension": extension,
-                    "email": email,
-                    "photo": "",
-                    "active": is_active,
+                    "name": name or "",
+                    "position": position or "",
+                    "subdivision": subdivision or "",
+                    "workPhone": phone or "",
+                    "personalPhone": personal_phone or "",
+                    "extension": extension or "",
+                    "email": email or "",
+                    "photo": _media_url(conn, media_id),
                     "sortOrder": sort_order,
+                    "active": is_active,
                 }
             )
 
@@ -172,8 +246,8 @@ def get_contacts():
                 {
                     "id": external_key,
                     "name": name,
-                    "active": is_active,
                     "sortOrder": sort_order,
+                    "active": is_active,
                     "employees": employees_by_department.get(
                         department_id,
                         [],
@@ -181,82 +255,19 @@ def get_contacts():
                 }
             )
 
-        callback = conn.execute(
-            """
-            SELECT title, body, is_enabled
-            FROM contact_callback
-            WHERE id = 1
-            """
-        ).fetchone()
-
-        if callback is None:
-            raise RuntimeError("Настройки callback не найдены")
-
-        callback_id = 1
-
-        callback_fields = conn.execute(
-            """
-            SELECT
-                field_name,
-                label,
-                field_type,
-                is_required
-            FROM contact_callback_fields
-            WHERE callback_id = %s
-              AND is_active = TRUE
-            ORDER BY sort_order
-            """,
-            (callback_id,),
-        ).fetchall()
-
-        callback_recipients = conn.execute(
-            """
-            SELECT email
-            FROM contact_callback_recipients
-            WHERE callback_id = %s
-              AND is_active = TRUE
-            ORDER BY sort_order
-            """,
-            (callback_id,),
-        ).fetchall()
-
         return {
             "seo": {
                 "title": settings[0],
                 "description": settings[1],
             },
-            "hero": {
-                "eyebrow": settings[2],
-                "title": settings[3],
-                "text": settings[4],
-            },
             "general": {
-                "phone": settings[5],
-                "email": settings[6],
+                "phone": settings[2],
+                "email": settings[3],
                 "additionalEmails": [
-                    row[0]
-                    for row in additional_emails
+                    row[0] for row in additional_emails
                 ],
                 "socials": [],
             },
             "offices": offices,
             "departments": departments,
-            "callback": {
-                "title": callback[0],
-                "text": callback[1],
-                "enabled": callback[2],
-                "fields": [
-                    {
-                        "name": row[0],
-                        "label": row[1],
-                        "type": row[2],
-                        "required": row[3],
-                    }
-                    for row in callback_fields
-                ],
-                "recipientEmails": [
-                    row[0]
-                    for row in callback_recipients
-                ],
-            },
         }

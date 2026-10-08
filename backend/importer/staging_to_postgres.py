@@ -127,76 +127,79 @@ def validate_availability(conn: sqlite3.Connection) -> None:
         )
 
 
-def validate_media_files(
-    staging_path: Path,
-    conn: sqlite3.Connection,
-) -> dict[str, int]:
-    import_key = staging_path.parent.name
-    download_root = staging_path.parent / "downloads"
-    storage_root = (
-        PROJECT_DIR
-        / "storage"
-        / "constructions"
-        / "imports"
+def read_media_plan(staging_path: Path) -> dict:
+    plan_path = (
+        staging_path.parent / "media_plan.json"
     )
 
-    rows = conn.execute("""
-        SELECT surface_hash, photo_url, map_url
-        FROM surfaces
-        WHERE photo_url IS NOT NULL
-           OR map_url IS NOT NULL
-        ORDER BY surface_hash
-    """).fetchall()
+    if not plan_path.exists():
+        raise RuntimeError(
+            f"media_plan.json не найден: {plan_path}. "
+            "Запустите construction_media_download "
+            "перед загрузкой в PostgreSQL."
+        )
 
-    expected = 0
-    successful = 0
-    failed = 0
+    return json.loads(
+        plan_path.read_text(encoding="utf-8"),
+    )
+
+
+def validate_media_files(
+    staging_path: Path,
+) -> dict[str, int]:
+    """
+    Проверяет результат media-плана:
+    REUSE и успешно скачанные media должны иметь
+    large/card/thumb preview в storage новой версии.
+
+    Media с ошибкой скачивания не блокируют импорт:
+    для них просто не будет записи construction_media.
+    """
+    plan = read_media_plan(staging_path)
+    entries: list[dict] = plan["entries"]
+
+    expected = len(entries)
+    reuse = sum(
+        1
+        for entry in entries
+        if entry["decision"] == "reuse"
+    )
+    downloaded = sum(
+        1
+        for entry in entries
+        if entry["decision"] == "download"
+        and entry["status"] == "ok"
+    )
+    failed = sum(
+        1
+        for entry in entries
+        if entry["decision"] == "download"
+        and entry["status"] == "error"
+    )
     missing_previews = 0
 
-    for row in rows:
-        surface_hash = row["surface_hash"]
+    for entry in entries:
+        if entry["status"] != "ok":
+            continue
 
-        for media_type, url in (
-            ("photo", row["photo_url"]),
-            ("map", row["map_url"]),
-        ):
-            if not url:
-                continue
+        paths: dict = entry.get("paths") or {}
 
-            expected += 1
+        for variant in ("large", "card", "thumb"):
+            relative = paths.get(variant)
 
-            source_dir = (
-                download_root
-                / media_type
-                / surface_hash
-            )
+            if not relative:
+                missing_previews += 1
+                break
 
-            sources = list(source_dir.glob("*.source"))
-
-            if not sources:
-                failed += 1
-                continue
-
-            successful += 1
-
-            stem = f"{surface_hash}_{media_type}"
-
-            for variant in ("large", "card", "thumb"):
-                matches = list(
-                    (
-                        storage_root
-                        / import_key
-                        / media_type
-                        / variant
-                    ).glob(f"{stem}.*")
-                )
-
-                if len(matches) != 1:
-                    missing_previews += 1
+            if not (PROJECT_DIR / relative).is_file():
+                missing_previews += 1
+                break
 
     return {
         "media_tasks": expected,
-        "media_successful": successful,
+        "media_reuse": reuse,
+        "media_downloaded": downloaded,
+        "media_successful": reuse + downloaded,
         "media_failed": failed,
         "missing_previews": missing_previews,
     }
@@ -518,134 +521,87 @@ def load_media(
     pg_conn,
     import_id: int,
     surface_map: dict[int, int],
-) -> int:
-    import_key = staging_path.parent.name
-    storage_root = (
-        PROJECT_DIR
-        / "storage"
-        / "constructions"
-        / "imports"
-        / import_key
-    )
+) -> dict[str, int]:
+    """
+    Создаёт construction_media для новой версии импорта
+    из media_plan.json.
 
-    rows = sqlite_conn.execute("""
-        SELECT
-            s.id,
-            s.surface_hash,
-            s.photo_url,
-            s.map_url,
-            s.side,
-            c.address
-        FROM surfaces s
-        JOIN constructions c
-          ON c.id = s.construction_id
-        WHERE s.photo_url IS NOT NULL
-           OR s.map_url IS NOT NULL
-        ORDER BY s.id
-    """).fetchall()
+    - REUSE переносит записи старой ACTIVE версии;
+    - DOWNLOAD берёт только успешно скачанные media;
+    - media с ошибкой скачивания пропускаются
+      (без fallback на старое медиа).
+    """
+    plan = read_media_plan(staging_path)
+    entries: list[dict] = plan["entries"]
 
     inserted = 0
+    skipped_errors = 0
+    skipped_no_surface = 0
 
     with pg_conn.cursor() as cur:
-        for row in rows:
-            surface_id = surface_map[int(row["id"])]
+        for entry in entries:
+            if entry["status"] != "ok":
+                skipped_errors += 1
+                continue
 
-            for media_type, original_url in (
-                ("photo", row["photo_url"]),
-                ("map", row["map_url"]),
-            ):
-                if not original_url:
-                    continue
+            surface_id = surface_map.get(
+                int(entry["surface_id"])
+            )
 
-                source_dir = (
-                    staging_path.parent
-                    / "downloads"
-                    / media_type
-                    / row["surface_hash"]
+            if surface_id is None:
+                skipped_no_surface += 1
+                continue
+
+            paths: dict = entry.get("paths") or {}
+
+            cur.execute(
+                """
+                INSERT INTO construction_media (
+                    uuid,
+                    import_id,
+                    surface_id,
+                    surface_hash,
+                    media_type,
+                    original_url,
+                    original_name,
+                    mime_type,
+                    file_size,
+                    width,
+                    height,
+                    large_path,
+                    card_path,
+                    thumb_path
                 )
-
-                source_files = list(
-                    source_dir.glob("*.source")
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s
                 )
+                """,
+                (
+                    uuid.uuid4(),
+                    import_id,
+                    surface_id,
+                    entry["surface_hash"],
+                    entry["media_type"],
+                    entry["url"],
+                    entry.get("original_name"),
+                    entry.get("mime_type"),
+                    entry.get("file_size"),
+                    entry.get("width"),
+                    entry.get("height"),
+                    paths.get("large"),
+                    paths.get("card"),
+                    paths.get("thumb"),
+                ),
+            )
 
-                if not source_files:
-                    continue
+            inserted += 1
 
-                stem = (
-                    f'{row["surface_hash"]}_{media_type}'
-                )
-
-                paths = {}
-
-                for variant in (
-                    "large",
-                    "card",
-                    "thumb",
-                ):
-                    matches = list(
-                        (
-                            storage_root
-                            / media_type
-                            / variant
-                        ).glob(f"{stem}.*")
-                    )
-
-                    if len(matches) != 1:
-                        raise RuntimeError(
-                            "Media variant отсутствует или "
-                            "неоднозначен: "
-                            f"{media_type}/{variant}/"
-                            f"{stem}"
-                        )
-
-                    paths[variant] = str(
-                        matches[0].relative_to(PROJECT_DIR)
-                    )
-
-                stat = source_files[0].stat()
-
-                cur.execute(
-                    """
-                    INSERT INTO construction_media (
-                        uuid,
-                        import_id,
-                        surface_id,
-                        surface_hash,
-                        media_type,
-                        original_url,
-                        original_name,
-                        file_size,
-                        large_path,
-                        card_path,
-                        thumb_path
-                    )
-                    VALUES (
-                        %s, %s, %s, %s, %s, %s, %s,
-                        %s, %s, %s, %s
-                    )
-                    """,
-                    (
-                        uuid.uuid4(),
-                        import_id,
-                        surface_id,
-                        row["surface_hash"],
-                        media_type,
-                        original_url,
-                        (
-                            f'{row["address"]} '
-                            f'{row["side"]} '
-                            f'{media_type}'
-                        ),
-                        stat.st_size,
-                        paths["large"],
-                        paths["card"],
-                        paths["thumb"],
-                    ),
-                )
-
-                inserted += 1
-
-    return inserted
+    return {
+        "inserted": inserted,
+        "skipped_errors": skipped_errors,
+        "skipped_no_surface": skipped_no_surface,
+    }
 
 
 def write_load_result(import_key: str, result: dict) -> None:
@@ -725,7 +681,7 @@ def perform_load(
         surface_map,
     )
 
-    media_count = load_media(
+    media_result = load_media(
         staging_path,
         sqlite_conn,
         pg_conn,
@@ -776,7 +732,13 @@ def perform_load(
         "constructions": constructions,
         "surfaces": surfaces,
         "availability": availability,
-        "media": media_count,
+        "media": media_result["inserted"],
+        "media_skipped_errors": (
+            media_result["skipped_errors"]
+        ),
+        "media_skipped_no_surface": (
+            media_result["skipped_no_surface"]
+        ),
         "old_active_import_key": old_active_import_key,
     }
 
@@ -804,7 +766,6 @@ def main() -> None:
 
         media = validate_media_files(
             staging_path,
-            sqlite_conn,
         )
 
         if media["missing_previews"]:
@@ -832,11 +793,19 @@ def main() -> None:
             f"{media['media_tasks']}"
         )
         print(
+            f"{'media_reuse':24} "
+            f"{media['media_reuse']}"
+        )
+        print(
+            f"{'media_downloaded':24} "
+            f"{media['media_downloaded']}"
+        )
+        print(
             f"{'media_successful':24} "
             f"{media['media_successful']}"
         )
         print(
-            f"{'media_failed':24} "
+            f"{'media_failed (skip)':24} "
             f"{media['media_failed']}"
         )
 
@@ -874,6 +843,10 @@ def main() -> None:
             print(
                 f"{'new media':24} "
                 f"{result['media']}"
+            )
+            print(
+                f"{'media errors skipped':24} "
+                f"{result['media_skipped_errors']}"
             )
 
             if dry_run:

@@ -33,33 +33,15 @@
       </div>
     </div>
 
-    <!-- НАВИГАЦИЯ -->
+    <!-- НАВИГАЦИЯ (из CMS, фолбэк на дефолт) -->
     <nav class="header-nav">
-
-      <RouterLink to="/">
-        ГЛАВНАЯ СТРАНИЦА
+      <RouterLink
+        v-for="item in menuItems"
+        :key="item.key"
+        :to="item.url"
+      >
+        {{ item.label }}
       </RouterLink>
-
-      <RouterLink to="/vozmozhnosti">
-        ВОЗМОЖНОСТИ
-      </RouterLink>
-
-      <RouterLink to="/napravleniya">
-        НАПРАВЛЕНИЯ
-      </RouterLink>
-
-      <RouterLink to="/novosti">
-        НОВОСТИ
-      </RouterLink>
-
-      <RouterLink to="/o-kompanii">
-        О КОМПАНИИ
-      </RouterLink>
-
-      <RouterLink to="/kontakty">
-        КОНТАКТЫ
-      </RouterLink>
-
     </nav>
 
     <!-- ТЕЛЕФОН -->
@@ -67,7 +49,23 @@
       href="tel:+78633203020"
       class="phone"
     >
-      <span class="phone-icon">⌕</span>
+      <span class="phone-icon">
+        <svg
+          viewBox="0 0 24 24"
+          width="15"
+          height="15"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path
+            d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"
+          />
+        </svg>
+      </span>
 
       <span>
         8 (863) 320-30-20
@@ -95,6 +93,15 @@
         OK
       </a>
 
+      <a
+        href="#"
+        class="social max"
+        title="Макс"
+        aria-label="Макс"
+      >
+        Макс
+      </a>
+
     </div>
 
     <!-- УМНЫЙ ЧАТ -->
@@ -106,10 +113,185 @@
       <span>УМНЫЙ ЧАТ</span>
     </RouterLink>
 
+    <!-- АВТОРИЗАЦИЯ -->
+    <q-btn
+      flat
+      round
+      dense
+      class="auth-button"
+      aria-label="Авторизация"
+    >
+      <q-icon name="person_outline" size="22px" />
+
+      <q-menu
+        class="auth-menu"
+        anchor="bottom right"
+        self="top right"
+        :offset="[4, 8]"
+      >
+        <q-list dense class="auth-list">
+          <q-item v-if="account" class="auth-item auth-item-user">
+            <q-item-section>
+              <div class="auth-user-name">{{ account.login }}</div>
+              <div class="auth-user-role">
+                {{ account.role === 'manager' ? 'Менеджер' : 'Клиент' }}
+              </div>
+            </q-item-section>
+          </q-item>
+
+          <q-separator v-if="account" />
+
+          <q-item
+            v-if="!account"
+            clickable
+            v-close-popup
+            class="auth-item"
+            to="/account"
+          >
+            <q-item-section>ВОЙТИ</q-item-section>
+          </q-item>
+
+          <q-item
+            v-if="!account"
+            clickable
+            v-close-popup
+            class="auth-item"
+            to="/account?tab=register"
+          >
+            <q-item-section>РЕГИСТРАЦИЯ</q-item-section>
+          </q-item>
+
+          <q-item
+            clickable
+            v-close-popup
+            class="auth-item"
+            to="/account"
+          >
+            <q-item-section>ПОРТФЕЛЬ</q-item-section>
+          </q-item>
+
+          <q-item
+            v-if="account"
+            clickable
+            v-close-popup
+            class="auth-item auth-item-exit"
+            @click="handleLogout"
+          >
+            <q-item-section>ВЫХОД</q-item-section>
+          </q-item>
+        </q-list>
+      </q-menu>
+    </q-btn>
+
+    <!-- БУРГЕР (только мобильная версия) -->
+    <button
+      type="button"
+      class="burger"
+      :class="{ 'is-open': mobileOpen }"
+      aria-label="Меню"
+      :aria-expanded="mobileOpen"
+      @click="mobileOpen = !mobileOpen"
+    >
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+
+    <!-- ВЫПАДАЮЩЕЕ МЕНЮ (мобильная версия) -->
+    <Transition name="mobile-menu">
+      <div v-if="mobileOpen" class="mobile-panel">
+
+        <nav class="mobile-nav">
+          <RouterLink
+            v-for="item in menuItems"
+            :key="item.key"
+            :to="item.url"
+            class="mobile-nav-link"
+          >
+            {{ item.label }}
+          </RouterLink>
+        </nav>
+
+        <div class="mobile-contacts">
+          <div class="mobile-address">
+            Ростов-на-Дону · ул. Социалистическая, 73
+          </div>
+
+          <a href="tel:+78633203020" class="mobile-contact-link">
+            8 (863) 320-30-20
+          </a>
+
+          <a href="mailto:reclama@albion.su" class="mobile-contact-link">
+            reclama@albion.su
+          </a>
+
+          <a href="mailto:albion3@albion.su" class="mobile-contact-link">
+            albion3@albion.su
+          </a>
+        </div>
+
+      </div>
+    </Transition>
+
   </header>
 </template>
 
 <script setup>
+import { onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+
+import { useAccount } from '../../composables/useAccount'
+
+const route = useRoute()
+const router = useRouter()
+
+/* Состояние личного кабинета: вход/выход прямо из шапки */
+const { account, logout, loadMe } = useAccount()
+
+async function handleLogout() {
+  await logout()
+  router.push('/account')
+}
+
+const DEFAULT_MENU = [
+  { key: 'home', label: 'ГЛАВНАЯ СТРАНИЦА', url: '/' },
+  { key: 'vozmozhnosti', label: 'ВОЗМОЖНОСТИ', url: '/vozmozhnosti' },
+  { key: 'napravleniya', label: 'ДЕЯТЕЛЬНОСТЬ', url: '/napravleniya' },
+  { key: 'novosti', label: 'НОВОСТИ', url: '/novosti' },
+  { key: 'informaciya', label: 'ИНФОРМАЦИЯ', url: '/informaciya' },
+  { key: 'portfolio', label: 'ПОРТФЕЛЬ', url: '/portfolio' },
+  { key: 'o-kompanii', label: 'О КОМПАНИИ', url: '/o-kompanii' },
+  { key: 'kontakty', label: 'КОНТАКТЫ', url: '/kontakty' }
+]
+
+const menuItems = ref(DEFAULT_MENU)
+
+/* Мобильное выпадающее меню */
+const mobileOpen = ref(false)
+
+/* Закрываем меню при переходе по ссылке */
+watch(
+  () => route.path,
+  () => {
+    mobileOpen.value = false
+  }
+)
+
+onMounted(async () => {
+  try {
+    const response = await fetch('/api/site-menu')
+    const data = await response.json()
+
+    if (data?.main?.length) {
+      menuItems.value = data.main
+    }
+  } catch (exc) {
+    /* остаёмся на значениях по умолчанию */
+  }
+
+  /* Подтягиваем данные кабинета, если пользователь уже входил */
+  await loadMe()
+})
 </script>
 
 <style scoped>
@@ -127,7 +309,9 @@
 
   border-bottom: 1px solid #e5e9ec;
 
-  position: relative;
+  /* Шапка не уходит при прокрутке страницы */
+  position: sticky;
+  top: 0;
   z-index: 1000;
 
   white-space: nowrap;
@@ -239,11 +423,13 @@
   transform: translateY(-1px);
 }
 
-.header-nav a.router-link-active {
+/* Подсветка — только при точном совпадении маршрута,
+   чтобы «Главная страница» (корень /) не была выделена постоянно */
+.header-nav a.router-link-exact-active {
   color: #e12a1f;
 }
 
-.header-nav a.router-link-active::after {
+.header-nav a.router-link-exact-active::after {
   content: '';
 
   position: absolute;
@@ -273,7 +459,7 @@
 
   color: #17212b;
 
-  font-size: 14px;
+  font-size: 18px;
   font-weight: 900;
 
   letter-spacing: .1px;
@@ -291,15 +477,18 @@
   display: grid;
   place-items: center;
 
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
 
   border-radius: 50%;
 
   background: #f1f3f4;
 
-  font-size: 16px;
-  font-weight: 900;
+  color: #17212b;
+}
+
+.phone-icon svg {
+  display: block;
 }
 
 /* ---------------------------------------------------------
@@ -337,6 +526,16 @@
 .social:hover {
   background: #e12a1f;
   color: #fff;
+}
+
+/* «Макс» — 4 символа, немного шире остальных */
+.social.max {
+  width: auto;
+  min-width: 25px;
+  padding: 0 4px;
+
+  font-size: 7px;
+  letter-spacing: 0;
 }
 
 /* ---------------------------------------------------------
@@ -406,11 +605,75 @@
   .header-contact {
     display: none;
   }
+}
+
+/* ---------------------------------------------------------
+   ДВУХРЯДНАЯ ШАПКА (планшет: 901–1200px)
+   Ряд 1: логотип, телефон, соцсети, «Умный чат», авторизация
+   Ряд 2: навигация в две строки (4 + 4), по центру
+--------------------------------------------------------- */
+
+@media (max-width: 1200px) and (min-width: 901px) {
+  .header {
+    height: auto;
+
+    display: grid;
+
+    grid-template-columns: auto 1fr auto auto auto auto;
+
+    grid-template-areas:
+      'brand spacer phone socials chat auth'
+      'nav nav nav nav nav nav';
+
+    align-items: center;
+
+    column-gap: 16px;
+    row-gap: 8px;
+
+    padding: 10px 18px;
+  }
+
+  .brand {
+    grid-area: brand;
+  }
+
+  .phone {
+    grid-area: phone;
+  }
+
+  .socials {
+    grid-area: socials;
+  }
+
+  .smart-chat {
+    grid-area: chat;
+  }
+
+  .auth-button {
+    grid-area: auth;
+  }
 
   .header-nav {
-    justify-content: flex-start;
+    grid-area: nav;
+
+    display: grid;
+    grid-template-columns: repeat(4, max-content);
+
+    justify-content: center;
+    justify-items: center;
+
+    column-gap: 30px;
+    row-gap: 10px;
+  }
+
+  .header-nav a.router-link-exact-active::after {
+    bottom: -5px;
   }
 }
+
+/* ---------------------------------------------------------
+   МОБИЛЬНАЯ ВЕРСИЯ (≤900px): бургер + выпадающее меню
+--------------------------------------------------------- */
 
 @media (max-width: 900px) {
   .header {
@@ -422,12 +685,163 @@
     max-width: 125px;
   }
 
+  /* Основная навигация уезжает в выпадающее меню */
   .header-nav {
     display: none;
   }
 
   .phone {
     margin-left: auto;
+  }
+
+  /* ------------- Бургер ------------- */
+  .burger {
+    flex: 0 0 auto;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+
+    gap: 5px;
+
+    width: 40px;
+    height: 40px;
+
+    padding: 0 9px;
+
+    border: none;
+    border-radius: 9px;
+
+    background: #f1f3f4;
+
+    cursor: pointer;
+
+    transition: background .15s ease;
+  }
+
+  .burger:hover {
+    background: #e12a1f;
+  }
+
+  .burger span {
+    display: block;
+
+    width: 100%;
+    height: 2px;
+
+    border-radius: 2px;
+
+    background: #17212b;
+
+    transition:
+      transform .25s ease,
+      opacity .2s ease,
+      background .15s ease;
+  }
+
+  .burger:hover span {
+    background: #fff;
+  }
+
+  /* Крестик в открытом состоянии */
+  .burger.is-open span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+
+  .burger.is-open span:nth-child(2) {
+    opacity: 0;
+  }
+
+  .burger.is-open span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+
+  /* ------------- Выпадающая панель ------------- */
+  .mobile-panel {
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+
+    z-index: 900;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 16px;
+
+    max-height: calc(100vh - 64px);
+
+    overflow-y: auto;
+
+    padding: 14px 16px 22px;
+
+    background: #fff;
+
+    border-bottom: 1px solid #e5e9ec;
+
+    box-shadow: 0 16px 30px rgba(25, 35, 45, .14);
+  }
+
+  .mobile-nav {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-nav-link {
+    padding: 14px 6px;
+
+    border-bottom: 1px solid #eef1f3;
+
+    color: #17212b;
+
+    font-size: 14px;
+    font-weight: 900;
+
+    letter-spacing: .3px;
+
+    text-decoration: none;
+
+    transition: color .15s ease;
+  }
+
+  .mobile-nav-link:hover,
+  .mobile-nav-link.router-link-exact-active {
+    color: #e12a1f;
+  }
+
+  /* Компактный блок контактов */
+  .mobile-contacts {
+    display: flex;
+    flex-direction: column;
+
+    gap: 6px;
+
+    padding-top: 2px;
+  }
+
+  .mobile-address {
+    color: #17212b;
+
+    font-size: 12px;
+    font-weight: 700;
+
+    line-height: 1.3;
+  }
+
+  .mobile-contact-link {
+    color: #71808c;
+
+    font-size: 13px;
+    font-weight: 700;
+
+    text-decoration: none;
+
+    transition: color .15s ease;
+  }
+
+  .mobile-contact-link:hover {
+    color: #e12a1f;
   }
 }
 
@@ -443,5 +857,89 @@
   .smart-chat span:last-child {
     display: none;
   }
+}
+
+/* Бургер и выпадающая панель скрыты по умолчанию (десктоп) */
+.burger {
+  display: none;
+}
+
+.mobile-panel {
+  display: none;
+}
+
+/* Плавное появление выпадающего меню */
+.mobile-menu-enter-active,
+.mobile-menu-leave-active {
+  transition:
+    opacity .22s ease,
+    transform .22s ease;
+}
+
+.mobile-menu-enter-from,
+.mobile-menu-leave-to {
+  opacity: 0;
+  transform: translateY(-10px);
+}
+
+/* Кнопка авторизации (сам элемент в шапке) */
+.auth-button {
+  flex: 0 0 auto;
+  color: #17212b;
+}
+
+.auth-button:hover {
+  color: #e12a1f;
+  background: #f1f3f4;
+}
+</style>
+
+<style>
+/* Меню авторизации рендерится в портале — нужны глобальные стили */
+.auth-menu {
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(25, 35, 45, .15);
+  overflow: hidden;
+}
+
+.auth-menu .auth-list {
+  min-width: 170px;
+}
+
+.auth-menu .auth-item {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: #17212b;
+}
+
+.auth-menu .auth-item:hover {
+  background: #f5f6f7;
+}
+
+.auth-menu .auth-item-exit {
+  color: #c62828;
+}
+
+.auth-menu .auth-item-user {
+  cursor: default;
+}
+
+.auth-menu .auth-item-user:hover {
+  background: transparent;
+}
+
+.auth-user-name {
+  color: #17212b;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.auth-user-role {
+  color: #71808c;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 </style>

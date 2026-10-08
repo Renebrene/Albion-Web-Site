@@ -15,35 +15,33 @@
       </header>
 
       <q-card flat bordered class="media-card">
-        <q-card-section>
-          <div class="section-title">Загрузка медиафайла</div>
-          <div class="section-description">
-            Изображения автоматически подготавливаются в нужных вариантах, видео — в MP4 с превью.
-          </div>
-        </q-card-section>
-
         <q-card-section class="form-section">
-          <q-file
-            ref="filePicker"
-            v-model="file"
+          <!-- Нативный выбор файлов: label[for] открывает системное окно
+               без программного click(), который в Chrome/Linux зависает. -->
+          <input
+            id="media-file-input"
+            type="file"
             multiple
-            @update:model-value="prepareUploadQueue"
             accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,.mp4,.mov,.webm,.avi,.mkv,.m4v,.mpeg,.mpg, image/*, video/*"
-            :disable="uploading"
-            class="hidden-file-picker"
-          />
+            class="file-input-hidden"
+            :disabled="uploading"
+            @change="onNativeFilesPicked"
+          >
 
           <div class="upload-main-action">
-            <q-btn
-              unelevated
-              no-caps
-              color="primary"
-              label="ЗАГРУЗИТЬ ФАЙЛЫ"
-              :loading="uploading"
-              :disable="uploading"
+            <label
               class="upload-button"
-              @click="filePicker?.pickFiles()"
-            />
+              for="media-file-input"
+              title="Изображения автоматически подготавливаются в нужных вариантах, видео — в MP4 с превью."
+            >
+              Загрузка медиафайла
+            </label>
+          </div>
+
+          <div class="formats-hint">
+            Допустимые форматы — изображения:
+            JPG, PNG, WEBP, HEIC/HEIF, TIFF, BMP, PSD, GIF ·
+            видео: MP4, MOV, WebM, AVI, MKV, MPEG
           </div>
         </q-card-section>
       </q-card>
@@ -714,24 +712,14 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
-const file = ref(null)
-const filePicker = ref(null)
-const alt = ref('')
-const title = ref('')
 const uploading = ref(false)
 const error = ref('')
 const result = ref(null)
-const previewUrl = ref('')
-const videoDuration = ref(0)
-const previewTime = ref(0)
-const isVideoFile = ref(false)
-const videoPreviewRef = ref(null)
-let previewObjectUrl = ''
 const uploadQueue = ref([])
 const uploadDialog = ref(false)
 const uploadProgress = ref(0)
@@ -788,28 +776,11 @@ const viewModeOptions = [
 ]
 
 
-watch(file, (newFile) => {
-  if (previewObjectUrl) {
-    URL.revokeObjectURL(previewObjectUrl)
-    previewObjectUrl = ''
-  }
+function onNativeFilesPicked(event) {
+  prepareUploadQueue(event.target.files)
+  event.target.value = ''
+}
 
-  previewUrl.value = ''
-  videoDuration.value = 0
-  previewTime.value = 0
-  isVideoFile.value = false
-  videoPreviewRef.value = null
-
-  const selectedFile = Array.isArray(newFile)
-    ? newFile[0]
-    : newFile
-
-  if (selectedFile instanceof File) {
-    previewObjectUrl = URL.createObjectURL(selectedFile)
-    previewUrl.value = previewObjectUrl
-    isVideoFile.value = selectedFile.type.startsWith('video/')
-  }
-})
 function prepareUploadQueue(files) {
   const selectedFiles = Array.from(files || []).filter((item) => item instanceof File)
 
@@ -838,21 +809,6 @@ function queuePreviewUrl(item) {
   }
 
   return item.previewUrl
-}
-
-
-
-
-function onVideoMetadataLoaded() {
-  const video = videoPreviewRef.value
-
-  if (!video || !Number.isFinite(video.duration)) {
-    return
-  }
-
-  videoDuration.value = video.duration
-  previewTime.value = Math.min(video.duration * 0.1, video.duration)
-  video.currentTime = previewTime.value
 }
 
 
@@ -1451,72 +1407,6 @@ async function uploadAllQueue() {
   }
 }
 
-async function uploadMedia() {
-  if (!file.value) {
-    return
-  }
-
-  const token = await getAdminToken()
-
-  if (!token) {
-    return
-  }
-
-  uploading.value = true
-  error.value = ''
-  result.value = null
-
-  const formData = new FormData()
-  formData.append('file', file.value)
-  uploadCategoryId.value.forEach((categoryId) => formData.append('category_id', String(categoryId)))
-  if (isVideoFile.value && videoDuration.value > 0) {
-    formData.append('preview_time', String(previewTime.value))
-  }
-
-  if (alt.value.trim()) {
-    formData.append('alt', alt.value.trim())
-  }
-
-  if (title.value.trim()) {
-    formData.append('title', title.value.trim())
-  }
-
-  try {
-    const response = await fetch('/api/admin/media', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      body: formData
-    })
-
-    if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
-      await router.replace('/administration')
-      return
-    }
-
-    const data = await response.json().catch(() => null)
-
-    if (!response.ok) {
-      error.value = data?.detail || 'Не удалось загрузить изображение'
-      return
-    }
-
-    result.value = data.media
-
-    file.value = null
-    alt.value = ''
-    title.value = ''
-
-    await loadMedia()
-  } catch {
-    error.value = 'Не удалось выполнить запрос к серверу'
-  } finally {
-    uploading.value = false
-  }
-}
-
 async function deleteMedia(item) {
   if (item.used_in_news || item.used_in_pages) {
     return
@@ -1591,10 +1481,6 @@ onBeforeUnmount(() => {
   if (mediaStatsTimer.value) {
     window.clearInterval(mediaStatsTimer.value)
     mediaStatsTimer.value = null
-  }
-
-  if (previewObjectUrl) {
-    URL.revokeObjectURL(previewObjectUrl)
   }
 })
 </script>
@@ -1800,6 +1686,13 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.formats-hint {
+  margin-top: 2px;
+  color: #8b8b8b;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .metadata-grid {
   display: grid;
   grid-template-columns: 1fr 1fr 0.9fr;
@@ -1829,7 +1722,31 @@ onBeforeUnmount(() => {
 }
 
 .upload-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 42px;
+  padding: 0 18px;
+  border-radius: 8px;
+  background: var(--q-primary);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.upload-button:hover {
+  filter: brightness(0.95);
+}
+
+.file-input-hidden {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
 }
 
 .result-card {

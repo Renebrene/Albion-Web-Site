@@ -5,11 +5,14 @@
     <q-page-container>
       <router-view />
     </q-page-container>
+
+    <AppFooter />
   </q-layout>
 </template>
 
 <script setup>
 import AppHeader from '../components/layout/AppHeader.vue'
+import AppFooter from '../components/layout/AppFooter.vue'
 </script>
 
 <style>

@@ -42,6 +42,11 @@ const routes = [
       {
         path: 'chat',
         component: () => import('@/pages/SmartChatPage.vue')
+      },
+
+      {
+        path: 'account',
+        component: () => import('@/pages/AccountPage.vue')
       }
     ]
   },
@@ -75,10 +80,94 @@ const routes = [
         meta: {
           requiresAdmin: true
         }
+      },
+      {
+        path: 'base',
+        component: () => import('@/pages/AdministrationBasePage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
+        path: 'contacts',
+        component: () => import('@/pages/AdministrationContactsPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
+        path: 'site-menu',
+        component: () => import('@/pages/AdministrationSiteMenuPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
+        path: 'settings',
+        component: () => import('@/pages/AdministrationSettingsPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
+        path: 'news',
+        component: () => import('@/pages/AdministrationPlaceholderPage.vue'),
+        props: {
+          title: 'Новости',
+          text: 'Публикации и категории новостей'
+        },
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
+        path: 'about',
+        component: () => import('@/pages/AdministrationPlaceholderPage.vue'),
+        props: {
+          title: 'О компании',
+          text: 'Тексты, блоки, статистика и направления'
+        },
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
+        path: 'users',
+        component: () => import('@/pages/AdministrationPlaceholderPage.vue'),
+        props: {
+          title: 'Пользователи',
+          text: 'Учетные записи и права доступа'
+        },
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
+        path: 'audit',
+        component: () => import('@/pages/AdministrationPlaceholderPage.vue'),
+        props: {
+          title: 'Журнал действий',
+          text: 'История изменений в административной панели'
+        },
+        meta: {
+          requiresAdmin: true
+        }
       }
     ]
   },
 
+
+  {
+    path: '/informaciya',
+    component: () => import('@/pages/PlaceholderPage.vue'),
+    props: { title: 'Информация' }
+  },
+
+  {
+    path: '/portfolio',
+    component: () => import('@/pages/PlaceholderPage.vue'),
+    props: { title: 'Портфель' }
+  },
 
   {
     path: '/:catchAll(.*)*',

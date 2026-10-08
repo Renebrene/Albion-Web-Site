@@ -36,43 +36,43 @@
         @search-address="executeAddressSearch"
       />
 
-      <div class="workspace-mode-switch">
-        <button
-          type="button"
-          :class="{ active: workspaceMode === 'map' }"
-          @click="workspaceMode = 'map'"
-        >
-          <span>РЕКЛАМНЫЕ</span>
-          <span>ВОЗМОЖНОСТИ</span>
-        </button>
-
-        <button
-          type="button"
-          :class="{ active: workspaceMode === 'point' }"
-          @click="workspaceMode = 'point'"
-        >
-          <span>ПОИСК ПО ТОЧКЕ</span>
-          <span>И АДРЕСУ</span>
-        </button>
-
-        <button
-          type="button"
-          :class="{ active: workspaceMode === 'list' }"
-          @click="workspaceMode = 'list'"
-        >
-          <span>СПИСОК</span>
-        </button>
-      </div>
-
       <main class="workspace">
 
-        <!-- КАРТА -->
+        <!-- Плавающий блок: переключатель (слева) + поиск (справа) -->
+        <div class="workspace-float">
+          <div class="workspace-mode-switch">
+            <button
+              type="button"
+              :class="{ active: workspaceMode === 'map' }"
+              @click="workspaceMode = 'map'"
+            >
+              Интерактивная карта
+            </button>
+            <button
+              type="button"
+              :class="{ active: workspaceMode === 'point' }"
+              @click="workspaceMode = 'point'"
+            >
+              Поиск по точке и адресу
+            </button>
+            <button
+              type="button"
+              :class="{ active: workspaceMode === 'list' }"
+              @click="workspaceMode = 'list'"
+            >
+              Список
+            </button>
+          </div>
 
-        <MapSearch
-          v-if="workspaceMode === 'map'"
-          v-model="searchQuery"
-          :count="filteredConstructions.length"
-        />
+          <MapSearch
+            v-if="workspaceMode !== 'point'"
+            v-model="searchQuery"
+            :count="filteredConstructions.length"
+            @search="onMapSearch"
+          />
+        </div>
+
+        <!-- КАРТА -->
 
         <div
           v-if="workspaceMode === 'map'"
@@ -182,11 +182,6 @@
           v-else-if="workspaceMode === 'list'"
           class="list-view"
         >
-          <MapSearch
-            v-model="searchQuery"
-            :count="filteredConstructions.length"
-          />
-
           <div class="list-header">
             <div>
               <div class="list-kicker">
@@ -249,45 +244,62 @@
                   </div>
 
                   <div
-                    v-if="item.price"
+                    v-if="item.price || promoPriceOf(item)"
                     class="card-price-inline"
                   >
-                    <span class="price-value">
+                    <span
+                      v-if="item.price"
+                      class="price-value"
+                      :class="{ 'is-old': promoPriceOf(item) }"
+                    >
                       {{ item.price }}
                     </span>
 
-                    <span class="price-currency">
+                    <span
+                      v-if="item.price"
+                      class="price-currency"
+                    >
                       ₽
                     </span>
 
-                    <span class="price-period">
+                    <span
+                      v-if="item.price"
+                      class="price-period"
+                    >
                       / мес.
                     </span>
+
+                    <div
+                      v-if="promoPriceOf(item)"
+                      class="card-promo-price"
+                    >
+                      <span class="promo-price-value">
+                        {{ promoPriceOf(item) }}
+                      </span>
+                      <span class="promo-price-currency">
+                        ₽
+                      </span>
+                      <span class="promo-price-note">
+                        акционная цена
+                      </span>
+                    </div>
                   </div>
 
                 </div>
 
-                <h2>
+                <div class="card-address-main">
+                  {{ item.address || item.name || 'Адрес не указан' }}
+                </div>
+
+                <div
+                  v-if="item.side"
+                  class="card-side-line"
+                >
+                  СТОРОНА <b>{{ item.side }}</b>
+                </div>
+
+                <div class="card-place">
                   {{ item.city || '—' }}
-                </h2>
-
-                <div class="card-address">
-
-                  <span>
-                    {{ item.address || item.name || 'Адрес не указан' }}
-                  </span>
-
-                  <span
-                    v-if="item.side"
-                    class="card-side"
-                    :class="{
-                      'side-a': String(item.side).toUpperCase() === 'A',
-                      'side-b': String(item.side).toUpperCase() === 'B'
-                    }"
-                  >
-                    · СТОРОНА {{ item.side }}
-                  </span>
-
                 </div>
 
                 <div class="card-months">
@@ -303,11 +315,29 @@
                     :key="month.full"
                     class="card-month"
                     :class="getCardMonthState(item, month.full)"
-                    :title="getCardMonthValue(item, month.full) || 'Нет данных'"
+                    :title="getMonthStatusLabel(item, month.full)"
                   >
                     {{ month.short }}
                   </div>
 
+                </div>
+
+                <div class="card-features">
+                  <span
+                    class="card-feature"
+                    :title="String(item.light || '').trim().toLowerCase() === 'да' ? 'Подсветка есть' : 'Без подсветки'"
+                  >
+                    <span
+                      class="feature-picto lightbulb"
+                      :class="String(item.light || '').trim().toLowerCase() === 'да' ? 'on' : 'off'"
+                    >💡</span>
+                    <span class="feature-label">подсветка</span>
+                  </span>
+
+                  <span class="card-feature" title="статика/динамика">
+                    <span class="feature-picto feature-placeholder"></span>
+                    <span class="feature-label">статика/динамика</span>
+                  </span>
                 </div>
 
               </div>
@@ -362,7 +392,11 @@
 </template>
 
 <script setup>
-import { getAvailabilityState, getMonthValue } from '../utils/availability'
+import {
+  getAvailabilityState,
+  getMonthStatusLabel,
+  getMonthValue
+} from '../utils/availability'
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -397,6 +431,15 @@ function getCardMonthValue(item, month) {
   return getMonthValue(item, month)
 }
 
+/* Акционная цена из отдельной колонки 1С (пока в данных отсутствует). */
+function promoPriceOf(item) {
+  return String(
+    item?.promoPrice ??
+    item?.promo_price ??
+    ''
+  ).trim()
+}
+
 function getCardMonthState(item, month) {
   return getAvailabilityState(item, month)
 }
@@ -411,6 +454,12 @@ function focusCity(city) {
 }
 
 const workspaceMode = ref('map')
+
+function onMapSearch() {
+  // Фильтр по searchQuery реактивный (v-model в MapSearch).
+  // Enter/иконка подтверждают запрос — при необходимости можно
+  // дополнительно сфокусировать карту на результатах.
+}
 
 const pointCoordinates = ref('47.2357, 39.7015')
 const pointAddress = ref('')
@@ -919,19 +968,28 @@ onMounted(async () => {
 
 /* Переключатель режимов */
 
-.workspace-mode-switch {
+.workspace-float {
   position: absolute;
   top: 18px;
-  left: calc(50% + 155px);
+  left: 18px;
   z-index: 1500;
 
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  max-width: calc(100% - 36px);
+}
+
+.workspace-mode-switch {
   display: flex;
   align-items: center;
   gap: 3px;
 
   padding: 5px;
 
-  transform: translateX(-50%);
+  flex-shrink: 0;
 
   background: rgba(255, 255, 255, .96);
   border: 1px solid #e1e6e9;
@@ -943,7 +1001,8 @@ onMounted(async () => {
 
 .workspace-mode-switch button {
   height: 34px;
-  padding: 0 15px;
+  padding: 0 14px;
+  white-space: nowrap;
 
   border: 0;
   border-radius: 9px;
@@ -951,9 +1010,9 @@ onMounted(async () => {
   background: transparent;
   color: #71808c;
 
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: .08em;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .02em;
 
   cursor: pointer;
 
@@ -985,7 +1044,7 @@ onMounted(async () => {
 
   overflow-y: auto;
 
-  padding: 96px 28px 40px;
+  padding: 122px 28px 40px;
 
   background: #f4f6f7;
 }
@@ -1027,6 +1086,11 @@ onMounted(async () => {
 .construction-card {
   overflow: hidden;
 
+  display: flex;
+  flex-direction: column;
+
+  height: 100%;
+
   background: #fff;
 
   border: 1px solid #e5e9eb;
@@ -1051,7 +1115,7 @@ onMounted(async () => {
 .card-photo {
   position: relative;
 
-  height: 180px;
+  aspect-ratio: 16 / 9;
 
   overflow: hidden;
 
@@ -1113,10 +1177,19 @@ onMounted(async () => {
   letter-spacing: .25px;
 }
 
+/* формат жирный, размер обычным — в одну строку */
+.card-size {
+  margin-left: 6px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: #52606a;
+}
+
 .card-price-inline {
   flex: 0 0 auto;
 
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
 
   gap: 4px;
@@ -1127,18 +1200,26 @@ onMounted(async () => {
 .card-price-inline .price-value {
   color: #17212b;
 
-  font-size: 27px;
-  line-height: .95;
+  font-size: 20px;
+  line-height: 1;
 
-  font-weight: 950;
+  font-weight: 900;
 
-  letter-spacing: -1.2px;
+  letter-spacing: -.5px;
+}
+
+/* основная цена бледная и зачёркнутая при наличии акционной */
+.card-price-inline .price-value.is-old {
+  color: #9aa5ac;
+  text-decoration: line-through;
+  font-weight: 700;
+  letter-spacing: 0;
 }
 
 .card-price-inline .price-currency {
   color: #17212b;
 
-  font-size: 17px;
+  font-size: 13px;
   line-height: 1;
 
   font-weight: 900;
@@ -1153,7 +1234,37 @@ onMounted(async () => {
   font-weight: 700;
 }
 
+.card-promo-price {
+  display: flex;
+  flex-basis: 100%;
+  align-items: baseline;
+  gap: 3px;
+}
+
+.card-promo-price .promo-price-value {
+  color: #e12a1f;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.card-promo-price .promo-price-currency {
+  color: #e12a1f;
+  font-weight: 900;
+}
+
+.card-promo-price .promo-price-note {
+  color: #8a959c;
+  font-size: 9px;
+  font-weight: 600;
+}
+
 .card-content {
+  flex: 1;
+
+  display: flex;
+  flex-direction: column;
+
   padding: 14px 16px 15px;
 }
 .card-content h2 {
@@ -1165,6 +1276,17 @@ onMounted(async () => {
   line-height: 1.15;
 }
 
+.card-address-main {
+  min-height: 0;
+
+  color: #17212b;
+
+  font-size: 17px;
+  line-height: 1.15;
+
+  margin-bottom: 3px;
+}
+
 .card-address {
   min-height: 0;
 
@@ -1172,6 +1294,36 @@ onMounted(async () => {
 
   font-size: 12px;
   line-height: 1.3;
+}
+
+.card-place {
+  min-height: 0;
+
+  color: #65727b;
+
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.card-side-line {
+  margin-top: 2px;
+
+  color: #8a959c;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.card-side-line b {
+  color: #52606a;
+  font-weight: 900;
+}
+
+/* месяцы и прочее прижаты к нижнему краю — единое выравнивание */
+.card-months {
+  margin-top: auto;
+  padding-top: 9px;
 }
 
 .card-meta {
@@ -1610,4 +1762,14 @@ onMounted(async () => {
   background: rgba(255,255,255,.9);
 }
 
+</style>
+
+<style>
+/* Сжательная планка зума Leaflet — слева внизу карты. */
+.workspace .leaflet-top.leaflet-left,
+.map-wrap .leaflet-top.leaflet-left {
+  top: auto;
+  bottom: 18px;
+  left: 18px;
+}
 </style>

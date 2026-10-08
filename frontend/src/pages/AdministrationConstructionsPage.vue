@@ -22,12 +22,17 @@
           <div class="card-label">СОСТОЯНИЕ БАЗЫ</div>
 
           <div class="status-row">
-            <span class="status-dot status-gray"></span>
-            <strong>Ожидание обновления</strong>
+            <span
+              class="status-dot"
+              :class="baseStats.last_update ? 'status-green' : 'status-gray'"
+            ></span>
+            <strong>
+              {{ baseStats.last_update ? 'База актуальна' : 'Ожидание обновления' }}
+            </strong>
           </div>
 
           <div class="card-meta">
-            Последнее обновление: —
+            Последнее обновление: {{ formatDate(baseStats.last_update) }}
           </div>
         </q-card-section>
       </q-card>
@@ -36,10 +41,10 @@
         <q-card-section>
           <div class="card-label">КОНСТРУКЦИИ</div>
 
-          <div class="stat-value">—</div>
+          <div class="stat-value">{{ baseStats.constructions || '—' }}</div>
 
           <div class="card-meta">
-            записей в базе
+            конструкций в базе
           </div>
         </q-card-section>
       </q-card>
@@ -48,10 +53,10 @@
         <q-card-section>
           <div class="card-label">МЕДИА</div>
 
-          <div class="stat-value">—</div>
+          <div class="stat-value">{{ baseStats.previews || '—' }}</div>
 
           <div class="card-meta">
-            фотографий конструкций
+            фотографий конструкций (скачано)
           </div>
         </q-card-section>
       </q-card>
@@ -59,88 +64,53 @@
 
     <q-card flat bordered class="section-card">
       <q-card-section>
-        <div class="section-title">ОБНОВЛЕНИЕ БАЗЫ</div>
-
-        <div class="upload-area">
-          <q-icon name="upload_file" size="42px" />
-
-          <div class="upload-content">
-            <div class="upload-title">Загрузить базу конструкций</div>
-            <div class="upload-text">
-              Файл Excel в формате XLS или XLSX
-            </div>
-          </div>
-
-          <q-btn
-            outline
-            no-caps
-            label="Выбрать файл"
-            icon="folder_open"
-          />
-        </div>
-
-        <div class="progress-placeholder">
-          <div class="progress-header">
-            <span>СТАТУС ОБНОВЛЕНИЯ</span>
-            <span>Ожидание</span>
-          </div>
-
-          <q-linear-progress
-            :value="0"
-            size="6px"
-            rounded
-          />
-        </div>
-      </q-card-section>
-    </q-card>
-
-    <q-card flat bordered class="section-card">
-      <q-card-section>
-        <div class="section-title-row">
-          <div class="section-title">ИСТОРИЯ ОБНОВЛЕНИЙ</div>
-
-          <q-select
-            v-model="selectedUpdate"
-            dense
-            outlined
-            emit-value
-            map-options
-            :options="[]"
-            label="Предыдущие обновления"
-            style="min-width: 280px"
-            disable
-          />
-        </div>
-
-        <div class="empty-state">
-          <q-icon name="history" size="40px" />
-          <div>История обновлений пока пуста</div>
-        </div>
-      </q-card-section>
-    </q-card>
-
-    <q-card flat bordered class="section-card">
-      <q-card-section>
         <div class="section-title">КАТАЛОГ КОНСТРУКЦИЙ</div>
 
         <div class="catalog-toolbar">
           <q-input
+            v-model="searchQuery"
             dense
             outlined
             placeholder="Поиск по адресу..."
-            style="max-width: 360px"
-            disable
+            style="max-width: 320px"
+            clearable
           >
             <template #prepend>
               <q-icon name="search" />
             </template>
           </q-input>
 
+          <q-select
+            v-model="locationFilter"
+            dense
+            outlined
+            multiple
+            use-chips
+            clearable
+            clear-icon="close"
+            :options="filterCityOptions"
+            placeholder="Город / Район"
+            style="min-width: 220px"
+          />
+
+          <q-select
+            v-model="formatFilter"
+            dense
+            outlined
+            multiple
+            use-chips
+            clearable
+            clear-icon="close"
+            :options="filterFormatOptions"
+            placeholder="ФОРМАТ"
+            style="min-width: 170px"
+          />
+
           <q-space />
 
           <div class="construction-count">
-      Тестовых конструкций: {{ visibleConstructions.length }}
-    </div>
+            Выбрано {{ visibleConstructions.length }} конструкций
+          </div>
 
     <div class="catalog-toolbar-actions">
             <q-btn-toggle
@@ -179,7 +149,13 @@
             class="construction-card"
           >
             <div class="construction-photo">
-              <div class="photo-placeholder">
+              <img
+                v-if="item.photo"
+                :src="item.photo"
+                :alt="item.address"
+                loading="lazy"
+              >
+              <div v-else class="photo-placeholder">
                 ALBION
               </div>
             </div>
@@ -312,13 +288,12 @@
                 @click="openMediaPicker"
               />
 
-              <q-btn
-                outline
-                no-caps
-                icon="upload"
-                label="Загрузить с ПК"
-                @click="triggerPhotoUpload"
-              />
+              <label
+                class="upload-file-btn"
+                for="construction-photo-input"
+              >
+                Загрузить с ПК
+              </label>
 
               <q-btn
                 v-if="editingItem.photo"
@@ -331,10 +306,10 @@
               />
 
               <input
-                ref="photoInput"
+                id="construction-photo-input"
                 type="file"
                 accept="image/*"
-                class="hidden-photo-input"
+                class="file-input-hidden"
                 @change="handlePhotoUpload"
               >
             </div>
@@ -590,7 +565,6 @@ const editingItem = ref(null)
 
 const viewMode = ref('full')
 const compactColumns = ref(6)
-const selectedUpdate = ref(null)
 
 const compactColumnOptions = [
   { label: '4', value: 4 },
@@ -603,6 +577,53 @@ const compactColumnOptions = [
 const displayConstructions = ref([])
 const loadingConstructions = ref(false)
 const constructionsError = ref("")
+
+const baseStats = ref({
+  last_update: null,
+  constructions: 0,
+  media: 0,
+  photos: 0,
+  previews: 0
+})
+
+const searchQuery = ref('')
+const locationFilter = ref([])
+const formatFilter = ref([])
+
+function formatDate(value) {
+  if (!value) return '—'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) return '—'
+
+  const pad = n => String(n).padStart(2, '0')
+
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.` +
+    `${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+async function loadBaseStats() {
+  const token = sessionStorage.getItem('albion_admin_token')
+
+  try {
+    const response = await fetch('/api/admin/constructions/stats', {
+      headers: token ? { Authorization: `Bearer ${token}` } : {}
+    })
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    if (data && typeof data === 'object') {
+      baseStats.value = data
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки состояния базы:', error)
+  }
+}
 
 const monthMap = {
   Август: "august",
@@ -702,9 +723,70 @@ async function loadConstructions() {
   }
 }
 
-const visibleConstructions = computed(() => displayConstructions.value)
+function distinctValues(accessor) {
+  const seen = []
+
+  displayConstructions.value.forEach(item => {
+    const value = String(accessor(item) || '').trim()
+
+    if (value && !seen.includes(value)) {
+      seen.push(value)
+    }
+  })
+
+  return seen.sort((a, b) => a.localeCompare(b, 'ru'))
+}
+
+/* Выбранные элементы списка поднимаются наверх. */
+function withSelectedFirst(allValues, selected) {
+  const rest = allValues.filter(value => !selected.includes(value))
+  return [...selected, ...rest]
+}
+
+const filterCityOptions = computed(() =>
+  withSelectedFirst(
+    distinctValues(item => item.city),
+    locationFilter.value
+  )
+)
+
+const filterFormatOptions = computed(() =>
+  withSelectedFirst(
+    distinctValues(item => item.type),
+    formatFilter.value
+  )
+)
+
+const visibleConstructions = computed(() =>
+  displayConstructions.value.filter(item => {
+    const query = searchQuery.value.trim().toLowerCase()
+
+    if (query) {
+      const haystack =
+        `${item.address} ${item.city} ${item.district}`.toLowerCase()
+      if (!haystack.includes(query)) return false
+    }
+
+    if (
+      locationFilter.value.length
+      && !locationFilter.value.includes(item.city)
+    ) {
+      return false
+    }
+
+    if (
+      formatFilter.value.length
+      && !formatFilter.value.includes(item.type)
+    ) {
+      return false
+    }
+
+    return true
+  })
+)
 
 loadConstructions()
+loadBaseStats()
 
 const cities = [
   'РОСТОВ-НА-ДОНУ',
@@ -749,17 +831,11 @@ const materialOptions = [
   'Другое'
 ]
 
-const photoInput = ref(null)
-
 function cityOptions(currentCity) {
   return [
     currentCity,
     ...cities.filter(city => city !== currentCity)
   ]
-}
-
-function triggerPhotoUpload() {
-  photoInput.value?.click()
 }
 
 function handlePhotoUpload(event) {
@@ -899,6 +975,10 @@ function saveEdit() {
 
 .status-gray {
   background: #9e9e9e;
+}
+
+.status-green {
+  background: #2e7d32;
 }
 
 .card-meta {
@@ -1046,8 +1126,38 @@ function saveEdit() {
   padding-top: 2px;
 }
 
-.hidden-photo-input {
-  display: none;
+/* Кнопка-лейбл: нативный триггер выбора файла (минуя JS click(),
+   который в Chrome на Linux вызывает затемнение/зависание). */
+.upload-file-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  min-height: 32px;
+  border: 1px solid #9cc4e0;
+  border-radius: 6px;
+  background: transparent;
+  color: #1a73e8;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.upload-file-btn:hover {
+  background: rgba(26, 115, 232, .08);
+}
+
+/* Скрытый (но кликабельный через label[for]) файловый инпут.
+   НЕ display:none — иначе нативный выбор файла не открывается. */
+.file-input-hidden {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
 }
 
 .edit-main-section {
@@ -1218,6 +1328,7 @@ function saveEdit() {
   gap: 18px;
   margin-top: 18px;
   align-content: start;
+  align-items: stretch;
 }
 
 .construction-grid--compact {
@@ -1236,23 +1347,33 @@ function saveEdit() {
 }
 
 .construction-grid--compact .construction-card-content {
-  padding: 10px 12px 12px;
+  padding: 8px 12px 10px;
+  justify-content: flex-end;
+  min-height: 0;
 }
 
 .construction-grid--compact .construction-city {
-  margin-top: 8px;
+  margin-top: 4px;
   font-size: 11px;
   line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .construction-grid--compact .construction-address {
-  margin-top: 4px;
+  margin-top: 2px;
   font-size: 12px;
   line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .construction-grid--compact .construction-photo {
-  aspect-ratio: auto;
+  aspect-ratio: 16 / 9;
   width: 100%;
   overflow: hidden;
   background: #f3f5f6;
@@ -1261,9 +1382,8 @@ function saveEdit() {
 .construction-grid--compact .construction-photo img {
   display: block;
   width: 100%;
-  height: auto;
-  max-width: 100%;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;
 }
 
 .construction-grid--compact .photo-placeholder {
@@ -1280,6 +1400,9 @@ function saveEdit() {
 .construction-grid--compact .construction-type {
   font-size: 12px;
   line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .construction-grid--compact .construction-type span {
@@ -1317,6 +1440,10 @@ function saveEdit() {
   margin-top: auto;
 }
 
+.construction-grid--compact .edit-button {
+  margin-top: 10px;
+}
+
 .construction-grid--list {
   grid-template-columns: 1fr;
   gap: 8px;
@@ -1332,7 +1459,7 @@ function saveEdit() {
 }
 
 .construction-grid--list .construction-photo {
-  aspect-ratio: auto;
+  aspect-ratio: 16 / 9;
   min-height: 110px;
   height: 100%;
 }
@@ -1340,9 +1467,8 @@ function saveEdit() {
 .construction-grid--list .construction-photo img {
   display: block;
   width: 100%;
-  height: auto;
-  max-width: 100%;
-  object-fit: contain;
+  height: 100%;
+  object-fit: cover;
 }
 
 .construction-grid--list .construction-card-content {
@@ -1449,11 +1575,23 @@ function saveEdit() {
   overflow: hidden;
   border-radius: 14px;
   background: #fff;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .construction-photo {
   aspect-ratio: 16 / 9;
   background: #f0f0f0;
+  overflow: hidden;
+}
+
+.construction-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  min-height: 0;
 }
 
 .photo-placeholder {
@@ -1473,6 +1611,7 @@ function saveEdit() {
 
 .construction-card-content {
   padding: 18px;
+  text-align: left;
 }
 
 .construction-topline {
@@ -1480,6 +1619,7 @@ function saveEdit() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  min-height: 22px;
 }
 
 .construction-type {

@@ -1,21 +1,8 @@
 <template>
   <q-page class="contacts-page">
-    <ContactsHero :data="contacts.hero" />
+    <ContactsOffices :offices="activeOffices" />
 
-    <ContactsOffices
-      :offices="activeOffices"
-      :phone="contacts.general?.phone"
-      @show-map="showOffice"
-    />
-
-    <ContactsEmployees
-      :departments="activeDepartments"
-    />
-
-    <ContactsCallback
-      :data="contacts.callback"
-      :phone="contacts.general?.phone"
-    />
+    <ContactsEmployees :departments="activeDepartments" />
   </q-page>
 </template>
 
@@ -24,17 +11,12 @@ import { computed, onMounted, ref } from 'vue'
 
 import { getContacts } from '@/services/api'
 
-import ContactsHero from '@/components/contacts/ContactsHero.vue'
 import ContactsOffices from '@/components/contacts/ContactsOffices.vue'
 import ContactsEmployees from '@/components/contacts/ContactsEmployees.vue'
-import ContactsCallback from '@/components/contacts/ContactsCallback.vue'
 
 const contacts = ref({
-  general: {},
-  hero: {},
   offices: [],
-  departments: [],
-  callback: {}
+  departments: []
 })
 
 onMounted(async () => {
@@ -66,20 +48,6 @@ const activeDepartments = computed(() =>
     }))
     .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
 )
-
-function showOffice(office) {
-  if (!office?.address) {
-    return
-  }
-
-  const query = encodeURIComponent(office.address)
-
-  window.open(
-    `https://www.google.com/maps/search/?api=1&query=${query}`,
-    '_blank',
-    'noopener'
-  )
-}
 </script>
 
 <style scoped>

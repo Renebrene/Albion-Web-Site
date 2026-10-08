@@ -68,6 +68,58 @@ def _status(value):
     return STATUS_MAP.get(value, "Доступность")
 
 
+def get_base_stats():
+    """Сводка по базе для админ-карточек (состояние базы)."""
+    with get_connection() as conn:
+        last = conn.execute(
+            """
+            SELECT created_at
+            FROM construction_imports
+            WHERE status = 'active'
+            ORDER BY id DESC
+            LIMIT 1
+            """
+        ).fetchone()
+
+        surfaces_count = conn.execute(
+            "SELECT COUNT(*) FROM surfaces WHERE is_active = TRUE"
+        ).fetchone()[0]
+
+        media_count = conn.execute(
+            "SELECT COUNT(*) FROM media"
+        ).fetchone()[0]
+
+        photos_count = conn.execute(
+            "SELECT COUNT(*) FROM media WHERE mime_type LIKE 'image/%'"
+        ).fetchone()[0]
+
+        # Скачанные превью фотографий адресов (активный импорт).
+        previews_count = conn.execute(
+            """
+            SELECT COUNT(*)
+            FROM construction_media
+            WHERE media_type = 'photo'
+              AND card_path IS NOT NULL
+              AND import_id = (
+                  SELECT id FROM construction_imports
+                  WHERE status = 'active'
+                  ORDER BY id DESC
+                  LIMIT 1
+              )
+            """
+        ).fetchone()[0]
+
+        return {
+            "last_update": (
+                last[0].isoformat() if last and last[0] else None
+            ),
+            "constructions": int(surfaces_count),
+            "media": int(media_count),
+            "photos": int(photos_count),
+            "previews": int(previews_count),
+        }
+
+
 def get_data():
     """
     Возвращает конструкции в точности в формате,
@@ -87,7 +139,7 @@ def get_data():
             s.map,
             s.name,
             s.external_number,
-            s.photo,
+            cm.card_path,
             s.price,
             s.side,
             s.size,
@@ -105,6 +157,15 @@ def get_data():
             ON c.id = s.construction_id
         JOIN cities ci
             ON ci.id = c.city_id
+        LEFT JOIN construction_media cm
+            ON cm.import_id = (
+                SELECT id
+                FROM construction_imports
+                WHERE status = 'active'
+                LIMIT 1
+            )
+           AND cm.surface_hash = s.surface_hash
+           AND cm.media_type = 'photo'
         LEFT JOIN surface_availability a
             ON a.surface_id = s.id
            AND a.year = 2026
@@ -132,7 +193,7 @@ def get_data():
                     map_url,
                     name,
                     external_number,
-                    photo,
+                    photo_path,
                     price,
                     side,
                     size,
@@ -157,7 +218,14 @@ def get_data():
                         "months": {},
                         "name": _text(name),
                         "number": _text(external_number),
-                        "photo": _text(photo),
+                        # Абсолютный путь от корня сайта: /storage/... —
+        # иначе относительный src ломается на вложенных роутах
+        # (/vozmozhnosti, /novosti/:slug и т.п.).
+        "photo": (
+            "/" + _text(photo_path)
+            if photo_path
+            else ""
+        ),
                         "price": _text(price),
                         "light": _text(light),
                         "material": _text(material),

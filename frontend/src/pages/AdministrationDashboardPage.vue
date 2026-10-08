@@ -70,9 +70,9 @@ const sections = [
     path: '/administration/constructions'
   },
   {
-    title: 'Импорт Excel',
-    text: 'Загрузка и обновление каталога конструкций',
-    path: '/administration/import'
+    title: 'Обновление базы',
+    text: 'Загрузка Excel, обновление и архивы базы',
+    path: '/administration/base'
   },
   {
     title: 'Новости',
@@ -86,13 +86,23 @@ const sections = [
   },
   {
     title: 'Контакты',
-    text: 'Офисы, сотрудники и обратная связь',
+    text: 'Офисы, разделы и сотрудники',
     path: '/administration/contacts'
   },
   {
-    title: 'Медиа',
+    title: 'Медиа Хранилище',
     text: 'Изображения и другие файлы сайта',
     path: '/administration/media'
+  },
+  {
+    title: 'Меню и подвал',
+    text: 'Пункты верхнего меню и подвала сайта',
+    path: '/administration/site-menu'
+  },
+  {
+    title: 'Настройки',
+    text: 'Внешний вид сайта: шрифты, цвета, скругления',
+    path: '/administration/settings'
   },
   {
     title: 'Пользователи',

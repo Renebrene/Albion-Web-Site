@@ -51,7 +51,7 @@ export function useConstructionsFilter(constructions) {
 
   // Фильтры должны автоматически выбрать всё
   // только после фактической загрузки данных.
-  let monthsInitialized = false
+  // Месяцы по умолчанию СНЯТЫ (без фильтра по свободности).
   let typesInitialized = false
   let citiesInitialized = false
 
@@ -122,19 +122,8 @@ export function useConstructionsFilter(constructions) {
     })
   })
 
-  // После загрузки данных один раз выбираем ВСЕ значения.
-  // После этого пользователь может свободно менять фильтры.
-
-  watch(
-    months,
-    values => {
-      if (!monthsInitialized && values.length) {
-        selectedMonths.value = values.map(item => item.value)
-        monthsInitialized = true
-      }
-    },
-    { immediate: true }
-  )
+  // После загрузки данных один раз выбираем ВСЕ значения форматов и
+  // городов; месяцы остаются снятыми (фильтр по свободности не активен).
 
   watch(
     types,
@@ -240,7 +229,7 @@ export function useConstructionsFilter(constructions) {
   })
 
   function resetFilters() {
-    selectedMonths.value = months.value.map(item => item.value)
+    selectedMonths.value = []
     monthLogic.value = 'OR'
     selectedTypes.value = [...types.value]
     selectedCities.value = [...cities.value]

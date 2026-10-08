@@ -413,11 +413,20 @@ def _insert_variant(
     }
 
 
-def list_media(limit: int = 30, offset: int = 0) -> list[dict]:
+def list_media(
+    limit: int = 30,
+    offset: int = 0,
+    category_id: int | None = None,
+) -> list[dict]:
     with get_connection() as conn:
         with conn.cursor() as cur:
+            where = ""
+
+            if category_id is not None:
+                where = "WHERE %s::bigint = ANY(m.category_id)"
+
             cur.execute(
-                """
+                f"""
                 SELECT
                     m.id,
                     m.uuid,
@@ -453,10 +462,15 @@ def list_media(limit: int = 30, offset: int = 0) -> list[dict]:
                         WHERE pbm.media_id = m.id
                     ) AS used_in_pages
                 FROM media m
+                {where}
                 ORDER BY m.created_at DESC, m.id DESC
                 LIMIT %s OFFSET %s
                 """,
-                (limit, offset),
+                (
+                    *( (category_id,) if category_id is not None else () ),
+                    limit,
+                    offset,
+                ),
             )
 
             rows = cur.fetchall()

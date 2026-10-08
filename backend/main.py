@@ -2,7 +2,11 @@ from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Upload
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.services.data_service import PROJECT_DIR, get_data
+from backend.services.data_service import (
+    PROJECT_DIR,
+    get_base_stats,
+    get_data,
+)
 from backend.services.about_service import get_about
 from backend.services.contacts_service import get_contacts
 from backend.services.news_service import get_news, get_news_item
@@ -34,6 +38,38 @@ app = FastAPI(
     version="1.0.0",
 )
 
+from backend.api.admin_base import router as admin_base_router
+
+app.include_router(admin_base_router)
+
+from backend.api.admin_contacts import router as admin_contacts_router
+
+app.include_router(admin_contacts_router)
+
+from backend.api.admin_site_menu import router as admin_site_menu_router
+
+app.include_router(admin_site_menu_router)
+
+from backend.api.admin_settings import (
+    router as admin_settings_router,
+    public_router as public_settings_router,
+)
+
+app.include_router(admin_settings_router)
+app.include_router(public_settings_router)
+
+from backend.api.accounts import router as account_router
+
+app.include_router(account_router)
+
+
+from backend.services.site_menu_service import get_public_menu
+
+
+@app.get("/api/site-menu")
+def site_menu():
+    return get_public_menu()
+
 STORAGE_ROOT = PROJECT_DIR / "storage"
 STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
 
@@ -57,6 +93,11 @@ def health():
 @app.get("/api/constructions")
 def constructions():
     return get_data()
+
+
+@app.get("/api/admin/constructions/stats")
+def admin_constructions_stats(auth=Depends(require_admin)):
+    return {"success": True, **get_base_stats()}
 
 
 
@@ -105,6 +146,7 @@ def admin_login(
     data: LoginRequest,
     request: Request,
 ):
+
     return login_admin(
         data,
         ip_address=request.client.host if request.client else None,
@@ -122,6 +164,7 @@ async def admin_upload_media(
     preview_time: float | None = Form(default=None),
     auth=Depends(require_admin),
 ):
+
     file_bytes = await file.read()
 
     try:
@@ -160,6 +203,7 @@ def admin_create_media_category(
     name: str = Form(...),
     auth=Depends(require_admin),
 ):
+
     try:
         category = create_media_category(name)
     except MediaValidationError as exc:
@@ -194,12 +238,18 @@ def admin_media_stats(auth=Depends(require_admin)):
 def admin_list_media(
     limit: int = 30,
     offset: int = 0,
+    category_id: int | None = None,
     auth=Depends(require_admin),
 ):
+
     limit = max(1, min(limit, 100))
     offset = max(0, offset)
 
-    media = list_media(limit=limit + 1, offset=offset)
+    media = list_media(
+        limit=limit + 1,
+        offset=offset,
+        category_id=category_id,
+    )
     has_more = len(media) > limit
 
     return {
@@ -216,6 +266,7 @@ def admin_update_media(
     category_id: list[int] | None = Form(default=None),
     auth=Depends(require_admin),
 ):
+
     try:
         result = update_media(
             media_id,
@@ -242,6 +293,7 @@ def admin_delete_media(
     media_id: int,
     auth=Depends(require_admin),
 ):
+
     try:
         result = delete_media(media_id)
     except MediaValidationError as exc:

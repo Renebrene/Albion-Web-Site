@@ -1,188 +1,204 @@
 <template>
-  <section class="section">
-    <div class="section-head">
-      <div>
-        <div class="eyebrow">ГДЕ МЫ</div>
-        <h2>Наши офисы</h2>
-      </div>
-      <a class="phone" :href="phoneHref">{{ phone }}</a>
-    </div>
-
+  <section class="offices-section">
     <div class="offices">
       <article
         v-for="office in offices"
         :key="office.id"
         class="office-card"
       >
-        <div class="office-top">
-          <span class="office-number">
-            {{ String(office.sortOrder).padStart(2, '0') }}
-          </span>
+        <div class="office-info">
           <h3>{{ office.name }}</h3>
-        </div>
 
-        <div class="office-address">
-          {{ office.address }}
-        </div>
+          <address class="office-address">
+            {{ office.address }}
+          </address>
 
-        <div class="office-details">
           <a
             v-if="office.phone"
+            class="office-phone"
             :href="`tel:${office.phone.replace(/[^+0-9]/g, '')}`"
           >
             {{ office.phone }}
           </a>
 
-          <a
-            v-if="office.email"
-            :href="`mailto:${office.email}`"
-          >
-            {{ office.email }}
-          </a>
+          <div v-if="office.emails && office.emails.length" class="office-emails">
+            <a
+              v-for="email in office.emails"
+              :key="email"
+              :href="`mailto:${email}`"
+            >
+              {{ email }}
+            </a>
+          </div>
 
-          <span v-if="office.schedule">
+          <div v-if="office.schedule" class="office-schedule">
+            <span>Режим работы:</span>
             {{ office.schedule }}
-          </span>
+          </div>
         </div>
 
-        <button
-          class="map-button"
-          type="button"
-          @click="$emit('show-map', office)"
-        >
-          Показать на карте →
-        </button>
+        <div class="office-map">
+          <a
+            v-if="office.mapUrl"
+            class="map-image-link"
+            :href="office.mapUrl"
+            target="_blank"
+            rel="noopener"
+          >
+            <img
+              v-if="office.image"
+              :src="office.image"
+              :alt="`Карта: ${office.name}`"
+            >
+            <span v-else class="map-placeholder">
+              Яндекс.Карта
+            </span>
+          </a>
+
+          <a
+            v-if="office.mapUrl"
+            class="map-link"
+            :href="office.mapUrl"
+            target="_blank"
+            rel="noopener"
+          >
+            смотреть на карте →
+          </a>
+        </div>
       </article>
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-
-const props = defineProps({
+defineProps({
   offices: {
     type: Array,
     default: () => []
-  },
-  phone: {
-    type: String,
-    default: ''
   }
 })
-
-defineEmits(['show-map'])
-
-const phoneHref = computed(() =>
-  `tel:${props.phone.replace(/[^+0-9]/g, '')}`
-)
 </script>
 
 <style scoped>
-.section {
-  padding: 72px 5vw;
-}
-
-.section-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: end;
-  gap: 30px;
-  margin-bottom: 34px;
-}
-
-.eyebrow {
-  margin-bottom: 8px;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: .16em;
-  color: #7a8791;
-}
-
-h2 {
-  margin: 0;
-  font-size: clamp(34px, 4vw, 52px);
-  letter-spacing: -.035em;
-}
-
-.phone {
-  color: #17212b;
-  font-size: 20px;
-  font-weight: 800;
-  text-decoration: none;
+.offices-section {
+  padding: 10px 4vw 34px;
 }
 
 .offices {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  gap: 14px;
 }
 
 .office-card {
-  min-height: 310px;
-  padding: 30px;
-  border-radius: 22px;
-  background: white;
-  box-shadow: 0 12px 40px rgba(23,33,43,.07);
-  display: flex;
-  flex-direction: column;
-}
-
-.office-top {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr minmax(0, 1fr);
   gap: 18px;
-  align-items: flex-start;
+  padding: 18px 20px;
+  border-radius: 16px;
+  border: 1px solid #e6e8ec;
+  background: white;
+  box-shadow: 0 8px 26px rgba(23, 33, 43, .05);
+  align-items: start;
 }
 
-.office-number {
-  font-size: 13px;
-  font-weight: 800;
-  color: #a0abb3;
-}
-
-h3 {
-  margin: 0;
-  font-size: 27px;
+/* ——— левая часть карточки ——— */
+.office-info h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  letter-spacing: -.01em;
 }
 
 .office-address {
-  margin-top: 28px;
-  font-size: 20px;
+  display: block;
+  margin: 0 0 12px;
+  font-size: 13px;
   line-height: 1.45;
-  max-width: 520px;
+  color: #17212b;
+  white-space: pre-line;
 }
 
-.office-details {
-  display: grid;
-  gap: 8px;
-  margin-top: 22px;
-  color: #65717a;
-}
-
-.office-details a {
-  color: inherit;
+.office-phone {
+  display: block;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #17212b;
   text-decoration: none;
 }
 
-.map-button {
-  margin-top: auto;
-  align-self: flex-start;
-  padding: 12px 0 0;
-  border: 0;
-  background: transparent;
-  color: #17212b;
-  font-weight: 800;
-  cursor: pointer;
+.office-emails {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 10px;
 }
 
-@media (max-width: 800px) {
-  .section-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
+.office-emails a {
+  color: #65717a;
+  font-size: 12px;
+  text-decoration: none;
+  word-break: break-word;
+}
 
+.office-schedule {
+  color: #65717a;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.office-schedule span {
+  color: #a0abb3;
+}
+
+/* ——— правая часть карточки: Яндекс.Карта ——— */
+.office-map {
+  display: grid;
+  gap: 8px;
+}
+
+.map-image-link {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+  border-radius: 12px;
+  background: #eef1f3;
+  overflow: hidden;
+}
+
+.map-image-link img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.map-placeholder {
+  color: #8a969f;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.map-link {
+  justify-self: start;
+  color: #17212b;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+@media (max-width: 900px) {
   .offices {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .office-card {
+    grid-template-columns: 1fr;
+  }
+
+  .map-image-link {
+    min-height: 120px;
   }
 }
 </style>

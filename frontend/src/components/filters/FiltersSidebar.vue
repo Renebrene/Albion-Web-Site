@@ -1,30 +1,39 @@
 <template>
   <aside class="filters-sidebar">
     <div class="sidebar-head">
-      <div class="eyebrow">ALBION</div>
-      <h2>Рекламные<br>возможности</h2>
+      <h2>Интерактивная карта</h2>
     </div>
 
     <section class="filter-section">
       <div class="section-title-row month-title-row">
         <div class="section-label">Свободные месяцы</div>
 
-        <div class="logic-switch">
-          <button
-            type="button"
-            :class="{ active: monthLogic === 'AND' }"
-            @click="$emit('update:monthLogic', 'AND')"
-          >
-            И
-          </button>
+        <div class="logic-wrap">
+          <span class="logic-help">
+            ?
+            <span class="logic-tooltip">
+              И – одновременно все свободные месяцы, ИЛИ – свободен хотя бы
+              один месяц из запрошенных
+            </span>
+          </span>
 
-          <button
-            type="button"
-            :class="{ active: monthLogic === 'OR' }"
-            @click="$emit('update:monthLogic', 'OR')"
-          >
-            ИЛИ
-          </button>
+          <div class="logic-switch">
+            <button
+              type="button"
+              :class="{ active: monthLogic === 'AND' }"
+              @click="$emit('update:monthLogic', 'AND')"
+            >
+              И
+            </button>
+
+            <button
+              type="button"
+              :class="{ active: monthLogic === 'OR' }"
+              @click="$emit('update:monthLogic', 'OR')"
+            >
+              ИЛИ
+            </button>
+          </div>
         </div>
       </div>
 
@@ -243,9 +252,9 @@ function clearCities() {
 .sidebar-head h2 {
   margin: 0;
   color: #17212b;
-  font-size: 22px;
-  line-height: 1.05;
-  letter-spacing: -.5px;
+  font-size: 21px;
+  line-height: 1.1;
+  letter-spacing: -.4px;
 }
 
 
@@ -265,7 +274,73 @@ function clearCities() {
   text-transform: uppercase;
 }
 
- .logic-switch {
+ .logic-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.logic-help {
+  position: relative;
+
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+  border: 1px solid #cdd5da;
+  background: #f7f8f9;
+
+  color: #6b7881;
+  font-size: 10px;
+  font-weight: 800;
+
+  cursor: help;
+}
+
+.logic-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+
+  width: min(240px, calc(100vw - 40px));
+  padding: 8px 10px;
+
+  border-radius: 8px;
+  background: #17212b;
+  color: #fff;
+
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
+
+  text-transform: none;
+  white-space: normal;
+  word-wrap: break-word;
+
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+
+  transition:
+    opacity .15s ease,
+    visibility .15s ease;
+
+  z-index: 30;
+}
+
+.logic-help:hover .logic-tooltip,
+.logic-help:focus .logic-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
+.logic-switch {
   display: flex;
   gap: 2px;
   padding: 2px;

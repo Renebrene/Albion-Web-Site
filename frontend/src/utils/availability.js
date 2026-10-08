@@ -74,3 +74,18 @@ export function isFree(item, month) {
 export function isBusy(item, month) {
   return getAvailabilityState(item, month) === 'busy'
 }
+
+/* Человекочитаемая подсказка для статуса месяца. */
+export function getMonthStatusLabel(item, month) {
+  const state = getAvailabilityState(item, month)
+
+  if (state === 'busy') {
+    return 'Продано'
+  }
+
+  if (state === 'reserve') {
+    return 'Звоните для уточнения статуса'
+  }
+
+  return 'Свободно'
+}

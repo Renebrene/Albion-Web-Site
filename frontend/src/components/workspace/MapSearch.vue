@@ -1,19 +1,23 @@
 <template>
   <div class="search-card">
-
-    <div class="search-icon">⌕</div>
+    <div class="count">{{ count }}</div>
 
     <input
       :value="modelValue"
       type="search"
       placeholder="Поиск по адресу, городу или номеру"
       @input="$emit('update:modelValue', $event.target.value)"
+      @keydown.enter="onSearch"
     >
 
-    <div class="count">
-      {{ count }}
-    </div>
-
+    <button
+      type="button"
+      class="search-icon"
+      title="Найти"
+      @click="onSearch"
+    >
+      ⌕
+    </button>
   </div>
 </template>
 
@@ -30,50 +34,54 @@ defineProps({
   }
 })
 
-defineEmits([
-  'update:modelValue'
+const emit = defineEmits([
+  'update:modelValue',
+  'search'
 ])
+
+function onSearch() {
+  emit('search')
+}
 </script>
 
 <style scoped>
 .search-card {
-  position: absolute;
+  position: static;
 
-  z-index: 700;
+  width: 400px;
+  max-width: calc(100vw - 420px);
 
-  top: 22px;
-  left: 22px;
-
-  width: min(520px, calc(100% - 44px));
-
-  height: 52px;
+  height: 44px;
 
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 
-  padding: 0 12px;
+  padding: 0 8px 0 10px;
 
   background: rgba(255,255,255,.97);
 
   border: 1px solid rgba(220,225,228,.9);
 
-  border-radius: 15px;
+  border-radius: 12px;
 
   box-shadow: 0 10px 35px rgba(25,35,45,.15);
 }
 
-.search-icon {
-  width: 30px;
-  height: 30px;
+/* счётчик — слева */
+.count {
+  padding: 5px 8px;
 
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  border-radius: 8px;
 
-  color: #71808c;
+  background: #17212b;
 
-  font-size: 23px;
+  color: #fff;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  white-space: nowrap;
 }
 
 .search-card input {
@@ -94,16 +102,31 @@ defineEmits([
   color: #9aa5ac;
 }
 
-.count {
-  padding: 6px 9px;
+/* иконка поиска — справа */
+.search-icon {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
 
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 0;
   border-radius: 8px;
 
-  background: #f2f4f5;
+  background: transparent;
 
-  color: #596771;
+  color: #71808c;
 
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 23px;
+
+  cursor: pointer;
+
+  transition: background .18s ease;
+}
+
+.search-icon:hover {
+  background: #f0f3f4;
 }
 </style>

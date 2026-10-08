@@ -391,6 +391,7 @@
 
 .popup-price {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: center;
   gap: 3px;
@@ -417,6 +418,40 @@
   font-size: 10px;
   font-weight: 700;
   opacity: .8;
+}
+
+/* Акционная цена: основная бледная и зачёркнутая */
+.popup-price-value.is-old {
+  color: #9aa5ac !important;
+  text-decoration: line-through;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.promo-price {
+  display: flex;
+  flex-basis: 100%;
+  align-items: baseline;
+  justify-content: center;
+  gap: 3px;
+}
+
+.promo-price-value {
+  color: #e12a1f;
+  font-size: 18px;
+  line-height: 1;
+  font-weight: 900;
+}
+
+.promo-price-currency {
+  color: #e12a1f;
+  font-weight: 900;
+}
+
+.promo-price-note {
+  color: #8a959c;
+  font-size: 9px;
+  font-weight: 600;
 }
 
 .popup-type {
@@ -756,7 +791,7 @@
 .popup-photo {
   display: block;
   width: 100%;
-  height: 72px;
+  aspect-ratio: 16 / 9;
   margin-top: 8px;
   border-radius: 7px;
   overflow: hidden;
@@ -802,19 +837,124 @@
 }
 
 .popup-month.free {
-  background: #2ea66d;
+  background: #dff3e4;
+  color: #16803a;
 }
 
 .popup-month.reserve {
-  background: #e6a51c;
+  background: #fff0d2;
+  color: #b96b00;
 }
 
 .popup-month.busy {
-  background: #e24b42;
+  background: #f9dede;
+  color: #c62828;
 }
 
 .popup-month.empty {
   background: #aeb6bb;
+  color: #fff;
+}
+
+/* Бейдж стороны (буква) — без слова «сторона», все буквы тёмно-серые */
+.popup-side-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  margin-bottom: 9px;
+
+  border-radius: 6px;
+  background: #e6e9ec;
+
+  color: #3d3f43;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* Поля «подсветка» и «статика/динамика» */
+.popup-features,
+.card-features {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 9px;
+}
+
+.card-features {
+  justify-content: flex-start;
+}
+
+.popup-feature,
+.card-feature {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.feature-picto {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.feature-picto.lightbulb.off {
+  filter: grayscale(1);
+  opacity: .45;
+}
+
+.feature-picto.feature-placeholder {
+  width: 15px;
+  height: 15px;
+  background: #e6e9ec;
+  border-radius: 5px;
+}
+
+.feature-label {
+  color: #65727b;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+/* Динамические стороны: строки A(1)/A(2)/A(3) с месяцами */
+.popup-dynamic-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 9px;
+}
+
+.popup-dynamic-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.popup-dynamic-side {
+  flex: 0 0 32px;
+  color: #65727b;
+  font-size: 9px;
+  font-weight: 800;
+  text-align: left;
+}
+
+.popup-dynamic-row .popup-month {
+  width: 26px;
+  height: 18px;
+  font-size: 7px;
+}
+
+/* Видеоэкраны: месяцы в одну строку с процентом в подсказке */
+.popup-months--video {
+  margin-top: 9px;
 }
 
 @media (max-width: 760px) {
@@ -982,19 +1122,23 @@
 }
 
 .card-month.free {
-  background: #2ea66d;
+  background: #dff3e4;
+  color: #16803a;
 }
 
 .card-month.reserve {
-  background: #e6a51c;
+  background: #fff0d2;
+  color: #b96b00;
 }
 
 .card-month.busy {
-  background: #e24b42;
+  background: #f9dede;
+  color: #c62828;
 }
 
 .card-month.empty {
   background: #aeb6bb;
+  color: #fff;
 }
 
 /* мобильная версия */
