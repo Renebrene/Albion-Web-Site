@@ -64,6 +64,22 @@ from backend.api.accounts import router as account_router
 
 app.include_router(account_router)
 
+from backend.api.admin_news import router as admin_news_router
+
+app.include_router(admin_news_router)
+
+from backend.api.admin_audit import router as admin_audit_router
+
+app.include_router(admin_audit_router)
+
+from backend.api.admin_about import router as admin_about_router
+
+app.include_router(admin_about_router)
+
+from backend.api.admin_users import router as admin_users_router
+
+app.include_router(admin_users_router)
+
 
 from backend.services.site_menu_service import get_public_menu
 

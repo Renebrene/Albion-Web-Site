@@ -111,44 +111,28 @@ const routes = [
       },
       {
         path: 'news',
-        component: () => import('@/pages/AdministrationPlaceholderPage.vue'),
-        props: {
-          title: 'Новости',
-          text: 'Публикации и категории новостей'
-        },
+        component: () => import('@/pages/AdministrationNewsPage.vue'),
         meta: {
           requiresAdmin: true
         }
       },
       {
         path: 'about',
-        component: () => import('@/pages/AdministrationPlaceholderPage.vue'),
-        props: {
-          title: 'О компании',
-          text: 'Тексты, блоки, статистика и направления'
-        },
+        component: () => import('@/pages/AdministrationAboutPage.vue'),
         meta: {
           requiresAdmin: true
         }
       },
       {
         path: 'users',
-        component: () => import('@/pages/AdministrationPlaceholderPage.vue'),
-        props: {
-          title: 'Пользователи',
-          text: 'Учетные записи и права доступа'
-        },
+        component: () => import('@/pages/AdministrationUsersPage.vue'),
         meta: {
           requiresAdmin: true
         }
       },
       {
         path: 'audit',
-        component: () => import('@/pages/AdministrationPlaceholderPage.vue'),
-        props: {
-          title: 'Журнал действий',
-          text: 'История изменений в административной панели'
-        },
+        component: () => import('@/pages/AdministrationAuditPage.vue'),
         meta: {
           requiresAdmin: true
         }

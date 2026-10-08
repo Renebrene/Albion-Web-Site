@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
+from backend.services.audit_service import log_admin_action
 from backend.services.auth_service import (
     authenticate,
     create_session,
@@ -71,6 +72,14 @@ def login_admin(
         user["id"],
         ip_address=ip_address,
         user_agent=user_agent,
+    )
+
+    log_admin_action(
+        user["id"],
+        "login",
+        "admin_user",
+        user["id"],
+        ip_address=ip_address,
     )
 
     return {
