@@ -10,6 +10,7 @@
 // оставляя значения по умолчанию, объявленные в :root.
 
 import { setMapEngine } from '../config/mapConfig'
+import { applySiteFonts } from '../config/fontLoader'
 
 const SYSTEM_FONT_STACK =
   "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif"
@@ -77,6 +78,12 @@ async function loadAndApply() {
 
   /* Оператор карты: 'osm' | 'yandex' (см. config/mapConfig.js). */
   setMapEngine(settings.map_engine)
+
+  /*
+   * Веб-шрифты (Inter/Roboto/PT Sans/…) больше не в бандле — подгружаем
+   * нужное семейство с Google Fonts только если выбран не 'system'.
+   */
+  applySiteFonts(settings)
 
   return settings
 }

@@ -1,8 +1,6 @@
 <template>
   <q-page class="placeholder-page">
 
-    <AppHeader />
-
     <main class="placeholder-content">
 
       <div class="placeholder-kicker">
@@ -19,15 +17,10 @@
 
     </main>
 
-    <AppFooter />
-
   </q-page>
 </template>
 
 <script setup>
-import AppHeader from '../components/layout/AppHeader.vue'
-import AppFooter from '../components/layout/AppFooter.vue'
-
 defineProps({
   title: {
     type: String,
@@ -37,13 +30,19 @@ defineProps({
 </script>
 
 <style scoped>
+/*
+ * Страница живёт внутри MainLayout (шапка и подвал отрисовываются там),
+ * поэтому высоту контента считаем от реальных высот шапки/подвала —
+ * переменные --albion-header-h / --albion-footer-h выставляет MainLayout.
+ */
 .placeholder-page {
-  min-height: 100vh;
   background: #f3f5f6;
 }
 
 .placeholder-content {
-  min-height: calc(100vh - 115px);
+  min-height: calc(
+    100dvh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px)
+  );
 
   display: flex;
   align-items: center;

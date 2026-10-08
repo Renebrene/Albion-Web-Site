@@ -1,6 +1,7 @@
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.services.data_service import (
     PROJECT_DIR,
@@ -80,6 +81,10 @@ from backend.api.admin_users import router as admin_users_router
 
 app.include_router(admin_users_router)
 
+from backend.api.portfolio import router as portfolio_router
+
+app.include_router(portfolio_router)
+
 
 from backend.services.site_menu_service import get_public_menu
 
@@ -101,6 +106,68 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Сжатие ответов API.
+#
+# GET /api/constructions отдаёт ~1.75 МБ JSON без Content-Encoding; gzip
+# уменьшает тело примерно в 12 раз (~140 КБ), что критично для мобильных
+# сетей. minimum_size=1024 — мелкие ответы не трогаем, чтобы не тратить
+# CPU и не менять их Content-Length.
+#
+# На проде это же обычно делает nginx перед приложением: brotli (сжимает
+# лучше gzip) плюс `Cache-Control: immutable` для хешированных файлов
+# сборки в /assets/*. Но gzip на самом приложении всё равно нужен: nginx
+# может не стоять перед API (dev, внутренние вызовы) либо отдавать /api/*
+# без компрессии.
+#
+# Файлы экспорта портфеля (/api/portfolio/export) — это zip/pdf, то есть
+# уже сжатые контейнеры: повторный gzip почти не уменьшает их, лишь тратит
+# CPU. Благодаря minimum_size они обычно не пересжимаются; если всё же
+# сожмутся — не критично, только небольшая лишняя нагрузка.
+#
+# Порядок middleware: add_middleware вставляет новый слой наружу, поэтому
+# декораторы @app.middleware("http") ниже (no-store для админки, кэш для
+# /storage/) окажутся снаружи gzip и продолжат работать как прежде.
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+@app.middleware("http")
+async def no_store_admin_responses(request, call_next):
+    """Запрещаем браузеру кэшировать ответы админского API.
+
+    Иначе после добавления новых настроек (например, «Оператор карты»)
+    браузер может отдавать старый JSON и поле не появится в форме.
+    """
+    response = await call_next(request)
+
+    if request.url.path.startswith("/api/admin/"):
+        response.headers["Cache-Control"] = "no-store"
+
+    return response
+
+
+@app.middleware("http")
+async def cache_storage_assets(request, call_next):
+    """Долгий immutable-кэш для статики из /storage/.
+
+    Имена файлов содержат UUID и никогда не переиспользуются, поэтому
+    содержимое по конкретному URL неизменяемо. Значит, ответ можно кэшировать
+    на год (max-age=31536000) с флагом immutable — браузер не станет даже
+    переспрашивать сервер (If-None-Match / If-Modified-Since), что убирает
+    повторную загрузку фото и миниатюр при повторных визитах.
+
+    Пути /api/admin/ сюда не попадают, поэтому no-store для админки выше
+    не затрагивается.
+    """
+    response = await call_next(request)
+
+    if request.url.path.startswith("/storage/"):
+        response.headers["Cache-Control"] = (
+            "public, max-age=31536000, immutable"
+        )
+
+    return response
 
 
 @app.get("/api/health")

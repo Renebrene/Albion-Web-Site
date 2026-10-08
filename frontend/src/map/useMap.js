@@ -812,12 +812,20 @@ async function loadRegion() {
    ========================================================= */
 
 function invalidateSize() {
-  if (!map) {
+  const current = map
+
+  if (!current) {
     return
   }
 
   setTimeout(() => {
-    map.invalidateSize()
+    /*
+     * За время ожидания карту могли уничтожить (уход со страницы) —
+     * тогда map уже null, и обращение к нему бросало TypeError.
+     */
+    if (map === current) {
+      current.invalidateSize()
+    }
   }, 100)
 }
 

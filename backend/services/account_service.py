@@ -370,3 +370,56 @@ def list_requests(account_id: int) -> list[dict]:
         }
         for row in rows
     ]
+
+
+def get_portfolio(account_id: int) -> dict:
+    """
+    Портфель аккаунта (корзина избранных поверхностей).
+
+    Возвращает payload целиком либо {} — если строки ещё нет.
+    """
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT payload
+            FROM account_portfolios
+            WHERE account_id = %s
+            LIMIT 1
+            """,
+            (account_id,),
+        ).fetchone()
+
+    if row is None:
+        return {}
+
+    payload = row[0]
+
+    return payload if isinstance(payload, dict) else {}
+
+
+def save_portfolio(account_id: int, payload: dict) -> dict:
+    """
+    Сохраняет портфель аккаунта (UPSERT по account_id).
+
+    При повторном сохранении обновляет payload и updated_at.
+    Возвращает сохранённый payload.
+    """
+    if not isinstance(payload, dict):
+        payload = {}
+
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO account_portfolios (account_id, payload)
+            VALUES (%s, %s)
+            ON CONFLICT (account_id) DO UPDATE
+            SET payload = EXCLUDED.payload,
+                updated_at = NOW()
+            RETURNING payload
+            """,
+            (account_id, Json(payload)),
+        ).fetchone()
+
+    saved = row[0] if row is not None else None
+
+    return saved if isinstance(saved, dict) else {}

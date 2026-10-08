@@ -161,11 +161,46 @@
 
         <div class="found-addresses">
           <div
-            v-for="(address, index) in group.addresses"
+            v-for="(entry, index) in group.addresses"
             :key="index"
             class="found-address"
           >
-            — {{ address }}
+            <span class="found-address-text">— {{ entry.address }}</span>
+
+            <!-- Портфель: доступен, только если у элемента есть id -->
+            <span
+              v-if="surfaceIdOf(entry.item) !== null"
+              class="found-pf"
+            >
+              <button
+                type="button"
+                class="found-pf-toggle"
+                :class="{ 'is-active': isSurfaceActive(entry.item) }"
+                :title="isSurfaceActive(entry.item)
+                  ? 'Убрать из портфеля'
+                  : 'Добавить в портфель'"
+                @click="toggleFoundPfMode(entry.item)"
+              >
+                <q-icon name="inventory_2" size="14px" />
+              </button>
+
+              <span
+                v-if="isSurfaceActive(entry.item)"
+                class="found-pf-months"
+              >
+                <button
+                  v-for="month in MONTHS"
+                  :key="month.full"
+                  type="button"
+                  class="found-pf-month"
+                  :class="{ 'is-selected': isMonthSelected(entry.item.id, month.full) }"
+                  :title="getMonthStatusLabel(entry.item, month.full)"
+                  @click="onFoundMonthClick(entry.item, month)"
+                >
+                  {{ month.short }}
+                </button>
+              </span>
+            </span>
           </div>
         </div>
       </div>
@@ -182,6 +217,10 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+
+import { MONTHS } from '../../utils/constructionGroups'
+import { getMonthStatusLabel } from '../../utils/availability'
+import { usePortfolio } from '../../composables/usePortfolio'
 
 const props = defineProps({
   active: {
@@ -302,6 +341,72 @@ const constructionLabel = computed(() => {
   return 'конструкций'
 })
 
+/* ---------------------------------------------------------- портфель */
+
+/*
+ * Портфель — общий стор. На каждом найденном адресе — компактный
+ * контрол: кнопка + (в режиме выбора) мини-месяцы.
+ */
+const {
+  isInPortfolio,
+  isMonthSelected,
+  isSelectionMode,
+  toggleSelectionMode,
+  removeSurface,
+  // alias: в панели уже есть свой toggleMonth для чипов фильтра
+  toggleMonth: togglePortfolioMonth
+} = usePortfolio()
+
+/* id поверхности; null — если его нет (тогда контрол не показываем). */
+function surfaceIdOf(item) {
+  const id = item?.id
+
+  return id === undefined || id === null || id === '' ? null : id
+}
+
+/*
+ * Активна (розовая кнопка, видимые месяцы), если поверхность в портфеле
+ * или для неё включён режим выбора. Портфель переживает перезагрузку,
+ * режим — нет, поэтому учитываем оба условия.
+ */
+function isSurfaceActive(item) {
+  const id = surfaceIdOf(item)
+
+  return id !== null && (isInPortfolio(id) || isSelectionMode(id))
+}
+
+/*
+ * Клик по кнопке: неактивна -> включаем режим выбора;
+ * активна -> removeSurface (убирает и месяцы, и режим из стора).
+ */
+function toggleFoundPfMode(item) {
+  const id = surfaceIdOf(item)
+
+  if (id === null) {
+    return
+  }
+
+  if (isSurfaceActive(item)) {
+    removeSurface(id)
+  } else {
+    toggleSelectionMode(id)
+  }
+}
+
+function onFoundMonthClick(item, month) {
+  if (!isSurfaceActive(item)) {
+    return
+  }
+
+  const id = surfaceIdOf(item)
+
+  if (id === null) {
+    return
+  }
+
+  togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
+}
+
 /* Группируем найденное по формату: «ЩИТ — Адрес1, Адрес2…». */
 const groupedResults = computed(() => {
   const groups = []
@@ -317,8 +422,12 @@ const groupedResults = computed(() => {
       groups.push(group)
     }
 
-    if (address && !group.addresses.includes(address)) {
-      group.addresses.push(address)
+    // Храним ссылку на элемент — она нужна контролу портфеля.
+    if (
+      address &&
+      !group.addresses.some(entry => entry.address === address)
+    ) {
+      group.addresses.push({ address, item })
     }
   }
 
@@ -716,9 +825,99 @@ function toggleType(value) {
 }
 
 .found-address {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+
   color: #52606a;
   font-size: 11px;
   line-height: 1.5;
+}
+
+.found-address-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Компактный контрол портфеля в списке найденного */
+.found-pf {
+  flex: 0 0 auto;
+
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.found-pf-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 24px;
+  height: 24px;
+
+  padding: 0;
+
+  border: 1px solid #dce2e6;
+  border-radius: 7px;
+
+  background: #fff;
+  color: #71808c;
+
+  cursor: pointer;
+
+  transition: .15s ease;
+}
+
+.found-pf-toggle:hover {
+  border-color: var(--albion-accent);
+  color: var(--albion-accent);
+}
+
+/* Активное состояние: поверхность в портфеле либо включён режим выбора */
+.found-pf-toggle.is-active {
+  border-color: var(--albion-accent);
+  background: #fdeceb;
+  color: var(--albion-accent);
+}
+
+.found-pf-months {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.found-pf-month {
+  min-width: 26px;
+  height: 20px;
+
+  padding: 0 4px;
+
+  border: 1px solid #dce2e6;
+  border-radius: 5px;
+
+  background: #fff;
+  color: #66737c;
+
+  cursor: pointer;
+
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .2px;
+
+  transition: .12s ease;
+}
+
+.found-pf-month:hover {
+  border-color: var(--albion-accent);
+}
+
+.found-pf-month.is-selected {
+  border-color: var(--albion-accent);
+  background: var(--albion-accent);
+  color: #fff;
 }
 
 .found-empty {

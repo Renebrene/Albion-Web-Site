@@ -7,8 +7,6 @@ import { ref, shallowRef, onMounted, onBeforeUnmount, watch, nextTick } from 'vu
 
 import { mapEngine } from '../config/mapConfig'
 import { ensureSiteSettings } from '../boot/settings'
-import { useMap } from './useMap'
-import { useYandexMap } from './useYandexMap'
 import { loadYandexMaps } from './yandexLoader'
 
 const props = defineProps({
@@ -60,6 +58,10 @@ async function loadLeafletCss() {
  * Выбор движка по оператору из админ-настроек ('osm' | 'yandex').
  * Для Yandex сначала догружаем API; при любой ошибке
  * молча откатываемся на Leaflet.
+ *
+ * Модули движков грузим ДИНАМИЧЕСКИ: тяжелый Leaflet (+ markercluster)
+ * не попадает в чанк страницы и подгружается только когда карта реально
+ * использует Leaflet-движок.
  */
 async function resolveEngine() {
   await ensureSiteSettings()
@@ -67,6 +69,9 @@ async function resolveEngine() {
   if (mapEngine.value === 'yandex') {
     try {
       await loadYandexMaps()
+
+      const { useYandexMap } = await import('./useYandexMap')
+
       activeEngine.value = 'yandex'
       return useYandexMap()
     } catch (error) {
@@ -79,6 +84,9 @@ async function resolveEngine() {
 
   activeEngine.value = 'leaflet'
   await loadLeafletCss()
+
+  const { useMap } = await import('./useMap')
+
   return useMap()
 }
 

@@ -36,12 +36,57 @@
     <!-- НАВИГАЦИЯ (из CMS, фолбэк на дефолт) -->
     <nav class="header-nav">
       <RouterLink
-        v-for="item in menuItems"
+        v-for="item in navItems"
         :key="item.key"
         :to="item.url"
       >
         {{ item.label }}
       </RouterLink>
+
+      <!-- ПОРТФЕЛЬ — всегда последний пункт, после «Контактов».
+           Клик не переходит по маршруту, а открывает панель вниз. -->
+      <q-btn
+        flat
+        dense
+        no-caps
+        class="nav-portfolio"
+        :class="{ 'is-active': count > 0 }"
+        aria-label="Портфель"
+        :aria-expanded="portfolioOpen"
+      >
+        <span class="nav-portfolio-icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="14"
+            height="14"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="2" y="7" width="20" height="14" rx="2" />
+            <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+        </span>
+
+        <span class="nav-portfolio-label">ПОРТФЕЛЬ</span>
+
+        <span v-if="count" class="nav-portfolio-badge">{{ count }}</span>
+
+        <q-menu
+          v-model="portfolioOpen"
+          class="portfolio-menu"
+          anchor="bottom middle"
+          self="top middle"
+          :offset="[0, 12]"
+        >
+          <PortfolioPanel
+            variant="dropdown"
+            @navigate="portfolioOpen = false"
+          />
+        </q-menu>
+      </q-btn>
     </nav>
 
     <!-- ТЕЛЕФОН -->
@@ -203,13 +248,38 @@
 
         <nav class="mobile-nav">
           <RouterLink
-            v-for="item in menuItems"
+            v-for="item in navItems"
             :key="item.key"
             :to="item.url"
             class="mobile-nav-link"
           >
             {{ item.label }}
           </RouterLink>
+
+          <!-- ПОРТФЕЛЬ — последний пункт, раскрывает панель на месте -->
+          <button
+            type="button"
+            class="mobile-nav-link mobile-portfolio-toggle"
+            :class="{ 'is-open': mobilePortfolioOpen }"
+            :aria-expanded="mobilePortfolioOpen"
+            @click="mobilePortfolioOpen = !mobilePortfolioOpen"
+          >
+            <span>ПОРТФЕЛЬ</span>
+
+            <span
+              v-if="count"
+              class="mobile-portfolio-badge"
+            >
+              {{ count }}
+            </span>
+          </button>
+
+          <div v-if="mobilePortfolioOpen" class="mobile-portfolio-panel">
+            <PortfolioPanel
+              variant="dropdown"
+              @navigate="closeMobileMenu"
+            />
+          </div>
         </nav>
 
         <div class="mobile-contacts">
@@ -237,16 +307,21 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
+import PortfolioPanel from '../portfolio/PortfolioPanel.vue'
 import { useAccount } from '../../composables/useAccount'
+import { usePortfolio } from '../../composables/usePortfolio'
 
 const route = useRoute()
 const router = useRouter()
 
 /* Состояние личного кабинета: вход/выход прямо из шапки */
-const { account, logout, loadMe } = useAccount()
+const { account, isAuthenticated, logout, loadMe } = useAccount()
+
+/* Портфель: счётчик для бейджа и синхронизация с ЛК */
+const { count, mergeFromAccount } = usePortfolio()
 
 async function handleLogout() {
   await logout()
@@ -259,23 +334,63 @@ const DEFAULT_MENU = [
   { key: 'napravleniya', label: 'ДЕЯТЕЛЬНОСТЬ', url: '/napravleniya' },
   { key: 'novosti', label: 'НОВОСТИ', url: '/novosti' },
   { key: 'informaciya', label: 'ИНФОРМАЦИЯ', url: '/informaciya' },
-  { key: 'portfolio', label: 'ПОРТФЕЛЬ', url: '/portfolio' },
   { key: 'o-kompanii', label: 'О КОМПАНИИ', url: '/o-kompanii' },
   { key: 'kontakty', label: 'КОНТАКТЫ', url: '/kontakty' }
 ]
 
 const menuItems = ref(DEFAULT_MENU)
 
+/*
+ * Пункт «Портфель» мы рисуем сами и всегда ставим последним, после
+ * «Контактов». Любую ссылку из CMS, ведущую на /portfolio, отбрасываем,
+ * чтобы не было дубля.
+ */
+function isPortfolioUrl(url) {
+  return String(url || '').replace(/\/+$/, '') === '/portfolio'
+}
+
+const navItems = computed(() =>
+  menuItems.value.filter(item => !isPortfolioUrl(item.url))
+)
+
+/* Выпадающая панель портфеля в шапке (десктоп/планшет) */
+const portfolioOpen = ref(false)
+
 /* Мобильное выпадающее меню */
 const mobileOpen = ref(false)
+
+/* Секция портфеля внутри мобильного меню */
+const mobilePortfolioOpen = ref(false)
 
 /* Закрываем меню при переходе по ссылке */
 watch(
   () => route.path,
   () => {
     mobileOpen.value = false
+    mobilePortfolioOpen.value = false
   }
 )
+
+/*
+ * Единственная точка синхронизации портфеля с ЛК: шапка смонтирована
+ * всегда, поэтому именно здесь ловим появление авторизации и объединяем
+ * локальный и серверный портфели.
+ */
+watch(
+  isAuthenticated,
+  value => {
+    if (value) {
+      mergeFromAccount()
+    }
+  },
+  { immediate: true }
+)
+
+/* Закрыть мобильное меню (после действия в панели) */
+function closeMobileMenu() {
+  mobileOpen.value = false
+  mobilePortfolioOpen.value = false
+}
 
 onMounted(async () => {
   try {
@@ -443,6 +558,72 @@ onMounted(async () => {
   border-radius: 2px;
 
   background: var(--albion-accent);
+}
+
+/* ---------------------------------------------------------
+   ПОРТФЕЛЬ (кнопка с бейджем и выпадающей панелью)
+--------------------------------------------------------- */
+
+/* Кнопка выглядит как обычная ссылка навигации */
+.header-nav .nav-portfolio {
+  min-height: 0;
+  height: auto;
+
+  padding: 0;
+
+  color: #17212b;
+
+  font-size: 12px;
+  font-weight: 900;
+
+  letter-spacing: .25px;
+  line-height: 1.2;
+
+  transition:
+    color .15s ease,
+    transform .15s ease;
+}
+
+.header-nav .nav-portfolio .q-btn__content {
+  gap: 6px;
+}
+
+.header-nav .nav-portfolio:hover,
+.header-nav .nav-portfolio.is-active {
+  color: var(--albion-accent);
+}
+
+.header-nav .nav-portfolio:hover {
+  transform: translateY(-1px);
+}
+
+.nav-portfolio-icon {
+  display: grid;
+  place-items: center;
+}
+
+.nav-portfolio-icon svg {
+  display: block;
+}
+
+.nav-portfolio-badge {
+  display: grid;
+  place-items: center;
+
+  min-width: 18px;
+  height: 18px;
+
+  padding: 0 5px;
+
+  border-radius: 9px;
+
+  background: var(--albion-accent);
+  color: #fff;
+
+  font-size: 10px;
+  font-weight: 900;
+
+  line-height: 1;
 }
 
 /* ---------------------------------------------------------
@@ -810,6 +991,59 @@ onMounted(async () => {
     color: var(--albion-accent);
   }
 
+  /* Кнопка «Портфель» в мобильном меню */
+  .mobile-portfolio-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    width: 100%;
+
+    border: none;
+    background: none;
+
+    font-family: inherit;
+    text-align: left;
+
+    cursor: pointer;
+  }
+
+  .mobile-portfolio-toggle.is-open {
+    color: var(--albion-accent);
+  }
+
+  .mobile-portfolio-badge {
+    display: grid;
+    place-items: center;
+
+    min-width: 22px;
+    height: 22px;
+
+    padding: 0 7px;
+
+    border-radius: 11px;
+
+    background: var(--albion-accent);
+    color: #fff;
+
+    font-size: 11px;
+    font-weight: 900;
+
+    line-height: 1;
+  }
+
+  /* Панель портфеля внутри мобильного меню */
+  .mobile-portfolio-panel {
+    padding: 8px 0 4px;
+  }
+
+  .mobile-portfolio-panel :deep(.portfolio-panel--dropdown) {
+    width: 100%;
+    max-height: none;
+
+    padding: 12px;
+  }
+
   /* Компактный блок контактов */
   .mobile-contacts {
     display: flex;
@@ -941,5 +1175,12 @@ onMounted(async () => {
   font-weight: 700;
   letter-spacing: .06em;
   text-transform: uppercase;
+}
+
+/* Меню портфеля рендерится в портале — нужны глобальные стили */
+.portfolio-menu {
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(25, 35, 45, .18);
+  overflow: hidden;
 }
 </style>

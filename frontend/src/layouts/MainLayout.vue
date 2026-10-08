@@ -7,6 +7,9 @@
     </q-page-container>
 
     <AppFooter />
+
+    <!-- Общее окно просмотра фото — доступно на всех публичных страницах -->
+    <PhotoViewer />
   </q-layout>
 </template>
 
@@ -16,6 +19,7 @@ import { useRoute } from 'vue-router'
 
 import AppHeader from '../components/layout/AppHeader.vue'
 import AppFooter from '../components/layout/AppFooter.vue'
+import PhotoViewer from '../components/common/PhotoViewer.vue'
 import { applySiteSettings } from '../boot/settings'
 
 const route = useRoute()

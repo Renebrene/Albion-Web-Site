@@ -51,5 +51,18 @@ export default defineRouter((/* { store, ssrContext } */) => {
     return true
   })
 
+  /*
+   * Без этого обработчика ошибка навигации (например, исключение в
+   * лениво-загружаемом компоненте) остаётся невидимой: Vue Router пишет
+   * лишь VUE_ROUTER_R0010/R0011 без первопричины. Логируем реальную
+   * ошибку с указанием маршрута, чтобы её было видно в консоли.
+   */
+  Router.onError((error, to) => {
+    console.error(
+      `[router] Ошибка навигации на "${to?.fullPath ?? '?'}":`,
+      error
+    )
+  })
+
   return Router
 })

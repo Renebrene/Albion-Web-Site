@@ -4,7 +4,7 @@
       <div>
         <div class="eyebrow">АДМИНИСТРАЦИЯ</div>
         <h1>Настройки</h1>
-        <p>Внешний вид сайта: шрифты, цвета, скругления. Наборы настроек.</p>
+        <p>Карта, внешний вид сайта (шрифты, цвета, скругления). Наборы настроек.</p>
       </div>
 
       <div class="header-actions">
@@ -23,17 +23,25 @@
     </div>
 
     <div v-else>
-      <!-- ============ ФОРМА НАСТРОЕК ============ -->
-      <section class="section-card">
-        <div class="section-title">
-          <div>Параметры внешнего вида</div>
-        </div>
+      <div v-if="error" class="error-text">{{ error }}</div>
 
-        <div v-if="error" class="error-text">{{ error }}</div>
+      <!--
+        ============ ФОРМА НАСТРОЕК ============
+        Поля рисуются по группам из схемы (field.group), чтобы «Карта»
+        была отдельным видимым блоком, а не последним полем внизу.
+      -->
+      <section
+        v-for="group in fieldGroups"
+        :key="group.key"
+        class="section-card"
+      >
+        <div class="section-title">
+          <div>{{ group.title }}</div>
+        </div>
 
         <div class="form-grid">
           <div
-            v-for="field in schema"
+            v-for="field in group.fields"
             :key="field.key"
             class="field"
           >
@@ -93,7 +101,9 @@
             />
           </div>
         </div>
+      </section>
 
+      <section class="section-card">
         <div class="save-row">
           <q-btn
             unelevated
@@ -201,7 +211,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -242,6 +252,43 @@ const presetBusy = ref(false)
 const error = ref('')
 
 const schema = ref([])
+
+/*
+ * Группы полей формы. Заголовки и порядок блоков; неизвестные группы
+ * из схемы идут в конец, чтобы новое поле не потерялось.
+ */
+const GROUP_TITLES = {
+  map: 'Карта',
+  appearance: 'Параметры внешнего вида'
+}
+
+const GROUP_ORDER = ['map', 'appearance']
+
+const fieldGroups = computed(() => {
+  const groups = new Map()
+
+  for (const field of schema.value) {
+    const key = field.group || 'appearance'
+
+    if (!groups.has(key)) {
+      groups.set(key, {
+        key,
+        title: GROUP_TITLES[key] || key,
+        fields: []
+      })
+    }
+
+    groups.get(key).fields.push(field)
+  }
+
+  const rank = key => {
+    const index = GROUP_ORDER.indexOf(key)
+
+    return index === -1 ? GROUP_ORDER.length : index
+  }
+
+  return [...groups.values()].sort((a, b) => rank(a.key) - rank(b.key))
+})
 const values = ref({})
 const presets = ref([])
 const newPresetName = ref('')

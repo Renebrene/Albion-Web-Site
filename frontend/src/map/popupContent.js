@@ -13,18 +13,83 @@ import {
   maxBlocksFor,
   groupSides
 } from '../utils/constructionGroups'
+import { usePortfolio } from '../composables/usePortfolio'
+import { photoLabel, sanitizeFileName } from '../composables/usePhotoViewer'
+
+/*
+ * Портфель-стор — только чтение начального состояния кнопок и месяцев
+ * попапа. Дальнейшие переключения делает делегированный обработчик
+ * кликов со страницы (см. AdvertisingPage.vue).
+ */
+const portfolio = usePortfolio()
 
 function monthState(item, month) {
   return getAvailabilityState(item, month)
 }
 
+/* Поверхность считается «адресуемой», если у неё есть id. */
+function surfaceIdOf(item) {
+  const id = item?.id
+
+  return id === undefined || id === null || id === '' ? null : id
+}
+
+/*
+ * Поверхность активна (розовая кнопка, кликабельные месяцы), если она
+ * уже в портфеле или для неё включён режим выбора. Портфель переживает
+ * перезагрузку (localStorage), режим — нет, поэтому учитываем оба.
+ */
+function isSurfaceActive(id) {
+  return (
+    id !== null &&
+    id !== undefined &&
+    id !== '' &&
+    (portfolio.isInPortfolio(id) || portfolio.isSelectionMode(id))
+  )
+}
+
 function monthCell(item, month) {
+  const surfaceId = surfaceIdOf(item)
+  const selected = surfaceId !== null && portfolio.isMonthSelected(surfaceId, month.full)
+
+  const pfAttrs = surfaceId !== null
+    ? ` data-pf-month="${escapeHtml(String(surfaceId))}|${escapeHtml(month.full)}"`
+    : ''
+
   return `
     <div
-      class="popup-month ${monthState(item, month.full)}"
-      title="${escapeHtml(getMonthStatusLabel(item, month.full))}"
+      class="popup-month ${monthState(item, month.full)}${selected ? ' is-selected' : ''}"
+      title="${escapeHtml(getMonthStatusLabel(item, month.full))}"${pfAttrs}
     >
       ${escapeHtml(month.short)}
+    </div>
+  `
+}
+
+/*
+ * Кнопка «Портфель» — одна на секцию попапа (после блока месяцев).
+ * Если у поверхности нет id — разметку не добавляем, попап не ломаем.
+ */
+function portfolioBlock(item) {
+  const surfaceId = surfaceIdOf(item)
+
+  if (surfaceId === null) {
+    return ''
+  }
+
+  const active = isSurfaceActive(surfaceId)
+
+  return `
+    <div class="popup-portfolio">
+      <button
+        type="button"
+        class="popup-pf-toggle${active ? ' is-active' : ''}"
+        data-pf-toggle="${escapeHtml(String(surfaceId))}"
+        title="${active ? 'Убрать из портфеля' : 'Добавить в портфель'}"
+      >
+        <i class="material-icons popup-pf-icon">work_outline</i>
+        <span class="popup-pf-label">Портфель</span>
+      </button>
     </div>
   `
 }
@@ -39,6 +104,8 @@ function monthBlock(item) {
 
 /* Видеоэкран: одна строка месяцев, занято = 100%, иначе свободно */
 function videoMonthBlock(item) {
+  const surfaceId = surfaceIdOf(item)
+
   return `
     <div class="popup-months popup-months--video">
       ${MONTHS.map(month => {
@@ -49,10 +116,16 @@ function videoMonthBlock(item) {
           ? `${label} (${raw})`
           : getMonthStatusLabel(item, month.full)
 
+        const selected = surfaceId !== null && portfolio.isMonthSelected(surfaceId, month.full)
+
+        const pfAttrs = surfaceId !== null
+          ? ` data-pf-month="${escapeHtml(String(surfaceId))}|${escapeHtml(month.full)}"`
+          : ''
+
         return `
           <div
-            class="popup-month ${state} popup-month--video"
-            title="${escapeHtml(title)}"
+            class="popup-month ${state} popup-month--video${selected ? ' is-selected' : ''}"
+            title="${escapeHtml(title)}"${pfAttrs}
           >
             ${escapeHtml(month.short)}
           </div>
@@ -151,7 +224,16 @@ function typeBlock(item) {
 }
 
 function photoBlock(item) {
-  if (!item?.photo) {
+  /*
+   * API отдаёт варианты одного фото: photo (card, 1000px),
+   * photo_thumb (400px) и photo_large (2400px). Бэкенд может ещё
+   * не отдавать thumb/large — тогда подставляем photo (фолбэк),
+   * поэтому разметка не ломается на любом наборе полей.
+   */
+  const thumb = item?.photo_thumb || item?.photo || ''
+  const card = item?.photo || thumb
+
+  if (!thumb) {
     return `
       <div class="popup-photo popup-photo-empty">
         Фото
@@ -159,19 +241,51 @@ function photoBlock(item) {
     `
   }
 
+  const large = item?.photo_large || card
+
+  const srcset = [
+    item?.photo_thumb && `${escapeHtml(item.photo_thumb)} 400w`,
+    item?.photo && `${escapeHtml(item.photo)} 1000w`,
+    item?.photo_large && `${escapeHtml(item.photo_large)} 2400w`
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  /*
+   * Клик по фото открывает общее окно (usePhotoViewer), а не новую
+   * вкладку: делегированный обработчик ловит `[data-photo]` и читает
+   * url/title/filename из data-атрибутов. Название — «адрес + сторона».
+   */
+  const label = photoLabel({
+    city: item?.city,
+    address: item?.address,
+    side: sideLabel(item)
+  })
+  const fileName = sanitizeFileName(label, large)
+
   return `
-    <a
+    <div
       class="popup-photo"
-      href="${escapeHtml(item.photo)}"
-      target="_blank"
-      rel="noopener noreferrer"
+      style="cursor: pointer;"
+      role="button"
+      tabindex="0"
+      title="Открыть фото"
+      data-photo
+      data-photo-url="${escapeHtml(large)}"
+      data-photo-title="${escapeHtml(label)}"
+      data-photo-filename="${escapeHtml(fileName)}"
     >
       <img
-        src="${escapeHtml(item.photo)}"
+        src="${escapeHtml(thumb)}"
+        srcset="${srcset}"
+        sizes="(max-width: 480px) 340px, 780px"
         alt=""
         loading="lazy"
+        decoding="async"
+        width="1000"
+        height="563"
       >
-    </a>
+    </div>
   `
 }
 
@@ -221,6 +335,7 @@ function sideCard(item) {
       ${photoBlock(item)}
       ${featuresBlock(item, false)}
       ${monthBlock(item)}
+      ${portfolioBlock(item)}
     </section>
   `
 }
@@ -252,6 +367,7 @@ function dynamicBlock(group) {
       ${photoBlock(first)}
       ${dynamicRowsBlock(group)}
       ${featuresBlock(first, true)}
+      ${portfolioBlock(first)}
     </section>
   `
 }
@@ -268,6 +384,7 @@ function videoBlock(item) {
       ${photoBlock(item)}
       ${videoMonthBlock(item)}
       ${featuresBlock(item, true)}
+      ${portfolioBlock(item)}
     </section>
   `
 }
@@ -377,8 +494,11 @@ export function popupContent(input) {
         ? 'popup-double'
         : 'popup-single'
 
+  // Активна хотя бы одна поверхность попапа — месяцы кликабельны.
+  const pfMode = allSides.some(side => isSurfaceActive(surfaceIdOf(side)))
+
   return `
-    <div class="popup ${popupClass}">
+    <div class="popup ${popupClass}${pfMode ? ' pf-mode' : ''}">
 
       ${commonHeader(allSides)}
 

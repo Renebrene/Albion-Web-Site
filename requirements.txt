@@ -4,6 +4,8 @@ psycopg[binary]
 pwdlib
 openpyxl
 xlrd
+python-docx
+reportlab
 Pillow
 pillow-heif==1.7.0
 

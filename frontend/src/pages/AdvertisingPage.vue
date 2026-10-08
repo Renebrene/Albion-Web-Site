@@ -210,28 +210,47 @@
 
         <div
           v-else-if="workspaceMode === 'list'"
+          ref="listViewRef"
           class="list-view"
         >
-          <div class="list-header">
-            <div>
-              <div class="list-kicker">
-                РЕКЛАМНЫЕ ВОЗМОЖНОСТИ
-              </div>
-
-              <h1>
-                {{ displayedConstructions.length }}
-                конструкций
-              </h1>
-            </div>
-          </div>
-
-          <div
+          <!--
+            Виртуальный скролл строками: в DOM рендерятся только видимые
+            строки сетки (плюс буфер), а не весь список целиком.
+          -->
+          <q-virtual-scroll
             v-if="listPoints.length"
             class="construction-list"
+            :items="listRows"
+            :virtual-scroll-item-size="820"
           >
+            <!-- Шапка списка — слот «before» q-virtual-scroll: прокручивается
+                 вместе с карточками, и её высота учитывается в расчёте. -->
+            <template #before>
+              <div class="list-header">
+                <div>
+                  <div class="list-kicker">
+                    РЕКЛАМНЫЕ ВОЗМОЖНОСТИ
+                  </div>
+
+                  <h1>
+                    {{ displayedConstructions.length }}
+                    конструкций
+                  </h1>
+                </div>
+              </div>
+            </template>
+
+            <template #default="{ item: row }">
+
+            <!-- Строка сетки: columns колонок, повторяет прежний auto-fill. -->
+            <div
+              :key="row.key"
+              class="construction-row"
+              :style="{ gridTemplateColumns: `repeat(${listColumns}, 1fr)` }"
+            >
 
             <article
-              v-for="point in listPoints"
+              v-for="point in row.items"
               :key="point.key"
               class="construction-card"
             >
@@ -252,7 +271,10 @@
                     v-for="(block, blockIndex) in point.blocks"
                     :key="`${block.type}-${block.parent}-${blockIndex}`"
                     class="card-block"
-                    :class="`card-block--${block.kind}`"
+                    :class="[
+                      `card-block--${block.kind}`,
+                      { 'pf-mode': isBlockActive(block) }
+                    ]"
                   >
 
                     <div class="card-topline">
@@ -326,10 +348,18 @@
                     <div class="card-photo card-photo--block">
 
                       <img
-                        v-if="blockPrimary(block).photo"
-                        :src="blockPrimary(block).photo"
+                        v-if="photoCard(blockPrimary(block))"
+                        :src="photoThumb(blockPrimary(block))"
+                        :srcset="photoSrcset(blockPrimary(block))"
+                        sizes="(max-width: 760px) 100vw, (max-width: 1200px) 70vw, 900px"
                         :alt="point.address"
                         loading="lazy"
+                        decoding="async"
+                        width="1000"
+                        height="625"
+                        class="card-photo-clickable"
+                        title="Открыть фото"
+                        @click.stop="openBlockPhoto(point, block)"
                       >
 
                       <div
@@ -361,8 +391,12 @@
                             v-for="month in MONTHS"
                             :key="month.full"
                             class="card-month"
-                            :class="getCardMonthState(row, month.full)"
+                            :class="[
+                              getCardMonthState(row, month.full),
+                              { 'is-selected': surfaceIdOf(row) !== null && isMonthSelected(row.id, month.full) }
+                            ]"
                             :title="getMonthStatusLabel(row, month.full)"
+                            @click="onCardMonthClick(block, row, month)"
                           >
                             {{ month.short }}
                           </div>
@@ -381,12 +415,32 @@
                         v-for="month in MONTHS"
                         :key="month.full"
                         class="card-month"
-                        :class="getCardMonthState(blockPrimary(block), month.full)"
+                        :class="[
+                          getCardMonthState(blockPrimary(block), month.full),
+                          { 'is-selected': surfaceIdOf(blockPrimary(block)) !== null && isMonthSelected(blockPrimary(block).id, month.full) }
+                        ]"
                         :title="getMonthStatusLabel(blockPrimary(block), month.full)"
+                        @click="onCardMonthClick(block, blockPrimary(block), month)"
                       >
                         {{ month.short }}
                       </div>
 
+                    </div>
+
+                    <!-- Портфель: кнопка (два состояния) + кликабельные месяцы -->
+                    <div class="card-portfolio">
+                      <button
+                        type="button"
+                        class="card-pf-toggle"
+                        :class="{ 'is-active': isBlockActive(block) }"
+                        :title="isBlockActive(block)
+                          ? 'Убрать из портфеля'
+                          : 'Добавить в портфель'"
+                        @click="toggleBlockPfMode(block)"
+                      >
+                        <q-icon name="work_outline" size="16px" />
+                        <span>Портфель</span>
+                      </button>
                     </div>
 
                     <div class="card-features">
@@ -453,7 +507,10 @@
 
             </article>
 
-          </div>
+            </div>
+
+            </template>
+          </q-virtual-scroll>
 
           <div
             v-else
@@ -513,7 +570,7 @@ import {
   groupSides,
   groupByPoint
 } from '../utils/constructionGroups'
-import { computed, ref, onMounted, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import FiltersSidebar from '../components/filters/FiltersSidebar.vue'
@@ -528,6 +585,13 @@ import {
 } from '../composables/useConstructionsFilter'
 
 import { useAccount } from '../composables/useAccount'
+
+import { usePortfolio } from '../composables/usePortfolio'
+import {
+  photoLabel,
+  sanitizeFileName,
+  usePhotoViewer
+} from '../composables/usePhotoViewer'
 
 
 /* Акционная цена из отдельной колонки 1С (пока в данных отсутствует). */
@@ -574,6 +638,143 @@ function hasLight(item) {
     'true',
     '1'
   ].includes(String(item?.light || '').trim().toLowerCase())
+}
+
+/* ------------------------------------------------- фото (адаптивные) */
+
+/*
+ * API отдаёт варианты одного фото: photo (card, 1000px),
+ * photo_thumb (400px) и photo_large (2400px). Любой из них может
+ * отсутствовать — тогда подставляем photo (фолбэк), поэтому код
+ * остаётся рабочим до и после правки бэкенда.
+ */
+function photoThumb(item) {
+  return item?.photo_thumb || item?.photo || ''
+}
+
+function photoCard(item) {
+  return item?.photo || item?.photo_thumb || ''
+}
+
+function photoSrcset(item) {
+  const parts = []
+
+  const thumb = item?.photo_thumb
+  if (thumb) {
+    parts.push(`${thumb} 400w`)
+  }
+
+  const card = item?.photo
+  if (card) {
+    parts.push(`${card} 1000w`)
+  }
+
+  const large = item?.photo_large
+  if (large) {
+    parts.push(`${large} 2400w`)
+  }
+
+  return parts.join(', ')
+}
+
+/* ---------------------------------------------------------- портфель */
+
+/*
+ * Портфель — общий стор приложения. На карточке: кнопка-переключатель
+ * режима выбора месяца + кликабельные месяцы в этом режиме.
+ */
+const {
+  isInPortfolio,
+  isMonthSelected,
+  isSelectionMode,
+  toggleSelectionMode,
+  toggleMonth,
+  removeSurface,
+  syncWithConstructions
+} = usePortfolio()
+
+/* ------------------------------------------------- фото: общее окно */
+
+const { openPhoto } = usePhotoViewer()
+
+/*
+ * Клик по фото карточки: открываем общее окно просмотра.
+ * Название и имя файла — «город, адрес · Сторона X».
+ */
+function openBlockPhoto(point, block) {
+  const item = blockPrimary(block)
+  const src = item?.photo_large || item?.photo || item?.photo_thumb || ''
+
+  if (!src) {
+    return
+  }
+
+  const label = photoLabel({
+    city: point?.city,
+    address: point?.address,
+    side: blockSide(block)
+  })
+
+  openPhoto({
+    url: src,
+    title: label,
+    filename: sanitizeFileName(label, src)
+  })
+}
+
+/* id поверхности (в портфеле может быть и число, и строка). */
+function surfaceIdOf(item) {
+  const id = item?.id
+
+  return id === undefined || id === null || id === '' ? null : id
+}
+
+/*
+ * Блок активен (розовая кнопка, кликабельные месяцы), если ведущая
+ * поверхность уже в портфеле или для неё включён режим выбора.
+ */
+function isBlockActive(block) {
+  const id = surfaceIdOf(blockPrimary(block))
+
+  return id !== null && (isInPortfolio(id) || isSelectionMode(id))
+}
+
+/*
+ * Клик по кнопке-переключателю (детерминированно, без «слепого» toggle):
+ *   неактивна -> включаем режим выбора;
+ *   активна   -> сбрасываем: removeSurface убирает и месяцы, и режим.
+ */
+function toggleBlockPfMode(block) {
+  const id = surfaceIdOf(blockPrimary(block))
+
+  if (id === null) {
+    return
+  }
+
+  if (isBlockActive(block)) {
+    removeSurface(id)
+  } else {
+    toggleSelectionMode(id)
+  }
+}
+
+/* Клик по месяцу — только у активного блока. */
+function onCardMonthClick(block, surface, month) {
+  if (!isBlockActive(block)) {
+    return
+  }
+
+  const id = surfaceIdOf(surface)
+
+  if (id === null) {
+    return
+  }
+
+  toggleMonth(
+    surface,
+    month.full,
+    surface.month_prices?.[month.full]
+  )
 }
 
 const route = useRoute()
@@ -1069,6 +1270,86 @@ const listPoints = computed(() => {
 })
 
 /*
+ * Виртуализация списка строками: q-virtual-scroll одномерный, поэтому
+ * виртуализируем не отдельные карточки, а строки сетки. Число колонок
+ * повторяет прежний auto-fill minmax(300px, 1fr) с gap 18px и зависит
+ * от реальной ширины области списка (ResizeObserver ниже).
+ */
+const listViewRef = ref(null)
+const listColumns = ref(3)
+let listResizeObserver = null
+
+function computeListColumns(width) {
+  if (!width) {
+    return 1
+  }
+
+  // auto-fill minmax(300px, 1fr) + gap 18px: сколько колонок влезает.
+  return Math.max(
+    1,
+    Math.floor((width + 18) / (300 + 18))
+  )
+}
+
+/* listPoints режем на строки по listColumns (последняя может быть короче). */
+const listRows = computed(() => {
+  const columns = Math.max(1, listColumns.value)
+  const points = listPoints.value
+  const rows = []
+
+  for (let i = 0; i < points.length; i += columns) {
+    const items = points.slice(i, i + columns)
+
+    // Ключ строки — по первому элементу: стабилен, пока не меняется
+    // состав/порядок, и корректно пересобирается при смене колонок.
+    rows.push({
+      key: `${items[0]?.key ?? 'row'}|${i}`,
+      items
+    })
+  }
+
+  return rows
+})
+
+/*
+ * Область списка появляется только в режиме «Список» (v-if), поэтому
+ * вешаем ResizeObserver на изменение самой ref, а не в onMounted.
+ */
+function availableListWidth(el) {
+  const styles = getComputedStyle(el)
+
+  return (
+    el.clientWidth -
+    (Number.parseFloat(styles.paddingLeft) || 0) -
+    (Number.parseFloat(styles.paddingRight) || 0)
+  )
+}
+
+watch(listViewRef, el => {
+  if (listResizeObserver) {
+    listResizeObserver.disconnect()
+    listResizeObserver = null
+  }
+
+  if (!el || typeof ResizeObserver === 'undefined') {
+    return
+  }
+
+  // Стартовое значение — по ширине контента (без паддингов).
+  listColumns.value = computeListColumns(availableListWidth(el))
+
+  listResizeObserver = new ResizeObserver(entries => {
+    const width = entries[0]?.contentRect?.width
+
+    if (width) {
+      listColumns.value = computeListColumns(width)
+    }
+  })
+
+  listResizeObserver.observe(el)
+})
+
+/*
  * Синхронизация города из URL с фильтром.
  *
  * useConstructionsFilter сначала выбирает все города
@@ -1235,10 +1516,155 @@ watch(
 )
 // Конец URL ← фильтры
 
+/*
+ * Делегирование кликов для попапов карты.
+ *
+ * Разметку кнопок и месяцев строит popupContent.js; попап — статичная
+ * HTML-строка, поэтому реактивность Vue до неё не достаёт и состояние
+ * (режим/выбор) переключаем напрямую через классы DOM.
+ */
+/* Поверхность активна: в портфеле или включён режим выбора месяцев. */
+function isSurfaceActive(id) {
+  return (
+    id !== null &&
+    id !== undefined &&
+    id !== '' &&
+    (isInPortfolio(id) || isSelectionMode(id))
+  )
+}
+
+/*
+ * Приводит DOM попапа к актуальному состоянию после переключения:
+ * класс is-active у кнопок «Портфель» и класс pf-mode у корня попапа.
+ * Если активных кнопок не осталось — снимает is-selected со всех месяцев.
+ */
+function refreshPopupState(popupRoot) {
+  if (!popupRoot) {
+    return
+  }
+
+  let anyActive = false
+
+  popupRoot.querySelectorAll('[data-pf-toggle]').forEach(button => {
+    const id = button.getAttribute('data-pf-toggle')
+    const active = isSurfaceActive(id)
+
+    button.classList.toggle('is-active', active)
+
+    if (active) {
+      anyActive = true
+    }
+  })
+
+  popupRoot.classList.toggle('pf-mode', anyActive)
+
+  if (!anyActive) {
+    popupRoot
+      .querySelectorAll('.popup-month.is-selected')
+      .forEach(monthEl => monthEl.classList.remove('is-selected'))
+  }
+}
+
+/* Снимает акцентные рамки со всех месяцев указанной поверхности. */
+function clearSurfaceMonths(popupRoot, surfaceId) {
+  if (!popupRoot) {
+    return
+  }
+
+  popupRoot
+    .querySelectorAll(`[data-pf-month^="${surfaceId}|"]`)
+    .forEach(monthEl => monthEl.classList.remove('is-selected'))
+}
+
+function onDocumentClick(event) {
+  const target = event.target
+
+  if (!(target instanceof Element)) {
+    return
+  }
+
+  // Кнопка «Портфель» в попапе: неактивна -> режим выбора; активна -> сброс.
+  const toggleEl = target.closest('[data-pf-toggle]')
+
+  if (toggleEl) {
+    const id = toggleEl.getAttribute('data-pf-toggle')
+
+    if (id) {
+      const popupRoot =
+        toggleEl.closest('.popup') ||
+        toggleEl.closest('.albion-popup')
+
+      if (isSurfaceActive(id)) {
+        // Сброс: removeSurface удаляет и месяцы, и режим из стора,
+        // поэтому сразу снимаем рамки со всех месяцев поверхности.
+        removeSurface(id)
+        clearSurfaceMonths(popupRoot, id)
+      } else {
+        toggleSelectionMode(id)
+      }
+
+      refreshPopupState(popupRoot)
+    }
+
+    return
+  }
+
+  // Месяц в попапе: добавить/убрать пару (поверхность, месяц).
+  const monthEl = target.closest('[data-pf-month]')
+
+  if (!monthEl) {
+    return
+  }
+
+  const raw = monthEl.getAttribute('data-pf-month') || ''
+  const sep = raw.indexOf('|')
+
+  if (sep <= 0) {
+    return
+  }
+
+  const surfaceId = raw.slice(0, sep)
+  const monthFull = raw.slice(sep + 1)
+
+  // Данные поверхности берём из уже загруженного списка конструкций.
+  const surface = constructions.value.find(
+    construction => String(construction?.id) === surfaceId
+  )
+
+  if (!surface) {
+    return
+  }
+
+  toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
+
+  monthEl.classList.toggle(
+    'is-selected',
+    isMonthSelected(surfaceId, monthFull)
+  )
+
+  const popupRoot =
+    monthEl.closest('.popup') ||
+    monthEl.closest('.albion-popup')
+
+  // Снят последний месяц — позиция ушла из портфеля: убираем рамки
+  // со всех её месяцев, иначе они останутся висеть.
+  if (!isSurfaceActive(surfaceId)) {
+    clearSurfaceMonths(popupRoot, surfaceId)
+  }
+
+  // Кнопки и pf-mode корня — по актуальному состоянию стора.
+  refreshPopupState(popupRoot)
+}
+
 onMounted(async () => {
+  document.addEventListener('click', onDocumentClick)
+
   try {
     const data = await getConstructions()
     constructions.value = Array.isArray(data) ? data : []
+
+    // Подтягиваем свежие цены/статусы выбранных месяцев из psql.
+    syncWithConstructions(constructions.value)
 
     console.log(
       'Albion page: загружено',
@@ -1249,6 +1675,15 @@ onMounted(async () => {
       'Albion page: ошибка загрузки конструкций:',
       error
     )
+  }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
+
+  if (listResizeObserver) {
+    listResizeObserver.disconnect()
+    listResizeObserver = null
   }
 })
 </script>
@@ -1355,7 +1790,9 @@ onMounted(async () => {
   position: absolute;
   inset: 0;
 
-  overflow-y: auto;
+  /* Скроллится не вся область, а сам виртуальный список внутри
+     (см. .construction-list) — иначе высоту не ограничить. */
+  overflow: hidden;
 
   padding: 122px 28px 40px;
 
@@ -1385,15 +1822,32 @@ onMounted(async () => {
 }
 
 .construction-list {
+  /* Корень q-virtual-scroll — единственный скроллер списка:
+     высота ограничена рамкой .list-view, поэтому прокручивается
+     только область списка, а не страница целиком. */
+  height: 100%;
+
+  overflow-y: auto;
+
+  display: block;
+}
+
+/* Одна виртуальная строка — сетка из listColumns колонок,
+   как прежний auto-fill minmax(300px, 1fr). */
+.construction-row {
   display: grid;
 
-  grid-template-columns:
-    repeat(
-      auto-fill,
-      minmax(300px, 1fr)
-    );
+  grid-template-columns: repeat(3, 1fr);
 
   gap: 18px;
+
+  margin-bottom: 18px;
+}
+
+/* Убираем фоновые «полоски»-заглушки Quasar у элементов-распорок
+   виртуального скролла. */
+.construction-list :deep(.q-virtual-scroll__padding) {
+  background: none;
 }
 
 .construction-card {
@@ -1402,7 +1856,9 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
 
-  height: 100%;
+  /* Высота — по содержимому: в виртуальном скролле контейнер имеет
+     заданную высоту, и height:100% дал бы каждой карточке её всю. */
+  height: auto;
 
   background: #fff;
 
@@ -1729,6 +2185,11 @@ onMounted(async () => {
   border-radius: 12px;
 }
 
+/* Фото карточки открывает общее окно просмотра */
+.card-photo-clickable {
+  cursor: pointer;
+}
+
 .card-block .card-months {
   margin-top: 10px;
   padding-top: 9px;
@@ -1750,6 +2211,61 @@ onMounted(async () => {
   height: 20px;
 
   font-size: 7px;
+}
+
+/* Портфель: кнопка и кликабельные месяцы в режиме выбора. */
+
+.card-portfolio {
+  margin-top: 10px;
+}
+
+.card-pf-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 6px 11px;
+
+  border: 1px solid #dce2e6;
+  border-radius: 8px;
+
+  background: #fff;
+  color: #52606a;
+
+  cursor: pointer;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .3px;
+
+  transition: .15s ease;
+}
+
+.card-pf-toggle:hover {
+  border-color: var(--albion-accent);
+  color: var(--albion-accent);
+}
+
+/* Активное состояние: поверхность редактируется (в портфеле либо режим). */
+.card-pf-toggle.is-active {
+  border-color: var(--albion-accent);
+  background: #fdeceb;
+  color: var(--albion-accent);
+}
+
+/* Месяцы кликабельны только у активного блока. */
+.card-block.pf-mode .card-month {
+  cursor: pointer;
+}
+
+.card-block.pf-mode .card-month:hover {
+  filter: brightness(.96);
+}
+
+/* Выбранный месяц — акцентная рамка. */
+.card-month.is-selected {
+  outline: 2px solid var(--albion-accent);
+  outline-offset: 1px;
 }
 
 .card-dynamic-rows {
@@ -1988,8 +2504,10 @@ onMounted(async () => {
     padding: 30px 16px;
   }
 
-  .construction-list {
-    grid-template-columns: 1fr;
+  /* Число колонок строки задаётся из JS (listColumns) inline-стилем,
+     поэтому здесь правило не нужно. */
+  .construction-row {
+    gap: 14px;
   }
 }
 
@@ -2297,5 +2815,80 @@ onMounted(async () => {
   top: auto;
   bottom: 18px;
   left: 18px;
+}
+
+/* =========================================================
+   ПОРТФЕЛЬ В ПОПАПАХ КАРТЫ
+   Разметку строит popupContent.js; попапы вне Vue-дерева,
+   поэтому стили — глобальные (не scoped).
+   ========================================================= */
+
+/* Вне режима выбора месяцы некликабельны; в режиме — активны. */
+.popup .popup-months,
+.popup .popup-month {
+  pointer-events: none;
+}
+
+.popup.pf-mode .popup-months,
+.popup.pf-mode .popup-month {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.popup.pf-mode .popup-month:hover {
+  filter: brightness(.96);
+}
+
+/* Выбранный месяц — акцентная рамка (как на карточках списка). */
+.popup-month.is-selected {
+  outline: 2px solid var(--albion-accent);
+  outline-offset: 1px;
+}
+
+/* Кнопка «Портфель» в секции попапа. */
+.popup-portfolio {
+  display: flex;
+  justify-content: center;
+
+  margin-top: 9px;
+}
+
+.popup-pf-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  padding: 5px 11px;
+
+  border: 1px solid #dce2e6;
+  border-radius: 8px;
+
+  background: #fff;
+  color: #52606a;
+
+  cursor: pointer;
+
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .3px;
+
+  transition: .15s ease;
+}
+
+.popup-pf-toggle:hover {
+  border-color: var(--albion-accent);
+  color: var(--albion-accent);
+}
+
+.popup-pf-toggle.is-active {
+  border-color: var(--albion-accent);
+  background: #fdeceb;
+  color: var(--albion-accent);
+}
+
+.popup-pf-icon {
+  font-size: 15px;
+  line-height: 1;
 }
 </style>

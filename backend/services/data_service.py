@@ -140,6 +140,8 @@ def get_data():
             s.name,
             s.external_number,
             cm.card_path,
+            cm.thumb_path,
+            cm.large_path,
             s.price,
             s.side,
             s.size,
@@ -194,6 +196,8 @@ def get_data():
                     name,
                     external_number,
                     photo_path,
+                    photo_thumb_path,
+                    photo_large_path,
                     price,
                     side,
                     size,
@@ -226,6 +230,20 @@ def get_data():
             if photo_path
             else ""
         ),
+                        # Миниатюра (thumb) и полноразмерная версия (large)
+                        # того же фото. Пусто -> null, чтобы фронтенд мог
+                        # отличить «нет картинки» от валидного пути и
+                        # использовать photo как fallback.
+                        "photo_thumb": (
+                            "/" + _text(photo_thumb_path)
+                            if photo_thumb_path
+                            else None
+                        ),
+                        "photo_large": (
+                            "/" + _text(photo_large_path)
+                            if photo_large_path
+                            else None
+                        ),
                         "price": _text(price),
                         "light": _text(light),
                         "material": _text(material),

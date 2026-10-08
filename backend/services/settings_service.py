@@ -35,6 +35,7 @@ WEIGHT_OPTIONS = [
 # Описание редактируемых параметров.
 # type: text | number | color | select | toggle
 # Для select обязательно options: [{label, value}]
+# group: блок формы в админке ('appearance' по умолчанию, 'map' — карта)
 SETTINGS_SCHEMA: list[dict[str, Any]] = [
     {
         "key": "font_family",
@@ -97,6 +98,7 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "key": "map_engine",
         "label": "Оператор карты",
         "type": "select",
+        "group": "map",
         "options": [
             {"label": "OpenStreetMap (Leaflet)", "value": "osm"},
             {"label": "Яндекс.Карты", "value": "yandex"},

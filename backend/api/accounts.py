@@ -52,6 +52,12 @@ class CreateRequestPayload(BaseModel):
     payload: Any = None
 
 
+class PortfolioPayload(BaseModel):
+    # Портфель — список позиций (поверхности + выбранные месяцы).
+    # Структуру описывает фронтенд (usePortfolio), бэкенд хранит её как есть.
+    items: list[Any] = []
+
+
 # ---------------------------------------------------------------- helpers
 
 
@@ -186,3 +192,22 @@ def account_create_request(
         "success": True,
         "request": request,
     }
+
+
+@router.get("/portfolio")
+def account_get_portfolio(user: dict = Depends(require_account)):
+    """Портфель текущего аккаунта: { "items": [...] }."""
+    payload = svc.get_portfolio(user["id"])
+
+    return {"items": payload.get("items", [])}
+
+
+@router.put("/portfolio")
+def account_save_portfolio(
+    payload: PortfolioPayload,
+    user: dict = Depends(require_account),
+):
+    """Сохраняет портфель аккаунта и возвращает сохранённое."""
+    saved = svc.save_portfolio(user["id"], {"items": payload.items})
+
+    return {"items": saved.get("items", [])}

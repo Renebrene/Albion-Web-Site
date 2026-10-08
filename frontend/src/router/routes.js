@@ -47,6 +47,22 @@ const routes = [
       {
         path: 'account',
         component: () => import('@/pages/AccountPage.vue')
+      },
+
+      /*
+       * Разделы из верхнего меню, страницы которых ещё в разработке.
+       * Важно: они должны лежать внутри MainLayout, иначе <q-page>
+       * окажется вне <q-layout> и Quasar отрисует пустую страницу.
+       */
+      {
+        path: 'informaciya',
+        component: () => import('@/pages/PlaceholderPage.vue'),
+        props: { title: 'Информация' }
+      },
+
+      {
+        path: 'portfolio',
+        component: () => import('@/pages/PortfolioPage.vue')
       }
     ]
   },
@@ -140,18 +156,6 @@ const routes = [
     ]
   },
 
-
-  {
-    path: '/informaciya',
-    component: () => import('@/pages/PlaceholderPage.vue'),
-    props: { title: 'Информация' }
-  },
-
-  {
-    path: '/portfolio',
-    component: () => import('@/pages/PlaceholderPage.vue'),
-    props: { title: 'Портфель' }
-  },
 
   {
     path: '/:catchAll(.*)*',
