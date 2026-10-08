@@ -193,7 +193,10 @@
                   :key="month.full"
                   type="button"
                   class="found-pf-month"
-                  :class="{ 'is-selected': isMonthSelected(entry.item.id, month.full) }"
+                  :class="{
+                    'is-selected': isMonthSelected(entry.item.id, month.full),
+                    'is-locked': isMonthLocked(entry.item, month.full)
+                  }"
                   :title="getMonthStatusLabel(entry.item, month.full)"
                   @click="onFoundMonthClick(entry.item, month)"
                 >
@@ -219,7 +222,7 @@
 import { computed, ref } from 'vue'
 
 import { MONTHS } from '../../utils/constructionGroups'
-import { getMonthStatusLabel } from '../../utils/availability'
+import { getMonthStatusLabel, isFree } from '../../utils/availability'
 import { usePortfolio } from '../../composables/usePortfolio'
 
 const props = defineProps({
@@ -404,7 +407,23 @@ function onFoundMonthClick(item, month) {
     return
   }
 
+  /* Снять можно всегда; добавить — только свободный месяц. */
+  if (isMonthLocked(item, month.full)) {
+    return
+  }
+
   togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
+}
+
+/* Месяц недоступен для выбора: занят/резерв и ещё не выбран. */
+function isMonthLocked(item, monthFull) {
+  const id = surfaceIdOf(item)
+
+  if (id === null || isMonthSelected(id, monthFull)) {
+    return false
+  }
+
+  return !isFree(item, monthFull)
 }
 
 /* Группируем найденное по формату: «ЩИТ — Адрес1, Адрес2…». */
@@ -910,7 +929,7 @@ function toggleType(value) {
   transition: .12s ease;
 }
 
-.found-pf-month:hover {
+.found-pf-month:hover:not(.is-locked) {
   border-color: var(--albion-accent);
 }
 
@@ -918,6 +937,12 @@ function toggleType(value) {
   border-color: var(--albion-accent);
   background: var(--albion-accent);
   color: #fff;
+}
+
+/* Занятый/резервный месяц выбрать нельзя. */
+.found-pf-month.is-locked {
+  cursor: not-allowed;
+  opacity: .5;
 }
 
 .found-empty {

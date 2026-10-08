@@ -66,6 +66,9 @@ class PortfolioExportPayload(BaseModel):
     # тогда можно взять значение из query-параметра (приоритет у тела).
     with_photos: bool | None = None
 
+    # Необязательно: добавлять ли колонку «Карта». Same-правило, что и фото.
+    with_maps: bool | None = None
+
     # Необязательно: реквизиты пользователя (организация, ИНН, КПП, адрес,
     # телефон, e-mail, контактное лицо). Непустые поля печатаются блоком
     # под заголовком. Валидацию/обрезку делает сервис.
@@ -94,6 +97,10 @@ def export_portfolio(
         default=None,
         description="Добавить колонку «Фото» (1/true). Тело запроса приоритетнее.",
     ),
+    with_maps: str | None = Query(
+        default=None,
+        description="Добавить колонку «Карта» (1/true). Тело запроса приоритетнее.",
+    ),
 ):
     fmt = (format or "").strip().lower()
 
@@ -112,12 +119,18 @@ def export_portfolio(
     else:
         include_photos = bool(payload.with_photos)
 
+    if payload.with_maps is None:
+        include_maps = _query_bool(with_maps)
+    else:
+        include_maps = bool(payload.with_maps)
+
     try:
         content = svc.render(
             payload.items,
             fmt,
             title=payload.title,
             with_photos=include_photos,
+            with_maps=include_maps,
             requisites=payload.requisites,
         )
     except svc.PortfolioExportError as exc:

@@ -2,7 +2,8 @@ import { escapeHtml } from './markerIcon'
 import {
   getAvailabilityState,
   getMonthStatusLabel,
-  getMonthValue
+  getMonthValue,
+  isFree
 } from '../utils/availability'
 import {
   MONTHS,
@@ -52,13 +53,20 @@ function monthCell(item, month) {
   const surfaceId = surfaceIdOf(item)
   const selected = surfaceId !== null && portfolio.isMonthSelected(surfaceId, month.full)
 
-  const pfAttrs = surfaceId !== null
+  /*
+   * Выбрать можно только свободный месяц: у занятых/резервных не ставим
+   * data-pf-month, поэтому клик по ним ничего не делает. Снять уже
+   * выбранный месяц можно всегда.
+   */
+  const locked = !selected && !isFree(item, month.full)
+
+  const pfAttrs = surfaceId !== null && !locked
     ? ` data-pf-month="${escapeHtml(String(surfaceId))}|${escapeHtml(month.full)}"`
     : ''
 
   return `
     <div
-      class="popup-month ${monthState(item, month.full)}${selected ? ' is-selected' : ''}"
+      class="popup-month ${monthState(item, month.full)}${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"
       title="${escapeHtml(getMonthStatusLabel(item, month.full))}"${pfAttrs}
     >
       ${escapeHtml(month.short)}

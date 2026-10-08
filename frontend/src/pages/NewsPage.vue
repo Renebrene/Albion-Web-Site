@@ -31,7 +31,7 @@
       </div>
 
       <template v-else>
-        <section class="news-grid">
+        <section ref="grid" class="news-grid">
           <NewsCard
             v-for="(item, index) in filteredNews"
             :key="item.id"
@@ -54,7 +54,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import {
+  computed,
+  nextTick,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch
+} from 'vue'
 import NewsCard from '../components/news/NewsCard.vue'
 import NEWS from '../data/news'
 import { getNews } from '@/services/api'
@@ -147,12 +154,88 @@ function cardSize(index) {
 
   return 'normal'
 }
+
+/*
+ * Плиточная укладка.
+ *
+ * Карточки не выравниваются по рядам: сетка растёт строкой-единицей
+ * (8 px), а каждой карточке считаем, сколько таких строк она занимает
+ * по своей высоте. Тогда короткая карточка не оставляет под собой
+ * пустоту до следующего ряда, а подтягивается к соседям сверху.
+ *
+ * Высоты карточек стабильны: область медиа задана через aspect-ratio,
+ * поэтому подгрузка картинок раскладку не сдвигает.
+ */
+const grid = ref(null)
+
+/* Шаг строки 1 px — остаток от округления почти незаметен. */
+const MASONRY_ROW = 1
+const MASONRY_GAP = 4
+
+function layoutMasonry() {
+  const el = grid.value
+
+  if (!el) {
+    return
+  }
+
+  const cards = [...el.children]
+
+  /* Сначала измеряем без наших спанов, затем расставляем. */
+  cards.forEach(card => {
+    card.style.gridRowEnd = 'auto'
+  })
+
+  const unit = MASONRY_ROW + MASONRY_GAP
+  const heights = cards.map(card => card.getBoundingClientRect().height)
+
+  cards.forEach((card, index) => {
+    const span = Math.max(
+      1,
+      Math.ceil((heights[index] + MASONRY_GAP) / unit)
+    )
+
+    card.style.gridRowEnd = `span ${span}`
+  })
+}
+
+let masonryTimer = null
+
+/* Пересчёт откладываем: раскладка идёт после отрисовки и при ресайзе. */
+function scheduleMasonry() {
+  if (masonryTimer) {
+    clearTimeout(masonryTimer)
+  }
+
+  masonryTimer = setTimeout(() => {
+    masonryTimer = null
+    layoutMasonry()
+  }, 60)
+}
+
+onMounted(() => {
+  window.addEventListener('resize', scheduleMasonry)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', scheduleMasonry)
+
+  if (masonryTimer) {
+    clearTimeout(masonryTimer)
+  }
+})
+
+watch([filteredNews, loading], async () => {
+  await nextTick()
+  scheduleMasonry()
+})
 </script>
 
 <style scoped>
 .news-page {
   min-height: calc(100vh - 115px);
-  background: #f3f5f6;
+  /* Фон заметно темнее светлых карточек — сетка читается как сетка */
+  background: #d3dbe0;
 }
 
 .news-container {
@@ -231,8 +314,16 @@ function cardSize(index) {
 .news-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: auto;
-  gap: 14px;
+
+  /*
+   * Строка-единица для плиточной укладки. Значения должны совпадать
+   * с MASONRY_ROW / MASONRY_GAP в скрипте (layoutMasonry).
+   */
+  grid-auto-rows: 1px;
+
+  /* Плотная сетка: карточки почти вплотную, разделяет их фон */
+  gap: 4px;
+
   align-items: start;
 }
 

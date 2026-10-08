@@ -173,8 +173,15 @@ function openNews() {
   position: relative;
   min-width: 0;
   overflow: hidden;
-  border-radius: 16px;
+
+  border: 1px solid #d9e1e6;
+  border-radius: 12px;
+
   background: #fff;
+
+  /* Лёгкая тень по умолчанию — карточка отделяется от фона */
+  box-shadow: 0 1px 3px rgba(20, 30, 40, .06);
+
   cursor: pointer;
   transition:
     transform .22s ease,
@@ -186,9 +193,9 @@ function openNews() {
   box-shadow: 0 12px 32px rgba(20, 30, 40, .10);
 }
 
+/* Ширину задаёт разметка, высоту считает плиточная укладка (NewsPage). */
 .news-card-large {
   grid-column: span 2;
-  grid-row: span 2;
 }
 
 .news-card-horizontal {
@@ -198,7 +205,14 @@ function openNews() {
 .news-media {
   position: relative;
   overflow: hidden;
-  background: #e9edef;
+
+  /*
+   * Почти белый фон (а не серый, как страница): область без фото не
+   * сливается с подложкой, карточка читается светлым блоком.
+   */
+  background: #f5f8fa;
+
+  border-bottom: 1px solid #eef2f5;
 }
 
 .news-card-normal .news-media {
@@ -234,7 +248,7 @@ function openNews() {
   width: 100%;
   height: 100%;
   min-height: 220px;
-  color: #a1aaaf;
+  color: #b9c5cc;
   font-size: 28px;
   font-weight: 900;
   letter-spacing: 4px;

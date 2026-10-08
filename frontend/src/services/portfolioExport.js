@@ -225,6 +225,7 @@ function addressLabel(item) {
 export function portfolioText(sourceItems, options) {
   const items = resolveItems(sourceItems)
   const opts = resolveOptions(sourceItems, options)
+  const withMaps = resolveWithMaps(sourceItems, options)
   const headTitle = resolveTitle(opts.title)
   const reqEntries = requisitesEntries(resolveRequisites(opts))
 
@@ -267,6 +268,11 @@ export function portfolioText(sourceItems, options) {
 
     if (item.photo) {
       lines.push(`   Фото: ${item.photo}`)
+    }
+
+    /* Ссылка на карту — по публичному полю map, если оно есть. */
+    if (withMaps && item.map) {
+      lines.push(`   Карта: ${item.map}`)
     }
   })
 
@@ -320,7 +326,7 @@ function triggerDownload(blob, filename) {
 }
 
 /*
- * Флаг «Добавлять фото».
+ * Флаг «Фото».
  * Поддерживаем оба вызова:
  *   downloadPortfolio(format, { withPhotos })       — опции вторым аргументом;
  *   downloadPortfolio(format, items, { withPhotos }) — опции третьим.
@@ -342,15 +348,35 @@ function resolveWithPhotos(sourceItems, options) {
 }
 
 /*
+ * Флаг «Карта». Та же схема вызова, что и у resolveWithPhotos.
+ */
+function resolveWithMaps(sourceItems, options) {
+  if (options && typeof options === 'object') {
+    return Boolean(options.withMaps)
+  }
+
+  if (
+    sourceItems &&
+    !Array.isArray(sourceItems) &&
+    typeof sourceItems === 'object'
+  ) {
+    return Boolean(sourceItems.withMaps)
+  }
+
+  return false
+}
+
+/*
  * Выгрузка портфеля в файл.
  * POST /api/portfolio/export?format=xlsx|docx|pdf
- * Тело: { title, items, with_photos, requisites }. Ответ — файл (blob).
- * options: { withPhotos, title, requisites }.
+ * Тело: { title, items, with_photos, with_maps, requisites }. Ответ — файл (blob).
+ * options: { withPhotos, withMaps, title, requisites }.
  */
 export async function downloadPortfolio(format, sourceItems, options) {
   const value = extensionFor(format)
   const opts = resolveOptions(sourceItems, options)
   const withPhotos = resolveWithPhotos(sourceItems, options)
+  const withMaps = resolveWithMaps(sourceItems, options)
   const items = Array.isArray(sourceItems)
     ? sourceItems
     : resolveItems(sourceItems)
@@ -364,6 +390,7 @@ export async function downloadPortfolio(format, sourceItems, options) {
         title: resolveTitle(opts.title),
         items,
         with_photos: withPhotos,
+        with_maps: withMaps,
         requisites: resolveRequisites(opts)
       })
     }
@@ -390,7 +417,13 @@ function escapeHtml(value) {
 }
 
 /* Собирает HTML печатной версии портфеля. */
-function buildPrintHtml(items, withPhotos = false, title, requisites) {
+function buildPrintHtml(
+  items,
+  withPhotos = false,
+  withMaps = false,
+  title,
+  requisites
+) {
   const headTitle = resolveTitle(title)
   const reqEntries = requisitesEntries(requisites)
 
@@ -440,10 +473,22 @@ function buildPrintHtml(items, withPhotos = false, title, requisites) {
           }</td>`
         : ''
 
+      /* Карта-схема — локальный файл; card крупнее thumb, берём первым. */
+      const mapUrl = item.map_card || item.map_large || item.map_thumb
+
+      const mapCell = withMaps
+        ? `<td class="photo-cell">${
+            mapUrl
+              ? `<img class="photo-thumb" src="${escapeHtml(mapUrl)}" alt="">`
+              : ''
+          }</td>`
+        : ''
+
       return `
         <tr>
           <td class="num">${index + 1}</td>
           ${photoCell}
+          ${mapCell}
           <td>
             <div class="format">${escapeHtml(item.type || '—')}</div>
             <div class="address">${escapeHtml(addressLabel(item))}</div>
@@ -458,7 +503,8 @@ function buildPrintHtml(items, withPhotos = false, title, requisites) {
     .join('')
 
   const photoHead = withPhotos ? '<th>Фото</th>' : ''
-  const totalColspan = withPhotos ? 3 : 2
+  const mapHead = withMaps ? '<th>Карта</th>' : ''
+  const totalColspan = 2 + (withPhotos ? 1 : 0) + (withMaps ? 1 : 0)
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -533,6 +579,7 @@ function buildPrintHtml(items, withPhotos = false, title, requisites) {
       <tr>
         <th>№</th>
         ${photoHead}
+        ${mapHead}
         <th>Поверхность</th>
         <th>Сумма</th>
       </tr>
@@ -552,17 +599,19 @@ function buildPrintHtml(items, withPhotos = false, title, requisites) {
 /*
  * Печать портфеля: открываем новое окно с печатной версией.
  * Если всплывающее окно заблокировано — печатаем через скрытый iframe.
- * Второй аргумент: { withPhotos, title, requisites }.
+ * Второй аргумент: { withPhotos, withMaps, title, requisites }.
  */
 export function printPortfolio(sourceItems, options) {
   const opts = resolveOptions(sourceItems, options)
   const withPhotos = resolveWithPhotos(sourceItems, options)
+  const withMaps = resolveWithMaps(sourceItems, options)
   const items = Array.isArray(sourceItems)
     ? sourceItems
     : resolveItems(sourceItems)
   const html = buildPrintHtml(
     items,
     withPhotos,
+    withMaps,
     resolveTitle(opts.title),
     resolveRequisites(opts)
   )

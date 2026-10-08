@@ -13,6 +13,7 @@ import { useAccount } from './useAccount'
  *   {
  *     surfaceId, address, city, side, type, size,
  *     photo, photo_thumb, photo_large,
+ *     map_card, map_thumb, map_large,
  *     months: { [monthFull]: { price, addedAt, stale } },
  *     addedAt
  *   }
@@ -41,7 +42,11 @@ const PASSPORT_FIELDS = [
   'size',
   'photo',
   'photo_thumb',
-  'photo_large'
+  'photo_large',
+  'map',
+  'map_card',
+  'map_thumb',
+  'map_large'
 ]
 
 // Экземпляр ЛК нужен для реактивной проверки авторизации.
@@ -163,6 +168,57 @@ function isFreeStatus(value) {
  * Нормализует plain-позицию к внутреннему виду.
  * Возвращает null, если surfaceId не является числом.
  */
+/*
+ * Снимок цен по всем месяцам поверхности.
+ *
+ * Нужен, чтобы месяцы можно было переключать прямо в панели портфеля —
+ * без обращения к каталогу конструкций (панель доступна на любой
+ * странице, где каталог может быть не загружен).
+ */
+function monthPricesOf(surface) {
+  const prices = {}
+
+  Object.entries(surface?.month_prices || {}).forEach(([month, value]) => {
+    prices[month] = toNumber(value)
+  })
+
+  return prices
+}
+
+function monthStatusesOf(surface) {
+  const statuses = {}
+
+  Object.entries(surface?.statuses || {}).forEach(([month, value]) => {
+    statuses[month] = String(value ?? '')
+  })
+
+  return statuses
+}
+
+function normalizePrices(raw) {
+  const prices = {}
+
+  if (raw && typeof raw === 'object') {
+    Object.entries(raw).forEach(([month, value]) => {
+      prices[month] = toNumber(value)
+    })
+  }
+
+  return prices
+}
+
+function normalizeStatuses(raw) {
+  const statuses = {}
+
+  if (raw && typeof raw === 'object') {
+    Object.entries(raw).forEach(([month, value]) => {
+      statuses[month] = String(value ?? '')
+    })
+  }
+
+  return statuses
+}
+
 function normalizeItem(raw) {
   if (!raw || typeof raw !== 'object') {
     return null
@@ -194,7 +250,9 @@ function normalizeItem(raw) {
   const item = {
     surfaceId,
     months,
-    addedAt: raw.addedAt || null
+    addedAt: raw.addedAt || null,
+    prices: normalizePrices(raw.prices),
+    statuses: normalizeStatuses(raw.statuses)
   }
 
   PASSPORT_FIELDS.forEach(field => {
@@ -257,7 +315,9 @@ function toggleMonth(surface, monthFull, price) {
     item = {
       surfaceId,
       months: {},
-      addedAt: nowIso()
+      addedAt: nowIso(),
+      prices: monthPricesOf(surface),
+      statuses: monthStatusesOf(surface)
     }
 
     PASSPORT_FIELDS.forEach(field => {
@@ -265,6 +325,15 @@ function toggleMonth(surface, monthFull, price) {
     })
 
     items.value.push(item)
+  }
+
+  /* Позиция из localStorage могла сохраниться без снимка цен. */
+  if (!Object.keys(item.prices || {}).length) {
+    item.prices = monthPricesOf(surface)
+  }
+
+  if (!Object.keys(item.statuses || {}).length) {
+    item.statuses = monthStatusesOf(surface)
   }
 
   if (item.months[monthFull]) {
@@ -292,6 +361,45 @@ function toggleMonth(surface, monthFull, price) {
     addedAt: nowIso(),
     stale: false
   }
+}
+
+/*
+ * Переключить месяц прямо в панели портфеля — без карточки.
+ *
+ * Цену и статус берём из снимка позиции (prices/statuses), который
+ * заполняется при добавлении поверхности и обновляется при загрузке
+ * каталога. Поэтому панель работает и там, где каталог не загружен.
+ */
+function toggleItemMonth(surfaceId, monthFull) {
+  const item = findItem(surfaceId)
+
+  if (!item || !monthFull) {
+    return
+  }
+
+  if (item.months[monthFull]) {
+    delete item.months[monthFull]
+
+    /* Снят последний месяц — позиция больше не нужна. */
+    if (Object.keys(item.months).length === 0) {
+      removeSurface(surfaceId)
+    }
+
+    return
+  }
+
+  item.months[monthFull] = {
+    price: toNumber(item.prices?.[monthFull]),
+    addedAt: nowIso(),
+    stale: false
+  }
+}
+
+/* Известна ли цена месяца у позиции (для панели портфеля). */
+function monthPriceOf(surfaceId, monthFull) {
+  const item = findItem(surfaceId)
+
+  return item ? toNumber(item.prices?.[monthFull]) : null
 }
 
 function removeSurface(surfaceId) {
@@ -342,6 +450,15 @@ function syncWithConstructions(constructions) {
     PASSPORT_FIELDS.forEach(field => {
       item[field] = construction[field] ? String(construction[field]) : ''
     })
+
+    /* Обновляем снимок цен/статусов по всем месяцам, не только выбранным. */
+    Object.entries(monthPricesOf(construction)).forEach(([month, price]) => {
+      if (price !== null) {
+        item.prices[month] = price
+      }
+    })
+
+    item.statuses = { ...item.statuses, ...monthStatusesOf(construction) }
 
     Object.keys(item.months).forEach(monthFull => {
       const month = item.months[monthFull]
@@ -668,6 +785,8 @@ export function usePortfolio() {
     // изменение
     toggleSelectionMode,
     toggleMonth,
+    toggleItemMonth,
+    monthPriceOf,
     removeSurface,
     clear,
     setTitle,

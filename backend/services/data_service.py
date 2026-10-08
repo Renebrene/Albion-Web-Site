@@ -142,6 +142,9 @@ def get_data():
             cm.card_path,
             cm.thumb_path,
             cm.large_path,
+            cmm.card_path,
+            cmm.thumb_path,
+            cmm.large_path,
             s.price,
             s.side,
             s.size,
@@ -168,6 +171,15 @@ def get_data():
             )
            AND cm.surface_hash = s.surface_hash
            AND cm.media_type = 'photo'
+        LEFT JOIN construction_media cmm
+            ON cmm.import_id = (
+                SELECT id
+                FROM construction_imports
+                WHERE status = 'active'
+                LIMIT 1
+            )
+           AND cmm.surface_hash = s.surface_hash
+           AND cmm.media_type = 'map'
         LEFT JOIN surface_availability a
             ON a.surface_id = s.id
            AND a.year = 2026
@@ -198,6 +210,9 @@ def get_data():
                     photo_path,
                     photo_thumb_path,
                     photo_large_path,
+                    map_card_path,
+                    map_thumb_path,
+                    map_large_path,
                     price,
                     side,
                     size,
@@ -242,6 +257,25 @@ def get_data():
                         "photo_large": (
                             "/" + _text(photo_large_path)
                             if photo_large_path
+                            else None
+                        ),
+                        # Карта-схема — локально сохранённый файл (импорт),
+                        # отдельным LEFT JOIN cmm (media_type='map').
+                        # Поле "map" выше — прежняя ссылка Яндекс.Диска,
+                        # её не перезаписываем.
+                        "map_thumb": (
+                            "/" + _text(map_thumb_path)
+                            if map_thumb_path
+                            else None
+                        ),
+                        "map_card": (
+                            "/" + _text(map_card_path)
+                            if map_card_path
+                            else None
+                        ),
+                        "map_large": (
+                            "/" + _text(map_large_path)
+                            if map_large_path
                             else None
                         ),
                         "price": _text(price),

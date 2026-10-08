@@ -59,6 +59,9 @@ COLUMNS = (
 # Дополнительная колонка, появляется только при with_photos=true.
 PHOTO_COLUMN = "Фото"
 
+# Дополнительная колонка, появляется только при with_maps=true.
+MAP_COLUMN = "Карта"
+
 # Реквизиты пользователя (печатаются компактным блоком под заголовком).
 # Порядок вывода и русские подписи.
 REQUISITE_LABELS = (
@@ -310,13 +313,15 @@ def build_portfolio(
     items: Any,
     title: Any = None,
     with_photos: bool = False,
+    with_maps: bool = False,
     requisites: Any = None,
 ) -> dict:
     """Проверяет входные данные и собирает общую структуру для всех форматов.
 
     При ``with_photos=True`` в ``columns`` добавляется колонка «Фото»,
-    а в каждой строке появляется поле ``photo`` (исходный URL; чтение
-    файла делает сам формат, чтобы можно было отдать пустую ячейку).
+    при ``with_maps=True`` — колонка «Карта»; в каждой строке появляются
+    поля ``photo`` / ``map`` (исходный URL; чтение файла делает сам формат,
+    чтобы можно было отдать пустую ячейку).
 
     ``requisites`` — необязательный объект реквизитов; непустые поля
     попадают в ``requisites`` (список пар «подпись, значение») и печатаются
@@ -328,8 +333,9 @@ def build_portfolio(
           "title": str,
           "columns": tuple[str, ...],
           "with_photos": bool,
+          "with_maps": bool,
           "requisites": [(label, value), ...],
-          "rows": [ {index, city, address, side, type, size, months, sum, sum_value, photo}, ... ],
+          "rows": [ {index, city, address, side, type, size, months, sum, sum_value, photo, map}, ... ],
           "positions": int,
           "total": float,
           "summary": str,   # «ИТОГО: N позиций, S ₽»
@@ -389,6 +395,13 @@ def build_portfolio(
                 "sum": format_money(item_sum),
                 "sum_value": item_sum,
                 "photo": _text(raw.get("photo")),
+                # Карта-схема: локальный файл. Крупный card, иначе large,
+                # иначе миниатюра — если ничего нет, ячейка будет пустой.
+                "map": (
+                    _text(raw.get("map_card"))
+                    or _text(raw.get("map_large"))
+                    or _text(raw.get("map_thumb"))
+                ),
             }
         )
 
@@ -398,14 +411,21 @@ def build_portfolio(
         f"ИТОГО: {positions} {_positions_word(positions)}, {format_money(total)}"
     )
 
-    columns = (
-        COLUMNS + (PHOTO_COLUMN,) if with_photos else COLUMNS
-    )
+    columns = list(COLUMNS)
+
+    if with_photos:
+        columns.append(PHOTO_COLUMN)
+
+    if with_maps:
+        columns.append(MAP_COLUMN)
+
+    columns = tuple(columns)
 
     return {
         "title": _text(title) or DEFAULT_TITLE,
         "columns": columns,
         "with_photos": bool(with_photos),
+        "with_maps": bool(with_maps),
         "requisites": build_requisites_block(requisites),
         "rows": rows,
         "positions": positions,
@@ -517,36 +537,48 @@ def export_xlsx(portfolio: dict) -> bytes:
             max(width + 2, 8), 55
         )
 
-    # Колонка «Фото»: миниатюры, вписанные в ячейку (при with_photos=true).
-    if portfolio.get("with_photos"):
-        from openpyxl.drawing.image import Image as XLImage
+    # Колонки «Фото»/«Карта»: миниатюры, вписанные в ячейку.
+    with_photos = bool(portfolio.get("with_photos"))
+    with_maps = bool(portfolio.get("with_maps"))
 
-        photo_col = len(columns)
-        letter = get_column_letter(photo_col)
-        sheet.column_dimensions[letter].width = 13
+    if with_photos or with_maps:
+        from openpyxl.drawing.image import Image as XLImage
 
         # Ссылки на открытые буферы держим до save(), иначе openpyxl
         # не сможет прочитать картинку.
         embedded: list[tuple[Any, io.BytesIO]] = []
 
-        for offset, row in enumerate(rows):
-            image = load_photo_thumbnail(row.get("photo"), XLSX_PHOTO_BOX)
+        def add_image_column(field: str, box, col_index: int) -> None:
+            letter = get_column_letter(col_index)
+            sheet.column_dimensions[letter].width = 13
 
-            if image is None:
-                continue
+            for offset, row in enumerate(rows):
+                image = load_photo_thumbnail(row.get(field), box)
 
-            photo_buffer = io.BytesIO(photo_to_bytes(image))
-            excel_image = XLImage(photo_buffer)
-            excel_image.width = image.width
-            excel_image.height = image.height
+                if image is None:
+                    continue
 
-            row_index = header_row + 1 + offset
-            sheet.add_image(excel_image, f"{letter}{row_index}")
-            sheet.row_dimensions[row_index].height = max(
-                45, image.height * 0.78
-            )
+                image_buffer = io.BytesIO(photo_to_bytes(image))
+                excel_image = XLImage(image_buffer)
+                excel_image.width = image.width
+                excel_image.height = image.height
 
-            embedded.append((excel_image, photo_buffer))
+                row_index = header_row + 1 + offset
+                sheet.add_image(excel_image, f"{letter}{row_index}")
+                sheet.row_dimensions[row_index].height = max(
+                    45, image.height * 0.78
+                )
+
+                embedded.append((excel_image, image_buffer))
+
+        base_columns = len(COLUMNS)
+
+        if with_photos:
+            add_image_column("photo", XLSX_PHOTO_BOX, base_columns + 1)
+
+        if with_maps:
+            offset = 1 if with_photos else 0
+            add_image_column("map", XLSX_PHOTO_BOX, base_columns + offset + 1)
 
     buffer = io.BytesIO()
     workbook.save(buffer)
@@ -582,6 +614,7 @@ def export_docx(portfolio: dict) -> bytes:
 
     columns = portfolio["columns"]
     with_photos = bool(portfolio.get("with_photos"))
+    with_maps = bool(portfolio.get("with_maps"))
     table = document.add_table(rows=1, cols=len(columns))
     table.style = "Table Grid"
     table.autofit = False
@@ -607,21 +640,37 @@ def export_docx(portfolio: dict) -> bytes:
         for idx, value in enumerate(values):
             cells[idx].text = str(value)
 
-        if with_photos:
-            image = load_photo_thumbnail(row.get("photo"), DOCX_PHOTO_BOX)
+        base_cells = len(values)
 
-            if image is not None:
-                run = cells[-1].paragraphs[0].add_run()
-                run.add_picture(
-                    io.BytesIO(photo_to_bytes(image)),
-                    width=Cm(DOCX_PHOTO_WIDTH_CM),
-                )
+        def add_docx_picture(cell_index: int, field: str) -> None:
+            image = load_photo_thumbnail(row.get(field), DOCX_PHOTO_BOX)
+
+            if image is None:
+                return
+
+            run = cells[cell_index].paragraphs[0].add_run()
+            run.add_picture(
+                io.BytesIO(photo_to_bytes(image)),
+                width=Cm(DOCX_PHOTO_WIDTH_CM),
+            )
+
+        if with_photos:
+            add_docx_picture(base_cells, "photo")
+
+        if with_maps:
+            add_docx_picture(base_cells + (1 if with_photos else 0), "map")
 
     # Пропорциональные ширины колонок (полезная ширина альбомного листа).
-    if with_photos:
-        width_inches = (0.4, 1.5, 1.5, 0.7, 0.9, 0.8, 1.6, 1.0, 1.0)
+    if with_photos or with_maps:
+        width_inches = (0.4, 1.5, 1.5, 0.7, 0.9, 0.8, 1.6, 1.0)
     else:
         width_inches = (0.4, 1.2, 1.8, 0.7, 1.0, 0.9, 2.0, 1.0)
+
+    if with_photos:
+        width_inches += (1.0,)
+
+    if with_maps:
+        width_inches += (1.0,)
 
     for idx, width in enumerate(width_inches):
         table.columns[idx].width = Inches(width)
@@ -806,6 +855,7 @@ def export_pdf(portfolio: dict) -> bytes:
 
     columns = portfolio["columns"]
     with_photos = bool(portfolio.get("with_photos"))
+    with_maps = bool(portfolio.get("with_maps"))
     data = [[_pdf_paragraph(name, bold_style) for name in columns]]
 
     # reportlab читает file-like лениво (на этапе build), поэтому буферы
@@ -827,6 +877,9 @@ def export_pdf(portfolio: dict) -> bytes:
         if with_photos:
             cells.append(_pdf_photo(row.get("photo"), photo_buffers))
 
+        if with_maps:
+            cells.append(_pdf_photo(row.get("map"), photo_buffers))
+
         data.append(cells)
 
     # Итоговая строка — объединена по всем колонкам.
@@ -837,10 +890,16 @@ def export_pdf(portfolio: dict) -> bytes:
     )
 
     # Пропорциональные ширины колонок: сумма растягивается на лист.
-    if with_photos:
-        base_widths_mm = (7, 20, 40, 12, 17, 18, 66, 24, 18)
+    if with_photos or with_maps:
+        base_widths_mm = (7, 20, 40, 12, 17, 18, 66, 24)
     else:
         base_widths_mm = (8, 26, 48, 14, 20, 22, 95, 26)
+
+    if with_photos:
+        base_widths_mm += (18,)
+
+    if with_maps:
+        base_widths_mm += (18,)
 
     base_total = sum(base_widths_mm)
     scale = (available_width / mm) / base_total
@@ -900,15 +959,21 @@ def render(
     fmt: str,
     title: Any = None,
     with_photos: bool = False,
+    with_maps: bool = False,
     requisites: Any = None,
 ) -> bytes:
     """Собирает портфель и рендерит его в выбранный формат.
 
-    При ``with_photos=True`` добавляется колонка «Фото» с миниатюрами.
+    При ``with_photos=True`` добавляется колонка «Фото», при
+    ``with_maps=True`` — колонка «Карта» (обе с миниатюрами из /storage).
     Непустые ``requisites`` печатаются компактным блоком под заголовком.
     """
     portfolio = build_portfolio(
-        items, title, with_photos=with_photos, requisites=requisites
+        items,
+        title,
+        with_photos=with_photos,
+        with_maps=with_maps,
+        requisites=requisites,
     )
 
     if fmt == "xlsx":

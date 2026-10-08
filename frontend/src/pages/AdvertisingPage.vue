@@ -393,7 +393,10 @@
                             class="card-month"
                             :class="[
                               getCardMonthState(row, month.full),
-                              { 'is-selected': surfaceIdOf(row) !== null && isMonthSelected(row.id, month.full) }
+                              {
+                                'is-selected': surfaceIdOf(row) !== null && isMonthSelected(row.id, month.full),
+                                'is-locked': isBlockActive(block) && isMonthLocked(row, month.full)
+                              }
                             ]"
                             :title="getMonthStatusLabel(row, month.full)"
                             @click="onCardMonthClick(block, row, month)"
@@ -417,7 +420,10 @@
                         class="card-month"
                         :class="[
                           getCardMonthState(blockPrimary(block), month.full),
-                          { 'is-selected': surfaceIdOf(blockPrimary(block)) !== null && isMonthSelected(blockPrimary(block).id, month.full) }
+                          {
+                            'is-selected': surfaceIdOf(blockPrimary(block)) !== null && isMonthSelected(blockPrimary(block).id, month.full),
+                            'is-locked': isBlockActive(block) && isMonthLocked(blockPrimary(block), month.full)
+                          }
                         ]"
                         :title="getMonthStatusLabel(blockPrimary(block), month.full)"
                         @click="onCardMonthClick(block, blockPrimary(block), month)"
@@ -560,7 +566,8 @@
 <script setup>
 import {
   getAvailabilityState,
-  getMonthStatusLabel
+  getMonthStatusLabel,
+  isFree
 } from '../utils/availability'
 import {
   MONTHS,
@@ -730,32 +737,79 @@ function surfaceIdOf(item) {
 }
 
 /*
- * Блок активен (розовая кнопка, кликабельные месяцы), если ведущая
+ * Все поверхности блока: строки динамики (A(1)/A(2)/A(3)…) и ведущая.
+ *
+ * Кнопка должна учитывать их ВСЕ: у призматрона месяц можно выбрать на
+ * любой строке, и раньше кнопка смотрела только на ведущую — из-за этого
+ * выделение на остальных строках оставалось после выключения.
+ */
+function blockSurfaces(block) {
+  const seen = new Set()
+  const list = []
+
+  const push = surface => {
+    const id = surfaceIdOf(surface)
+
+    if (id !== null && !seen.has(id)) {
+      seen.add(id)
+      list.push(surface)
+    }
+  }
+
+  if (Array.isArray(block?.items)) {
+    block.items.forEach(push)
+  }
+
+  push(blockPrimary(block))
+
+  return list
+}
+
+function blockSurfaceIds(block) {
+  return blockSurfaces(block)
+    .map(surfaceIdOf)
+    .filter(id => id !== null)
+}
+
+/*
+ * Блок активен (розовая кнопка, кликабельные месяцы), если ЛЮБАЯ его
  * поверхность уже в портфеле или для неё включён режим выбора.
  */
 function isBlockActive(block) {
-  const id = surfaceIdOf(blockPrimary(block))
-
-  return id !== null && (isInPortfolio(id) || isSelectionMode(id))
+  return blockSurfaceIds(block).some(
+    id => isInPortfolio(id) || isSelectionMode(id)
+  )
 }
 
 /*
  * Клик по кнопке-переключателю (детерминированно, без «слепого» toggle):
  *   неактивна -> включаем режим выбора;
- *   активна   -> сбрасываем: removeSurface убирает и месяцы, и режим.
+ *   активна   -> сбрасываем ВСЕ поверхности блока, иначе выделение
+ *                остаётся на строках, которые кнопка не учитывала.
  */
 function toggleBlockPfMode(block) {
-  const id = surfaceIdOf(blockPrimary(block))
+  const ids = blockSurfaceIds(block)
 
-  if (id === null) {
+  if (!ids.length) {
     return
   }
 
   if (isBlockActive(block)) {
-    removeSurface(id)
+    ids.forEach(id => removeSurface(id))
   } else {
-    toggleSelectionMode(id)
+    toggleSelectionMode(ids[0])
   }
+}
+
+/* Месяц можно ВЫБРАТЬ только если он свободен (снять — всегда можно). */
+function isMonthLocked(surface, monthFull) {
+  const id = surfaceIdOf(surface)
+
+  if (id === null || isMonthSelected(id, monthFull)) {
+    return false
+  }
+
+  return !isFree(surface, monthFull)
 }
 
 /* Клик по месяцу — только у активного блока. */
@@ -767,6 +821,11 @@ function onCardMonthClick(block, surface, month) {
   const id = surfaceIdOf(surface)
 
   if (id === null) {
+    return
+  }
+
+  /* Снять можно всегда; добавить — только свободный месяц. */
+  if (isMonthLocked(surface, month.full)) {
     return
   }
 
@@ -1635,6 +1694,11 @@ function onDocumentClick(event) {
     return
   }
 
+  /* Снять можно всегда; добавить — только свободный месяц. */
+  if (isMonthLocked(surface, monthFull)) {
+    return
+  }
+
   toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
 
   monthEl.classList.toggle(
@@ -2254,12 +2318,18 @@ onBeforeUnmount(() => {
 }
 
 /* Месяцы кликабельны только у активного блока. */
-.card-block.pf-mode .card-month {
+.card-block.pf-mode .card-month:not(.is-locked) {
   cursor: pointer;
 }
 
-.card-block.pf-mode .card-month:hover {
+.card-block.pf-mode .card-month:not(.is-locked):hover {
   filter: brightness(.96);
+}
+
+/* Занятый/резервный месяц выбрать нельзя. */
+.card-block.pf-mode .card-month.is-locked {
+  cursor: not-allowed;
+  opacity: .5;
 }
 
 /* Выбранный месяц — акцентная рамка. */
@@ -2833,6 +2903,12 @@ onBeforeUnmount(() => {
 .popup.pf-mode .popup-month {
   pointer-events: auto;
   cursor: pointer;
+}
+
+/* В режиме выбора занятый месяц выбрать нельзя. */
+.popup.pf-mode .popup-month.is-locked {
+  cursor: not-allowed;
+  opacity: .5;
 }
 
 .popup.pf-mode .popup-month:hover {

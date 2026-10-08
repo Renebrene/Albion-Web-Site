@@ -110,7 +110,7 @@
 
           <div v-else-if="!savedPortfolio.length" class="empty-text">
             Портфель пуст — соберите его на карте или в списке и нажмите
-            «Сохранить в личном кабинете».
+            «Сохранить».
           </div>
 
           <template v-else>

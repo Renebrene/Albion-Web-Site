@@ -27,10 +27,48 @@
       <div class="photo-viewer__body">
         <img
           v-if="url"
+          :key="url"
           :src="url"
           :alt="title || 'Фото конструкции'"
           class="photo-viewer__image"
         >
+
+        <!-- Переключатель: стрелки и точки — как в карусели новостей -->
+        <template v-if="images.length > 1">
+          <button
+            type="button"
+            class="photo-viewer__arrow photo-viewer__arrow--prev"
+            aria-label="Предыдущее изображение"
+            @click="prevImage"
+          >
+            ‹
+          </button>
+
+          <button
+            type="button"
+            class="photo-viewer__arrow photo-viewer__arrow--next"
+            aria-label="Следующее изображение"
+            @click="nextImage"
+          >
+            ›
+          </button>
+
+          <div class="photo-viewer__counter">
+            {{ current + 1 }} / {{ images.length }}
+          </div>
+
+          <div class="photo-viewer__dots">
+            <button
+              v-for="(image, index) in images"
+              :key="index"
+              type="button"
+              class="photo-viewer__dot"
+              :class="{ active: index === current }"
+              :aria-label="image.label || `Изображение ${index + 1}`"
+              @click="setCurrent(index)"
+            />
+          </div>
+        </template>
       </div>
 
       <!-- Действия -->
@@ -68,7 +106,19 @@ import {
  * Общее окно просмотра фото. Монтируется один раз в MainLayout,
  * состояние берёт из singleton-композабла usePhotoViewer.
  */
-const { isOpen, url, title, filename, closePhoto } = usePhotoViewer()
+const {
+  isOpen,
+  images,
+  current,
+  currentImage,
+  url,
+  title,
+  filename,
+  closePhoto,
+  nextImage,
+  prevImage,
+  setCurrent
+} = usePhotoViewer()
 
 const downloading = ref(false)
 
@@ -95,8 +145,12 @@ async function handleDownload() {
     return
   }
 
-  // Базовое имя: явное filename, иначе название (адрес + сторона).
-  const name = sanitizeFileName(filename.value || title.value || 'photo', url.value)
+  // Базовое имя: filename активного изображения (у карты — «… · карта»),
+  // иначе явное filename окна, иначе название (адрес + сторона).
+  const active = currentImage.value || {}
+  const base =
+    active.filename || filename.value || active.label || title.value || 'photo'
+  const name = sanitizeFileName(base, url.value)
 
   downloading.value = true
 
@@ -194,6 +248,8 @@ async function handleDownload() {
 /* --------------------------------------------------------- Изображение */
 
 .photo-viewer__body {
+  position: relative;
+
   flex: 1 1 auto;
 
   display: grid;
@@ -211,6 +267,99 @@ async function handleDownload() {
   object-fit: contain;
 
   border-radius: 8px;
+}
+
+/* --------------------------------------------------------- Переключатель */
+
+.photo-viewer__arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+
+  display: grid;
+  place-items: center;
+
+  width: 44px;
+  height: 44px;
+
+  padding: 0;
+
+  transform: translateY(-50%);
+
+  border: 0;
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, .92);
+  color: #17212b;
+
+  font-size: 32px;
+  line-height: 1;
+
+  cursor: pointer;
+
+  box-shadow: 0 4px 15px rgba(0, 0, 0, .28);
+}
+
+.photo-viewer__arrow:hover {
+  background: #fff;
+}
+
+.photo-viewer__arrow--prev {
+  left: 18px;
+}
+
+.photo-viewer__arrow--next {
+  right: 18px;
+}
+
+.photo-viewer__counter {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+
+  padding: 6px 10px;
+
+  border-radius: 7px;
+
+  background: rgba(20, 30, 40, .68);
+  color: #fff;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.photo-viewer__dots {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 2;
+
+  display: flex;
+
+  gap: 7px;
+
+  transform: translateX(-50%);
+}
+
+.photo-viewer__dot {
+  width: 8px;
+  height: 8px;
+
+  padding: 0;
+
+  border: 0;
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, .55);
+
+  cursor: pointer;
+}
+
+.photo-viewer__dot.active {
+  background: var(--albion-accent);
+
+  transform: scale(1.4);
 }
 
 /* --------------------------------------------------------- Действия */

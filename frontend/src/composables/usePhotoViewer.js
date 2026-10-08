@@ -1,10 +1,15 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 /*
  * Общее окно просмотра фото конструкции (singleton).
  *
  * Состояние — модульные ref, поэтому одно и то же окно открывают
  * и карточки списка, и попапы карты, и панель портфеля.
+ *
+ * Окно умеет показывать несколько изображений (например, фото и
+ * карту-схему) с переключением. Старый вызов
+ * `openPhoto({ url, title, filename })` по-прежнему открывает одно
+ * изображение без переключателя.
  *
  * Почему делегирование кликов, а не Vue-обработчики:
  * разметку попапов карты строит popupContent.js статичной строкой,
@@ -17,9 +22,21 @@ import { ref } from 'vue'
 // ---------------------------------------------------------------- состояние
 
 const isOpen = ref(false)
-const url = ref('')
+
+// Список изображений окна: [{ url, label, filename }, ...].
+const images = ref([])
+
+// Активный индекс в images.
+const current = ref(0)
+
+// Общий заголовок окна (адрес + сторона) и явное имя файла
+// (для старого одиночного вызова).
 const title = ref('')
 const filename = ref('')
+
+// Активное изображение и его URL (обратная совместимость с `url`).
+const currentImage = computed(() => images.value[current.value] || null)
+const url = computed(() => (currentImage.value ? currentImage.value.url : ''))
 
 // ---------------------------------------------------------------- утилиты
 
@@ -135,19 +152,63 @@ export function sanitizeFileName(base, photoUrl, maxLength = 120) {
 
 // ---------------------------------------------------------------- управление
 
-/* Открыть окно. Предыдущее содержимое заменяется. */
-function openPhoto({ url: photoUrl, title: photoTitle, filename: photoFile } = {}) {
-  const src = String(photoUrl || '').trim()
+/*
+ * Приводит переданный список изображений к внутреннему виду.
+ * Без валидного url элемент отбрасывается; label/filename триммятся.
+ */
+function normalizeImages(list) {
+  if (!Array.isArray(list)) {
+    return []
+  }
 
-  if (!src) {
-    return
+  return list
+    .map(entry => {
+      const src = String((entry && entry.url) || '').trim()
+
+      if (!src) {
+        return null
+      }
+
+      return {
+        url: src,
+        label: String((entry && entry.label) || '').trim(),
+        filename: String((entry && entry.filename) || '').trim()
+      }
+    })
+    .filter(Boolean)
+}
+
+/*
+ * Открыть окно. Предыдущее содержимое заменяется.
+ *
+ * Принимает либо список изображений `images: [{ url, label, filename }]`,
+ * либо одиночное фото `{ url, title, filename }` (обратная совместимость).
+ */
+function openPhoto({
+  url: photoUrl,
+  title: photoTitle,
+  filename: photoFile,
+  images: list
+} = {}) {
+  let next = normalizeImages(list)
+
+  // Одиночный вызов: одно изображение без переключателя.
+  if (!next.length) {
+    const src = String(photoUrl || '').trim()
+
+    if (!src) {
+      return
+    }
+
+    next = [{ url: src, label: '', filename: '' }]
   }
 
   if (isOpen.value) {
     closePhoto()
   }
 
-  url.value = src
+  images.value = next
+  current.value = 0
   title.value = String(photoTitle || '').trim()
   filename.value = String(photoFile || '').trim()
   isOpen.value = true
@@ -155,6 +216,31 @@ function openPhoto({ url: photoUrl, title: photoTitle, filename: photoFile } = {
 
 function closePhoto() {
   isOpen.value = false
+}
+
+/* Переключение активного изображения (с закольцовыванием). */
+function setCurrent(index) {
+  const count = images.value.length
+
+  if (!count) {
+    return
+  }
+
+  const value = Number(index)
+
+  if (!Number.isFinite(value)) {
+    return
+  }
+
+  current.value = ((Math.trunc(value) % count) + count) % count
+}
+
+function nextImage() {
+  setCurrent(current.value + 1)
+}
+
+function prevImage() {
+  setCurrent(current.value - 1)
 }
 
 /* Открыть окно по элементу с data-photo-* атрибутами. */
@@ -215,6 +301,9 @@ export function usePhotoViewer() {
   return {
     // состояние
     isOpen,
+    images,
+    current,
+    currentImage,
     url,
     title,
     filename,
@@ -222,6 +311,9 @@ export function usePhotoViewer() {
     // управление
     openPhoto,
     closePhoto,
-    openFromElement
+    openFromElement,
+    setCurrent,
+    nextImage,
+    prevImage
   }
 }

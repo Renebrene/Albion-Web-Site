@@ -36,17 +36,6 @@
       >
         <div class="portfolio-row-num">{{ index + 1 }}</div>
 
-        <!-- Маленькое превью: клик открывает полноэкранный просмотр -->
-        <button
-          v-if="itemThumb(item)"
-          type="button"
-          class="portfolio-row-photo"
-          title="Открыть фото"
-          @click="openItemPhoto(item)"
-        >
-          <img :src="itemThumb(item)" alt="" loading="lazy" decoding="async" />
-        </button>
-
         <div class="portfolio-row-main">
           <div class="portfolio-row-format">
             {{ item.type || 'Формат не указан' }}
@@ -65,17 +54,21 @@
             </span>
           </div>
 
-          <!-- Мини-месяцы -->
+          <!-- Мини-месяцы: клик добавляет/убирает месяц -->
           <div class="portfolio-months">
-            <span
+            <button
               v-for="month in monthChips(item)"
               :key="month.full"
+              type="button"
               class="portfolio-month"
               :class="{
                 'is-selected': month.selected,
-                'is-stale': month.stale
+                'is-stale': month.stale,
+                'is-disabled': !month.canPick
               }"
+              :disabled="!month.canPick"
               :title="month.title"
+              @click="onMonthClick(item, month)"
             >
               {{ month.short }}
               <span
@@ -84,23 +77,25 @@
               >
                 {{ formatPrice(month.price) }} ₽
               </span>
-            </span>
+            </button>
           </div>
         </div>
+
+        <!-- Превью справа от текста: клик открывает полноэкранный просмотр -->
+        <button
+          v-if="itemThumb(item)"
+          type="button"
+          class="portfolio-row-photo"
+          title="Открыть фото"
+          @click="openItemPhoto(item)"
+        >
+          <img :src="itemThumb(item)" alt="" loading="lazy" decoding="async" />
+        </button>
 
         <div class="portfolio-row-side">
           <div class="portfolio-row-sum">
             {{ formatPrice(itemSum(item)) }} ₽
           </div>
-
-          <button
-            v-if="item.photo"
-            type="button"
-            class="portfolio-photo-link"
-            @click="openItemPhoto(item)"
-          >
-            Фото
-          </button>
 
           <button
             type="button"
@@ -129,14 +124,20 @@
         v-model="withPhotos"
         dense
         class="portfolio-photos-toggle"
-        label="Добавлять фото"
+        label="Фото"
+      />
+      <q-checkbox
+        v-model="withMaps"
+        dense
+        class="portfolio-photos-toggle"
+        label="Карта"
       />
       <q-btn
         outline
         no-caps
         dense
         class="portfolio-action"
-        label="Excel"
+        label="XLS"
         :disable="!count"
         :loading="busy === 'xlsx'"
         @click="exportAs('xlsx')"
@@ -146,7 +147,7 @@
         no-caps
         dense
         class="portfolio-action"
-        label="Word"
+        label="DOC"
         :disable="!count"
         :loading="busy === 'docx'"
         @click="exportAs('docx')"
@@ -166,7 +167,7 @@
         no-caps
         dense
         class="portfolio-action"
-        label="Распечатать"
+        label="Печать"
         :disable="!count"
         @click="handlePrint"
       />
@@ -175,7 +176,7 @@
         no-caps
         dense
         class="portfolio-action"
-        label="Отправить на почту"
+        label="Почта"
         :disable="!count"
         @click="handleEmail"
       />
@@ -184,7 +185,7 @@
         no-caps
         dense
         class="portfolio-action"
-        label="Переправить в чат"
+        label="Чат"
         :disable="!count"
         @click="handleChat"
       />
@@ -193,15 +194,11 @@
         no-caps
         dense
         class="portfolio-action"
-        label="Сохранить в личном кабинете"
+        label="Сохранить"
         :disable="!count"
         :loading="saving"
         @click="handleSave"
       />
-    </div>
-
-    <!-- «Очистить» — отдельной строкой ниже, с небольшим отступом -->
-    <div class="portfolio-actions portfolio-actions--danger">
       <q-btn
         flat
         no-caps
@@ -247,6 +244,7 @@ import {
   usePhotoViewer
 } from '../../composables/usePhotoViewer'
 import { MONTHS } from '../../utils/constructionGroups'
+import { getAvailabilityState } from '../../utils/availability'
 
 /*
  * Панель портфеля.
@@ -271,6 +269,7 @@ const {
   title,
   count,
   totalPrice,
+  toggleItemMonth,
   removeSurface,
   clear,
   setTitle,
@@ -381,14 +380,21 @@ function itemFullPhoto(item) {
   return (item && (item.photo_large || item.photo)) || ''
 }
 
+/* Карта-схема: крупный вариант, иначе card, иначе миниатюра. */
+function itemFullMap(item) {
+  return (item && (item.map_large || item.map_card || item.map_thumb)) || ''
+}
+
 /*
- * Открыть фото позиции в общем окне. Название и имя файла —
- * «город, адрес · Сторона X» (как на карточке списка).
+ * Открыть позицию в общем окне: сначала фото, затем карта-схема
+ * (переключение стрелками/точками). Название — «город, адрес ·
+ * Сторона X»; у карты к имени файла добавляется «· карта».
  */
 function openItemPhoto(item) {
-  const url = itemFullPhoto(item)
+  const photoUrl = itemFullPhoto(item)
+  const mapUrl = itemFullMap(item)
 
-  if (!url) {
+  if (!photoUrl && !mapUrl) {
     return
   }
 
@@ -398,11 +404,25 @@ function openItemPhoto(item) {
     side: item.side
   })
 
-  openPhoto({
-    url,
-    title: label,
-    filename: sanitizeFileName(label, url)
-  })
+  const images = []
+
+  if (photoUrl) {
+    images.push({
+      url: photoUrl,
+      label: 'Фото',
+      filename: sanitizeFileName(label, photoUrl)
+    })
+  }
+
+  if (mapUrl) {
+    images.push({
+      url: mapUrl,
+      label: 'Карта',
+      filename: sanitizeFileName(`${label} · карта`, mapUrl)
+    })
+  }
+
+  openPhoto({ images, title: label })
 }
 
 /* Подпись позиции: «город, адрес». */
@@ -419,23 +439,44 @@ function addressLabel(item) {
  */
 function monthChips(item) {
   const months = (item && item.months) || {}
+  const prices = (item && item.prices) || {}
   const known = new Set(MONTHS.map(month => month.full))
 
   const chips = MONTHS.map(({ full, short }) => {
     const value = months[full]
     const selected = Boolean(value)
+    const price = selected ? toNumber(value.price) : toNumber(prices[full])
+
+    /* Тот же разбор статуса, что и на карточках: свободно/резерв/занято. */
+    const state = getAvailabilityState({ statuses: item?.statuses }, full)
+    const free = state === 'free'
+
+    /* Добавить можно только свободный месяц с известной ценой. */
+    const canPick = selected || (price !== null && free)
+
+    let title
+
+    if (selected) {
+      title = value.stale
+        ? `${full}: статус изменился — нажмите, чтобы убрать`
+        : `${full}: выбран${price !== null ? ` · ${formatPrice(price)} ₽` : ''} — нажмите, чтобы убрать`
+    } else if (!free) {
+      title = `${full}: ${state === 'reserve' ? 'в резерве' : 'занято'} — выбрать нельзя`
+    } else if (price === null) {
+      title = `${full}: цена неизвестна`
+    } else {
+      title = `${full}: ${formatPrice(price)} ₽ — нажмите, чтобы добавить`
+    }
 
     return {
       full,
       short,
       selected,
+      canPick,
+      free,
       price: selected ? toNumber(value.price) : null,
       stale: selected && Boolean(value.stale),
-      title: selected
-        ? value.stale
-          ? `${full}: статус изменился`
-          : `${full}: выбран`
-        : `${full}: не выбран`
+      title
     }
   })
 
@@ -448,13 +489,23 @@ function monthChips(item) {
       full,
       short: full.slice(0, 3).toUpperCase(),
       selected: true,
+      canPick: true,
       price: toNumber(value.price),
       stale: Boolean(value.stale),
-      title: `${full}: выбран`
+      title: `${full}: выбран — нажмите, чтобы убрать`
     })
   })
 
   return chips
+}
+
+/* Клик по месяцу в панели: добавить или убрать прямо здесь. */
+function onMonthClick(item, month) {
+  if (!month || !month.canPick) {
+    return
+  }
+
+  toggleItemMonth(item.surfaceId, month.full)
 }
 
 // ---------------------------------------------------------------- тосты
@@ -480,8 +531,11 @@ function notify(text, type = 'ok') {
 const busy = ref('')
 const saving = ref(false)
 
-/* Галочка «Добавлять фото» — влияет только на выгрузку и печать. */
+/* Галочка «Фото» — влияет только на выгрузку и печать. */
 const withPhotos = ref(false)
+
+/* Галочка «Карта» — отдельная колонка карт, панель не меняет. */
+const withMaps = ref(false)
 
 function removeItem(item) {
   removeSurface(item.surfaceId)
@@ -498,6 +552,7 @@ async function exportAs(format) {
   try {
     await downloadPortfolio(format, items.value, {
       withPhotos: withPhotos.value,
+      withMaps: withMaps.value,
       title: title.value,
       requisites: currentRequisites()
     })
@@ -520,6 +575,7 @@ function handlePrint() {
 
   printPortfolio(items.value, {
     withPhotos: withPhotos.value,
+    withMaps: withMaps.value,
     title: title.value,
     requisites: currentRequisites()
   })
@@ -533,6 +589,7 @@ function handleEmail() {
   }
 
   emailPortfolio(items.value, {
+    withMaps: withMaps.value,
     title: title.value,
     requisites: currentRequisites()
   })
@@ -546,6 +603,7 @@ async function handleChat() {
   }
 
   const text = portfolioText(items.value, {
+    withMaps: withMaps.value,
     title: title.value,
     requisites: currentRequisites()
   })
@@ -752,9 +810,9 @@ function handleClear() {
   background: #fafbfc;
 }
 
-/* Появилась колонка под превью — только если фото у позиции есть. */
+/* Колонка под превью — справа от текста, только если фото есть. */
 .portfolio-row.has-photo {
-  grid-template-columns: 26px 96px 1fr auto;
+  grid-template-columns: 26px 1fr 96px auto;
 }
 
 /* Маленькое превью позиции. */
@@ -834,6 +892,7 @@ function handleClear() {
   margin-top: 8px;
 }
 
+/* Месяц — кнопка: клик добавляет или убирает его. */
 .portfolio-month {
   display: inline-flex;
   align-items: center;
@@ -842,17 +901,37 @@ function handleClear() {
 
   padding: 3px 6px;
 
+  border: 0;
   border-radius: 6px;
 
   background: #eef1f3;
   color: #8b98a3;
 
+  font-family: inherit;
   font-size: 9px;
   font-weight: 900;
 
   letter-spacing: 0.04em;
 
   white-space: nowrap;
+
+  cursor: pointer;
+  transition: .15s ease;
+}
+
+.portfolio-month:hover:not(.is-disabled) {
+  background: #e2e8ec;
+  color: #52606a;
+}
+
+.portfolio-month.is-selected:hover {
+  filter: brightness(.94);
+}
+
+/* Цена месяца неизвестна — добавлять нельзя. */
+.portfolio-month.is-disabled {
+  opacity: .55;
+  cursor: not-allowed;
 }
 
 .portfolio-month.is-selected {
@@ -884,26 +963,6 @@ function handleClear() {
   font-weight: 900;
 
   white-space: nowrap;
-}
-
-.portfolio-photo-link {
-  padding: 0;
-
-  border: none;
-  background: none;
-
-  color: var(--albion-accent);
-
-  font-size: 11px;
-  font-weight: 800;
-
-  text-decoration: none;
-
-  cursor: pointer;
-}
-
-.portfolio-photo-link:hover {
-  text-decoration: underline;
 }
 
 .portfolio-remove {
@@ -958,11 +1017,6 @@ function handleClear() {
   gap: 6px;
 }
 
-/* Отдельная строка действий (сейчас — «Очистить»). */
-.portfolio-actions--danger {
-  margin-top: 10px;
-}
-
 .portfolio-action {
   border-radius: 8px;
 
@@ -976,7 +1030,7 @@ function handleClear() {
   color: #c62828;
 }
 
-/* Галочка «Добавлять фото» — по размеру кнопок действий. */
+/* Галочка «Фото» — по размеру кнопок действий. */
 .portfolio-photos-toggle {
   align-self: center;
 
