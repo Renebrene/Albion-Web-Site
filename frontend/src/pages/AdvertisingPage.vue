@@ -20,20 +20,20 @@
         v-else
         class="workspace-point-panel"
         :active="true"
-        city=""
-        district=""
+        v-model:selected-months="selectedMonths"
+        v-model:month-logic="monthLogic"
+        v-model:selected-types="selectedTypes"
+        :months="months"
+        :types="types"
         :count="pointFilteredConstructions.length"
-        :radius="pointRadius"
-        :available-formats="[]"
-        :selected-formats="[]"
+        :results="pointFilteredConstructions"
         :coordinates="pointCoordinates"
         :address="pointAddress"
-        point-label="Центр поиска"
-        @update:radius="pointRadius = $event"
         @update:coordinates="pointCoordinates = $event"
         @update:address="pointAddress = $event"
         @search="executePointSearch"
         @search-address="executeAddressSearch"
+        @open-list="openListFromPoint"
       />
 
       <main class="workspace">
@@ -67,7 +67,7 @@
           <MapSearch
             v-if="workspaceMode !== 'point'"
             v-model="searchQuery"
-            :count="filteredConstructions.length"
+            :count="displayedConstructions.length"
             @search="onMapSearch"
           />
         </div>
@@ -80,7 +80,7 @@
         >
           <MapView
             ref="mapViewRef"
-            :constructions="filteredConstructions"
+            :constructions="displayedConstructions"
             :all-constructions="constructions"
             :selected-months="selectedMonths"
           />
@@ -174,6 +174,34 @@
               ИЗМЕНИТЬ ТОЧКУ
             </button>
           </div>
+
+          <!-- Плавающий слайдер радиуса — под плашкой точки -->
+          <div class="point-radius-float">
+            <div class="point-radius-head">
+              <span>РАДИУС ПОИСКА</span>
+              <strong>{{ formatRadius(pointRadius) }}</strong>
+            </div>
+
+            <input
+              class="point-radius-range"
+              type="range"
+              :min="0"
+              :max="RADIUS_STEPS.length - 1"
+              step="1"
+              :value="pointRadiusIndex"
+              @input="onPointRadiusInput"
+            >
+
+            <div class="point-radius-marks">
+              <span
+                v-for="(value, index) in RADIUS_STEPS"
+                :key="value"
+                :class="{ active: index === pointRadiusIndex }"
+              >
+                {{ formatRadius(value) }}
+              </span>
+            </div>
+          </div>
         </div>
 
         <!-- СПИСОК -->
@@ -189,7 +217,7 @@
               </div>
 
               <h1>
-                {{ filteredConstructions.length }}
+                {{ displayedConstructions.length }}
                 конструкций
               </h1>
             </div>
@@ -539,6 +567,35 @@ const pointCoordinates = ref('47.2357, 39.7015')
 const pointAddress = ref('')
 const pointRadius = ref(3000)
 
+/* Шаги радиуса поиска (метры). */
+const RADIUS_STEPS = [50, 100, 200, 300, 500, 800, 1000, 1500, 2000, 3000]
+
+/* Ближайший шаг к текущему радиусу. */
+const pointRadiusIndex = computed(() => {
+  const value = Number(pointRadius.value) || 0
+
+  let best = 0
+
+  for (let index = 0; index < RADIUS_STEPS.length; index += 1) {
+    if (
+      Math.abs(RADIUS_STEPS[index] - value) <
+      Math.abs(RADIUS_STEPS[best] - value)
+    ) {
+      best = index
+    }
+  }
+
+  return best
+})
+
+function onPointRadiusInput(event) {
+  pointRadius.value = RADIUS_STEPS[Number(event.target.value)]
+}
+
+function formatRadius(value) {
+  return value < 1000 ? `${value} м` : `${value / 1000} км`
+}
+
 // Точка, подтверждённая пользователем.
 // После фиксации не зависит от перемещения или масштаба карты.
 const fixedSearchPoint = ref(null)
@@ -765,6 +822,21 @@ const pointFilteredConstructions = computed(() => {
   })
 })
 
+/*
+ * Результаты для закладок «Список» и «Интерактивная карта»:
+ * если точка зафиксирована — показываем результаты поиска по точке.
+ */
+const displayedConstructions = computed(() =>
+  pointSelectionState.value === 'fixed'
+    ? pointFilteredConstructions.value
+    : filteredConstructions.value
+)
+
+/* Из панели точки: открыть закладку «Список» с найденными результатами. */
+function openListFromPoint() {
+  workspaceMode.value = 'list'
+}
+
 
 function executePointSearch() {
   const parts = String(pointCoordinates.value || '')
@@ -842,7 +914,7 @@ const {
 const listPoints = computed(() => {
   const cards = []
 
-  for (const point of groupByPoint(filteredConstructions.value)) {
+  for (const point of groupByPoint(displayedConstructions.value)) {
     const deduped = dedupeSides(point.items)
 
     const first = point.items[0] || {}
@@ -1795,7 +1867,7 @@ onMounted(async () => {
 .point-confirmation {
   position: absolute;
   left: 50%;
-  bottom: 28px;
+  bottom: 96px;
   transform: translateX(-50%);
   z-index: 950;
 
@@ -1841,8 +1913,12 @@ onMounted(async () => {
 
 .point-confirm-button {
   border: 0;
-  background: #17212b;
+  background: #e12a1f;
   color: #fff;
+}
+
+.point-confirm-button:hover {
+  background: #c92219;
 }
 
 .point-change-button {
@@ -1854,7 +1930,7 @@ onMounted(async () => {
 .point-fixed-badge {
   position: absolute;
   left: 50%;
-  bottom: 28px;
+  bottom: 96px;
   transform: translateX(-50%);
   z-index: 950;
 
@@ -1885,6 +1961,67 @@ onMounted(async () => {
   cursor: pointer;
   font-size: 10px;
   font-weight: 700;
+}
+
+/* Плавающий слайдер радиуса (под плашкой точки) */
+.point-radius-float {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 949;
+
+  width: min(460px, calc(100% - 40px));
+
+  padding: 10px 14px 8px;
+
+  background: rgba(255, 255, 255, .97);
+  border: 1px solid #dfe4e7;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(23, 33, 43, .16);
+}
+
+.point-radius-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  margin-bottom: 4px;
+
+  color: #68757e;
+
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
+
+.point-radius-head strong {
+  color: #e12a1f;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.point-radius-range {
+  width: 100%;
+  accent-color: #e12a1f;
+  cursor: pointer;
+}
+
+.point-radius-marks {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.point-radius-marks span {
+  color: #b3bcc2;
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.point-radius-marks span.active {
+  color: #17212b;
 }
 
 .point-map-crosshair::before,

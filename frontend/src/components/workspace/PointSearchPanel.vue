@@ -12,144 +12,115 @@
             ПОИСК ПО ТОЧКЕ И АДРЕСУ
           </div>
 
-          <h3>Поиск рядом</h3>
+          <h3>Поиск по точке и адресу</h3>
         </div>
       </div>
     </div>
 
-    <!-- КООРДИНАТЫ -->
-    <div class="panel-section first-section">
-      <label
-        class="section-label"
-        for="point-coordinates"
-      >
-        Координаты
-      </label>
+    <!-- СВОБОДНЫЕ МЕСЯЦЫ -->
+    <section class="panel-section first-section">
+      <div class="section-title-row">
+        <div class="section-label">
+          Свободные месяцы
+        </div>
 
-      <div class="input-row">
-        <input
-          id="point-coordinates"
-          :value="coordinates"
-          type="text"
-          class="search-input"
-          placeholder="47.2315, 39.7233"
-          autocomplete="off"
-          @input="$emit('update:coordinates', $event.target.value)"
-          @keyup.enter="$emit('search')"
-        />
+        <div class="logic-switch">
+          <button
+            type="button"
+            :class="{ active: monthLogic === 'AND' }"
+            @click="$emit('update:monthLogic', 'AND')"
+          >
+            И
+          </button>
 
+          <button
+            type="button"
+            :class="{ active: monthLogic === 'OR' }"
+            @click="$emit('update:monthLogic', 'OR')"
+          >
+            ИЛИ
+          </button>
+        </div>
+      </div>
+
+      <div class="chips">
         <button
+          v-for="month in months"
+          :key="month.value"
           type="button"
-          class="input-action"
-          title="Найти по координатам"
-          @click="$emit('search')"
+          class="chip"
+          :class="{ active: selectedMonths.includes(month.value) }"
+          @click="toggleMonth(month.value)"
         >
-          →
+          {{ month.label }}
         </button>
       </div>
+    </section>
 
-      <div class="input-hint">
-        Введите широту и долготу через запятую
-      </div>
-    </div>
-
-    <!-- АДРЕС -->
-    <div class="panel-section">
-      <label
-        class="section-label"
-        for="point-address"
-      >
-        Адрес
-      </label>
-
-      <div class="input-row">
-        <input
-          id="point-address"
-          :value="address"
-          type="text"
-          class="search-input"
-          placeholder="Введите адрес"
-          autocomplete="off"
-          @input="$emit('update:address', $event.target.value)"
-          @keyup.enter="$emit('search-address')"
-        />
-
-        <button
-          type="button"
-          class="input-action"
-          title="Найти адрес"
-          @click="$emit('search-address')"
-        >
-          →
-        </button>
-      </div>
-
-      <div class="input-hint">
-        Поиск по адресу будет подключён к геокодеру
-      </div>
-    </div>
-
-    <!-- РАДИУС -->
-    <div class="panel-section">
+    <!-- ФОРМАТ -->
+    <section class="panel-section">
       <div class="section-label">
-        Радиус поиска
+        Формат
       </div>
 
-      <div class="radius-list">
+      <div class="chips">
         <button
-          v-for="value in radiusOptions"
-          :key="value"
+          v-for="type in types"
+          :key="type"
           type="button"
-          class="radius-button"
-          :class="{ active: radius === value }"
-          @click="$emit('update:radius', value)"
+          class="chip"
+          :class="{ active: selectedTypes.includes(type) }"
+          @click="toggleType(type)"
         >
-          {{ formatRadius(value) }}
+          {{ type }}
         </button>
       </div>
-    </div>
+    </section>
 
-    <!-- КНОПКА -->
-    <button
-      type="button"
-      class="search-button"
-      @click="$emit('search')"
-    >
-      <span class="search-button-icon">⌖</span>
-      <span>НАЙТИ В РАДИУСЕ</span>
-    </button>
+    <!-- ПОИСК (координаты / адрес) -->
+    <section class="panel-section">
+      <div class="search-card">
+        <input
+          :value="searchValue"
+          type="search"
+          :placeholder="searchPlaceholder"
+          autocomplete="off"
+          @input="onInput"
+          @keydown.enter="onSearch"
+        >
 
-    <!-- ВЫБРАННАЯ ТОЧКА -->
-    <div
-      v-if="city || district || pointLabel"
-      class="point-location"
-    >
-      <div class="location-marker">📍</div>
+        <div class="search-mode">
+          <button
+            type="button"
+            :class="{ active: searchMode === 'coords' }"
+            @click="setMode('coords')"
+          >
+            Координаты
+          </button>
 
-      <div class="location-content">
-        <div class="location-label">
-          Найденная точка
+          <button
+            type="button"
+            :class="{ active: searchMode === 'address' }"
+            @click="setMode('address')"
+          >
+            Адрес
+          </button>
         </div>
 
-        <strong>
-          {{ city || 'Точка на карте' }}
-        </strong>
-
-        <span
-          v-if="district"
-          class="location-district"
+        <button
+          type="button"
+          class="search-icon"
+          title="Найти"
+          @click="onSearch"
         >
-          {{ district }}
-        </span>
-
-        <span
-          v-if="pointLabel"
-          class="location-point"
-        >
-          {{ pointLabel }}
-        </span>
+          ⌕
+        </button>
       </div>
-    </div>
+
+      <div class="input-hint">
+        {{ searchHint }}
+      </div>
+    </section>
 
     <!-- РЕЗУЛЬТАТ -->
     <div class="result-count">
@@ -162,67 +133,55 @@
       </div>
 
       <div class="count-caption">
-        найдено в выбранном радиусе
+        найдено в выбранном районе
       </div>
+
+      <button
+        type="button"
+        class="open-list-button"
+        @click="$emit('open-list')"
+      >
+        ОТКРЫТЬ СПИСОК
+      </button>
     </div>
 
-    <!-- ФОРМАТЫ -->
-    <div class="panel-section formats-section">
-      <div class="section-heading">
-        <div class="section-label">
-          Доступные форматы
+    <!-- СПИСОК НАЙДЕННОГО (по форматам) -->
+    <div
+      v-if="groupedResults.length"
+      class="found-list"
+    >
+      <div
+        v-for="group in groupedResults"
+        :key="group.type"
+        class="found-group"
+      >
+        <div class="found-type">
+          {{ group.type }}
         </div>
 
-        <span class="formats-count">
-          {{ availableFormats.length }}
-        </span>
-      </div>
-
-      <div
-        v-if="availableFormats.length"
-        class="formats-list"
-      >
-        <button
-          v-for="format in availableFormats"
-          :key="format.value"
-          type="button"
-          class="format-item"
-          :class="{
-            active: selectedFormats.includes(format.value)
-          }"
-          @click="toggleFormat(format.value)"
-        >
-          <span class="format-name">
-            {{ format.label }}
-          </span>
-
-          <strong class="format-count">
-            {{ format.count }}
-          </strong>
-        </button>
-      </div>
-
-      <div
-        v-else
-        class="formats-empty"
-      >
-        В выбранном радиусе
-        нет доступных форматов.
+        <div class="found-addresses">
+          <div
+            v-for="(address, index) in group.addresses"
+            :key="index"
+            class="found-address"
+          >
+            — {{ address }}
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="point-status">
-      <span class="status-dot"></span>
-
-      <span>
-        {{ pointLabel || 'Укажите точку или адрес для поиска' }}
-      </span>
+    <div
+      v-else
+      class="found-empty"
+    >
+      Ничего не найдено
     </div>
   </aside>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   active: {
@@ -230,14 +189,29 @@ const props = defineProps({
     default: false
   },
 
-  city: {
-    type: String,
-    default: ''
+  months: {
+    type: Array,
+    default: () => []
   },
 
-  district: {
+  selectedMonths: {
+    type: Array,
+    default: () => []
+  },
+
+  monthLogic: {
     type: String,
-    default: ''
+    default: 'OR'
+  },
+
+  types: {
+    type: Array,
+    default: () => []
+  },
+
+  selectedTypes: {
+    type: Array,
+    default: () => []
   },
 
   count: {
@@ -245,35 +219,9 @@ const props = defineProps({
     default: 0
   },
 
-  radius: {
-    type: Number,
-    default: 3000
-  },
-
-  radiusOptions: {
-    type: Array,
-    default: () => [
-      500,
-      1000,
-      3000,
-      5000,
-      10000
-    ]
-  },
-
-  availableFormats: {
+  results: {
     type: Array,
     default: () => []
-  },
-
-  selectedFormats: {
-    type: Array,
-    default: () => []
-  },
-
-  pointLabel: {
-    type: String,
-    default: ''
   },
 
   coordinates: {
@@ -288,13 +236,50 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'update:radius',
-  'update:selectedFormats',
+  'update:selectedMonths',
+  'update:monthLogic',
+  'update:selectedTypes',
   'update:coordinates',
   'update:address',
   'search',
-  'search-address'
+  'search-address',
+  'open-list'
 ])
+
+/* Переключатель режима поиска на краю поля. */
+const searchMode = ref('coords')
+
+const searchValue = computed(() =>
+  searchMode.value === 'coords' ? props.coordinates : props.address
+)
+
+const searchPlaceholder = computed(() =>
+  searchMode.value === 'coords' ? '47.2315, 39.7233' : 'Введите адрес'
+)
+
+const searchHint = computed(() =>
+  searchMode.value === 'coords'
+    ? 'Широта и долгота через запятую'
+    : 'Поиск по адресу подключим позже (по геокодеру)'
+)
+
+function setMode(mode) {
+  searchMode.value = mode
+}
+
+function onInput(event) {
+  const value = event.target.value
+
+  if (searchMode.value === 'coords') {
+    emit('update:coordinates', value)
+  } else {
+    emit('update:address', value)
+  }
+}
+
+function onSearch() {
+  emit(searchMode.value === 'coords' ? 'search' : 'search-address')
+}
 
 const constructionLabel = computed(() => {
   const value = Number(props.count) || 0
@@ -317,16 +302,31 @@ const constructionLabel = computed(() => {
   return 'конструкций'
 })
 
-function formatRadius(value) {
-  if (value < 1000) {
-    return `${value} м`
+/* Группируем найденное по формату: «ЩИТ — Адрес1, Адрес2…». */
+const groupedResults = computed(() => {
+  const groups = []
+
+  for (const item of props.results) {
+    const type = String(item?.type || 'Конструкция').trim()
+    const address = String(item?.address || item?.name || '').trim()
+
+    let group = groups.find(existing => existing.type === type)
+
+    if (!group) {
+      group = { type, addresses: [] }
+      groups.push(group)
+    }
+
+    if (address && !group.addresses.includes(address)) {
+      group.addresses.push(address)
+    }
   }
 
-  return `${value / 1000} км`
-}
+  return groups
+})
 
-function toggleFormat(value) {
-  const values = [...props.selectedFormats]
+function toggleMonth(value) {
+  const values = [...props.selectedMonths]
   const index = values.indexOf(value)
 
   if (index === -1) {
@@ -335,7 +335,25 @@ function toggleFormat(value) {
     values.splice(index, 1)
   }
 
-  emit('update:selectedFormats', values)
+  emit('update:selectedMonths', values)
+}
+
+function toggleType(value) {
+  const values = [...props.selectedTypes]
+  const index = values.indexOf(value)
+
+  if (index === -1) {
+    values.push(value)
+  } else {
+    // Нельзя снять последний выбранный формат.
+    if (values.length === 1) {
+      return
+    }
+
+    values.splice(index, 1)
+  }
+
+  emit('update:selectedTypes', values)
 }
 </script>
 
@@ -351,7 +369,6 @@ function toggleFormat(value) {
   border-right: 1px solid #e5e9eb;
 
   padding: 28px 20px 30px;
-
   color: #17212b;
 }
 
@@ -368,7 +385,6 @@ function toggleFormat(value) {
 .panel-title {
   display: flex;
   align-items: center;
-
   gap: 12px;
 }
 
@@ -421,75 +437,186 @@ function toggleFormat(value) {
 
   margin-bottom: 8px;
 
-  color: #17212b;
+  color: #68757e;
 
-  font-size: 11px;
+  font-size: 9px;
   font-weight: 900;
 
-  letter-spacing: 0.8px;
+  letter-spacing: 1px;
 
   text-transform: uppercase;
 }
 
-.input-row {
+.section-title-row {
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 9px;
+}
 
+.section-title-row .section-label {
+  margin-bottom: 0;
+}
+
+.logic-switch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 7px;
+  background: #f1f3f4;
+}
+
+.logic-switch button {
+  min-width: 27px;
+  height: 22px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: #7b878f;
+  cursor: pointer;
+  font-size: 8px;
+  font-weight: 900;
+}
+
+.logic-switch button.active {
+  background: #fff;
+  color: #17212b;
+  box-shadow: 0 1px 4px rgba(20, 30, 40, .10);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
 }
 
-.search-input {
+.chip {
+  padding: 7px 9px;
+  border: 1px solid #e1e6e9;
+  border-radius: 8px;
+  background: #fff;
+  color: #52606a;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  transition: .12s ease;
+}
+
+.chip:hover {
+  border-color: #d1d8dc;
+}
+
+.chip.active {
+  border-color: #e12a1f;
+  background: #e12a1f;
+  color: #fff;
+}
+
+/* Поисковая строка — как на закладке «Интерактивная карта» */
+.search-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  height: 44px;
+  padding: 0 8px 0 10px;
+
+  border: 1px solid #dce2e6;
+  border-radius: 12px;
+
+  background: #fff;
+
+  transition: 0.2s ease;
+}
+
+.search-card:focus-within {
+  border-color: #17212b;
+  box-shadow: 0 0 0 3px rgba(23, 33, 43, 0.07);
+}
+
+.search-card input {
   min-width: 0;
   flex: 1;
 
-  height: 42px;
+  border: 0;
+  outline: 0;
 
-  padding: 0 12px;
+  background: transparent;
 
-  border: 1px solid #dce2e6;
-  border-radius: 10px;
-
-  outline: none;
-
-  background: white;
   color: #17212b;
 
   font-size: 13px;
-
-  transition: 0.2s ease;
 }
 
-.search-input::placeholder {
-  color: #a1adb5;
+.search-card input::placeholder {
+  color: #9aa5ac;
 }
 
-.search-input:focus {
-  border-color: #17212b;
+/* Переключатель координаты/адрес — на краю поля */
+.search-mode {
+  flex: 0 0 auto;
 
-  box-shadow:
-    0 0 0 3px rgba(23, 33, 43, 0.07);
+  display: flex;
+  gap: 2px;
+
+  padding: 2px;
+
+  border-radius: 7px;
+  background: #f1f3f4;
 }
 
-.input-action {
-  width: 42px;
-  min-width: 42px;
+.search-mode button {
+  height: 24px;
+  padding: 0 7px;
 
   border: 0;
-  border-radius: 10px;
+  border-radius: 5px;
 
-  background: #17212b;
-  color: white;
+  background: transparent;
+  color: #7b878f;
 
   cursor: pointer;
 
-  font-size: 20px;
-  font-weight: 700;
+  font-size: 9px;
+  font-weight: 800;
 
-  transition: 0.2s ease;
+  white-space: nowrap;
 }
 
-.input-action:hover {
-  background: #e12a1f;
+.search-mode button.active {
+  background: #fff;
+  color: #17212b;
+  box-shadow: 0 1px 4px rgba(20, 30, 40, .12);
+}
+
+/* Иконка поиска — справа */
+.search-icon {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: transparent;
+
+  color: #71808c;
+
+  font-size: 22px;
+
+  cursor: pointer;
+
+  transition: background .18s ease;
+}
+
+.search-icon:hover {
+  background: #f0f3f4;
 }
 
 .input-hint {
@@ -501,154 +628,8 @@ function toggleFormat(value) {
   line-height: 1.4;
 }
 
-.radius-list {
-  display: flex;
-  flex-wrap: wrap;
-
-  gap: 7px;
-}
-
-.radius-button {
-  padding: 8px 11px;
-
-  border: 1px solid #dce2e6;
-  border-radius: 9px;
-
-  background: white;
-  color: #60707c;
-
-  cursor: pointer;
-
-  font-size: 11px;
-  font-weight: 800;
-
-  transition: 0.2s ease;
-}
-
-.radius-button:hover {
-  border-color: #17212b;
-  color: #17212b;
-}
-
-.radius-button.active {
-  border-color: #17212b;
-
-  background: #17212b;
-  color: white;
-}
-
-.search-button {
-  width: 100%;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  gap: 9px;
-
-  margin-top: 22px;
-
-  min-height: 46px;
-
-  border: 0;
-  border-radius: 12px;
-
-  background: #e12a1f;
-  color: white;
-
-  cursor: pointer;
-
-  font-size: 11px;
-  font-weight: 900;
-
-  letter-spacing: 0.8px;
-
-  box-shadow:
-    0 8px 22px rgba(225, 42, 31, 0.22);
-
-  transition: 0.2s ease;
-}
-
-.search-button:hover {
-  background: #c92219;
-
-  transform: translateY(-1px);
-}
-
-.search-button-icon {
-  font-size: 18px;
-}
-
-.point-location {
-  display: flex;
-  align-items: flex-start;
-
-  gap: 12px;
-
-  margin-top: 20px;
-  padding-top: 18px;
-
-  border-top: 1px solid #e5e9ec;
-}
-
-.location-marker {
-  width: 34px;
-  height: 34px;
-
-  display: grid;
-  place-items: center;
-
-  border-radius: 10px;
-
-  background: #fff1ef;
-
-  font-size: 16px;
-}
-
-.location-content {
-  min-width: 0;
-
-  display: flex;
-  flex-direction: column;
-}
-
-.location-label {
-  margin-bottom: 4px;
-
-  color: #8b98a1;
-
-  font-size: 10px;
-  font-weight: 800;
-
-  letter-spacing: 0.8px;
-  text-transform: uppercase;
-}
-
-.location-content strong {
-  color: #17212b;
-
-  font-size: 15px;
-  line-height: 1.2;
-}
-
-.location-district {
-  margin-top: 4px;
-
-  color: #71808c;
-
-  font-size: 12px;
-}
-
-.location-point {
-  margin-top: 5px;
-
-  color: #8b98a1;
-
-  font-size: 10px;
-}
-
 .result-count {
-  margin-top: 18px;
+  margin-top: 20px;
 
   padding: 18px;
 
@@ -656,12 +637,7 @@ function toggleFormat(value) {
 
   border-radius: 16px;
 
-  background:
-    linear-gradient(
-      135deg,
-      #17212b,
-      #293844
-    );
+  background: linear-gradient(135deg, #17212b, #293844);
 
   color: white;
 }
@@ -669,107 +645,84 @@ function toggleFormat(value) {
 .count-value {
   font-size: 40px;
   font-weight: 900;
-
   line-height: 1;
 }
 
 .count-text {
   margin-top: 6px;
-
   font-size: 15px;
   font-weight: 700;
 }
 
 .count-caption {
   margin-top: 4px;
-
   color: rgba(255, 255, 255, 0.55);
-
   font-size: 10px;
 }
 
-.section-heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.formats-count {
-  min-width: 22px;
-  height: 22px;
-
-  display: grid;
-  place-items: center;
-
-  border-radius: 50%;
-
-  background: #f0f3f5;
-  color: #71808c;
-
-  font-size: 10px;
-  font-weight: 800;
-}
-
-.formats-list {
-  display: flex;
-  flex-direction: column;
-
-  gap: 6px;
-
-  margin-top: 10px;
-}
-
-.format-item {
+.open-list-button {
   width: 100%;
 
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+  margin-top: 14px;
 
-  padding: 10px 12px;
+  min-height: 40px;
 
-  border: 1px solid #e2e7ea;
-  border-radius: 11px;
+  border: 0;
+  border-radius: 10px;
 
-  background: white;
-  color: #17212b;
+  background: #e12a1f;
+  color: #fff;
 
   cursor: pointer;
 
-  text-align: left;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.8px;
 
-  transition: 0.2s ease;
+  transition: 0.15s ease;
 }
 
-.format-item:hover {
-  border-color: #17212b;
-
-  transform: translateX(-2px);
+.open-list-button:hover {
+  background: #c92219;
 }
 
-.format-item.active {
-  border-color: #e12a1f;
+.found-list {
+  margin-top: 16px;
 
-  background: #fff5f4;
+  max-height: 240px;
+  overflow-y: auto;
+
+  padding: 12px;
+
+  border: 1px solid #e5e9ec;
+  border-radius: 12px;
+
+  background: #fafbfc;
 }
 
-.format-name {
-  font-size: 12px;
-  font-weight: 700;
+.found-group + .found-group {
+  margin-top: 12px;
 }
 
-.format-count {
-  min-width: 24px;
+.found-type {
+  margin-bottom: 5px;
 
-  text-align: right;
+  color: #17212b;
 
-  color: #e12a1f;
-
-  font-size: 13px;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
 }
 
-.formats-empty {
-  margin-top: 10px;
+.found-address {
+  color: #52606a;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.found-empty {
+  margin-top: 16px;
 
   padding: 14px;
 
@@ -779,37 +732,7 @@ function toggleFormat(value) {
   color: #8b98a1;
 
   font-size: 11px;
-  line-height: 1.5;
-}
-
-.point-status {
-  display: flex;
-  align-items: center;
-
-  gap: 7px;
-
-  margin-top: 20px;
-  padding-top: 14px;
-
-  border-top: 1px solid #e5e9ec;
-
-  color: #71808c;
-
-  font-size: 10px;
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-
-  flex: 0 0 7px;
-
-  border-radius: 50%;
-
-  background: #e12a1f;
-
-  box-shadow:
-    0 0 0 4px rgba(225, 42, 31, 0.12);
+  text-align: center;
 }
 
 @media (max-width: 900px) {
