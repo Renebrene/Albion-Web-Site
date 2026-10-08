@@ -22,7 +22,7 @@
             id="media-file-input"
             type="file"
             multiple
-            accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,.mp4,.mov,.webm,.avi,.mkv,.m4v,.mpeg,.mpg,.pdf,.doc,.docx,.xls,.xlsx, image/*, video/*, application/pdf"
+            accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,.mp4,.mov,.webm,.avi,.mkv,.m4v,.mpeg,.mpg,.pdf,.doc,.docx,.odt,.rtf,.txt,.md,.xls,.xlsx,.ods,.csv,.ppt,.pptx,.odp, image/*, video/*, application/pdf"
             class="file-input-hidden"
             :disabled="uploading"
             @change="onNativeFilesPicked"
@@ -42,7 +42,7 @@
             Допустимые форматы — изображения:
             JPG, PNG, WEBP, HEIC/HEIF, TIFF, BMP, PSD, GIF ·
             видео: MP4, MOV, WebM, AVI, MKV, MPEG ·
-            документы: PDF, DOC, DOCX, XLS, XLSX
+            документы: PDF, DOC/DOCX, ODT, RTF, TXT, MD, XLS/XLSX, ODS, CSV, PPT/PPTX, ODP
           </div>
         </q-card-section>
       </q-card>
@@ -840,14 +840,28 @@ function storageUrl(path) {
   return `/storage/${path}`
 }
 
-const DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx'])
+const DOCUMENT_EXTENSIONS = new Set([
+  'pdf',
+  'doc', 'docx', 'odt', 'rtf', 'txt', 'md',
+  'xls', 'xlsx', 'ods', 'csv',
+  'ppt', 'pptx', 'odp'
+])
 
 const DOCUMENT_MIME_TYPES = new Set([
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.oasis.opendocument.text',
+  'application/rtf',
+  'text/plain',
+  'text/markdown',
   'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.oasis.opendocument.spreadsheet',
+  'text/csv',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.oasis.opendocument.presentation'
 ])
 
 function fileExtension(name) {

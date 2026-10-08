@@ -61,18 +61,37 @@ SUPPORTED_FORMATS = {
     "MPO",
 }
 
+# Документы сохраняются как есть, без конвертации.
 DOCUMENT_MIME_TYPES = {
     ".pdf": "application/pdf",
+
+    # Word / текст
     ".doc": "application/msword",
     ".docx": (
         "application/vnd.openxmlformats-officedocument"
         ".wordprocessingml.document"
     ),
+    ".odt": "application/vnd.oasis.opendocument.text",
+    ".rtf": "application/rtf",
+    ".txt": "text/plain",
+    ".md": "text/markdown",
+
+    # Таблицы
     ".xls": "application/vnd.ms-excel",
     ".xlsx": (
         "application/vnd.openxmlformats-officedocument"
         ".spreadsheetml.sheet"
     ),
+    ".ods": "application/vnd.oasis.opendocument.spreadsheet",
+    ".csv": "text/csv",
+
+    # Презентации
+    ".ppt": "application/vnd.ms-powerpoint",
+    ".pptx": (
+        "application/vnd.openxmlformats-officedocument"
+        ".presentationml.presentation"
+    ),
+    ".odp": "application/vnd.oasis.opendocument.presentation",
 }
 
 
