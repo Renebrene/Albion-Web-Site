@@ -4,33 +4,18 @@ import {
   getMonthStatusLabel,
   getMonthValue
 } from '../utils/availability'
-
-const MONTHS = [
-  { full: 'Август', short: 'АВГ' },
-  { full: 'Сентябрь', short: 'СЕН' },
-  { full: 'Октябрь', short: 'ОКТ' },
-  { full: 'Ноябрь', short: 'НОЯ' },
-  { full: 'Декабрь', short: 'ДЕК' }
-]
+import {
+  MONTHS,
+  sideLabel,
+  parentSide,
+  dedupeSides,
+  familyOf,
+  maxBlocksFor,
+  groupSides
+} from '../utils/constructionGroups'
 
 function monthState(item, month) {
   return getAvailabilityState(item, month)
-}
-
-/* Классификация сторон: динамические — буква с индексом A(1)/A2 */
-function sideLabel(item) {
-  return String(item?.side || '')
-    .toUpperCase()
-    .trim()
-}
-
-function isDynamicSide(side) {
-  return /\(\d+\)/.test(side) || /^[A-ZА-Я]+\d+$/.test(side)
-}
-
-function parentSide(side) {
-  const match = String(side || '').match(/^([A-ZА-Я]+)/)
-  return match ? match[1] : side
 }
 
 function monthCell(item, month) {
@@ -284,19 +269,12 @@ function videoBlock(item) {
 
 function renderGroup(group) {
   const first = group.items[0]
-  const type = String(first?.type || '')
-    .trim()
-    .toLowerCase()
 
-  if (type.includes('видеоэкран')) {
+  if (group.kind === 'video') {
     return videoBlock(first)
   }
 
-  const isDynamicGroup =
-    group.items.length > 1 ||
-    group.items.some(item => isDynamicSide(sideLabel(item)))
-
-  if (isDynamicGroup) {
+  if (group.kind === 'dynamic') {
     return dynamicBlock(group)
   }
 
@@ -370,53 +348,19 @@ export function popupContent(input) {
     `
   }
 
-  // Убираем дубликаты по полной стороне (порядок сохраняем).
-  const sides = []
-
-  for (const item of items) {
-    const side = sideLabel(item)
-
-    const exists = sides.some(existing => {
-      const existingSide = sideLabel(existing)
-
-      return side && existingSide && side === existingSide
-    })
-
-    if (!exists) {
-      sides.push(item)
-    }
-  }
+  // Убираем дубликаты по стороне В ПРЕДЕЛАХ формата (порядок сохраняем):
+  // одна и та же буква у разных форматов — это разные блоки.
+  const sides = dedupeSides(items)
 
   // Семейство определяет число блоков:
   // пиллар — до 3, пилон/скроллер — 2,
   // адреса с щитом/призматроном/видеоэкраном — 2 (или 1, если одна сторона).
-  const types = sides.map(item =>
-    String(item?.type || '').trim().toLowerCase()
-  )
+  const maxBlocks = maxBlocksFor(familyOf(sides))
 
-  const family = types.some(type => type.includes('пиллар'))
-    ? 'pillar'
-    : types.some(type => type.includes('пилон'))
-      ? 'pylon'
-      : types.some(type => type.includes('скроллер'))
-        ? 'scroller'
-        : 'address'
-
-  const maxBlocks = family === 'pillar' ? 3 : 2
-
-  // Группируем по родительской стороне (A(1) и A(2) → блок «A»).
-  const groups = []
-
-  for (const item of sides) {
-    const parent = parentSide(sideLabel(item))
-    const group = groups.find(existing => existing.parent === parent)
-
-    if (group) {
-      group.items.push(item)
-    } else {
-      groups.push({ parent, items: [item] })
-    }
-  }
+  // Группируем по ФОРМАТУ и родительской стороне:
+  // «Призматрон A(1)+A(2)+A(3)» → один блок, «Щит B» → отдельный.
+  // Так разные форматы на одном адресе не смешиваются и не теряются.
+  const groups = groupSides(sides)
 
   const visibleGroups = groups.slice(0, maxBlocks)
   const allSides = visibleGroups.flatMap(group => group.items)

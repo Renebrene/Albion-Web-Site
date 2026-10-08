@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sqlite3
 from collections import Counter
 from datetime import datetime
@@ -17,6 +18,24 @@ from .json_to_postgres import (
     temporary_identifier,
     MONTH_NUMBERS,
 )
+
+
+def address_key_of(value: Any) -> str:
+    """Ключ адреса без различий форматирования («/ », «п. »).
+
+    «20В / Добровольского 9А п. 1» и «20В/Добровольского 9А п.1»
+    должны давать один и тот же ключ.
+    """
+    text = normalize(value)
+    text = re.sub(r"\s*/\s*", "/", text)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\bп\.\s*", "п.", text)
+    return text.strip()
+
+
+def number_key_of(value: Any) -> str:
+    """Номер конструкции входит в ключ: разные номера — разные конструкции."""
+    return normalize(value)
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -223,7 +242,7 @@ def populate(
     months: list[str],
     source_rows: list[dict[str, Any]],
 ) -> Counter:
-    construction_map: dict[tuple[str, str], dict[str, str]] = {}
+    construction_map: dict[tuple[str, str, str], dict[str, str]] = {}
 
     for item in source_rows:
         city = clean(item.get("city"))
@@ -231,7 +250,8 @@ def populate(
 
         key = (
             normalize(city),
-            normalize(address),
+            address_key_of(address),
+            number_key_of(item.get("external_number")),
         )
 
         if key not in construction_map:
@@ -268,10 +288,10 @@ def populate(
 
         city_map[city_key] = cur.lastrowid
 
-    construction_db_map: dict[tuple[str, str], int] = {}
+    construction_db_map: dict[tuple[str, str, str], int] = {}
 
     for key, construction in construction_map.items():
-        city_key, address_key = key
+        city_key, address_key, _number_key = key
         city_id = city_map.get(city_key)
 
         if city_id is None:
@@ -311,7 +331,8 @@ def populate(
 
         construction_key = (
             normalize(city),
-            normalize(address),
+            address_key_of(address),
+            number_key_of(item.get("external_number")),
         )
 
         construction_id = construction_db_map.get(
@@ -504,7 +525,8 @@ def run() -> Path:
         expected_constructions = len({
             (
                 normalize(clean(item.get("city"))),
-                normalize(clean(item.get("address"))),
+                address_key_of(clean(item.get("address"))),
+                number_key_of(item.get("external_number")),
             )
             for item in source_rows
         })

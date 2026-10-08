@@ -196,148 +196,189 @@
           </div>
 
           <div
-            v-if="filteredConstructions.length"
+            v-if="listPoints.length"
             class="construction-list"
           >
 
             <article
-              v-for="(item, index) in filteredConstructions"
-              :key="`${item.number}-${item.side}-${item.address}-${index}`"
+              v-for="point in listPoints"
+              :key="point.key"
               class="construction-card"
             >
 
-              <div class="card-photo">
-
-                <img
-                  v-if="item.photo"
-                  :src="item.photo"
-                  :alt="item.address || item.name || 'Рекламная конструкция'"
-                  loading="lazy"
-                >
-
-                <div
-                  v-else
-                  class="no-photo"
-                >
-                  ALBION
-                </div>
-
-              </div>
-
               <div class="card-content">
 
-                <div class="card-topline">
-
-                  <div class="card-type">
-
-                    <strong>
-                      {{ item.type || 'Конструкция' }}
-                    </strong>
-
-                    <span
-                      v-if="item.size"
-                      class="card-size"
-                    >
-                      {{ item.size }}
-                    </span>
-
-                  </div>
-
-                  <div
-                    v-if="item.price || promoPriceOf(item)"
-                    class="card-price-inline"
-                  >
-                    <span
-                      v-if="item.price"
-                      class="price-value"
-                      :class="{ 'is-old': promoPriceOf(item) }"
-                    >
-                      {{ item.price }}
-                    </span>
-
-                    <span
-                      v-if="item.price"
-                      class="price-currency"
-                    >
-                      ₽
-                    </span>
-
-                    <span
-                      v-if="item.price"
-                      class="price-period"
-                    >
-                      / мес.
-                    </span>
-
-                    <div
-                      v-if="promoPriceOf(item)"
-                      class="card-promo-price"
-                    >
-                      <span class="promo-price-value">
-                        {{ promoPriceOf(item) }}
-                      </span>
-                      <span class="promo-price-currency">
-                        ₽
-                      </span>
-                      <span class="promo-price-note">
-                        акционная цена
-                      </span>
-                    </div>
-                  </div>
-
-                </div>
-
                 <div class="card-address-main">
-                  {{ item.address || item.name || 'Адрес не указан' }}
-                </div>
-
-                <div
-                  v-if="item.side"
-                  class="card-side-line"
-                >
-                  СТОРОНА <b>{{ item.side }}</b>
+                  {{ point.address }}
                 </div>
 
                 <div class="card-place">
-                  {{ item.city || '—' }}
+                  {{ point.city }}
                 </div>
 
-                <div class="card-months">
+                <div class="card-blocks">
 
                   <div
-                    v-for="month in [
-                      { full: 'Август', short: 'АВГ' },
-                      { full: 'Сентябрь', short: 'СЕН' },
-                      { full: 'Октябрь', short: 'ОКТ' },
-                      { full: 'Ноябрь', short: 'НОЯ' },
-                      { full: 'Декабрь', short: 'ДЕК' }
-                    ]"
-                    :key="month.full"
-                    class="card-month"
-                    :class="getCardMonthState(item, month.full)"
-                    :title="getMonthStatusLabel(item, month.full)"
+                    v-for="(block, blockIndex) in point.blocks"
+                    :key="`${block.type}-${block.parent}-${blockIndex}`"
+                    class="card-block"
+                    :class="`card-block--${block.kind}`"
                   >
-                    {{ month.short }}
+
+                    <div class="card-topline">
+
+                      <div class="card-type">
+
+                        <strong>
+                          {{ blockType(block) }}
+                        </strong>
+
+                        <span
+                          v-if="blockSize(block)"
+                          class="card-size"
+                        >
+                          {{ blockSize(block) }}
+                        </span>
+
+                      </div>
+
+                      <div
+                        v-if="hasPrice(blockPrimary(block))"
+                        class="card-price-inline"
+                      >
+                        <span
+                          v-if="blockPrimary(block).price"
+                          class="price-value"
+                          :class="{ 'is-old': promoPriceOf(blockPrimary(block)) }"
+                        >
+                          {{ blockPrimary(block).price }}
+                        </span>
+
+                        <span
+                          v-if="blockPrimary(block).price"
+                          class="price-currency"
+                        >
+                          ₽
+                        </span>
+
+                        <span
+                          v-if="blockPrimary(block).price"
+                          class="price-period"
+                        >
+                          / мес.
+                        </span>
+
+                        <div
+                          v-if="promoPriceOf(blockPrimary(block))"
+                          class="card-promo-price"
+                        >
+                          <span class="promo-price-value">
+                            {{ promoPriceOf(blockPrimary(block)) }}
+                          </span>
+                          <span class="promo-price-currency">
+                            ₽
+                          </span>
+                          <span class="promo-price-note">
+                            акционная цена
+                          </span>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    <div
+                      v-if="blockSide(block)"
+                      class="card-side-line"
+                    >
+                      СТОРОНА <b>{{ blockSide(block) }}</b>
+                    </div>
+
+                    <div class="card-photo card-photo--block">
+
+                      <img
+                        v-if="blockPrimary(block).photo"
+                        :src="blockPrimary(block).photo"
+                        :alt="point.address"
+                        loading="lazy"
+                      >
+
+                      <div
+                        v-else
+                        class="no-photo"
+                      >
+                        ALBION
+                      </div>
+
+                    </div>
+
+                    <!-- Динамика: строки A(1)/A(2)… с месяцами -->
+                    <div
+                      v-if="block.kind === 'dynamic'"
+                      class="card-dynamic-rows"
+                    >
+                      <div
+                        v-for="row in block.items"
+                        :key="sideLabel(row)"
+                        class="card-dynamic-row"
+                      >
+                        <span class="card-dynamic-side">
+                          {{ sideLabel(row) }}
+                        </span>
+
+                        <div class="card-months card-months--inline">
+
+                          <div
+                            v-for="month in MONTHS"
+                            :key="month.full"
+                            class="card-month"
+                            :class="getCardMonthState(row, month.full)"
+                            :title="getMonthStatusLabel(row, month.full)"
+                          >
+                            {{ month.short }}
+                          </div>
+
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Статика и видеоэкран: одна строка месяцев -->
+                    <div
+                      v-else
+                      class="card-months"
+                    >
+
+                      <div
+                        v-for="month in MONTHS"
+                        :key="month.full"
+                        class="card-month"
+                        :class="getCardMonthState(blockPrimary(block), month.full)"
+                        :title="getMonthStatusLabel(blockPrimary(block), month.full)"
+                      >
+                        {{ month.short }}
+                      </div>
+
+                    </div>
+
+                    <div class="card-features">
+                      <span
+                        class="card-feature"
+                        :title="hasLight(blockPrimary(block)) ? 'Подсветка есть' : 'Без подсветки'"
+                      >
+                        <span
+                          class="feature-picto lightbulb"
+                          :class="hasLight(blockPrimary(block)) ? 'on' : 'off'"
+                        >💡</span>
+                        <span class="feature-label">подсветка</span>
+                      </span>
+
+                      <span class="card-feature" title="статика/динамика">
+                        <span class="feature-picto feature-placeholder"></span>
+                        <span class="feature-label">статика/динамика</span>
+                      </span>
+                    </div>
+
                   </div>
 
-                </div>
-
-                <div class="card-features">
-                  <span
-                    class="card-feature"
-                    :title="String(item.light || '').trim().toLowerCase() === 'да' ? 'Подсветка есть' : 'Без подсветки'"
-                  >
-                    <span
-                      class="feature-picto lightbulb"
-                      :class="String(item.light || '').trim().toLowerCase() === 'да' ? 'on' : 'off'"
-                    >💡</span>
-                    <span class="feature-label">подсветка</span>
-                  </span>
-
-                  <span class="card-feature" title="статика/динамика">
-                    <span class="feature-picto feature-placeholder"></span>
-                    <span class="feature-label">статика/динамика</span>
-                  </span>
                 </div>
 
               </div>
@@ -394,9 +435,18 @@
 <script setup>
 import {
   getAvailabilityState,
-  getMonthStatusLabel,
-  getMonthValue
+  getMonthStatusLabel
 } from '../utils/availability'
+import {
+  MONTHS,
+  sideLabel,
+  parentSide,
+  dedupeSides,
+  familyOf,
+  maxBlocksFor,
+  groupSides,
+  groupByPoint
+} from '../utils/constructionGroups'
 import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -412,25 +462,6 @@ import {
 } from '../composables/useConstructionsFilter'
 
 
-const CARD_MONTHS = [
-  { full: 'Август', short: 'АВГ' },
-  { full: 'Сентябрь', short: 'СЕН' },
-  { full: 'Октябрь', short: 'ОКТ' },
-  { full: 'Ноябрь', short: 'НОЯ' },
-  { full: 'Декабрь', short: 'ДЕК' }
-]
-
-function isVideoScreen(item) {
-  return String(item?.type || '')
-    .trim()
-    .toLowerCase()
-    .includes('видеоэкран')
-}
-
-function getCardMonthValue(item, month) {
-  return getMonthValue(item, month)
-}
-
 /* Акционная цена из отдельной колонки 1С (пока в данных отсутствует). */
 function promoPriceOf(item) {
   return String(
@@ -443,6 +474,39 @@ function promoPriceOf(item) {
 function getCardMonthState(item, month) {
   return getAvailabilityState(item, month)
 }
+
+/* Первая (ведущая) сторона блока — как и в попапе карты. */
+function blockPrimary(block) {
+  return block?.items?.[0] || {}
+}
+
+function blockType(block) {
+  return String(blockPrimary(block).type || 'Конструкция').trim()
+}
+
+function blockSize(block) {
+  return String(blockPrimary(block).size || '').trim()
+}
+
+/* Подпись стороны блока: динамика — родительская сторона, иначе своя. */
+function blockSide(block) {
+  const side = sideLabel(blockPrimary(block))
+  return block.kind === 'dynamic' ? parentSide(side) : side
+}
+
+function hasPrice(item) {
+  return Boolean(item?.price || promoPriceOf(item))
+}
+
+function hasLight(item) {
+  return [
+    'да',
+    'yes',
+    'true',
+    '1'
+  ].includes(String(item?.light || '').trim().toLowerCase())
+}
+
 const route = useRoute()
 const router = useRouter()
 const constructions = ref([])
@@ -757,6 +821,27 @@ const {
 
   resetFilters
 } = useConstructionsFilter(constructions)
+
+/*
+ * Список: одна карточка на точку/адрес, внутри — блоки по формату
+ * стороны (те же правила, что и в попапе интерактивной карты).
+ */
+const listPoints = computed(() =>
+  groupByPoint(filteredConstructions.value).map(point => {
+    const deduped = dedupeSides(point.items)
+    const blocks = groupSides(deduped)
+      .slice(0, maxBlocksFor(familyOf(deduped)))
+
+    const first = point.items[0] || {}
+
+    return {
+      key: point.key,
+      address: String(first.address || first.name || 'Адрес не указан').trim(),
+      city: String(first.city || '').trim() || '—',
+      blocks
+    }
+  })
+)
 
 /*
  * Синхронизация города из URL с фильтром.
@@ -1318,6 +1403,91 @@ onMounted(async () => {
 .card-side-line b {
   color: #52606a;
   font-weight: 900;
+}
+
+/* Блоки внутри карточки точки — по одному на формат стороны */
+
+.card-blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  margin-top: 10px;
+}
+
+.card-block {
+  padding-top: 12px;
+
+  border-top: 1px solid #edf0f2;
+}
+
+.card-block:first-child {
+  padding-top: 0;
+
+  border-top: 0;
+}
+
+.card-block .card-side-line {
+  margin-top: 6px;
+}
+
+.card-photo--block {
+  aspect-ratio: 16 / 10;
+
+  margin-top: 8px;
+
+  border-radius: 12px;
+}
+
+.card-block .card-months {
+  margin-top: 10px;
+  padding-top: 9px;
+}
+
+/* Месяцы в строке динамической стороны — без верхней границы */
+.card-months--inline {
+  flex: 1;
+
+  margin-top: 0;
+  padding-top: 0;
+
+  border-top: 0;
+}
+
+.card-months--inline .card-month {
+  width: 30px;
+  height: 20px;
+
+  font-size: 7px;
+}
+
+.card-dynamic-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  margin-top: 10px;
+  padding-top: 9px;
+
+  border-top: 1px solid #edf0f2;
+}
+
+.card-dynamic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-dynamic-side {
+  flex: 0 0 auto;
+
+  min-width: 34px;
+
+  color: #17212b;
+
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
 }
 
 /* месяцы и прочее прижаты к нижнему краю — единое выравнивание */

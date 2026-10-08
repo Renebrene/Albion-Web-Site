@@ -79,13 +79,17 @@ function isBusy(item, value) {
 }
 
 /*
- * Физическая конструкция.
+ * Физическая точка на карте.
  *
- * Временная версия для data.js:
- * город + адрес + номер.
+ * Ключ — город + адрес + координата (округление ~1 м).
  *
- * Потом при переходе на PostgreSQL этот ключ
- * можно заменить на настоящий construction_id.
+ * Разные форматы в ОДНОЙ точке (щит / призматрон / видеоэкран на
+ * одинаковых координатах) объединяются в одну карточку.
+ *
+ * А стороны, которые лежат на РАЗНЫХ координатах, — расходятся по
+ * разным точкам (в данных встречаются такие расхождения).
+ *
+ * Номер конструкции (external_number) в ключ не входит.
  */
 function constructionKey(item) {
   const city = String(item?.city || '').trim()
@@ -95,12 +99,17 @@ function constructionKey(item) {
     ''
   ).trim()
 
-  const number = String(item?.number || '').trim()
+  const lat = Number(item?.lat)
+  const lng = Number(item?.lng)
+
+  const latKey = Number.isFinite(lat) ? lat.toFixed(5) : ''
+  const lngKey = Number.isFinite(lng) ? lng.toFixed(5) : ''
 
   return [
     city,
     address,
-    number
+    latKey,
+    lngKey
   ].join('|').toLowerCase()
 }
 
@@ -156,6 +165,10 @@ function uniqueSides(items) {
       .trim()
       .toUpperCase()
 
+    const type = String(item?.type || '')
+      .trim()
+      .toUpperCase()
+
     /*
      * Если сторона не указана — всё равно показываем запись.
      */
@@ -164,12 +177,21 @@ function uniqueSides(items) {
       continue
     }
 
+    /*
+     * Одинаковая буква стороны у РАЗНЫХ форматов (например, B
+     * у щита и B у видеоэкрана) — это разные блоки, поэтому
+     * ключ дедупликации включает ещё и формат.
+     */
     const exists = result.some(existing => {
       const existingSide = String(existing?.side || '')
         .trim()
         .toUpperCase()
 
-      return existingSide === side
+      const existingType = String(existing?.type || '')
+        .trim()
+        .toUpperCase()
+
+      return existingSide === side && existingType === type
     })
 
     if (!exists) {

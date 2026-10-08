@@ -600,6 +600,13 @@
 }
 
 
+/* Три стороны (пиллар) — строго в один ряд */
+
+.albion-popup-double .popup-triple .popup-sides {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+}
+
+
 /* Чтобы содержимое карточек не раздвигало popup */
 
 .albion-popup-double .popup-side-card {
@@ -630,6 +637,10 @@
   }
 
   .albion-popup-double .popup-sides {
+    grid-template-columns: 1fr !important;
+  }
+
+  .albion-popup-double .popup-triple .popup-sides {
     grid-template-columns: 1fr !important;
   }
 }
