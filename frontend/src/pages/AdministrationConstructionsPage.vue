@@ -89,6 +89,7 @@
             clearable
             clear-icon="close"
             :options="filterCityOptions"
+            label="Город / Район"
             placeholder="Город / Район"
             style="min-width: 220px"
           />
@@ -102,6 +103,7 @@
             clearable
             clear-icon="close"
             :options="filterFormatOptions"
+            label="Формат"
             placeholder="ФОРМАТ"
             style="min-width: 170px"
           />

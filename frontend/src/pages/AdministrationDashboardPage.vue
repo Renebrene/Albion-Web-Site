@@ -3,7 +3,19 @@
     <div class="dashboard-container">
       <header class="dashboard-header">
         <div>
-          <div class="dashboard-brand">ALBION</div>
+          <!-- Логотип как на публичном сайте; клик — переход на сайт -->
+          <RouterLink
+            to="/"
+            class="dashboard-brand"
+            title="Перейти на сайт"
+            aria-label="Albion — перейти на сайт"
+          >
+            <img
+              src="/logo.png"
+              alt="Albion"
+              class="dashboard-brand-logo"
+            >
+          </RouterLink>
           <h1>Администрирование</h1>
           <p v-if="user" class="dashboard-user">
             {{ user.name || user.login }}
@@ -191,10 +203,19 @@ onMounted(loadUser)
 }
 
 .dashboard-brand {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  display: inline-flex;
+  align-items: center;
+
   margin-bottom: 12px;
+}
+
+.dashboard-brand-logo {
+  display: block;
+
+  width: auto;
+  height: 42px;
+
+  max-width: 150px;
 }
 
 .dashboard-header h1 {

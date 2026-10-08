@@ -36,14 +36,22 @@
         </div>
 
         <div v-else class="chips-list">
-          <span
+          <button
             v-for="category in categories"
             :key="category.id"
+            type="button"
             class="chip"
+            :class="{ 'is-active': isCategorySelected(category) }"
+            :title="
+              isCategorySelected(category)
+                ? 'Снять фильтр'
+                : `Показать только «${category.name}»`
+            "
+            @click="toggleCategory(category)"
           >
             {{ category.name }}
             <span class="chip-slug">{{ category.slug }}</span>
-          </span>
+          </button>
         </div>
 
         <div class="category-form">
@@ -80,8 +88,22 @@
           Новостей пока нет.
         </div>
 
+        <div v-else-if="!visibleNews.length" class="filter-empty">
+          В категории «{{ selectedCategoryName }}» публикаций нет.
+          <button type="button" class="link-btn" @click="clearCategoryFilter">
+            Показать все
+          </button>
+        </div>
+
+        <div v-if="selectedCategoryId !== null" class="filter-note">
+          Фильтр: «{{ selectedCategoryName }}» — {{ visibleNews.length }} из {{ news.length }}
+          <button type="button" class="link-btn" @click="clearCategoryFilter">
+            Сбросить
+          </button>
+        </div>
+
         <article
-          v-for="item in news"
+          v-for="item in visibleNews"
           :key="item.id"
           class="mini-card"
         >
@@ -101,7 +123,15 @@
             <div class="mini-card-meta">
               {{ formatDate(item.published_at) || 'без даты' }}
               <template v-if="item.category">
-                · {{ item.category.name }}
+                <button
+                  type="button"
+                  class="category-badge"
+                  :class="{ 'is-active': item.category.id === selectedCategoryId }"
+                  title="Показать только эту категорию"
+                  @click="toggleCategory(item.category)"
+                >
+                  {{ item.category.name }}
+                </button>
               </template>
               · /{{ item.slug }}
             </div>
@@ -202,6 +232,15 @@
           </div>
 
           <div class="field">
+            <label>Медиа (фото, видео, GIF)</label>
+            <NewsMediaField
+              v-model="editing.media"
+              v-model:cover-id="editing.cover_id"
+              @notify="notify"
+            />
+          </div>
+
+          <div class="field">
             <label>SEO заголовок</label>
             <q-input v-model="editing.seo_title" outlined dense />
           </div>
@@ -237,6 +276,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import NewsMediaField from '../components/admin/NewsMediaField.vue'
+
 const router = useRouter()
 
 function authHeaders() {
@@ -269,6 +310,49 @@ async function request(path, options = {}) {
 
 const news = ref([])
 const categories = ref([])
+
+/* Фильтр публикаций по категории: null — показывать все. */
+const selectedCategoryId = ref(null)
+
+function categoryIdOf(item) {
+  return item?.category?.id ?? null
+}
+
+function isCategorySelected(category) {
+  return (
+    selectedCategoryId.value !== null &&
+    category?.id === selectedCategoryId.value
+  )
+}
+
+/* Клик по категории: включить фильтр либо снять, если уже включён. */
+function toggleCategory(category) {
+  const id = category?.id ?? null
+
+  selectedCategoryId.value = isCategorySelected(category) ? null : id
+}
+
+function clearCategoryFilter() {
+  selectedCategoryId.value = null
+}
+
+const selectedCategoryName = computed(() => {
+  const found = categories.value.find(
+    category => category.id === selectedCategoryId.value
+  )
+
+  return found ? found.name : ''
+})
+
+const visibleNews = computed(() => {
+  if (selectedCategoryId.value === null) {
+    return news.value
+  }
+
+  return news.value.filter(
+    item => categoryIdOf(item) === selectedCategoryId.value
+  )
+})
 const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
@@ -297,8 +381,29 @@ function emptyNews() {
     is_published: false,
     is_featured: false,
     seo_title: '',
-    seo_description: ''
+    seo_description: '',
+    media: [],
+    cover_id: null
   }
+}
+
+function mapNewsMedia(item) {
+  const raw = Array.isArray(item?.media) ? item.media : []
+  return raw.map((media) => ({
+    id: media.id,
+    original_name: media.original_name || '',
+    storage_path: media.storage_path || '',
+    mime_type: media.mime_type || '',
+    preview_path: media.preview_path || null,
+    variants: Array.isArray(media.variants) ? media.variants : []
+  }))
+}
+
+function coverIdOf(item) {
+  const raw = Array.isArray(item?.media) ? item.media : []
+  const cover = raw.find((media) => media.is_cover)
+  if (cover) return cover.id
+  return raw.length ? raw[0].id : null
 }
 
 function notify(text, type = 'ok') {
@@ -379,7 +484,9 @@ function editNews(item) {
     is_published: !!item.is_published,
     is_featured: !!item.is_featured,
     seo_title: item.seo_title || '',
-    seo_description: item.seo_description || ''
+    seo_description: item.seo_description || '',
+    media: mapNewsMedia(item),
+    cover_id: coverIdOf(item)
   }
   editOpen.value = true
 }
@@ -392,6 +499,13 @@ async function saveNews() {
 
   saving.value = true
   try {
+    const mediaList = Array.isArray(editing.value.media) ? editing.value.media : []
+    const mediaIds = mediaList.map((media) => media.id)
+    let coverMediaId = editing.value.cover_id
+    if (coverMediaId == null || !mediaIds.includes(coverMediaId)) {
+      coverMediaId = mediaIds.length ? mediaIds[0] : null
+    }
+
     const payload = {
       title: editing.value.title,
       slug: editing.value.slug || null,
@@ -402,7 +516,9 @@ async function saveNews() {
       is_published: editing.value.is_published,
       is_featured: editing.value.is_featured,
       seo_title: editing.value.seo_title,
-      seo_description: editing.value.seo_description
+      seo_description: editing.value.seo_description,
+      media_ids: mediaIds,
+      cover_media_id: coverMediaId
     }
 
     if (editing.value.id) {
@@ -552,6 +668,89 @@ onMounted(loadData)
 .chip-slug {
   color: #90a4ae;
   font-size: 11px;
+}
+
+/* Чип категории работает как фильтр — это кнопка. */
+.chip {
+  border: 1px solid transparent;
+  font-family: inherit;
+  cursor: pointer;
+  transition: .15s ease;
+}
+
+.chip:hover {
+  background: #e2e8ef;
+}
+
+.chip.is-active {
+  background: var(--albion-accent);
+  border-color: var(--albion-accent);
+  color: #fff;
+}
+
+.chip.is-active .chip-slug {
+  color: rgba(255, 255, 255, .75);
+}
+
+/* Строка «Фильтр: … N из M» и пустой результат фильтра. */
+.filter-note,
+.filter-empty {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  margin-bottom: 12px;
+
+  color: #52606a;
+  font-size: 13px;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+
+  background: none;
+  color: var(--albion-accent);
+
+  font-family: inherit;
+  font-size: inherit;
+
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* Категория в карточке публикации — выделена и кликабельна. */
+.category-badge {
+  display: inline-block;
+
+  margin: 0 2px;
+  padding: 2px 9px;
+
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+
+  background: #eef3f8;
+  color: #39506b;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .2px;
+
+  cursor: pointer;
+  transition: .15s ease;
+}
+
+.category-badge:hover {
+  border-color: var(--albion-accent);
+  color: var(--albion-accent);
+}
+
+.category-badge.is-active {
+  border-color: var(--albion-accent);
+  background: var(--albion-accent);
+  color: #fff;
 }
 
 .category-form {

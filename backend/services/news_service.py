@@ -14,6 +14,8 @@ def _media_item(row):
         title,
         sort_order,
         is_cover,
+        variants,
+        preview_path,
     ) = row
 
     return {
@@ -28,6 +30,8 @@ def _media_item(row):
         "title": title,
         "sort_order": sort_order,
         "is_cover": is_cover,
+        "variants": variants or [],
+        "preview_path": preview_path,
     }
 
 
@@ -113,7 +117,31 @@ def get_news():
             m.alt,
             m.title,
             nm.sort_order,
-            nm.is_cover
+            nm.is_cover,
+            COALESCE(
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'variant', mv.variant,
+                            'storage_path', mv.storage_path,
+                            'mime_type', mv.mime_type,
+                            'width', mv.width,
+                            'height', mv.height,
+                            'file_size', mv.file_size
+                        )
+                        ORDER BY CASE mv.variant
+                            WHEN 'large' THEN 1
+                            WHEN 'card' THEN 2
+                            WHEN 'thumb' THEN 3
+                            ELSE 4
+                        END
+                    )
+                    FROM media_variants mv
+                    WHERE mv.media_id = m.id
+                ),
+                '[]'::json
+            ) AS variants,
+            m.preview_path
         FROM news_media nm
         JOIN media m
             ON m.id = nm.media_id
@@ -178,7 +206,31 @@ def get_news_item(slug: str):
             m.alt,
             m.title,
             nm.sort_order,
-            nm.is_cover
+            nm.is_cover,
+            COALESCE(
+                (
+                    SELECT json_agg(
+                        json_build_object(
+                            'variant', mv.variant,
+                            'storage_path', mv.storage_path,
+                            'mime_type', mv.mime_type,
+                            'width', mv.width,
+                            'height', mv.height,
+                            'file_size', mv.file_size
+                        )
+                        ORDER BY CASE mv.variant
+                            WHEN 'large' THEN 1
+                            WHEN 'card' THEN 2
+                            WHEN 'thumb' THEN 3
+                            ELSE 4
+                        END
+                    )
+                    FROM media_variants mv
+                    WHERE mv.media_id = m.id
+                ),
+                '[]'::json
+            ) AS variants,
+            m.preview_path
         FROM news_media nm
         JOIN media m
             ON m.id = nm.media_id

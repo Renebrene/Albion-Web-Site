@@ -26,39 +26,98 @@
         </button>
       </nav>
 
-      <section class="news-grid">
-        <NewsCard
-          v-for="(item, index) in filteredNews"
-          :key="item.id"
-          :news="item"
-          :size="cardSize(index)"
-        />
-      </section>
-
-      <div
-        v-if="!filteredNews.length"
-        class="news-empty"
-      >
-        <strong>Новостей пока нет</strong>
-        <span>Попробуйте выбрать другую категорию.</span>
+      <div v-if="loading" class="news-loading">
+        <q-spinner-dots size="42px" color="primary" />
       </div>
+
+      <template v-else>
+        <section class="news-grid">
+          <NewsCard
+            v-for="(item, index) in filteredNews"
+            :key="item.id"
+            :news="item"
+            :size="cardSize(index)"
+          />
+        </section>
+
+        <div
+          v-if="!filteredNews.length"
+          class="news-empty"
+        >
+          <strong>Новостей пока нет</strong>
+          <span>Попробуйте выбрать другую категорию.</span>
+        </div>
+      </template>
 
     </div>
   </q-page>
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import NewsCard from '../components/news/NewsCard.vue'
 import NEWS from '../data/news'
+import { getNews } from '@/services/api'
+import { normalizeMedia } from '../components/news/NewsMediaCarousel.vue'
 
 const selectedCategory = ref('Все')
+const newsList = ref([])
+const loading = ref(true)
+
+/*
+ * Приводим новость к единому виду: API отдаёт category-объект и
+ * published_at, локальные данные — строку категории и поле date.
+ */
+function normalizeNews(item) {
+  const category = item.category && typeof item.category === 'object'
+    ? item.category.name
+    : item.category
+
+  const date = String(item.date || item.published_at || '').slice(0, 10)
+
+  return {
+    id: item.id ?? item.slug,
+    slug: item.slug,
+    title: item.title || '',
+    excerpt: item.excerpt || '',
+    content: item.content || '',
+    category: category || '',
+    date,
+    media: normalizeMedia(item.media || [])
+  }
+}
+
+function localNews() {
+  return NEWS
+    .filter(item => item.status === 'published')
+    .map(normalizeNews)
+}
+
+onMounted(async () => {
+  try {
+    const data = await getNews()
+    const list = Array.isArray(data)
+      ? data
+      : (data?.data || data?.items || [])
+
+    const published = list.filter(item => item.is_published !== false)
+
+    newsList.value = published.length
+      ? published.map(normalizeNews)
+      : localNews()
+  } catch (error) {
+    // Если API недоступен — показываем локальные данные, как раньше.
+    console.error('Не удалось загрузить новости:', error)
+    newsList.value = localNews()
+  } finally {
+    loading.value = false
+  }
+})
 
 const categories = computed(() => {
   const values = [
     ...new Set(
-      NEWS
-        .filter(item => item.status === 'published')
+      newsList.value
         .map(item => item.category)
         .filter(Boolean)
     )
@@ -68,8 +127,7 @@ const categories = computed(() => {
 })
 
 const filteredNews = computed(() => {
-  return NEWS
-    .filter(item => item.status === 'published')
+  return newsList.value
     .filter(item => {
       if (selectedCategory.value === 'Все') {
         return true
@@ -176,6 +234,13 @@ function cardSize(index) {
   grid-auto-rows: auto;
   gap: 14px;
   align-items: start;
+}
+
+.news-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
 }
 
 .news-empty {

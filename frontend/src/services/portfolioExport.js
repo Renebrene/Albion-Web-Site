@@ -1,3 +1,6 @@
+import { unref } from 'vue'
+
+import { useAccount } from '../composables/useAccount'
 import { usePortfolio } from '../composables/usePortfolio'
 import { MONTHS } from '../utils/constructionGroups'
 
@@ -7,15 +10,111 @@ import { MONTHS } from '../utils/constructionGroups'
  * Все функции работают с текущим портфелем (singleton usePortfolio).
  * Второй аргумент `sourceItems` необязателен: если его не передать,
  * берётся актуальный список из портфеля через serialize().
+ *
+ * Название портфеля и реквизиты ЛК можно передать в options:
+ *   { title, requisites }. Если не переданы — берутся из стора
+ *   портфеля и аккаунта; при отсутствии — фолбэк и пустой блок.
  */
 
 const API_URL = '/api'
-const EXPORT_TITLE = 'Портфель Albion'
+
+// Прежний заголовок — фолбэк, когда название портфеля не задано.
+const FALLBACK_TITLE = 'Портфель Albion'
+
+// Максимальная длина названия — как в usePortfolio.
+const TITLE_MAX = 120
 
 /* Получатель писем портфеля — общий ящик отдела рекламы. */
 const MAIL_TO = 'reclama@albion.su'
 
-const { serialize } = usePortfolio()
+const { serialize, title: portfolioTitle } = usePortfolio()
+
+/*
+ * Реквизиты ЛК для шапки печати и подписи в тексте.
+ * Пары «поле — подпись» задают и порядок вывода.
+ */
+const REQUISITE_FIELDS = [
+  ['organization', 'Организация'],
+  ['inn', 'ИНН'],
+  ['kpp', 'КПП'],
+  ['address', 'Адрес'],
+  ['phone', 'Телефон'],
+  ['email', 'E-mail'],
+  ['contact', 'Контактное лицо']
+]
+
+/* Название портфеля: аргумент -> стор -> фолбэк. */
+function resolveTitle(value) {
+  if (value !== undefined && value !== null) {
+    const text = String(value).trim().slice(0, TITLE_MAX)
+
+    if (text) {
+      return text
+    }
+  }
+
+  const stored = unref(portfolioTitle)
+
+  if (stored && String(stored).trim()) {
+    return String(stored).trim().slice(0, TITLE_MAX)
+  }
+
+  return FALLBACK_TITLE
+}
+
+/*
+ * Реквизиты: привести к объекту из строк (без крайних пробелов).
+ * Принимает ref/plain, устойчиво к отсутствию useAccount().requisites.
+ */
+function normalizeRequisites(value) {
+  const source = unref(value)
+  const result = {}
+
+  REQUISITE_FIELDS.forEach(([key]) => {
+    const raw = source && typeof source === 'object' ? source[key] : ''
+
+    result[key] = raw === null || raw === undefined ? '' : String(raw).trim()
+  })
+
+  return result
+}
+
+/* Непустые реквизиты в порядке REQUISITE_FIELDS. */
+function requisitesEntries(value) {
+  const source = normalizeRequisites(value)
+
+  return REQUISITE_FIELDS.map(([key, label]) => ({
+    key,
+    label,
+    value: source[key]
+  })).filter(entry => entry.value !== '')
+}
+
+/* Реквизиты по умолчанию: из options, иначе из ЛК (если есть). */
+function resolveRequisites(options) {
+  if (options && typeof options === 'object' && options.requisites) {
+    return normalizeRequisites(options.requisites)
+  }
+
+  return normalizeRequisites(useAccount().requisites)
+}
+
+/* Достаёт title/requisites из options с учётом второго аргумента-опций. */
+function resolveOptions(sourceItems, options) {
+  if (options && typeof options === 'object') {
+    return options
+  }
+
+  if (
+    sourceItems &&
+    !Array.isArray(sourceItems) &&
+    typeof sourceItems === 'object'
+  ) {
+    return sourceItems
+  }
+
+  return {}
+}
 
 // ---------------------------------------------------------------- утилиты
 
@@ -123,14 +222,17 @@ function addressLabel(item) {
 /*
  * Текстовая версия портфеля — для буфера обмена, почты и черновика чата.
  */
-export function portfolioText(sourceItems) {
+export function portfolioText(sourceItems, options) {
   const items = resolveItems(sourceItems)
+  const opts = resolveOptions(sourceItems, options)
+  const headTitle = resolveTitle(opts.title)
+  const reqEntries = requisitesEntries(resolveRequisites(opts))
 
   if (!items.length) {
-    return 'Портфель Albion пуст.'
+    return `${headTitle} пуст.`
   }
 
-  const lines = ['Портфель Albion', '']
+  const lines = [headTitle, '']
 
   items.forEach((item, index) => {
     const months = selectedMonths(item)
@@ -171,6 +273,14 @@ export function portfolioText(sourceItems) {
   lines.push('')
   lines.push(`Позиций: ${items.length}`)
   lines.push(`Итого: ${formatPrice(totalSum(items))} ₽`)
+
+  // Реквизиты — в конце, только непустые поля.
+  if (reqEntries.length) {
+    lines.push('')
+    reqEntries.forEach(entry => {
+      lines.push(`${entry.label}: ${entry.value}`)
+    })
+  }
 
   return lines.join('\n')
 }
@@ -234,10 +344,12 @@ function resolveWithPhotos(sourceItems, options) {
 /*
  * Выгрузка портфеля в файл.
  * POST /api/portfolio/export?format=xlsx|docx|pdf
- * Тело: { title, items, with_photos }. Ответ — файл (blob).
+ * Тело: { title, items, with_photos, requisites }. Ответ — файл (blob).
+ * options: { withPhotos, title, requisites }.
  */
 export async function downloadPortfolio(format, sourceItems, options) {
   const value = extensionFor(format)
+  const opts = resolveOptions(sourceItems, options)
   const withPhotos = resolveWithPhotos(sourceItems, options)
   const items = Array.isArray(sourceItems)
     ? sourceItems
@@ -249,9 +361,10 @@ export async function downloadPortfolio(format, sourceItems, options) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: EXPORT_TITLE,
+        title: resolveTitle(opts.title),
         items,
-        with_photos: withPhotos
+        with_photos: withPhotos,
+        requisites: resolveRequisites(opts)
       })
     }
   )
@@ -277,7 +390,20 @@ function escapeHtml(value) {
 }
 
 /* Собирает HTML печатной версии портфеля. */
-function buildPrintHtml(items, withPhotos = false) {
+function buildPrintHtml(items, withPhotos = false, title, requisites) {
+  const headTitle = resolveTitle(title)
+  const reqEntries = requisitesEntries(requisites)
+
+  /* Блок реквизитов под заголовком — только непустые поля. */
+  const requisitesBlock = reqEntries.length
+    ? `<div class="requisites">${reqEntries
+        .map(
+          entry =>
+            `<span class="req"><span class="req-label">${escapeHtml(entry.label)}:</span> ${escapeHtml(entry.value)}</span>`
+        )
+        .join('')}</div>`
+    : ''
+
   const rows = items
     .map((item, index) => {
       const months = selectedMonths(item)
@@ -295,14 +421,21 @@ function buildPrintHtml(items, withPhotos = false) {
         : '—'
 
       /* Без колонки «Фото» показываем прежнюю ссылку на фото. */
-      const photo = !withPhotos && item.photo
-        ? `<div class="photo">Фото: <a href="${escapeHtml(item.photo)}">${escapeHtml(item.photo)}</a></div>`
-        : ''
+      const photo =
+        !withPhotos && item.photo
+          ? `<div class="photo">Фото: <a href="${escapeHtml(item.photo)}">${escapeHtml(item.photo)}</a></div>`
+          : ''
+
+      /*
+       * Для превью 70 px хватает миниатюры: картинка card весит ~136 КБ,
+       * thumb — ~34 КБ. Если миниатюры нет (старые позиции), берём card.
+       */
+      const thumbUrl = item.photo_thumb || item.photo
 
       const photoCell = withPhotos
         ? `<td class="photo-cell">${
-            item.photo
-              ? `<img class="photo-thumb" src="${escapeHtml(item.photo)}" alt="">`
+            thumbUrl
+              ? `<img class="photo-thumb" src="${escapeHtml(thumbUrl)}" alt="">`
               : ''
           }</td>`
         : ''
@@ -331,7 +464,7 @@ function buildPrintHtml(items, withPhotos = false) {
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <title>${escapeHtml(EXPORT_TITLE)}</title>
+  <title>${escapeHtml(headTitle)}</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -342,6 +475,17 @@ function buildPrintHtml(items, withPhotos = false) {
     }
     h1 { margin: 0 0 4px; font-size: 22px; }
     .meta { margin: 0 0 20px; color: #71808c; font-size: 12px; }
+    .requisites {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px 18px;
+      margin: 0 0 16px;
+      color: #52606a;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .req { white-space: nowrap; }
+    .req-label { color: #71808c; }
     table { width: 100%; border-collapse: collapse; }
     th, td {
       border-bottom: 1px solid #e5e9ec;
@@ -381,7 +525,8 @@ function buildPrintHtml(items, withPhotos = false) {
   </style>
 </head>
 <body>
-  <h1>${escapeHtml(EXPORT_TITLE)}</h1>
+  <h1>${escapeHtml(headTitle)}</h1>
+  ${requisitesBlock}
   <p class="meta">Позиций: ${items.length} · Сформировано: ${escapeHtml(new Date().toLocaleString('ru-RU'))}</p>
   <table>
     <thead>
@@ -407,14 +552,20 @@ function buildPrintHtml(items, withPhotos = false) {
 /*
  * Печать портфеля: открываем новое окно с печатной версией.
  * Если всплывающее окно заблокировано — печатаем через скрытый iframe.
- * Второй аргумент: { withPhotos } — добавить колонку с превью фото.
+ * Второй аргумент: { withPhotos, title, requisites }.
  */
 export function printPortfolio(sourceItems, options) {
+  const opts = resolveOptions(sourceItems, options)
   const withPhotos = resolveWithPhotos(sourceItems, options)
   const items = Array.isArray(sourceItems)
     ? sourceItems
     : resolveItems(sourceItems)
-  const html = buildPrintHtml(items, withPhotos)
+  const html = buildPrintHtml(
+    items,
+    withPhotos,
+    resolveTitle(opts.title),
+    resolveRequisites(opts)
+  )
 
   const win = window.open('', '_blank', 'width=900,height=700')
 
@@ -460,10 +611,11 @@ export function printPortfolio(sourceItems, options) {
 // ---------------------------------------------------------------- почта
 
 /* Открывает почтовый клиент с готовым письмом (только клиент, без сервера). */
-export function emailPortfolio(sourceItems) {
+export function emailPortfolio(sourceItems, options) {
   const items = resolveItems(sourceItems)
-  const subject = EXPORT_TITLE
-  const body = portfolioText(items)
+  const opts = resolveOptions(sourceItems, options)
+  const subject = resolveTitle(opts.title)
+  const body = portfolioText(items, opts)
 
   window.location.href = `mailto:${MAIL_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
 }
@@ -514,8 +666,8 @@ export async function copyToClipboard(text) {
  * Готовит черновик обращения для «Умного чата»:
  * копирует текст в буфер и возвращает его для передачи в query.
  */
-export async function chatDraft(sourceItems) {
-  const text = portfolioText(sourceItems)
+export async function chatDraft(sourceItems, options) {
+  const text = portfolioText(sourceItems, options)
   const copied = await copyToClipboard(text)
 
   return { text, copied }

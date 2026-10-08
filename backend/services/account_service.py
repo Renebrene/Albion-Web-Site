@@ -31,6 +31,20 @@ MIN_SECRET_PHRASE_LENGTH = 4
 
 ALLOWED_ROLES = {"client", "manager"}
 
+# Реквизиты пользователя ЛК для выгрузки/печати портфеля. Все поля — строки.
+REQUISITE_FIELDS = (
+    "organization",
+    "inn",
+    "kpp",
+    "address",
+    "phone",
+    "email",
+    "contact",
+)
+
+# Разумный предел длины одного поля реквизитов.
+MAX_REQUISITE_LENGTH = 300
+
 
 def normalize_login(login: str) -> str:
     """Нормализация логина: обрезка пробелов по краям."""
@@ -42,13 +56,33 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def normalize_requisites(value) -> dict:
+    """Приводит реквизиты к dict с 7 строковыми ключами.
+
+    Отсутствующие/None значения превращаются в пустые строки, значения
+    обрезаются по краям и ограничиваются MAX_REQUISITE_LENGTH. Лишние
+    ключи отбрасываются.
+    """
+    source = value if isinstance(value, dict) else {}
+
+    result: dict[str, str] = {}
+
+    for field in REQUISITE_FIELDS:
+        raw = source.get(field, "")
+        text = "" if raw is None else str(raw).strip()
+        result[field] = text[:MAX_REQUISITE_LENGTH]
+
+    return result
+
+
 def _row_to_user(row) -> dict:
-    user_id, login, role, is_active = row
+    user_id, login, role, is_active, requisites = row
     return {
         "id": user_id,
         "login": login,
         "role": role,
         "is_active": is_active,
+        "requisites": normalize_requisites(requisites),
     }
 
 
@@ -107,7 +141,7 @@ def register(
                 (login, password_hash, role, secret_phrase_hash)
             VALUES
                 (%s, %s, %s, %s)
-            RETURNING id, login, role, is_active
+            RETURNING id, login, role, is_active, requisites
             """,
             (login, password_hash, role, secret_hash),
         ).fetchone()
@@ -135,7 +169,7 @@ def authenticate(login: str, password: str) -> dict | None:
     with get_connection() as conn:
         user = conn.execute(
             """
-            SELECT id, login, password_hash, role, is_active
+            SELECT id, login, password_hash, role, is_active, requisites
             FROM user_accounts
             WHERE lower(login) = lower(%s)
               AND is_active = TRUE
@@ -147,7 +181,7 @@ def authenticate(login: str, password: str) -> dict | None:
     if user is None:
         return None
 
-    user_id, user_login, stored_hash, role, is_active = user
+    user_id, user_login, stored_hash, role, is_active, requisites = user
 
     try:
         valid = PASSWORD_HASH.verify(password, stored_hash)
@@ -162,6 +196,7 @@ def authenticate(login: str, password: str) -> dict | None:
         "login": user_login,
         "role": role,
         "is_active": is_active,
+        "requisites": normalize_requisites(requisites),
     }
 
 
@@ -199,7 +234,7 @@ def get_current_user(token: str | None) -> dict | None:
     with get_connection() as conn:
         user = conn.execute(
             """
-            SELECT u.id, u.login, u.role, u.is_active
+            SELECT u.id, u.login, u.role, u.is_active, u.requisites
             FROM account_sessions s
             JOIN user_accounts u
               ON u.id = s.account_id
@@ -239,6 +274,35 @@ def revoke_session(token: str | None) -> bool:
         ).fetchone()
 
     return result is not None
+
+
+def save_requisites(account_id: int, data) -> dict:
+    """Сохраняет реквизиты аккаунта и возвращает сохранённый объект.
+
+    Принимает dict либо pydantic-модель с 7 полями. Значения обрезаются
+    по краям и ограничиваются по длине, лишние ключи отбрасываются.
+    Пустые значения сохраняются как пустые строки.
+    """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump()
+
+    requisites = normalize_requisites(data)
+
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            UPDATE user_accounts
+            SET requisites = %s,
+                updated_at = NOW()
+            WHERE id = %s
+            RETURNING requisites
+            """,
+            (Json(requisites), account_id),
+        ).fetchone()
+
+    saved = row[0] if row is not None else None
+
+    return normalize_requisites(saved)
 
 
 def recover_password(login: str, secret_phrase: str, new_password: str) -> bool:

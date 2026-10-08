@@ -66,6 +66,11 @@ class PortfolioExportPayload(BaseModel):
     # тогда можно взять значение из query-параметра (приоритет у тела).
     with_photos: bool | None = None
 
+    # Необязательно: реквизиты пользователя (организация, ИНН, КПП, адрес,
+    # телефон, e-mail, контактное лицо). Непустые поля печатаются блоком
+    # под заголовком. Валидацию/обрезку делает сервис.
+    requisites: Any = None
+
 
 def _query_bool(value: Any) -> bool:
     """«1»/«true»/«yes»/«on»/«да» -> True (иначе False)."""
@@ -113,6 +118,7 @@ def export_portfolio(
             fmt,
             title=payload.title,
             with_photos=include_photos,
+            requisites=payload.requisites,
         )
     except svc.PortfolioExportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

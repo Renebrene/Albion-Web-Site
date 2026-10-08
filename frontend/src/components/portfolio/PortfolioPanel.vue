@@ -1,11 +1,25 @@
 <template>
   <div class="portfolio-panel" :class="`portfolio-panel--${variant}`">
-
     <!-- ЗАГОЛОВОК -->
     <div class="portfolio-head">
       <span class="portfolio-head-icon">🗂</span>
       <span class="portfolio-head-title">Портфель</span>
       <span v-if="count" class="portfolio-head-count">{{ count }}</span>
+    </div>
+
+    <!-- НАЗВАНИЕ ПОРТФЕЛЯ (для распечатки/выгрузки) + подсказка о реквизитах -->
+    <div class="portfolio-title">
+      <q-input
+        :model-value="titleDraft"
+        dense
+        outlined
+        maxlength="120"
+        class="portfolio-title-input"
+        placeholder="Название портфеля (для распечатки)"
+        @update:model-value="onTitleInput"
+        @blur="commitTitle"
+      />
+      <div class="portfolio-title-hint">{{ requisitesHint }}</div>
     </div>
 
     <!-- ПУСТОЕ СОСТОЯНИЕ -->
@@ -18,9 +32,20 @@
       <div
         v-for="(item, index) in items"
         :key="item.surfaceId"
-        class="portfolio-row"
+        :class="['portfolio-row', { 'has-photo': Boolean(itemThumb(item)) }]"
       >
         <div class="portfolio-row-num">{{ index + 1 }}</div>
+
+        <!-- Маленькое превью: клик открывает полноэкранный просмотр -->
+        <button
+          v-if="itemThumb(item)"
+          type="button"
+          class="portfolio-row-photo"
+          title="Открыть фото"
+          @click="openItemPhoto(item)"
+        >
+          <img :src="itemThumb(item)" alt="" loading="lazy" decoding="async" />
+        </button>
 
         <div class="portfolio-row-main">
           <div class="portfolio-row-format">
@@ -173,6 +198,10 @@
         :loading="saving"
         @click="handleSave"
       />
+    </div>
+
+    <!-- «Очистить» — отдельной строкой ниже, с небольшим отступом -->
+    <div class="portfolio-actions portfolio-actions--danger">
       <q-btn
         flat
         no-caps
@@ -194,12 +223,11 @@
         {{ toast.text }}
       </div>
     </Transition>
-
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { computed, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
@@ -238,9 +266,93 @@ const emit = defineEmits(['navigate'])
 
 const router = useRouter()
 
-const { items, count, totalPrice, removeSurface, clear, saveToAccount } =
-  usePortfolio()
-const { isAuthenticated } = useAccount()
+const {
+  items,
+  title,
+  count,
+  totalPrice,
+  removeSurface,
+  clear,
+  setTitle,
+  saveToAccount
+} = usePortfolio()
+
+/*
+ * Аккаунт читаем целиком (а не деструктуризацией): requisites появится
+ * в useAccount позже — обращение по свойству устойчиво к отсутствию.
+ */
+const accountApi = useAccount()
+const { isAuthenticated } = accountApi
+
+// ------------------------------------------------- название портфеля
+
+/*
+ * Локальный черновик поля названия: ввод не «съедает» пробелы,
+ * а в стор (и далее в localStorage/ЛК) значение уходит уже тримленным.
+ */
+const titleDraft = ref(title.value)
+
+function onTitleInput(value) {
+  titleDraft.value = value
+  setTitle(value)
+}
+
+function commitTitle() {
+  setTitle(titleDraft.value)
+  titleDraft.value = title.value
+}
+
+// Внешнее изменение (гидратация/сервер) — подтянуть в поле.
+watch(title, value => {
+  if (value !== titleDraft.value && value !== titleDraft.value.trim()) {
+    titleDraft.value = value
+  }
+})
+
+// ------------------------------------------------- реквизиты (подсказка)
+
+const REQUISITE_KEYS = [
+  'organization',
+  'inn',
+  'kpp',
+  'address',
+  'phone',
+  'email',
+  'contact'
+]
+
+/* Плоский объект непустых реквизитов — для экспорта. */
+function currentRequisites() {
+  const source = unref(accountApi.requisites)
+  const out = {}
+
+  REQUISITE_KEYS.forEach(key => {
+    const raw = source && typeof source === 'object' ? source[key] : ''
+
+    out[key] = raw === null || raw === undefined ? '' : String(raw).trim()
+  })
+
+  return out
+}
+
+/* Реквизиты заполнены? И первая непустая подпись для короткого текста. */
+const requisitesInfo = computed(() => {
+  const data = currentRequisites()
+  const filled = REQUISITE_KEYS.map(key => data[key]).filter(Boolean)
+
+  return {
+    hasAny: filled.length > 0,
+    label: data.organization || filled[0] || ''
+  }
+})
+
+const requisitesHint = computed(() => {
+  if (isAuthenticated.value && requisitesInfo.value.hasAny) {
+    return `Реквизиты: ${requisitesInfo.value.label}`
+  }
+
+  return 'Реквизиты можно указать в настройках личного кабинета — они появятся в распечатке и при копировании.'
+})
 
 /* Общее окно просмотра фото (singleton-композабл). */
 const { openPhoto } = usePhotoViewer()
@@ -257,11 +369,26 @@ function toNumber(value) {
 }
 
 /*
+ * Маленькое превью (thumb) для строки портфеля и печати.
+ * Фолбэк на card, если миниатюры нет (старые позиции в localStorage).
+ */
+function itemThumb(item) {
+  return (item && (item.photo_thumb || item.photo)) || ''
+}
+
+/* Полноразмерный вариант — только для окна просмотра. */
+function itemFullPhoto(item) {
+  return (item && (item.photo_large || item.photo)) || ''
+}
+
+/*
  * Открыть фото позиции в общем окне. Название и имя файла —
  * «город, адрес · Сторона X» (как на карточке списка).
  */
 function openItemPhoto(item) {
-  if (!item || !item.photo) {
+  const url = itemFullPhoto(item)
+
+  if (!url) {
     return
   }
 
@@ -272,9 +399,9 @@ function openItemPhoto(item) {
   })
 
   openPhoto({
-    url: item.photo,
+    url,
     title: label,
-    filename: sanitizeFileName(label, item.photo)
+    filename: sanitizeFileName(label, url)
   })
 }
 
@@ -370,11 +497,16 @@ async function exportAs(format) {
 
   try {
     await downloadPortfolio(format, items.value, {
-      withPhotos: withPhotos.value
+      withPhotos: withPhotos.value,
+      title: title.value,
+      requisites: currentRequisites()
     })
     notify('Файл сформирован — начинается скачивание.')
   } catch (exc) {
-    notify(exc && exc.message ? exc.message : 'Не удалось сформировать файл.', 'error')
+    notify(
+      exc && exc.message ? exc.message : 'Не удалось сформировать файл.',
+      'error'
+    )
   } finally {
     busy.value = ''
   }
@@ -386,7 +518,11 @@ function handlePrint() {
     return
   }
 
-  printPortfolio(items.value, { withPhotos: withPhotos.value })
+  printPortfolio(items.value, {
+    withPhotos: withPhotos.value,
+    title: title.value,
+    requisites: currentRequisites()
+  })
   notify('Открываю версию для печати.')
 }
 
@@ -396,7 +532,10 @@ function handleEmail() {
     return
   }
 
-  emailPortfolio(items.value)
+  emailPortfolio(items.value, {
+    title: title.value,
+    requisites: currentRequisites()
+  })
   notify('Открываю почтовый клиент.')
 }
 
@@ -406,7 +545,10 @@ async function handleChat() {
     return
   }
 
-  const text = portfolioText(items.value)
+  const text = portfolioText(items.value, {
+    title: title.value,
+    requisites: currentRequisites()
+  })
   const copied = await copyToClipboard(text)
 
   notify(
@@ -440,7 +582,9 @@ async function handleSave() {
     const ok = await saveToAccount()
 
     notify(
-      ok ? 'Портфель сохранён в личном кабинете.' : 'Не удалось сохранить портфель.',
+      ok
+        ? 'Портфель сохранён в личном кабинете.'
+        : 'Не удалось сохранить портфель.',
       ok ? 'ok' : 'error'
     )
   } catch {
@@ -495,7 +639,7 @@ function handleClear() {
 
   background: #fff;
 
-  box-shadow: 0 12px 30px rgba(25, 35, 45, .06);
+  box-shadow: 0 12px 30px rgba(25, 35, 45, 0.06);
 }
 
 /* --------------------------------------------------------- Заголовок */
@@ -515,7 +659,7 @@ function handleClear() {
   font-size: 14px;
   font-weight: 900;
 
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
 
   text-transform: uppercase;
 }
@@ -536,6 +680,42 @@ function handleClear() {
 
   font-size: 11px;
   font-weight: 900;
+}
+
+/* --------------------------------------------------------- Название */
+
+.portfolio-title {
+  display: flex;
+  flex-direction: column;
+
+  gap: 4px;
+}
+
+/*
+ * Поле названия. В панели-дропдауне делаем компактнее, чтобы
+ * не ломать текущую вёрстку выпадающего меню.
+ */
+.portfolio-title-input {
+  font-size: 13px;
+}
+
+.portfolio-panel--dropdown .portfolio-title-input {
+  font-size: 12px;
+}
+
+.portfolio-title-input :deep(.q-field__control) {
+  min-height: 34px;
+}
+
+.portfolio-title-hint {
+  color: #8b98a3;
+
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.portfolio-panel--dropdown .portfolio-title-hint {
+  font-size: 10px;
 }
 
 /* --------------------------------------------------------- Пусто */
@@ -570,6 +750,42 @@ function handleClear() {
   border-radius: 12px;
 
   background: #fafbfc;
+}
+
+/* Появилась колонка под превью — только если фото у позиции есть. */
+.portfolio-row.has-photo {
+  grid-template-columns: 26px 96px 1fr auto;
+}
+
+/* Маленькое превью позиции. */
+.portfolio-row-photo {
+  display: block;
+
+  width: 96px;
+  aspect-ratio: 16 / 10;
+
+  padding: 0;
+  border: 1px solid #e3e8ec;
+  border-radius: 8px;
+
+  background: #f3f5f6;
+
+  overflow: hidden;
+  cursor: pointer;
+
+  transition: border-color 0.15s ease;
+}
+
+.portfolio-row-photo:hover {
+  border-color: var(--albion-accent);
+}
+
+.portfolio-row-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+
+  object-fit: cover;
 }
 
 .portfolio-row-num {
@@ -634,7 +850,7 @@ function handleClear() {
   font-size: 9px;
   font-weight: 900;
 
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
 
   white-space: nowrap;
 }
@@ -742,13 +958,18 @@ function handleClear() {
   gap: 6px;
 }
 
+/* Отдельная строка действий (сейчас — «Очистить»). */
+.portfolio-actions--danger {
+  margin-top: 10px;
+}
+
 .portfolio-action {
   border-radius: 8px;
 
   font-size: 11px;
   font-weight: 800;
 
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
 }
 
 .portfolio-action--danger {
@@ -762,7 +983,7 @@ function handleClear() {
   font-size: 11px;
   font-weight: 800;
 
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
 }
 
 /* --------------------------------------------------------- Тост */
@@ -789,8 +1010,8 @@ function handleClear() {
 .portfolio-toast-enter-active,
 .portfolio-toast-leave-active {
   transition:
-    opacity .2s ease,
-    transform .2s ease;
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .portfolio-toast-enter-from,

@@ -3,19 +3,35 @@
     class="news-card"
     :class="[
       `news-card-${size}`,
-      { 'has-slider': news.media?.length > 1 }
+      { 'has-slider': mediaItems.length > 1 }
     ]"
     @click="openNews"
   >
     <div class="news-media">
-      <template v-if="news.media?.length">
+      <template v-if="mediaItems.length">
+        <!-- Видео в карточке: без автозапуска, показываем постер/первый кадр -->
+        <video
+          v-if="activeMedia.kind === 'video'"
+          class="media-thumb"
+          :src="activeMedia.url"
+          :poster="activeMedia.poster || undefined"
+          muted
+          preload="metadata"
+          playsinline
+        ></video>
+
+        <!-- Фото и GIF (GIF остаётся обычным img — анимация проигрывается) -->
         <img
-          :src="news.media[currentSlide]?.src"
-          :alt="news.media[currentSlide]?.alt || news.title"
+          v-else
+          class="media-thumb"
+          :src="activeMedia.url"
+          :alt="activeMedia.alt || news.title"
+          loading="lazy"
+          decoding="async"
         >
 
         <div
-          v-if="news.media.length > 1"
+          v-if="mediaItems.length > 1"
           class="news-slider"
           @click.stop
         >
@@ -29,8 +45,8 @@
 
           <div class="slider-dots">
             <button
-              v-for="(_, index) in news.media"
-              :key="index"
+              v-for="(item, index) in mediaItems"
+              :key="item.id"
               type="button"
               class="slider-dot"
               :class="{ active: index === currentSlide }"
@@ -48,10 +64,10 @@
         </div>
 
         <div
-          v-if="news.media.length > 1"
+          v-if="mediaItems.length > 1"
           class="photo-count"
         >
-          {{ currentSlide + 1 }} / {{ news.media.length }}
+          {{ currentSlide + 1 }} / {{ mediaItems.length }}
         </div>
       </template>
 
@@ -81,8 +97,12 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import {
+  normalizeMedia,
+  coverIndex
+} from './NewsMediaCarousel.vue'
 
 const props = defineProps({
   news: {
@@ -97,6 +117,21 @@ const props = defineProps({
 
 const router = useRouter()
 const currentSlide = ref(0)
+
+// Медиа приводим к единому виду и стартуем с обложки.
+// Обложка карточки — вариант `card`, затем `thumb`, затем оригинал.
+const mediaItems = computed(
+  () => normalizeMedia(props.news.media, ['card', 'thumb'])
+)
+const activeMedia = computed(() => mediaItems.value[currentSlide.value] || {})
+
+watch(
+  mediaItems,
+  list => {
+    currentSlide.value = coverIndex(list)
+  },
+  { immediate: true }
+)
 
 const showExcerpt = computed(() => {
   return ['large', 'horizontal'].includes(props.size)
@@ -113,7 +148,7 @@ const formattedDate = computed(() => {
 })
 
 function nextSlide() {
-  const count = props.news.media?.length || 0
+  const count = mediaItems.value.length
   if (!count) return
 
   currentSlide.value =
@@ -121,7 +156,7 @@ function nextSlide() {
 }
 
 function prevSlide() {
-  const count = props.news.media?.length || 0
+  const count = mediaItems.value.length
   if (!count) return
 
   currentSlide.value =
@@ -178,7 +213,8 @@ function openNews() {
   aspect-ratio: 2.1;
 }
 
-.news-media img {
+.news-media img,
+.news-media video {
   display: block;
   width: 100%;
   height: 100%;
@@ -186,7 +222,8 @@ function openNews() {
   transition: transform .4s ease;
 }
 
-.news-card:hover .news-media img {
+.news-card:hover .news-media img,
+.news-card:hover .news-media video {
   transform: scale(1.025);
 }
 

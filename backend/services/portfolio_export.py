@@ -59,6 +59,21 @@ COLUMNS = (
 # Дополнительная колонка, появляется только при with_photos=true.
 PHOTO_COLUMN = "Фото"
 
+# Реквизиты пользователя (печатаются компактным блоком под заголовком).
+# Порядок вывода и русские подписи.
+REQUISITE_LABELS = (
+    ("organization", "Организация"),
+    ("inn", "ИНН"),
+    ("kpp", "КПП"),
+    ("address", "Адрес"),
+    ("phone", "Телефон"),
+    ("email", "E-mail"),
+    ("contact", "Контактное лицо"),
+)
+
+# Разумный предел длины одного поля реквизитов при печати.
+MAX_REQUISITE_LENGTH = 300
+
 # Корень статики: URL вида /storage/... указывают внутрь этой папки
 # (см. backend/main.py и backend/services/media_service.py).
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -176,6 +191,28 @@ def _extract_price(value: Any) -> float | None:
     return _to_number(value)
 
 
+def build_requisites_block(requisites: Any) -> list[tuple[str, str]]:
+    """Превращает реквизиты в список пар (подпись, значение).
+
+    Возвращает только непустые поля в порядке REQUISITE_LABELS; значения
+    обрезаются по краям и ограничиваются по длине. Если реквизитов нет
+    или все поля пустые — возвращает пустой список (блок не печатается).
+    """
+    if not isinstance(requisites, dict):
+        return []
+
+    block: list[tuple[str, str]] = []
+
+    for key, label in REQUISITE_LABELS:
+        raw = requisites.get(key)
+        value = "" if raw is None else str(raw).strip()
+
+        if value:
+            block.append((label, value[:MAX_REQUISITE_LENGTH]))
+
+    return block
+
+
 # ---------------------------------------------------------------- фото
 
 
@@ -270,7 +307,10 @@ def photo_to_bytes(image, image_format: str = "JPEG", quality: int = 82) -> byte
 
 
 def build_portfolio(
-    items: Any, title: Any = None, with_photos: bool = False
+    items: Any,
+    title: Any = None,
+    with_photos: bool = False,
+    requisites: Any = None,
 ) -> dict:
     """Проверяет входные данные и собирает общую структуру для всех форматов.
 
@@ -278,12 +318,17 @@ def build_portfolio(
     а в каждой строке появляется поле ``photo`` (исходный URL; чтение
     файла делает сам формат, чтобы можно было отдать пустую ячейку).
 
+    ``requisites`` — необязательный объект реквизитов; непустые поля
+    попадают в ``requisites`` (список пар «подпись, значение») и печатаются
+    компактным блоком под заголовком.
+
     Возвращает::
 
         {
           "title": str,
           "columns": tuple[str, ...],
           "with_photos": bool,
+          "requisites": [(label, value), ...],
           "rows": [ {index, city, address, side, type, size, months, sum, sum_value, photo}, ... ],
           "positions": int,
           "total": float,
@@ -361,6 +406,7 @@ def build_portfolio(
         "title": _text(title) or DEFAULT_TITLE,
         "columns": columns,
         "with_photos": bool(with_photos),
+        "requisites": build_requisites_block(requisites),
         "rows": rows,
         "positions": positions,
         "total": total,
@@ -393,9 +439,25 @@ def export_xlsx(portfolio: dict) -> bytes:
     title_cell.font = Font(bold=True, size=14)
     title_cell.alignment = Alignment(vertical="center")
 
-    # Шапка таблицы (строка 2).
+    # Блок реквизитов — сразу под заголовком (только непустые поля).
+    requisites = portfolio.get("requisites") or []
+
+    for label, value in requisites:
+        sheet.append([f"{label}: {value}"])
+        req_row = sheet.max_row
+        sheet.merge_cells(
+            start_row=req_row,
+            start_column=1,
+            end_row=req_row,
+            end_column=len(columns),
+        )
+        req_cell = sheet.cell(row=req_row, column=1)
+        req_cell.font = Font(size=10)
+        req_cell.alignment = Alignment(vertical="center")
+
+    # Шапка таблицы — сразу после заголовка и блока реквизитов.
     sheet.append(list(columns))
-    header_row = 2
+    header_row = sheet.max_row
 
     for col in range(1, len(columns) + 1):
         cell = sheet.cell(row=header_row, column=col)
@@ -499,7 +561,7 @@ def export_docx(portfolio: dict) -> bytes:
     """Word-документ: заголовок, таблица с теми же колонками, итог."""
     from docx import Document
     from docx.enum.section import WD_ORIENT
-    from docx.shared import Cm, Inches
+    from docx.shared import Cm, Inches, Pt
 
     document = Document()
 
@@ -511,6 +573,12 @@ def export_docx(portfolio: dict) -> bytes:
     )
 
     document.add_heading(portfolio["title"], level=1)
+
+    # Компактный блок реквизитов под заголовком (только непустые поля).
+    for label, value in portfolio.get("requisites") or []:
+        paragraph = document.add_paragraph()
+        run = paragraph.add_run(f"{label}: {value}")
+        run.font.size = Pt(9)
 
     columns = portfolio["columns"]
     with_photos = bool(portfolio.get("with_photos"))
@@ -715,11 +783,26 @@ def export_pdf(portfolio: dict) -> bytes:
         parent=cell_style,
         fontName=font_bold,
     )
+    requisites_style = ParagraphStyle(
+        "PortfolioRequisites",
+        fontName=font_regular,
+        fontSize=8,
+        leading=10,
+    )
 
     story = [
         _pdf_paragraph(portfolio["title"], title_style),
         Spacer(1, 4),
     ]
+
+    # Компактный блок реквизитов под заголовком (только непустые поля).
+    requisites = portfolio.get("requisites") or []
+
+    for label, value in requisites:
+        story.append(_pdf_paragraph(f"{label}: {value}", requisites_style))
+
+    if requisites:
+        story.append(Spacer(1, 6))
 
     columns = portfolio["columns"]
     with_photos = bool(portfolio.get("with_photos"))
@@ -813,13 +896,20 @@ def export_pdf(portfolio: dict) -> bytes:
 
 
 def render(
-    items: Any, fmt: str, title: Any = None, with_photos: bool = False
+    items: Any,
+    fmt: str,
+    title: Any = None,
+    with_photos: bool = False,
+    requisites: Any = None,
 ) -> bytes:
     """Собирает портфель и рендерит его в выбранный формат.
 
     При ``with_photos=True`` добавляется колонка «Фото» с миниатюрами.
+    Непустые ``requisites`` печатаются компактным блоком под заголовком.
     """
-    portfolio = build_portfolio(items, title, with_photos=with_photos)
+    portfolio = build_portfolio(
+        items, title, with_photos=with_photos, requisites=requisites
+    )
 
     if fmt == "xlsx":
         return export_xlsx(portfolio)

@@ -98,7 +98,143 @@ def _iso(value) -> str | None:
     return value.isoformat() if value else None
 
 
-def _news_row(row) -> dict:
+# Сериализация медиа повторяет формат публичного news_service._media_item.
+_MEDIA_SELECT = """
+    SELECT
+        m.id,
+        m.original_name,
+        m.storage_path,
+        m.mime_type,
+        m.file_size,
+        m.width,
+        m.height,
+        m.alt,
+        m.title,
+        nm.sort_order,
+        nm.is_cover,
+        COALESCE(
+            (
+                SELECT json_agg(
+                    json_build_object(
+                        'variant', mv.variant,
+                        'storage_path', mv.storage_path,
+                        'mime_type', mv.mime_type,
+                        'width', mv.width,
+                        'height', mv.height,
+                        'file_size', mv.file_size
+                    )
+                    ORDER BY CASE mv.variant
+                        WHEN 'large' THEN 1
+                        WHEN 'card' THEN 2
+                        WHEN 'thumb' THEN 3
+                        ELSE 4
+                    END
+                )
+                FROM media_variants mv
+                WHERE mv.media_id = m.id
+            ),
+            '[]'::json
+        ) AS variants,
+        m.preview_path
+    FROM news_media nm
+    JOIN media m
+        ON m.id = nm.media_id
+    WHERE nm.news_id = %s
+    ORDER BY nm.sort_order, nm.id
+"""
+
+
+def _media_item(row) -> dict:
+    (
+        media_id,
+        original_name,
+        storage_path,
+        mime_type,
+        file_size,
+        width,
+        height,
+        alt,
+        title,
+        sort_order,
+        is_cover,
+        variants,
+        preview_path,
+    ) = row
+
+    return {
+        "id": media_id,
+        "original_name": original_name,
+        "storage_path": storage_path,
+        "mime_type": mime_type,
+        "file_size": file_size,
+        "width": width,
+        "height": height,
+        "alt": alt,
+        "title": title,
+        "sort_order": sort_order,
+        "is_cover": is_cover,
+        "variants": variants or [],
+        "preview_path": preview_path,
+    }
+
+
+def _valid_media_ids(conn, media_ids) -> list[int]:
+    """Схлопывает дубликаты (первое вхождение) и отбрасывает
+    несуществующие в таблице media id, сохраняя порядок."""
+    ordered: list[int] = []
+    seen: set[int] = set()
+
+    for media_id in media_ids:
+        if media_id is None or media_id in seen:
+            continue
+        seen.add(media_id)
+        ordered.append(media_id)
+
+    if not ordered:
+        return []
+
+    rows = conn.execute(
+        "SELECT id FROM media WHERE id = ANY(%s)",
+        (ordered,),
+    ).fetchall()
+
+    existing = {row[0] for row in rows}
+    return [media_id for media_id in ordered if media_id in existing]
+
+
+def _sync_news_media(
+    conn,
+    news_id: int,
+    media_ids: list[int] | None,
+    cover_media_id: int | None,
+) -> None:
+    """Полная синхронизация связей новости с медиа.
+
+    `media_ids is None` — связи не трогаем. Пустой список или список,
+    состоящий только из несуществующих id, — удаляем все связи.
+    """
+    if media_ids is None:
+        return
+
+    conn.execute("DELETE FROM news_media WHERE news_id = %s", (news_id,))
+
+    valid_ids = _valid_media_ids(conn, media_ids)
+    if not valid_ids:
+        return
+
+    cover = cover_media_id if cover_media_id in valid_ids else valid_ids[0]
+
+    for index, media_id in enumerate(valid_ids):
+        conn.execute(
+            """
+            INSERT INTO news_media (news_id, media_id, sort_order, is_cover)
+            VALUES (%s, %s, %s, %s)
+            """,
+            (news_id, media_id, index, media_id == cover),
+        )
+
+
+def _news_row(row, media_rows=None) -> dict:
     (
         news_id,
         slug,
@@ -140,6 +276,7 @@ def _news_row(row) -> dict:
         "seo_description": seo_description or "",
         "created_at": _iso(created_at),
         "updated_at": _iso(updated_at),
+        "media": [_media_item(media) for media in (media_rows or [])],
     }
 
 
@@ -177,8 +314,13 @@ def get_admin_news() -> dict:
             """
         ).fetchall()
 
+        news = []
+        for row in news_rows:
+            media_rows = conn.execute(_MEDIA_SELECT, (row[0],)).fetchall()
+            news.append(_news_row(row, media_rows))
+
     return {
-        "news": [_news_row(row) for row in news_rows],
+        "news": news,
         "categories": [_category_row(row) for row in category_rows],
     }
 
@@ -208,6 +350,8 @@ def create_news(
     seo_title: str | None = None,
     seo_description: str | None = None,
     slug: str | None = None,
+    media_ids: list[int] | None = None,
+    cover_media_id: int | None = None,
 ) -> dict:
     title = _clean(title)
     content = _clean(content)
@@ -252,6 +396,8 @@ def create_news(
                 ),
             ).fetchone()
 
+            _sync_news_media(conn, row[0], media_ids, cover_media_id)
+
     return {"id": row[0], "slug": final_slug}
 
 
@@ -268,6 +414,8 @@ def update_news(
     seo_title: str | None = None,
     seo_description: str | None = None,
     slug: str | None = None,
+    media_ids: list[int] | None = None,
+    cover_media_id: int | None = None,
 ) -> dict:
     if title is not None:
         title = _clean(title)
@@ -321,7 +469,7 @@ def update_news(
                 updates.append("seo_description = %s")
                 values.append(_clean_or_none(seo_description))
 
-            if not updates:
+            if not updates and media_ids is None:
                 raise ValueError("Нет данных для обновления")
 
             updates.append("updated_at = NOW()")
@@ -334,6 +482,8 @@ def update_news(
                 """,
                 (*values, news_id),
             )
+
+            _sync_news_media(conn, news_id, media_ids, cover_media_id)
 
     return {"id": news_id}
 

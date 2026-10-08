@@ -2,7 +2,12 @@
   <q-dialog v-model="open" @show="onShow">
     <q-card class="media-picker-card">
       <q-card-section class="media-picker-head">
-        <div class="media-picker-title">Выбор из медиатеки</div>
+        <div class="media-picker-title">
+          Выбор из медиатеки
+          <span v-if="multiple && selectedIds.length" class="media-picker-title-count">
+            выбрано: {{ selectedIds.length }}
+          </span>
+        </div>
         <q-btn flat round dense icon="close" aria-label="Закрыть" @click="open = false" />
       </q-card-section>
 
@@ -57,12 +62,22 @@
             v-for="item in filteredItems"
             :key="item.id"
             class="media-picker-item"
-            :class="{ 'media-picker-item--selected': item.id === selectedId }"
+            :class="{ 'media-picker-item--selected': isItemSelected(item) }"
             tabindex="0"
-            @click="selectedId = item.id"
-            @dblclick="confirm(item)"
-            @keyup.enter="confirm(item)"
+            role="button"
+            @click="onItemClick(item)"
+            @dblclick="onItemDblClick(item)"
+            @keyup.enter="onItemKeyEnter(item)"
           >
+            <span
+              v-if="multiple"
+              class="media-picker-check"
+              :class="{ 'media-picker-check--on': selectedIds.includes(item.id) }"
+              aria-hidden="true"
+            >
+              <q-icon :name="selectedIds.includes(item.id) ? 'check_circle' : 'radio_button_unchecked'" />
+            </span>
+
             <div class="media-picker-thumb">
               <video
                 v-if="item.mime_type?.startsWith('video/') && thumbnailUrl(item)"
@@ -105,6 +120,16 @@
       <q-card-actions align="right">
         <q-btn flat no-caps label="Отмена" @click="open = false" />
         <q-btn
+          v-if="multiple"
+          unelevated
+          no-caps
+          color="primary"
+          :label="`Добавить выбранные (${selectedIds.length})`"
+          :disable="!selectedIds.length"
+          @click="confirmMany"
+        />
+        <q-btn
+          v-else
           unelevated
           no-caps
           color="primary"
@@ -121,10 +146,12 @@
 import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
-  modelValue: { type: Boolean, default: false }
+  modelValue: { type: Boolean, default: false },
+  // Одиночный режим по умолчанию — обратная совместимость (меню, подвал).
+  multiple: { type: Boolean, default: false }
 })
 
-const emit = defineEmits(['update:modelValue', 'select'])
+const emit = defineEmits(['update:modelValue', 'select', 'select-many'])
 
 const PAGE_SIZE = 30
 
@@ -149,6 +176,7 @@ const error = ref('')
 const search = ref('')
 const categoryIds = ref([])
 const selectedId = ref(null)
+const selectedIds = ref([])
 let loadedOnce = false
 
 const categoryOptions = computed(() =>
@@ -236,6 +264,7 @@ async function loadFirst() {
   loading.value = true
   error.value = ''
   selectedId.value = null
+  selectedIds.value = []
   try {
     const { media, hasMore: more } = await fetchMedia(PAGE_SIZE, 0)
     items.value = media
@@ -281,6 +310,45 @@ function confirm(item) {
   })
   open.value = false
 }
+
+/* ---------- множественный режим ---------- */
+
+function isItemSelected(item) {
+  return props.multiple
+    ? selectedIds.value.includes(item.id)
+    : item.id === selectedId.value
+}
+
+function onItemClick(item) {
+  if (props.multiple) {
+    const index = selectedIds.value.indexOf(item.id)
+    if (index >= 0) selectedIds.value.splice(index, 1)
+    else selectedIds.value.push(item.id)
+    return
+  }
+  selectedId.value = item.id
+}
+
+function onItemDblClick(item) {
+  if (props.multiple) return
+  confirm(item)
+}
+
+function onItemKeyEnter(item) {
+  if (props.multiple) {
+    onItemClick(item)
+    return
+  }
+  confirm(item)
+}
+
+function confirmMany() {
+  const ids = selectedIds.value.slice()
+  if (!ids.length) return
+  const chosen = items.value.filter((item) => ids.includes(item.id))
+  emit('select-many', ids, chosen)
+  open.value = false
+}
 </script>
 
 <style scoped>
@@ -299,6 +367,13 @@ function confirm(item) {
 .media-picker-title {
   font-size: 18px;
   font-weight: 800;
+}
+
+.media-picker-title-count {
+  margin-left: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--q-primary);
 }
 
 .media-picker-filters {
@@ -334,12 +409,29 @@ function confirm(item) {
 }
 
 .media-picker-item {
+  position: relative;
   border: 1px solid #e4e6ea;
   border-radius: 10px;
   padding: 8px;
   cursor: pointer;
   outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.media-picker-check {
+  position: absolute;
+  top: 4px;
+  right: 6px;
+  z-index: 2;
+  color: #b0b6bd;
+  font-size: 20px;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+}
+
+.media-picker-check--on {
+  color: var(--q-primary);
 }
 
 .media-picker-item:hover {

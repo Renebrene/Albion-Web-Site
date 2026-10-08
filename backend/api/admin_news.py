@@ -25,6 +25,8 @@ class NewsPayload(BaseModel):
     seo_title: str | None = Field(default=None)
     seo_description: str | None = Field(default=None)
     slug: str | None = Field(default=None)
+    media_ids: list[int] | None = Field(default=None)
+    cover_media_id: int | None = Field(default=None)
 
 
 class NewsUpdate(BaseModel):
@@ -38,6 +40,8 @@ class NewsUpdate(BaseModel):
     seo_title: str | None = Field(default=None)
     seo_description: str | None = Field(default=None)
     slug: str | None = Field(default=None)
+    media_ids: list[int] | None = Field(default=None)
+    cover_media_id: int | None = Field(default=None)
 
 
 class CategoryPayload(BaseModel):

@@ -17,6 +17,53 @@ const requests = ref([])
 const loading = ref(false)
 const error = ref('')
 
+/*
+ * Реквизиты для распечатки/копирования портфеля. Хранятся на бэкенде
+ * (поле requisites у пользователя) и попадают в общий вывод портфеля.
+ */
+const REQUISITE_FIELDS = [
+  'organization',
+  'inn',
+  'kpp',
+  'address',
+  'phone',
+  'email',
+  'contact'
+]
+
+function emptyRequisites() {
+  const result = {}
+
+  for (const field of REQUISITE_FIELDS) {
+    result[field] = ''
+  }
+
+  return result
+}
+
+/*
+ * Приводит любой ответ бэкенда к полному объекту реквизитов.
+ * Неизвестные/отсутствующие поля становятся пустыми строками —
+ * так фронтенд не падает, пока бэкенд ещё не отдаёт requisites.
+ */
+function normalizeRequisites(source) {
+  const result = emptyRequisites()
+
+  if (!source || typeof source !== 'object') {
+    return result
+  }
+
+  for (const field of REQUISITE_FIELDS) {
+    const value = source[field]
+
+    result[field] = value === undefined || value === null ? '' : String(value)
+  }
+
+  return result
+}
+
+const requisites = ref(emptyRequisites())
+
 const isAuthenticated = computed(() => Boolean(token.value))
 
 function setToken(value) {
@@ -107,6 +154,9 @@ async function login(loginValue, passwordValue) {
 
     setToken(data.token)
     account.value = data.user || null
+    requisites.value = normalizeRequisites(
+      (data.user && data.user.requisites) || data.requisites
+    )
     return data
   })
 }
@@ -120,6 +170,9 @@ async function register({ login: loginValue, password, secret_phrase }) {
 
     setToken(data.token)
     account.value = data.user || null
+    requisites.value = normalizeRequisites(
+      (data.user && data.user.requisites) || data.requisites
+    )
     return data
   })
 }
@@ -138,6 +191,7 @@ async function logout() {
     setToken('')
     account.value = null
     requests.value = []
+    requisites.value = emptyRequisites()
     loading.value = false
   }
 }
@@ -146,6 +200,7 @@ async function loadMe() {
   if (!token.value) {
     account.value = null
     requests.value = []
+    requisites.value = emptyRequisites()
     return null
   }
 
@@ -155,6 +210,9 @@ async function loadMe() {
 
       account.value = data.user || null
       requests.value = Array.isArray(data.requests) ? data.requests : []
+      requisites.value = normalizeRequisites(
+        (data.user && data.user.requisites) || data.requisites
+      )
       return data
     })
   } catch {
@@ -162,6 +220,7 @@ async function loadMe() {
     setToken('')
     account.value = null
     requests.value = []
+    requisites.value = emptyRequisites()
     return null
   }
 }
@@ -211,10 +270,41 @@ async function createRequest({ title, surface_id, payload } = {}) {
   })
 }
 
+/*
+ * Сохранение реквизитов (Bearer-токен).
+ *
+ * Отправляем объект из 7 строковых полей; бэкенд возвращает сохранённый
+ * объект. Если ответ обёрнут ({ requisites: {...} }) — разворачиваем,
+ * а если полей в ответе нет, считаем сохранённым то, что отправили.
+ */
+async function saveRequisites(data) {
+  return run(async () => {
+    const payload = normalizeRequisites(data)
+
+    const saved = await apiRequest('/account/requisites', {
+      method: 'PUT',
+      auth: true,
+      body: payload
+    })
+
+    const candidate = (saved && saved.requisites) || saved
+    const hasFields =
+      candidate &&
+      typeof candidate === 'object' &&
+      REQUISITE_FIELDS.some(field => candidate[field] !== undefined)
+
+    const result = normalizeRequisites(hasFields ? candidate : payload)
+
+    requisites.value = result
+    return result
+  })
+}
+
 export function useAccount() {
   return {
     account,
     requests,
+    requisites,
     isAuthenticated,
     loading,
     error,
@@ -225,6 +315,7 @@ export function useAccount() {
     recover,
     loadMe,
     createRequest,
+    saveRequisites,
     clearError
   }
 }

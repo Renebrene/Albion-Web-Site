@@ -84,6 +84,220 @@
             </li>
           </ul>
         </section>
+
+        <!-- ============================================================
+             ПОРТФЕЛЬ, СОХРАНЁННЫЙ В ЛИЧНОМ КАБИНЕТЕ
+        ============================================================ -->
+        <section class="requests-card">
+          <div class="section-head">
+            <div class="section-title">Портфель</div>
+
+            <q-btn
+              v-if="savedPortfolio.length"
+              outline
+              no-caps
+              dense
+              class="refresh-btn"
+              label="Обновить"
+              :loading="portfolioLoading"
+              @click="loadSavedPortfolio"
+            />
+          </div>
+
+          <div v-if="portfolioLoading && !savedPortfolio.length" class="loading-row">
+            <q-spinner size="26px" />
+          </div>
+
+          <div v-else-if="!savedPortfolio.length" class="empty-text">
+            Портфель пуст — соберите его на карте или в списке и нажмите
+            «Сохранить в личном кабинете».
+          </div>
+
+          <template v-else>
+            <ul class="portfolio-list">
+              <li
+                v-for="(item, index) in savedPortfolio"
+                :key="item.surfaceId"
+                class="portfolio-item"
+              >
+                <div class="portfolio-item-num">{{ index + 1 }}</div>
+
+                <div class="portfolio-item-body">
+                  <div class="portfolio-item-title">
+                    {{ item.type || 'Формат не указан' }}
+                  </div>
+
+                  <div class="portfolio-item-address">
+                    {{ savedAddress(item) }}
+                  </div>
+
+                  <div v-if="savedMonths(item).length" class="portfolio-item-months">
+                    <span
+                      v-for="month in savedMonths(item)"
+                      :key="month"
+                      class="portfolio-item-month"
+                    >
+                      {{ month }}
+                    </span>
+                  </div>
+                </div>
+
+                <div class="portfolio-item-sum">
+                  {{ formatPortfolioPrice(savedSum(item)) }} ₽
+                </div>
+              </li>
+            </ul>
+
+            <div class="portfolio-total">
+              <span>Позиций: <b>{{ savedPortfolio.length }}</b></span>
+              <span>Итого: <b>{{ formatPortfolioPrice(savedTotal) }} ₽</b></span>
+            </div>
+
+            <div v-if="portfolioMessage" class="portfolio-note">
+              {{ portfolioMessage }}
+            </div>
+
+            <div class="portfolio-actions">
+              <q-btn
+                unelevated
+                no-caps
+                dense
+                color="primary"
+                label="Загрузить в портфель"
+                :loading="portfolioRestoring"
+                @click="restorePortfolio"
+              />
+
+              <q-btn
+                flat
+                no-caps
+                dense
+                label="Открыть портфель"
+                @click="router.push('/portfolio')"
+              />
+            </div>
+          </template>
+        </section>
+
+        <!-- ============================================================
+             РЕКВИЗИТЫ — попадают в распечатку и копирование портфеля
+        ============================================================ -->
+        <section class="requests-card requisites-card">
+          <div class="section-head">
+            <div class="section-title">Реквизиты</div>
+          </div>
+
+          <p class="requisites-note">
+            Эти данные попадут в распечатку и копирование портфеля.
+          </p>
+
+          <form
+            class="requisites-form"
+            novalidate
+            @submit.prevent="submitRequisites"
+          >
+            <div class="requisites-grid">
+              <div class="field">
+                <label>Организация</label>
+                <q-input
+                  v-model="requisitesForm.organization"
+                  outlined
+                  dense
+                  placeholder="Название организации"
+                />
+              </div>
+
+              <div class="field">
+                <label>ИНН</label>
+                <q-input
+                  v-model="requisitesForm.inn"
+                  outlined
+                  dense
+                  placeholder="Только цифры"
+                  :error="Boolean(requisitesErrors.inn)"
+                  :error-message="requisitesErrors.inn"
+                />
+              </div>
+
+              <div class="field">
+                <label>КПП</label>
+                <q-input
+                  v-model="requisitesForm.kpp"
+                  outlined
+                  dense
+                  placeholder="Только цифры"
+                  :error="Boolean(requisitesErrors.kpp)"
+                  :error-message="requisitesErrors.kpp"
+                />
+              </div>
+
+              <div class="field">
+                <label>Телефон</label>
+                <q-input
+                  v-model="requisitesForm.phone"
+                  outlined
+                  dense
+                  placeholder="+7 ..."
+                />
+              </div>
+
+              <div class="field">
+                <label>E-mail</label>
+                <q-input
+                  v-model="requisitesForm.email"
+                  outlined
+                  dense
+                  type="email"
+                  placeholder="mail@example.ru"
+                  :error="Boolean(requisitesErrors.email)"
+                  :error-message="requisitesErrors.email"
+                />
+              </div>
+
+              <div class="field">
+                <label>Контактное лицо</label>
+                <q-input
+                  v-model="requisitesForm.contact"
+                  outlined
+                  dense
+                  placeholder="ФИО"
+                />
+              </div>
+
+              <div class="field requisites-field-wide">
+                <label>Адрес</label>
+                <q-input
+                  v-model="requisitesForm.address"
+                  outlined
+                  dense
+                  placeholder="Юридический / почтовый адрес"
+                />
+              </div>
+            </div>
+
+            <div class="requisites-actions">
+              <q-btn
+                unelevated
+                no-caps
+                dense
+                color="primary"
+                type="submit"
+                label="Сохранить реквизиты"
+                :loading="requisitesSaving"
+              />
+
+              <Transition name="fade">
+                <span
+                  v-if="requisitesMessage"
+                  class="requisites-message"
+                  :class="`is-${requisitesMessageType}`"
+                >
+                  {{ requisitesMessage }}
+                </span>
+              </Transition>
+            </div>
+          </form>
+        </section>
       </template>
 
       <!-- ============================================================
@@ -310,13 +524,17 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 
 import { useAccount } from '@/composables/useAccount'
+import { usePortfolio } from '@/composables/usePortfolio'
+import { MONTHS } from '@/utils/constructionGroups'
 
 const {
   account,
   requests,
+  requisites,
   isAuthenticated,
   loading,
   error,
@@ -325,8 +543,177 @@ const {
   logout,
   recover,
   loadMe,
+  saveRequisites,
   clearError
 } = useAccount()
+
+const router = useRouter()
+
+/*
+ * Сохранённый в личном кабинете портфель — только для показа.
+ * Текущий (несохранённый) портфель живёт в usePortfolio().
+ */
+const { fetchAccountPortfolio, mergeFromAccount } = usePortfolio()
+
+const savedPortfolio = ref([])
+const portfolioLoading = ref(false)
+const portfolioRestoring = ref(false)
+const portfolioMessage = ref('')
+
+const PORTFOLIO_PRICE = new Intl.NumberFormat('ru-RU')
+
+/* Полное имя месяца -> короткая подпись («Октябрь» -> «ОКТ»). */
+function monthShort(full) {
+  const found = MONTHS.find(month => month.full === full)
+
+  return found ? found.short : full
+}
+
+function savedMonths(item) {
+  return Object.keys(item?.months || {}).map(monthShort)
+}
+
+function savedSum(item) {
+  return Object.values(item?.months || {}).reduce(
+    (sum, month) => sum + (Number(month && month.price) || 0),
+    0
+  )
+}
+
+function savedAddress(item) {
+  const place = [item?.city, item?.address]
+    .map(value => String(value ?? '').trim())
+    .filter(Boolean)
+    .join(', ')
+
+  const side = String(item?.side ?? '').trim()
+
+  return side ? `${place} · Сторона ${side}` : place
+}
+
+function formatPortfolioPrice(value) {
+  return PORTFOLIO_PRICE.format(Number(value) || 0)
+}
+
+const savedTotal = computed(() =>
+  savedPortfolio.value.reduce((sum, item) => sum + savedSum(item), 0)
+)
+
+async function loadSavedPortfolio() {
+  if (!isAuthenticated.value) {
+    savedPortfolio.value = []
+
+    return
+  }
+
+  portfolioLoading.value = true
+
+  try {
+    savedPortfolio.value = await fetchAccountPortfolio()
+  } finally {
+    portfolioLoading.value = false
+  }
+}
+
+/* Подтянуть сохранённый портфель в текущий (объединение по поверхностям). */
+async function restorePortfolio() {
+  portfolioRestoring.value = true
+  portfolioMessage.value = ''
+
+  try {
+    await mergeFromAccount()
+    savedPortfolio.value = await fetchAccountPortfolio()
+    portfolioMessage.value =
+      'Портфель загружен — откройте его кнопкой «Портфель» в шапке.'
+  } finally {
+    portfolioRestoring.value = false
+  }
+}
+
+/* ---------------- РЕКВИЗИТЫ ---------------- */
+
+const REQUISITE_FIELDS = [
+  'organization',
+  'inn',
+  'kpp',
+  'address',
+  'phone',
+  'email',
+  'contact'
+]
+
+function emptyRequisites() {
+  return REQUISITE_FIELDS.reduce((acc, field) => {
+    acc[field] = ''
+    return acc
+  }, {})
+}
+
+const requisitesForm = ref(emptyRequisites())
+const requisitesErrors = ref({})
+const requisitesSaving = ref(false)
+const requisitesMessage = ref('')
+const requisitesMessageType = ref('success')
+
+/* Заполняем поля текущими реквизитами из ЛК (в т.ч. после перезагрузки). */
+watch(
+  requisites,
+  value => {
+    requisitesForm.value = { ...emptyRequisites(), ...value }
+  },
+  { deep: true, immediate: true }
+)
+
+function validateRequisites(values) {
+  const errors = {}
+  const email = String(values.email ?? '').trim()
+  const inn = String(values.inn ?? '').trim()
+  const kpp = String(values.kpp ?? '').trim()
+
+  if (email && !email.includes('@')) {
+    errors.email = 'E-mail должен содержать @'
+  }
+
+  if (inn && !/^\d+$/.test(inn)) {
+    errors.inn = 'ИНН: только цифры'
+  }
+
+  if (kpp && !/^\d+$/.test(kpp)) {
+    errors.kpp = 'КПП: только цифры'
+  }
+
+  return errors
+}
+
+async function submitRequisites() {
+  requisitesMessage.value = ''
+
+  const errors = validateRequisites(requisitesForm.value)
+
+  requisitesErrors.value = errors
+  if (Object.keys(errors).length) return
+
+  const payload = REQUISITE_FIELDS.reduce((acc, field) => {
+    acc[field] = String(requisitesForm.value[field] ?? '').trim()
+    return acc
+  }, {})
+
+  requisitesSaving.value = true
+
+  try {
+    await saveRequisites(payload)
+    requisitesMessage.value = 'Реквизиты сохранены'
+    requisitesMessageType.value = 'success'
+  } catch (exc) {
+    /* локальное сообщение об ошибке — без дубля в общем баннере */
+    requisitesMessage.value =
+      exc && exc.message ? exc.message : 'Не удалось сохранить реквизиты'
+    requisitesMessageType.value = 'error'
+    clearError()
+  } finally {
+    requisitesSaving.value = false
+  }
+}
 
 /* 'login' | 'register' | 'recover' */
 const mode = ref('login')
@@ -355,8 +742,9 @@ const roleLabel = computed(() => {
   return role || 'пользователь'
 })
 
-onMounted(() => {
-  loadMe()
+onMounted(async () => {
+  await loadMe()
+  await loadSavedPortfolio()
 })
 
 function switchMode(next) {
@@ -397,6 +785,7 @@ async function submitLogin() {
 
   try {
     await login(loginForm.value.login.trim(), loginForm.value.password)
+    await loadSavedPortfolio()
   } catch {
     /* текст ошибки уже в error */
   }
@@ -422,6 +811,7 @@ async function submitRegister() {
       password: registerForm.value.password,
       secret_phrase: registerForm.value.secret_phrase
     })
+    await loadSavedPortfolio()
   } catch {
     /* текст ошибки уже в error */
   }
@@ -469,6 +859,9 @@ async function handleLogout() {
   loginForm.value = { login: '', password: '' }
   fieldErrors.value = {}
   successMessage.value = ''
+  requisitesForm.value = emptyRequisites()
+  requisitesErrors.value = {}
+  requisitesMessage.value = ''
 }
 
 /* ---------------- ЗАЯВКИ ---------------- */
@@ -831,6 +1224,162 @@ function requestDate(item) {
   font-size: 11px;
 }
 
+/* --- Портфель в личном кабинете --- */
+
+.portfolio-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.portfolio-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+
+  padding: 14px 16px;
+  margin-bottom: 10px;
+
+  border: 1px solid #e4e6ea;
+  border-radius: 12px;
+}
+
+.portfolio-item-num {
+  flex: 0 0 auto;
+
+  color: #71808c;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.4;
+}
+
+.portfolio-item-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.portfolio-item-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.portfolio-item-address {
+  margin-top: 3px;
+  color: #71808c;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.portfolio-item-months {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  margin-top: 8px;
+}
+
+.portfolio-item-month {
+  padding: 2px 8px;
+
+  border: 1px solid var(--albion-accent);
+  border-radius: 7px;
+
+  color: var(--albion-accent);
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .3px;
+}
+
+.portfolio-item-sum {
+  flex: 0 0 auto;
+
+  font-size: 15px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.portfolio-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 10px 2px 2px;
+  margin-top: 4px;
+
+  border-top: 1px solid #eceef1;
+
+  font-size: 14px;
+}
+
+.portfolio-note {
+  margin-top: 10px;
+  padding: 8px 12px;
+
+  border-radius: 10px;
+  background: #e8f5e9;
+  color: #2e7d32;
+
+  font-size: 13px;
+}
+
+.portfolio-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+
+  margin-top: 12px;
+}
+
+/* --- Реквизиты --- */
+
+.requisites-card {
+  margin-top: 18px;
+}
+
+.requisites-note {
+  margin: 0 0 16px;
+  color: #71808c;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.requisites-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 16px;
+}
+
+.requisites-grid .field {
+  margin-bottom: 14px;
+}
+
+.requisites-field-wide {
+  grid-column: 1 / -1;
+}
+
+.requisites-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+
+  margin-top: 4px;
+}
+
+.requisites-message {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.requisites-message.is-success {
+  color: #1b5e20;
+}
+
+.requisites-message.is-error {
+  color: #b3261e;
+}
+
 @media (max-width: 560px) {
   .account-wrap {
     padding: 28px 16px 48px;
@@ -848,6 +1397,10 @@ function requestDate(item) {
   .request-meta {
     align-items: flex-start;
     text-align: left;
+  }
+
+  .requisites-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -26,44 +26,14 @@
             {{ news.excerpt }}
           </p>
 
-          <div class="news-gallery">
-            <img
-              :src="currentMedia.src"
-              :alt="currentMedia.alt || news.title"
-            >
-
-            <template v-if="news.media.length > 1">
-              <button
-                type="button"
-                class="gallery-arrow gallery-prev"
-                @click="prevSlide"
-              >
-                ‹
-              </button>
-
-              <button
-                type="button"
-                class="gallery-arrow gallery-next"
-                @click="nextSlide"
-              >
-                ›
-              </button>
-
-              <div class="gallery-counter">
-                {{ currentSlide + 1 }} / {{ news.media.length }}
-              </div>
-
-              <div class="gallery-dots">
-                <button
-                  v-for="(_, index) in news.media"
-                  :key="index"
-                  type="button"
-                  :class="{ active: index === currentSlide }"
-                  @click="currentSlide = index"
-                />
-              </div>
-            </template>
-          </div>
+          <!-- Медиа новости: фото, GIF и видео в карусели.
+               Если медиа нет — блок не показываем. -->
+          <NewsMediaCarousel
+            v-if="media.length"
+            class="news-media-block"
+            :media="media"
+            :alt="news.title"
+          />
 
           <div class="news-content">
             <p
@@ -124,6 +94,10 @@
       </div>
     </div>
 
+    <div v-else-if="loading" class="news-loading">
+      <q-spinner-dots size="42px" color="primary" />
+    </div>
+
     <div v-else class="news-not-found">
       <h1>Новость не найдена</h1>
       <button
@@ -137,29 +111,85 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NEWS from '../data/news'
+import { getNewsItem } from '@/services/api'
+import NewsMediaCarousel, {
+  normalizeMedia
+} from '../components/news/NewsMediaCarousel.vue'
 
 const route = useRoute()
 const router = useRouter()
 
-const currentSlide = ref(0)
+const apiNews = ref(null)
+const loading = ref(true)
+
+/*
+ * Приводим новость к единому виду: API отдаёт category-объект и
+ * published_at, локальные данные — строку категории и поле date.
+ */
+function normalizeNews(item) {
+  if (!item) return null
+
+  const category = item.category && typeof item.category === 'object'
+    ? item.category.name
+    : item.category
+
+  const date = String(item.date || item.published_at || '').slice(0, 10)
+
+  return {
+    id: item.id ?? item.slug,
+    slug: item.slug,
+    title: item.title || '',
+    excerpt: item.excerpt || '',
+    content: item.content || '',
+    category: category || '',
+    date,
+    media: normalizeMedia(item.media || [])
+  }
+}
+
+async function loadNews(slug) {
+  loading.value = true
+  apiNews.value = null
+
+  try {
+    const data = await getNewsItem(slug)
+    apiNews.value = normalizeNews(data)
+  } catch (error) {
+    // 404 — это нормальная ситуация «новость не найдена», в консоль не пишем.
+    // Об остальных ошибках (например, API недоступен) сообщаем.
+    if (!String(error).includes('404')) {
+      console.error('Не удалось загрузить новость:', error)
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+watch(
+  () => route.params.slug,
+  slug => loadNews(slug),
+  { immediate: true }
+)
 
 const news = computed(() => {
-  return NEWS.find(
+  if (apiNews.value) return apiNews.value
+
+  // Пока идёт загрузка, локальные данные не подставляем — чтобы не мигало.
+  if (loading.value) return null
+
+  const local = NEWS.find(
     item =>
       item.slug === route.params.slug &&
       item.status === 'published'
   )
+
+  return normalizeNews(local)
 })
 
-const currentMedia = computed(() => {
-  return news.value?.media?.[currentSlide.value] || {
-    src: '',
-    alt: ''
-  }
-})
+const media = computed(() => news.value?.media || [])
 
 const paragraphs = computed(() => {
   if (!news.value?.content) return []
@@ -196,28 +226,11 @@ const relatedNews = computed(() => {
     .slice(0, 4)
 })
 
-function nextSlide() {
-  const count = news.value?.media?.length || 0
-  if (!count) return
-
-  currentSlide.value =
-    (currentSlide.value + 1) % count
-}
-
-function prevSlide() {
-  const count = news.value?.media?.length || 0
-  if (!count) return
-
-  currentSlide.value =
-    (currentSlide.value - 1 + count) % count
-}
-
 function goBack() {
   router.push('/novosti')
 }
 
 function openRelated(slug) {
-  currentSlide.value = 0
   router.push(`/novosti/${slug}`)
   window.scrollTo({
     top: 0,
@@ -322,84 +335,9 @@ function formatShortDate(date) {
   line-height: 1.5;
 }
 
-.news-gallery {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 18px;
-  background: #e4e9eb;
-}
-
-.news-gallery img {
+.news-media-block {
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.gallery-arrow {
-  position: absolute;
-  top: 50%;
-  width: 42px;
-  height: 42px;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255,255,255,.92);
-  color: #17212b;
-  cursor: pointer;
-  font-size: 32px;
-  line-height: 1;
-  box-shadow: 0 4px 15px rgba(0,0,0,.12);
-}
-
-.gallery-arrow:hover {
-  background: #fff;
-}
-
-.gallery-prev {
-  left: 18px;
-}
-
-.gallery-next {
-  right: 18px;
-}
-
-.gallery-counter {
-  position: absolute;
-  top: 16px;
-  right: 16px;
-  padding: 7px 10px;
-  border-radius: 7px;
-  background: rgba(20,30,40,.68);
-  color: #fff;
-  font-size: 9px;
-  font-weight: 800;
-}
-
-.gallery-dots {
-  position: absolute;
-  left: 50%;
-  bottom: 17px;
-  display: flex;
-  gap: 7px;
-  transform: translateX(-50%);
-}
-
-.gallery-dots button {
-  width: 7px;
-  height: 7px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255,255,255,.55);
-  cursor: pointer;
-}
-
-.gallery-dots button.active {
-  background: #fff;
-  transform: scale(1.4);
+  margin-bottom: 34px;
 }
 
 .news-content {
@@ -525,6 +463,13 @@ function formatShortDate(date) {
   transform: translateY(-50%);
 }
 
+.news-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 500px;
+}
+
 .news-not-found {
   display: flex;
   flex-direction: column;
@@ -579,24 +524,6 @@ function formatShortDate(date) {
 
   .news-excerpt {
     font-size: 14px;
-  }
-
-  .news-gallery {
-    border-radius: 12px;
-  }
-
-  .gallery-arrow {
-    width: 34px;
-    height: 34px;
-    font-size: 25px;
-  }
-
-  .gallery-prev {
-    left: 10px;
-  }
-
-  .gallery-next {
-    right: 10px;
   }
 
   .news-sidebar {

@@ -3,7 +3,19 @@
     <div class="media-container">
       <header class="media-header">
         <div>
-          <div class="media-brand">ALBION</div>
+          <!-- Логотип как на публичном сайте; клик — переход на сайт -->
+          <RouterLink
+            to="/"
+            class="media-brand"
+            title="Перейти на сайт"
+            aria-label="Albion — перейти на сайт"
+          >
+            <img
+              src="/logo.png"
+              alt="Albion"
+              class="media-brand-logo"
+            >
+          </RouterLink>
         </div>
 
         <q-btn
@@ -641,45 +653,55 @@
                 >
                   Не используется
                 </q-chip>
+
+                <!-- Действия стоят в одной строке с чипом статуса -->
+                <div class="media-item-actions">
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="open_in_new"
+                    aria-label="Открыть в новой вкладке"
+                    :href="storageUrl(item.storage_path)"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <q-tooltip>Открыть в новой вкладке</q-tooltip>
+                  </q-btn>
+
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="edit"
+                    aria-label="Редактировать"
+                    @click="openEditMedia(item)"
+                  >
+                    <q-tooltip>Редактировать</q-tooltip>
+                  </q-btn>
+
+                  <q-btn
+                    flat
+                    round
+                    dense
+                    icon="delete"
+                    color="negative"
+                    aria-label="Удалить"
+                    :disable="item.used_in_news || item.used_in_pages"
+                    :loading="deletingId === item.id"
+                    @click="deleteMedia(item)"
+                  >
+                    <q-tooltip>
+                      {{
+                        item.used_in_news || item.used_in_pages
+                          ? 'Файл используется — удалить нельзя'
+                          : 'Удалить'
+                      }}
+                    </q-tooltip>
+                  </q-btn>
+                </div>
               </div>
             </q-card-section>
-
-            <div class="media-item-actions">
-              <q-btn
-                flat
-                round
-                dense
-                icon="open_in_new"
-                aria-label="Открыть"
-                title="Открыть"
-                :href="storageUrl(item.storage_path)"
-                target="_blank"
-                rel="noopener noreferrer"
-              />
-
-              <q-btn
-                flat
-                round
-                dense
-                icon="edit"
-                aria-label="Редактировать"
-                title="Редактировать"
-                @click="openEditMedia(item)"
-              />
-
-              <q-btn
-                flat
-                round
-                dense
-                icon="delete"
-                color="negative"
-                aria-label="Удалить"
-                title="Удалить"
-                :disable="item.used_in_news || item.used_in_pages"
-                :loading="deletingId === item.id"
-                @click="deleteMedia(item)"
-              />
-            </div>
           </q-card>
         </div>
       <div v-if="mediaStats" class="media-stats">
@@ -1693,10 +1715,19 @@ onBeforeUnmount(() => {
 }
 
 .media-brand {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  display: inline-flex;
+  align-items: center;
+
   margin-bottom: 12px;
+}
+
+.media-brand-logo {
+  display: block;
+
+  width: auto;
+  height: 42px;
+
+  max-width: 150px;
 }
 
 .media-header h1 {
@@ -1759,12 +1790,21 @@ onBeforeUnmount(() => {
   font-size: 13px;
 }
 
+/* Строка статуса: чипы слева, действия — прижаты вправо. */
+.usage-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .media-item-actions {
   display: flex;
   justify-content: flex-end;
   align-items: center;
   gap: 4px;
-  padding: 6px 10px 10px;
+  margin-left: auto;
+  padding: 0;
 }
 
 .section-title {

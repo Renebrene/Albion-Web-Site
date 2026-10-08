@@ -11,7 +11,8 @@ import { useAccount } from './useAccount'
  *
  * Позиция портфеля:
  *   {
- *     surfaceId, address, city, side, type, size, photo,
+ *     surfaceId, address, city, side, type, size,
+ *     photo, photo_thumb, photo_large,
  *     months: { [monthFull]: { price, addedAt, stale } },
  *     addedAt
  *   }
@@ -25,8 +26,23 @@ const TOKEN_KEY = 'albion_account_token'
 const API_URL = '/api'
 const SAVE_DEBOUNCE_MS = 1000
 
+// Название портфеля — попадает в распечатку/выгрузку/копирование.
+// Ограничение длины, чтобы не раздувать заголовки файлов и письма.
+const TITLE_MAX = 120
+
 // «Паспортные» поля позиции, которые берутся из конструкции.
-const PASSPORT_FIELDS = ['address', 'city', 'side', 'type', 'size', 'photo']
+// Три варианта фото нужны, чтобы не тянуть оригинал: миниатюра — в списке
+// портфеля и печати, крупный — только в полноэкранном просмотре.
+const PASSPORT_FIELDS = [
+  'address',
+  'city',
+  'side',
+  'type',
+  'size',
+  'photo',
+  'photo_thumb',
+  'photo_large'
+]
 
 // Экземпляр ЛК нужен для реактивной проверки авторизации.
 const { isAuthenticated } = useAccount()
@@ -34,6 +50,9 @@ const { isAuthenticated } = useAccount()
 // ---------------------------------------------------------------- состояние
 
 const items = ref([])
+
+// Название портфеля (для распечатки/выгрузки/копирования).
+const title = ref('')
 
 // surfaceId (в виде строки) -> true, если включён режим выбора месяцев.
 const selectionMode = reactive({})
@@ -99,6 +118,16 @@ function toNumber(value) {
   const num = Number(text.replace(/\s/g, '').replace(',', '.'))
 
   return Number.isFinite(num) ? num : null
+}
+
+/*
+ * Название портфеля: строка без крайних пробелов, не длиннее TITLE_MAX.
+ * Пусто/не строку приводит к ''.
+ */
+function normalizeTitle(value) {
+  return String(value ?? '')
+    .trim()
+    .slice(0, TITLE_MAX)
 }
 
 function cloneDeep(value) {
@@ -281,6 +310,14 @@ function clear() {
 }
 
 /*
+ * Название портфеля снаружи (панель). Значение триммится и
+ * обрезается до TITLE_MAX; сохранение в localStorage/ЛК подхватит watch.
+ */
+function setTitle(value) {
+  title.value = normalizeTitle(value)
+}
+
+/*
  * Синхронизация с актуальным списком конструкций.
  *
  * Обновляет «паспортные» поля позиций и помечает месяц stale,
@@ -331,6 +368,7 @@ function serialize() {
 
   return {
     version: 1,
+    title: normalizeTitle(title.value),
     items: Array.isArray(plain) ? plain : []
   }
 }
@@ -351,6 +389,9 @@ function hydrate(data) {
   })
 
   items.value = next
+
+  // Название восстанавливаем вместе со списком; нет в данных — пустая строка.
+  title.value = normalizeTitle(data.title)
 
   return true
 }
@@ -401,12 +442,56 @@ async function loadFromAccount() {
 
     const data = await response.json()
 
+    // Непустой серверный заголовок применяется; пустой — не затирает локальный.
+    const serverTitle = normalizeTitle(data && data.title)
+
     return hydrate({
       version: 1,
+      title: serverTitle || title.value,
       items: Array.isArray(data && data.items) ? data.items : []
     })
   } catch {
     return false
+  }
+}
+
+/*
+ * Читает сохранённый в ЛК портфель, НЕ трогая текущий список.
+ * Нужно странице личного кабинета, чтобы показать, что сохранено.
+ */
+async function fetchAccountPortfolio() {
+  const token = getToken()
+
+  if (!token) {
+    return []
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/account/portfolio`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
+    if (!response.ok) {
+      return []
+    }
+
+    const data = await response.json()
+
+    /*
+     * Заголовок сервера не теряем: если локально пусто — подхватываем.
+     * Возвращаем прежний массив позиций (страница ЛК ждёт именно список).
+     */
+    const serverTitle = normalizeTitle(data && data.title)
+
+    if (serverTitle && !title.value) {
+      title.value = serverTitle
+    }
+
+    const list = Array.isArray(data && data.items) ? data.items : []
+
+    return list.map(normalizeItem).filter(Boolean)
+  } catch {
+    return []
   }
 }
 
@@ -424,7 +509,10 @@ async function saveToAccount() {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify({ items: serialize().items })
+      body: JSON.stringify({
+        title: normalizeTitle(title.value),
+        items: serialize().items
+      })
     })
 
     return response.ok
@@ -499,6 +587,7 @@ async function mergeFromAccount() {
   }
 
   let serverItems = []
+  let serverTitle = ''
 
   try {
     const response = await fetch(`${API_URL}/account/portfolio`, {
@@ -508,12 +597,19 @@ async function mergeFromAccount() {
     if (response.ok) {
       const data = await response.json()
       serverItems = Array.isArray(data && data.items) ? data.items : []
+      serverTitle = normalizeTitle(data && data.title)
     }
   } catch {
     return false
   }
 
   items.value = mergeItems(items.value, serverItems)
+
+  // Если на клиенте названия нет — берём серверное.
+  if (!title.value && serverTitle) {
+    title.value = serverTitle
+  }
+
   saveLocal()
 
   return true
@@ -533,7 +629,7 @@ loadLocal()
 let saveTimer = null
 
 watch(
-  items,
+  [items, title],
   () => {
     saveLocal()
 
@@ -559,6 +655,7 @@ export function usePortfolio() {
   return {
     // состояние
     items,
+    title,
     count,
     totalPrice,
     selectionMode,
@@ -573,6 +670,7 @@ export function usePortfolio() {
     toggleMonth,
     removeSurface,
     clear,
+    setTitle,
     syncWithConstructions,
 
     // (де)сериализация и хранение
@@ -584,6 +682,7 @@ export function usePortfolio() {
     // синхронизация с ЛК
     loadFromAccount,
     saveToAccount,
-    mergeFromAccount
+    mergeFromAccount,
+    fetchAccountPortfolio
   }
 }

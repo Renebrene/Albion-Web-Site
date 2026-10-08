@@ -1,7 +1,19 @@
 <template>
   <q-page class="administration-login">
     <div class="login-card">
-      <div class="login-brand">ALBION</div>
+      <!-- Логотип как на публичном сайте; клик — переход на сайт -->
+      <RouterLink
+        to="/"
+        class="login-brand"
+        title="Перейти на сайт"
+        aria-label="Albion — перейти на сайт"
+      >
+        <img
+          src="/logo.png"
+          alt="Albion"
+          class="login-brand-logo"
+        >
+      </RouterLink>
 
       <h1>Администрирование</h1>
 
@@ -108,10 +120,19 @@ async function submit() {
 }
 
 .login-brand {
-  font-size: 28px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  display: inline-flex;
+  align-items: center;
+
   margin-bottom: 32px;
+}
+
+.login-brand-logo {
+  display: block;
+
+  width: auto;
+  height: 48px;
+
+  max-width: 180px;
 }
 
 .login-card h1 {

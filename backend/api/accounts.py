@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.services import account_service as svc
 
@@ -52,10 +52,29 @@ class CreateRequestPayload(BaseModel):
     payload: Any = None
 
 
+class RequisitesPayload(BaseModel):
+    """Реквизиты пользователя ЛК для выгрузки/печати портфеля.
+
+    Все поля — строки, по умолчанию пустые. Длины ограничены, лишние
+    ключи отбрасывает сервис (normalize_requisites).
+    """
+
+    organization: str = Field(default="", max_length=300)
+    inn: str = Field(default="", max_length=300)
+    kpp: str = Field(default="", max_length=300)
+    address: str = Field(default="", max_length=300)
+    phone: str = Field(default="", max_length=300)
+    email: str = Field(default="", max_length=300)
+    contact: str = Field(default="", max_length=300)
+
+
 class PortfolioPayload(BaseModel):
     # Портфель — список позиций (поверхности + выбранные месяцы).
     # Структуру описывает фронтенд (usePortfolio), бэкенд хранит её как есть.
     items: list[Any] = []
+    # Необязательное название портфеля. Если поле не пришло в запросе
+    # (exclude_unset), уже сохранённое название не затирается.
+    title: str = ""
 
 
 # ---------------------------------------------------------------- helpers
@@ -165,6 +184,20 @@ def account_recover(payload: RecoverPayload):
     return {"success": True}
 
 
+@router.put("/requisites")
+def account_save_requisites(
+    payload: RequisitesPayload,
+    user: dict = Depends(require_account),
+):
+    """Сохраняет реквизиты аккаунта и возвращает сохранённый объект."""
+    saved = svc.save_requisites(user["id"], payload)
+
+    return {
+        "success": True,
+        "requisites": saved,
+    }
+
+
 @router.get("/requests")
 def account_requests(user: dict = Depends(require_account)):
     return {
@@ -196,10 +229,13 @@ def account_create_request(
 
 @router.get("/portfolio")
 def account_get_portfolio(user: dict = Depends(require_account)):
-    """Портфель текущего аккаунта: { "items": [...] }."""
+    """Портфель текущего аккаунта: { "title": ..., "items": [...] }."""
     payload = svc.get_portfolio(user["id"])
 
-    return {"items": payload.get("items", [])}
+    return {
+        "title": payload.get("title") or "",
+        "items": payload.get("items", []),
+    }
 
 
 @router.put("/portfolio")
@@ -207,7 +243,22 @@ def account_save_portfolio(
     payload: PortfolioPayload,
     user: dict = Depends(require_account),
 ):
-    """Сохраняет портфель аккаунта и возвращает сохранённое."""
-    saved = svc.save_portfolio(user["id"], {"items": payload.items})
+    """Сохраняет портфель аккаунта и возвращает сохранённое.
 
-    return {"items": saved.get("items", [])}
+    Обратная совместимость: если тело содержит только items (без title),
+    уже сохранённое название не затирается пустой строкой.
+    """
+    sent = payload.model_dump(exclude_unset=True)
+
+    if "title" in sent:
+        title = (payload.title or "").strip()
+    else:
+        current = svc.get_portfolio(user["id"])
+        title = current.get("title") or ""
+
+    saved = svc.save_portfolio(user["id"], {"title": title, "items": payload.items})
+
+    return {
+        "title": saved.get("title") or "",
+        "items": saved.get("items", []),
+    }
