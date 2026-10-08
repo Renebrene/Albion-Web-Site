@@ -871,11 +871,12 @@ function distanceInMeters(lat1, lng1, lat2, lng2) {
   )
 }
 
+/*
+ * Конструкции в радиусе зафиксированной точки.
+ * Не зависит от активной закладки: пока точка зафиксирована,
+ * результаты видны и в «Списке», и на «Интерактивной карте».
+ */
 const pointFilteredConstructions = computed(() => {
-  if (workspaceMode.value !== 'point') {
-    return filteredConstructions.value
-  }
-
   const centerLat = Number(fixedSearchPoint.value?.lat)
   const centerLng = Number(fixedSearchPoint.value?.lng)
   const radius = Number(pointRadius.value) || 0
