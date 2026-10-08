@@ -10,6 +10,7 @@ const DEFAULT_ZOOM = 10
 let map = null
 let clusterGroup = null
 let regionLayer = null
+let maskLayer = null
 let centerChangeHandler = null
 
 // Точка поиска и визуальный радиус.
@@ -679,6 +680,42 @@ function getVisibleConstructions() {
    REGION
    ========================================================= */
 
+/* Внешние кольца области из GeoJSON в формате Leaflet [lat, lng]. */
+function geojsonOuterRings(geojson) {
+  const features =
+    geojson?.type === 'FeatureCollection'
+      ? geojson.features || []
+      : geojson?.type === 'Feature'
+        ? [geojson]
+        : geojson?.geometry
+          ? [{ geometry: geojson.geometry }]
+          : []
+
+  const rings = []
+
+  for (const feature of features) {
+    const geometry = feature?.geometry
+
+    if (!geometry) {
+      continue
+    }
+
+    if (geometry.type === 'Polygon') {
+      rings.push(geometry.coordinates[0])
+    } else if (geometry.type === 'MultiPolygon') {
+      for (const polygon of geometry.coordinates) {
+        if (polygon[0]) {
+          rings.push(polygon[0])
+        }
+      }
+    }
+  }
+
+  return rings.map(ring =>
+    ring.map(([lng, lat]) => [lat, lng])
+  )
+}
+
 async function loadRegion() {
   if (!map) {
     return
@@ -699,21 +736,54 @@ async function loadRegion() {
 
     if (regionLayer) {
       map.removeLayer(regionLayer)
+      regionLayer = null
     }
 
+    if (maskLayer) {
+      map.removeLayer(maskLayer)
+      maskLayer = null
+    }
+
+    /*
+     * Маска: всё ВНЕ Ростовской области затемняем серым.
+     * Полигон мира с «дыркой» по области (fillRule: evenodd).
+     */
+    const rings = geojsonOuterRings(geojson)
+
+    const worldRing = [
+      [90, -180],
+      [90, 180],
+      [-90, 180],
+      [-90, -180],
+      [90, -180]
+    ]
+
+    maskLayer = L.polygon(
+      [worldRing, ...rings],
+      {
+        stroke: false,
+        fill: true,
+        fillColor: '#3f4950',
+        fillOpacity: 0.55,
+        fillRule: 'evenodd',
+        interactive: false
+      }
+    )
+
+    maskLayer.addTo(map)
+
+    if (maskLayer.bringToBack) {
+      maskLayer.bringToBack()
+    }
+
+    /* Граница области — поверх маски. */
     regionLayer = L.geoJSON(
       geojson,
       {
-        /*
-         * Только граница.
-         *
-         * Карта остаётся нормальной OSM-картой,
-         * точки не перекрываются заливкой.
-         */
         style: {
-          color: '#9aa5ad',
-          weight: 2,
-          opacity: 0.85,
+          color: '#5b6670',
+          weight: 1.5,
+          opacity: 0.9,
 
           fill: false,
 
@@ -725,14 +795,6 @@ async function loadRegion() {
     )
 
     regionLayer.addTo(map)
-
-    /*
-     * Границу отправляем назад,
-     * чтобы она не перекрывала маркеры.
-     */
-    if (regionLayer.bringToBack) {
-      regionLayer.bringToBack()
-    }
 
     console.log(
       'Albion Map: Ростовская область и маска загружены'
@@ -777,6 +839,12 @@ function destroyMap() {
   }
 
   regionLayer = null
+
+  if (maskLayer && map) {
+    map.removeLayer(maskLayer)
+  }
+
+  maskLayer = null
 
   if (clusterGroup) {
     clusterGroup.clearLayers()

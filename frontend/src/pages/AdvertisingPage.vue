@@ -1261,7 +1261,10 @@ onMounted(async () => {
 }
 
 .app {
-  height: calc(100vh - 115px);
+  /* Ровно экран минус реальные высоты шапки и подвала (меряются в MainLayout)
+     — подвал встаёт сразу под контентом, без пустого зазора. */
+  height: calc(100vh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px));
+  height: calc(100dvh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px));
 
   display: grid;
   grid-template-columns: 310px 1fr;
@@ -1581,7 +1584,8 @@ onMounted(async () => {
 /* Кнопка «Оставить заявку» и её статус */
 
 .card-request {
-  margin-top: 14px;
+  /* Прижимаем кнопку к низу карточки — низ выровнен у всех */
+  margin-top: auto;
   padding-top: 12px;
 
   border-top: 1px solid #edf0f2;
@@ -1642,7 +1646,13 @@ onMounted(async () => {
 }
 
 .card-address-main {
-  min-height: 0;
+  /* Ровно две строки: фото во всех карточках начинаются на одном уровне */
+  min-height: 2.3em;
+
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 
   color: #17212b;
 
@@ -1724,8 +1734,9 @@ onMounted(async () => {
   padding-top: 9px;
 }
 
-/* Месяцы в строке динамической стороны — без верхней границы */
-.card-months--inline {
+/* Месяцы в строке динамической стороны — без верхней границы и отступов.
+   Специфичность как у `.card-block .card-months`, иначе оно перебивает. */
+.card-block .card-months--inline {
   flex: 1;
 
   margin-top: 0;
@@ -1755,18 +1766,22 @@ onMounted(async () => {
 .card-dynamic-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .card-dynamic-side {
   flex: 0 0 auto;
 
-  min-width: 34px;
+  min-width: 40px;
+
+  display: inline-flex;
+  align-items: center;
 
   color: #17212b;
 
   font-size: 10px;
   font-weight: 900;
+  line-height: 1.2;
   letter-spacing: .04em;
 }
 
