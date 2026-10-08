@@ -181,8 +181,34 @@
               </div>
 
               <div class="construction-meta">
-                <span>Освещение: {{ item.light }}</span>
-                <span>Материал: {{ item.material }}</span>
+                <span
+                  class="meta-feature"
+                  :title="isLightOn(item) ? 'Подсветка есть' : 'Без подсветки'"
+                >
+                  <span
+                    class="feature-picto lightbulb"
+                    :class="isLightOn(item) ? 'on' : 'off'"
+                  >💡</span>
+                  <span class="feature-label">подсветка</span>
+                </span>
+
+                <span class="meta-feature" title="статика/динамика">
+                  <span class="feature-dyn">
+                    <span
+                      class="dyn-word"
+                      :class="{ 'is-active': !isDynamic(item) }"
+                    >статика</span>
+
+                    <span class="dyn-sep">/</span>
+
+                    <span
+                      class="dyn-word"
+                      :class="{ 'is-active': isDynamic(item) }"
+                    >динамика</span>
+                  </span>
+                </span>
+
+                <span v-if="item.material">Материал: {{ item.material }}</span>
               </div>
 
               <div class="months-title">
@@ -471,6 +497,19 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
+
+import { isDynamicSide } from '../utils/constructionGroups'
+
+/* Подсветка включена, если в источнике «Да» */
+function isLightOn(item) {
+  const light = String(item?.light || '').trim().toLowerCase()
+  return ['да', 'yes', 'true', '1'].includes(light)
+}
+
+/* Динамика — сторона с несколькими поверхностями (см. constructionGroups) */
+function isDynamic(item) {
+  return isDynamicSide(String(item?.side || ''), item?.type)
+}
 
 const router = useRouter()
 

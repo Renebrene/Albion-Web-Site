@@ -365,6 +365,8 @@ def load_surfaces(
             type,
             size,
             price,
+            light,
+            material,
             photo_url,
             map_url,
             latitude,
@@ -409,6 +411,8 @@ def load_surfaces(
                     type,
                     size,
                     price,
+                    light,
+                    material,
                     photo,
                     map,
                     location,
@@ -418,7 +422,7 @@ def load_surfaces(
                     is_active
                 )
                 VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s,
                     CASE
                         WHEN %s::text IS NULL THEN NULL
@@ -438,6 +442,8 @@ def load_surfaces(
                     row["type"],
                     row["size"],
                     row["price"],
+                    row["light"],
+                    row["material"],
                     row["photo_url"],
                     row["map_url"],
                     location,

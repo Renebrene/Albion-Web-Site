@@ -922,6 +922,36 @@
   opacity: .45;
 }
 
+.feature-picto.lightbulb.on {
+  filter: none;
+  opacity: 1;
+}
+
+/* «статика / динамика»: активное слово подчёркнуто */
+.feature-dyn {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.dyn-word {
+  color: #9aa5ad;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.dyn-word.is-active {
+  color: #17212b;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.dyn-sep {
+  color: #c3cbd1;
+  font-size: 10px;
+}
+
 .feature-picto.feature-placeholder {
   width: 15px;
   height: 15px;

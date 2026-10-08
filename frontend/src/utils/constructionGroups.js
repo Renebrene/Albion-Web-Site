@@ -14,20 +14,74 @@ export const MONTHS = [
   { full: 'Декабрь', short: 'ДЕК' }
 ]
 
-/* Классификация сторон: динамические — буква с индексом A(1)/A2 */
+/*
+ * Терминология:
+ *   Конструкция = Адрес + номер (один объект, одна координата);
+ *   Сторона     = A, B, C, а на разделительной полосе — A1, A2 (без индекса);
+ *   Поверхность = A(1), A(2), A1(2)… (индекс в скобках) — лежит на стороне.
+ *
+ * Динамическая сторона содержит несколько поверхностей, статическая — одну.
+ */
 export function sideLabel(item) {
   return String(item?.side || '')
     .toUpperCase()
     .trim()
 }
 
-export function isDynamicSide(side) {
-  return /\(\d+\)/.test(side) || /^[A-ZА-Я]+\d+$/.test(side)
+/* Формат «щит»: любая подпись — это СТОРОНА (щит статичен, поверхностей нет). */
+function isShieldFormat(type) {
+  return String(type || '').toLowerCase().includes('щит')
 }
 
-export function parentSide(side) {
-  const match = String(side || '').match(/^([A-ZА-Я]+)/)
-  return match ? match[1] : side
+/* Формат «экран»: голая A1 — СТОРОНА, но A(1) — уже поверхность. */
+function isScreenFormat(type) {
+  return String(type || '').toLowerCase().includes('экран')
+}
+
+/* Динамика = на стороне несколько поверхностей.
+ * Индекс в скобках (A(1), A1(2)) — поверхность (кроме щита).
+ * Голая A1/A2 — поверхность вне щита и экрана. */
+export function isDynamicSide(side, type) {
+  const value = String(side || '').toUpperCase().trim()
+
+  if (isShieldFormat(type)) {
+    return false
+  }
+
+  if (/\(\d+\)/.test(value)) {
+    return true
+  }
+
+  if (/^[A-ZА-Я]+\d+$/.test(value)) {
+    return !isScreenFormat(type)
+  }
+
+  return false
+}
+
+/* Сторона = подпись без индекса поверхности. Подписи не нормализуем —
+ * показываем как в базе.
+ *
+ * Щит: любая подпись — сторона («A», «B», «A(1)», «A1»…).
+ *
+ * Остальные: «A1(2)» → «A1», «A(3)» → «A»; голая «A1» → «A»
+ * (у экрана голая «A1» — сторона, остаётся «A1»). */
+export function parentSide(side, type) {
+  const value = String(side || '').toUpperCase().trim()
+
+  if (isShieldFormat(type)) {
+    return value
+  }
+
+  if (/\(\d+\)/.test(value)) {
+    return value.replace(/\(\d+\)\s*$/, '').trim()
+  }
+
+  if (/^[A-ZА-Я]+\d+$/.test(value)) {
+    return isScreenFormat(type) ? value : value.replace(/\d+$/, '')
+  }
+
+  return value
 }
 
 /*
@@ -91,21 +145,21 @@ export function maxBlocksFor(family) {
 }
 
 /*
- * Группируем по ФОРМАТУ и родительской стороне:
- * «Призматрон A(1)+A(2)+A(3)» → один блок, «Щит B» → отдельный.
+ * Группируем поверхности по ФОРМАТУ и СТОРОНЕ:
+ * «Призматрон A(1)+A(2)+A(3)» → сторона A, «Щит B» → отдельная сторона B.
  * Так разные форматы на одном адресе не смешиваются и не теряются.
  *
  * kind:
- *   'video'   — формат видеоэкран;
- *   'dynamic' — в группе >1 записи или есть динамическая сторона;
- *   'static'  — иначе.
+ *   'video'   — видеоэкран (всегда динамический, одна строка месяцев);
+ *   'dynamic' — на стороне несколько поверхностей;
+ *   'static'  — одна поверхность.
  */
 export function groupSides(items) {
   const groups = []
 
   for (const item of items) {
     const type = String(item?.type || '').trim().toLowerCase()
-    const parent = parentSide(sideLabel(item))
+    const parent = parentSide(sideLabel(item), item.type)
     const group = groups.find(
       existing => existing.parent === parent && existing.type === type
     )
@@ -127,7 +181,7 @@ export function groupSides(items) {
       kind = 'video'
     } else if (
       group.items.length > 1 ||
-      group.items.some(item => isDynamicSide(sideLabel(item)))
+      group.items.some(item => isDynamicSide(sideLabel(item), item.type))
     ) {
       kind = 'dynamic'
     } else {
@@ -144,24 +198,31 @@ export function groupSides(items) {
 }
 
 /*
- * Одна точка (адрес с координатами) = одна карточка.
- * Ключ нормализован: город/адрес в нижнем регистре,
- * координаты округлены до 5 знаков.
+ * Одна точка = одна карточка.
+ *
+ * Ключ точки — КООРДИНАТА (округление до 5 знаков). Подпись адреса и
+ * номер конструкции в ключ не входят: у одной точки они могут отличаться.
+ * Без координат — откат на адрес, чтобы не слить разные объекты.
  */
 export function groupByPoint(items) {
   const points = []
 
   for (const item of items) {
-    const city = String(item?.city || '').trim().toLowerCase()
-    const address = String(item?.address || '').trim().toLowerCase()
-
     const lat = Number(item?.lat)
     const lng = Number(item?.lng)
 
-    const latKey = Number.isFinite(lat) ? lat.toFixed(5) : ''
-    const lngKey = Number.isFinite(lng) ? lng.toFixed(5) : ''
+    let key
 
-    const key = `${city}|${address}|${latKey}|${lngKey}`
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
+      key = `${lat.toFixed(5)}|${lng.toFixed(5)}`
+    } else {
+      const city = String(item?.city || '').trim().toLowerCase()
+      const address = String(item?.address || item?.name || '')
+        .trim()
+        .toLowerCase()
+
+      key = `noc|${city}|${address}`
+    }
 
     let point = points.find(existing => existing.key === key)
 

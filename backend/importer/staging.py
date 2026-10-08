@@ -77,6 +77,8 @@ def create_database(db_path: Path) -> sqlite3.Connection:
             type TEXT,
             size TEXT,
             price TEXT,
+            light TEXT,
+            material TEXT,
             photo_url TEXT,
             map_url TEXT,
             latitude REAL,
@@ -397,6 +399,8 @@ def populate(
                 type,
                 size,
                 price,
+                light,
+                material,
                 photo_url,
                 map_url,
                 latitude,
@@ -404,7 +408,7 @@ def populate(
                 surface_hash,
                 is_active
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             """,
             (
                 construction_id,
@@ -415,6 +419,8 @@ def populate(
                 clean(item.get("type")) or None,
                 clean(item.get("size")) or None,
                 clean(item.get("price")) or None,
+                clean(item.get("light")) or None,
+                clean(item.get("material")) or None,
                 clean(item.get("photo_url")) or None,
                 clean(item.get("map_url")) or None,
                 lat,

@@ -2,6 +2,7 @@ import L from 'leaflet'
 import 'leaflet.markercluster'
 
 import { popupContent } from './popupContent'
+import { getAvailabilityState } from '../utils/availability'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -42,75 +43,27 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;')
 }
 
-function isVideoScreen(item) {
-  return String(item?.type || '')
-    .trim()
-    .toLowerCase()
-    .includes('видеоэкран')
-}
-
-function getMonthValue(item, month) {
-  return (
-    item?.months?.[month] ??
-    item?.statuses?.[month] ??
-    ''
-  )
-}
-
-function isBusy(item, value) {
-  const s = String(value || '')
-    .trim()
-    .toLowerCase()
-
-  if (!s) return false
-
-  if (isVideoScreen(item)) {
-    return (
-      s === '100%' ||
-      s.includes('продан') ||
-      s.includes('занят')
-    )
-  }
-
-  return (
-    s.includes('продан') ||
-    s.includes('занят')
-  )
-}
-
 /*
- * Физическая точка на карте.
+ * Точка на карте = КООРДИНАТА (округление ~1 м).
  *
- * Ключ — город + адрес + координата (округление ~1 м).
+ * Подпись адреса и номер конструкции в ключ НЕ входят: у одной точки
+ * они могут отличаться (варианты написания адреса, разные номера у
+ * щита и экрана) — это всё равно одна общая точка.
  *
- * Разные форматы в ОДНОЙ точке (щит / призматрон / видеоэкран на
- * одинаковых координатах) объединяются в одну карточку.
- *
- * А стороны, которые лежат на РАЗНЫХ координатах, — расходятся по
- * разным точкам (в данных встречаются такие расхождения).
- *
- * Номер конструкции (external_number) в ключ не входит.
+ * Без координат — откат на адрес, чтобы не слить разные объекты.
  */
 function constructionKey(item) {
-  const city = String(item?.city || '').trim()
-  const address = String(
-    item?.address ||
-    item?.name ||
-    ''
-  ).trim()
-
   const lat = Number(item?.lat)
   const lng = Number(item?.lng)
 
-  const latKey = Number.isFinite(lat) ? lat.toFixed(5) : ''
-  const lngKey = Number.isFinite(lng) ? lng.toFixed(5) : ''
+  if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    return `${lat.toFixed(5)}|${lng.toFixed(5)}`
+  }
 
-  return [
-    city,
-    address,
-    latKey,
-    lngKey
-  ].join('|').toLowerCase()
+  const city = String(item?.city || '').trim()
+  const address = String(item?.address || item?.name || '').trim()
+
+  return `noc|${city}|${address}`.toLowerCase()
 }
 
 function normalizeItems(items) {
@@ -206,6 +159,12 @@ function uniqueSides(items) {
    MARKER COLOR
    ========================================================= */
 
+/*
+ * Цвет точки — комбинация статусов её сторон (по выбранным месяцам):
+ *   всё свободно          → зелёный;
+ *   всё занято            → красный;
+ *   иначе (есть резерв или смесь) → оранжевый.
+ */
 function markerColor(items) {
   const months =
     Array.isArray(selectedMonths) &&
@@ -219,32 +178,35 @@ function markerColor(items) {
     return '#2ea66d'
   }
 
+  let freeCount = 0
+  let reserveCount = 0
   let busyCount = 0
-  let totalCount = 0
 
   for (const item of sides) {
     for (const month of months) {
-      totalCount += 1
+      const state = getAvailabilityState(item, month)
 
-      if (
-        isBusy(
-          item,
-          getMonthValue(item, month)
-        )
-      ) {
+      if (state === 'busy') {
         busyCount += 1
+      } else if (state === 'reserve') {
+        reserveCount += 1
+      } else {
+        freeCount += 1
       }
     }
   }
 
-  if (busyCount === 0) {
+  // Всё свободно → зелёный.
+  if (busyCount === 0 && reserveCount === 0) {
     return '#2ea66d'
   }
 
-  if (busyCount === totalCount) {
+  // Всё занято → красный.
+  if (freeCount === 0 && reserveCount === 0) {
     return '#e24b42'
   }
 
+  // Есть резерв или смесь → оранжевый.
   return '#e6a51c'
 }
 

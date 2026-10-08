@@ -175,7 +175,7 @@ function photoBlock(item) {
   `
 }
 
-function featuresBlock(item) {
+function featuresBlock(item, isDynamic) {
   const light = String(item?.light || '').trim().toLowerCase()
   const hasLight = [
     'да',
@@ -183,6 +183,8 @@ function featuresBlock(item) {
     'true',
     '1'
   ].includes(light)
+
+  const dyn = Boolean(isDynamic)
 
   return `
     <div class="popup-features">
@@ -195,8 +197,11 @@ function featuresBlock(item) {
       </div>
 
       <div class="popup-feature" title="статика/динамика">
-        <span class="feature-picto feature-placeholder"></span>
-        <span class="feature-label">статика/динамика</span>
+        <span class="feature-dyn">
+          <span class="dyn-word ${dyn ? '' : 'is-active'}">статика</span>
+          <span class="dyn-sep">/</span>
+          <span class="dyn-word ${dyn ? 'is-active' : ''}">динамика</span>
+        </span>
       </div>
     </div>
   `
@@ -214,7 +219,7 @@ function sideCard(item) {
       </div>
       ${typeBlock(item)}
       ${photoBlock(item)}
-      ${featuresBlock(item)}
+      ${featuresBlock(item, false)}
       ${monthBlock(item)}
     </section>
   `
@@ -240,13 +245,13 @@ function dynamicBlock(group) {
   return `
     <section class="popup-side-card popup-side-card--dynamic">
       <div class="popup-side-top">
-        ${sideBlock({ ...first, side: parentSide(sideLabel(first)) })}
+        ${sideBlock({ ...first, side: parentSide(sideLabel(first), first.type) })}
         ${priceBlock(first)}
       </div>
       ${typeBlock(first)}
       ${photoBlock(first)}
       ${dynamicRowsBlock(group)}
-      ${featuresBlock(first)}
+      ${featuresBlock(first, true)}
     </section>
   `
 }
@@ -262,7 +267,7 @@ function videoBlock(item) {
       ${typeBlock(item)}
       ${photoBlock(item)}
       ${videoMonthBlock(item)}
-      ${featuresBlock(item)}
+      ${featuresBlock(item, true)}
     </section>
   `
 }

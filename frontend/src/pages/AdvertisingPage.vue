@@ -372,8 +372,19 @@
                       </span>
 
                       <span class="card-feature" title="статика/динамика">
-                        <span class="feature-picto feature-placeholder"></span>
-                        <span class="feature-label">статика/динамика</span>
+                        <span class="feature-dyn">
+                          <span
+                            class="dyn-word"
+                            :class="{ 'is-active': block.kind === 'static' }"
+                          >статика</span>
+
+                          <span class="dyn-sep">/</span>
+
+                          <span
+                            class="dyn-word"
+                            :class="{ 'is-active': block.kind !== 'static' }"
+                          >динамика</span>
+                        </span>
                       </span>
                     </div>
 
@@ -442,8 +453,6 @@ import {
   sideLabel,
   parentSide,
   dedupeSides,
-  familyOf,
-  maxBlocksFor,
   groupSides,
   groupByPoint
 } from '../utils/constructionGroups'
@@ -488,10 +497,11 @@ function blockSize(block) {
   return String(blockPrimary(block).size || '').trim()
 }
 
-/* Подпись стороны блока: динамика — родительская сторона, иначе своя. */
+/* Подпись стороны блока: динамика — сторона блока, иначе своя подпись. */
 function blockSide(block) {
-  const side = sideLabel(blockPrimary(block))
-  return block.kind === 'dynamic' ? parentSide(side) : side
+  const item = blockPrimary(block)
+  const side = sideLabel(item)
+  return block.kind === 'dynamic' ? parentSide(side, item.type) : side
 }
 
 function hasPrice(item) {
@@ -823,25 +833,34 @@ const {
 } = useConstructionsFilter(constructions)
 
 /*
- * Список: одна карточка на точку/адрес, внутри — блоки по формату
- * стороны (те же правила, что и в попапе интерактивной карты).
+ * Список: ОТДЕЛЬНАЯ карточка на сторону конструкции.
+ *
+ * Каждая сторона (A, B, C) — своя карточка. Если у стороны есть
+ * подповерхности (A(1), A(2)…), в карточке показываем фото первой
+ * поверхности и список «занято/свободно» строками — как в попапе карты.
  */
-const listPoints = computed(() =>
-  groupByPoint(filteredConstructions.value).map(point => {
+const listPoints = computed(() => {
+  const cards = []
+
+  for (const point of groupByPoint(filteredConstructions.value)) {
     const deduped = dedupeSides(point.items)
-    const blocks = groupSides(deduped)
-      .slice(0, maxBlocksFor(familyOf(deduped)))
 
     const first = point.items[0] || {}
+    const address = String(first.address || first.name || 'Адрес не указан').trim()
+    const city = String(first.city || '').trim() || '—'
 
-    return {
-      key: point.key,
-      address: String(first.address || first.name || 'Адрес не указан').trim(),
-      city: String(first.city || '').trim() || '—',
-      blocks
+    for (const block of groupSides(deduped)) {
+      cards.push({
+        key: `${point.key}|${block.type}|${block.parent}`,
+        address,
+        city,
+        blocks: [block]
+      })
     }
-  })
-)
+  }
+
+  return cards
+})
 
 /*
  * Синхронизация города из URL с фильтром.
