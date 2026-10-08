@@ -33,6 +33,7 @@ def _normalize_category_ids(category_id: list[int] | None) -> list[int]:
 STORAGE_ROOT = PROJECT_DIR / "storage"
 
 MAX_INPUT_FILE_SIZE = 40 * 1024 * 1024
+MAX_DOCUMENT_FILE_SIZE = 40 * 1024 * 1024
 VIDEO_MAX_INPUT_FILE_SIZE = 100 * 1024 * 1024
 VIDEO_MAX_SIDE = 800
 VIDEO_PRESET = "medium"
@@ -60,9 +61,29 @@ SUPPORTED_FORMATS = {
     "MPO",
 }
 
+DOCUMENT_MIME_TYPES = {
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": (
+        "application/vnd.openxmlformats-officedocument"
+        ".wordprocessingml.document"
+    ),
+    ".xls": "application/vnd.ms-excel",
+    ".xlsx": (
+        "application/vnd.openxmlformats-officedocument"
+        ".spreadsheetml.sheet"
+    ),
+}
+
 
 class MediaValidationError(ValueError):
     pass
+
+
+def is_document_name(original_name: str | None) -> bool:
+    extension = Path(original_name or "").suffix.lower()
+
+    return extension in DOCUMENT_MIME_TYPES
 
 
 def _open_image(file_bytes: bytes) -> Image.Image:
@@ -1117,6 +1138,73 @@ def save_image(
                 result["variants"].append(variant_result)
 
             return result
+
+    except Exception:
+        for path in created_files:
+            path.unlink(missing_ok=True)
+        raise
+
+def save_document(
+    file_bytes: bytes,
+    original_name: str,
+    *,
+    alt: str | None = None,
+    title: str | None = None,
+    category_id: list[int] | None = None,
+) -> dict:
+    if not file_bytes:
+        raise MediaValidationError("Файл пустой")
+
+    extension = Path(original_name or "").suffix.lower()
+
+    if extension not in DOCUMENT_MIME_TYPES:
+        allowed = ", ".join(
+            sorted(item.lstrip(".") for item in DOCUMENT_MIME_TYPES)
+        )
+        raise MediaValidationError(
+            f"Формат документа не поддерживается. Разрешены: {allowed}"
+        )
+
+    category_id = _normalize_category_ids(category_id)
+
+    if len(file_bytes) > MAX_DOCUMENT_FILE_SIZE:
+        raise MediaValidationError(
+            "Размер исходного файла превышает 40 МБ"
+        )
+
+    media_uuid = uuid4()
+
+    relative_dir = Path("media")
+    absolute_dir = STORAGE_ROOT / relative_dir
+    absolute_dir.mkdir(parents=True, exist_ok=True)
+
+    relative_path = relative_dir / f"{media_uuid}{extension}"
+    absolute_path = STORAGE_ROOT / relative_path
+
+    created_files: list[Path] = []
+
+    try:
+        absolute_path.write_bytes(file_bytes)
+        created_files.append(absolute_path)
+
+        with get_connection() as conn:
+            result = _insert_media(
+                conn,
+                media_uuid=media_uuid,
+                original_name=original_name,
+                storage_path=relative_path,
+                mime_type=DOCUMENT_MIME_TYPES[extension],
+                file_size=len(file_bytes),
+                width=None,
+                height=None,
+                alt=alt,
+                title=title,
+                category_id=category_id,
+            )
+
+        result["variants"] = []
+
+        return result
 
     except Exception:
         for path in created_files:

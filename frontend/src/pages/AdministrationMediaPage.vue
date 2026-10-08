@@ -22,7 +22,7 @@
             id="media-file-input"
             type="file"
             multiple
-            accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,.mp4,.mov,.webm,.avi,.mkv,.m4v,.mpeg,.mpg, image/*, video/*"
+            accept=".jpg,.jpeg,.jfif,.jpe,.png,.webp,.heic,.heif,.tif,.tiff,.bmp,.psd,.gif,.mp4,.mov,.webm,.avi,.mkv,.m4v,.mpeg,.mpg,.pdf,.doc,.docx,.xls,.xlsx, image/*, video/*, application/pdf"
             class="file-input-hidden"
             :disabled="uploading"
             @change="onNativeFilesPicked"
@@ -32,7 +32,7 @@
             <label
               class="upload-button"
               for="media-file-input"
-              title="Изображения автоматически подготавливаются в нужных вариантах, видео — в MP4 с превью."
+              title="Изображения автоматически подготавливаются в нужных вариантах, видео — в MP4 с превью, документы сохраняются как есть."
             >
               Загрузка медиафайла
             </label>
@@ -41,7 +41,8 @@
           <div class="formats-hint">
             Допустимые форматы — изображения:
             JPG, PNG, WEBP, HEIC/HEIF, TIFF, BMP, PSD, GIF ·
-            видео: MP4, MOV, WebM, AVI, MKV, MPEG
+            видео: MP4, MOV, WebM, AVI, MKV, MPEG ·
+            документы: PDF, DOC, DOCX, XLS, XLSX
           </div>
         </q-card-section>
       </q-card>
@@ -79,6 +80,12 @@
                     :src="queuePreviewUrl(item)"
                     muted
                   />
+                  <div
+                    v-else-if="isDocumentFile(item.file)"
+                    class="upload-queue-preview-doc"
+                  >
+                    <span>{{ documentExtension(item.file.name) }}</span>
+                  </div>
                   <img
                     v-else
                     :src="queuePreviewUrl(item)"
@@ -445,7 +452,8 @@
                 :options="[
                   { label: 'ВСЕ', value: 'all' },
                   { label: 'ФОТО', value: 'photo' },
-                  { label: 'ВИДЕО', value: 'video' }
+                  { label: 'ВИДЕО', value: 'video' },
+                  { label: 'ДОКУМЕНТЫ', value: 'document' }
                 ]"
               />
 
@@ -547,12 +555,22 @@
               />
 
               <img
-                v-else-if="thumbnailUrl(item)"
+                v-else-if="!isDocument(item) && thumbnailUrl(item)"
                 :src="thumbnailUrl(item)"
                 :alt="item.alt || item.original_name"
                 class="media-thumbnail"
                 loading="lazy"
               />
+
+              <div
+                v-else-if="isDocument(item)"
+                class="media-thumbnail-empty media-thumbnail-document"
+              >
+                <span class="media-document-icon">▤</span>
+                <span class="media-document-ext">
+                  {{ documentExtension(item.original_name) }}
+                </span>
+              </div>
 
               <div v-else class="media-thumbnail-empty">
                 Нет превью
@@ -565,8 +583,14 @@
               </div>
 
               <div class="media-item-name" :title="item.original_name">
-                <span class="media-type-icon" :class="{ 'media-type-icon--video': item.mime_type?.startsWith('video/') }">
-                  {{ item.mime_type?.startsWith('video/') ? '▶' : '▣' }}
+                <span
+                  class="media-type-icon"
+                  :class="{
+                    'media-type-icon--video': item.mime_type?.startsWith('video/'),
+                    'media-type-icon--document': isDocument(item)
+                  }"
+                >
+                  {{ mediaTypeSymbol(item) }}
                 </span>
                 {{ item.original_name }}
               </div>
@@ -816,6 +840,46 @@ function storageUrl(path) {
   return `/storage/${path}`
 }
 
+const DOCUMENT_EXTENSIONS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx'])
+
+const DOCUMENT_MIME_TYPES = new Set([
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+])
+
+function fileExtension(name) {
+  const parts = String(name || '').split('.')
+
+  return parts.length > 1 ? parts.pop().toLowerCase() : ''
+}
+
+function isDocumentFile(file) {
+  return DOCUMENT_EXTENSIONS.has(fileExtension(file?.name))
+}
+
+function isDocument(item) {
+  return DOCUMENT_MIME_TYPES.has(item?.mime_type)
+}
+
+function documentExtension(name) {
+  const extension = fileExtension(name)
+
+  return DOCUMENT_EXTENSIONS.has(extension)
+    ? extension.toUpperCase()
+    : 'DOC'
+}
+
+function mediaTypeSymbol(item) {
+  if (item?.mime_type?.startsWith('video/')) {
+    return '▶'
+  }
+
+  return isDocument(item) ? '▤' : '▣'
+}
+
 function thumbnailUrl(item) {
   if (item.mime_type?.startsWith('video/') && item.preview_path) {
     return storageUrl(item.preview_path)
@@ -897,7 +961,14 @@ const filteredMediaItems = computed(() => {
       return false
     }
 
-    if (filterMediaType.value === "photo" && item.mime_type?.startsWith("video/")) {
+    if (
+      filterMediaType.value === "photo" &&
+      (item.mime_type?.startsWith("video/") || isDocument(item))
+    ) {
+      return false
+    }
+
+    if (filterMediaType.value === "document" && !isDocument(item)) {
       return false
     }
 
@@ -1533,6 +1604,18 @@ onBeforeUnmount(() => {
   display: block;
 }
 
+.upload-queue-preview-doc {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #4b5563;
+}
+
 .upload-queue-fields {
   min-width: 0;
 }
@@ -1881,6 +1964,38 @@ onBeforeUnmount(() => {
 
 .media-type-icon--video {
   opacity: 1;
+}
+
+.media-type-icon--document {
+  opacity: 1;
+}
+
+.media-thumbnail-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #9ca3af;
+  font-size: 13px;
+}
+
+.media-thumbnail-document {
+  flex-direction: column;
+  gap: 6px;
+  color: #4b5563;
+}
+
+.media-document-icon {
+  font-size: 28px;
+  line-height: 1;
+  opacity: 0.65;
+}
+
+.media-document-ext {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
 }
 
 .media-grid {

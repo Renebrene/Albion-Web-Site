@@ -15,9 +15,11 @@ from backend.services.media_service import (
     MediaValidationError,
     create_media_category,
     delete_media,
+    is_document_name,
     list_media,
     list_media_categories,
     get_media_stats,
+    save_document,
     save_image,
     save_video,
     update_media,
@@ -166,12 +168,21 @@ async def admin_upload_media(
 ):
 
     file_bytes = await file.read()
+    resolved_name = original_name or file.filename or "upload"
 
     try:
-        if file.content_type and file.content_type.startswith("video/"):
+        if is_document_name(resolved_name):
+            result = save_document(
+                file_bytes,
+                resolved_name,
+                alt=alt,
+                title=title,
+                category_id=category_id,
+            )
+        elif file.content_type and file.content_type.startswith("video/"):
             result = save_video(
                 file_bytes,
-                original_name or file.filename or "upload",
+                resolved_name,
                 alt=alt,
                 title=title,
                 category_id=category_id,
@@ -180,7 +191,7 @@ async def admin_upload_media(
         else:
             result = save_image(
                 file_bytes,
-                original_name or file.filename or "upload",
+                resolved_name,
                 alt=alt,
                 title=title,
                 category_id=category_id,

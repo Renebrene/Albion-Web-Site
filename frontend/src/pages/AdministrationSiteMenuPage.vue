@@ -34,7 +34,9 @@
 
           <q-input v-model="item.label" dense outlined label="Название" />
           <q-input v-model="item.url" dense outlined label="Адрес" class="url-input" />
-          <q-toggle v-model="item.is_active" label="" />
+          <q-btn flat dense no-caps icon="perm_media" label="Из медиатеки"
+                 class="media-btn" @click="openPicker(item)" />
+          <q-toggle v-model="item.is_active" label="" class="row-toggle" />
 
           <div class="row-actions">
             <q-btn flat dense no-caps icon="arrow_upward"
@@ -71,7 +73,9 @@
 
           <q-input v-model="item.label" dense outlined label="Название" />
           <q-input v-model="item.url" dense outlined label="Адрес" class="url-input" />
-          <q-toggle v-model="item.is_active" label="" />
+          <q-btn flat dense no-caps icon="perm_media" label="Из медиатеки"
+                 class="media-btn" @click="openPicker(item)" />
+          <q-toggle v-model="item.is_active" label="" class="row-toggle" />
 
           <div class="row-actions">
             <q-btn flat dense no-caps icon="arrow_upward"
@@ -94,6 +98,8 @@
       <q-btn unelevated no-caps color="primary" label="Сохранить"
              :loading="saving" @click="save" />
     </div>
+
+    <MediaPicker v-model="pickerOpen" @select="onMediaPicked" />
   </q-page>
 </template>
 
@@ -101,7 +107,24 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import MediaPicker from '../components/admin/MediaPicker.vue'
+
 const router = useRouter()
+
+const pickerOpen = ref(false)
+const pickerTarget = ref(null)
+
+function openPicker(item) {
+  pickerTarget.value = item
+  pickerOpen.value = true
+}
+
+function onMediaPicked(media) {
+  if (pickerTarget.value && media?.url) {
+    pickerTarget.value.url = media.url
+  }
+  pickerOpen.value = false
+}
 
 function authHeaders() {
   const token = sessionStorage.getItem('albion_admin_token')
@@ -298,9 +321,13 @@ onMounted(load)
 
 .menu-row {
   display: grid;
-  grid-template-columns: 20px minmax(180px, 1fr) minmax(160px, 1fr) 40px auto;
+  grid-template-columns: 20px minmax(160px, 1fr) minmax(150px, 1fr) auto 40px auto;
   align-items: center;
   gap: 10px;
+}
+
+.media-btn {
+  font-size: 12px;
 }
 
 .row-handle {
@@ -332,11 +359,32 @@ onMounted(load)
 
 @media (max-width: 760px) {
   .menu-row {
-    grid-template-columns: 20px 1fr 40px auto;
+    grid-template-columns: 20px minmax(0, 1fr) auto auto;
+  }
+
+  .row-handle {
+    grid-row: 1 / span 3;
+  }
+
+  .row-toggle {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .row-actions {
+    grid-column: 4;
+    grid-row: 1;
   }
 
   .url-input {
     grid-column: 2 / -1;
+    grid-row: 2;
+  }
+
+  .media-btn {
+    grid-column: 2 / -1;
+    grid-row: 3;
+    justify-self: start;
   }
 }
 </style>
