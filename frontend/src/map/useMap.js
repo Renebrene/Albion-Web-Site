@@ -763,8 +763,8 @@ async function loadRegion() {
       {
         stroke: false,
         fill: true,
-        fillColor: '#3f4950',
-        fillOpacity: 0.55,
+        fillColor: '#2f383f',
+        fillOpacity: 0.82,
         fillRule: 'evenodd',
         interactive: false
       }
