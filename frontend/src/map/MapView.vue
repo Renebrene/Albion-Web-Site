@@ -3,13 +3,12 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import { ref, shallowRef, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 
-import 'leaflet/dist/leaflet.css'
-import 'leaflet.markercluster/dist/MarkerCluster.css'
-import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
-
+import { MAP_ENGINE } from '../config/mapConfig'
 import { useMap } from './useMap'
+import { useYandexMap } from './useYandexMap'
+import { loadYandexMaps } from './yandexLoader'
 
 const props = defineProps({
   constructions: {
@@ -42,24 +41,51 @@ const emit = defineEmits(['select', 'map-center'])
 
 const mapElement = ref(null)
 
-const {
-  createMap,
-  setConstructions,
-  loadRegion,
-  invalidateSize,
-  focusToItems,
-  setCenterChangeHandler,
-  setMapCenter,
-  getCoordinatesAtScreenPoint,
-  setMapDraggingEnabled,
-  setSearchPoint,
-  clearSearchPoint,
-  setSearchRadius,
-  clearSearchRadius,
-  destroyMap
-} = useMap()
+/*
+ * Активный движок: объект с тем же публичным API, что у useMap().
+ * Выбирается один раз при монтировании.
+ */
+const mapApi = shallowRef(null)
+const activeEngine = ref(MAP_ENGINE)
+
+/* CSS Leaflet грузим только если реально используется Leaflet-движок. */
+async function loadLeafletCss() {
+  await import('leaflet/dist/leaflet.css')
+  await import('leaflet.markercluster/dist/MarkerCluster.css')
+  await import('leaflet.markercluster/dist/MarkerCluster.Default.css')
+}
+
+/*
+ * Выбор движка по флагу MAP_ENGINE.
+ * Для Yandex сначала догружаем API; при любой ошибке
+ * молча откатываемся на Leaflet.
+ */
+async function resolveEngine() {
+  if (MAP_ENGINE === 'yandex') {
+    try {
+      await loadYandexMaps()
+      activeEngine.value = 'yandex'
+      return useYandexMap()
+    } catch (error) {
+      console.warn(
+        'Albion map: Yandex Maps недоступны, откат на Leaflet.',
+        error
+      )
+    }
+  }
+
+  activeEngine.value = 'leaflet'
+  await loadLeafletCss()
+  return useMap()
+}
 
 function syncSearchPoint() {
+  const api = mapApi.value
+
+  if (!api) {
+    return
+  }
+
   const point = props.searchPoint
 
   const lat = Number(point?.lat)
@@ -70,45 +96,48 @@ function syncSearchPoint() {
     !Number.isFinite(lat) ||
     !Number.isFinite(lng)
   ) {
-    clearSearchPoint()
-    clearSearchRadius()
+    api.clearSearchPoint()
+    api.clearSearchRadius()
     return
   }
 
-  setSearchPoint(lat, lng)
+  api.setSearchPoint(lat, lng)
 
   if (
     Number.isFinite(radius) &&
     radius > 0
   ) {
-    setSearchRadius(lat, lng, radius)
+    api.setSearchRadius(lat, lng, radius)
   } else {
-    clearSearchRadius()
+    api.clearSearchRadius()
   }
 }
 
 onMounted(async () => {
-  createMap(mapElement.value)
+  const api = await resolveEngine()
+  mapApi.value = api
+
+  api.createMap(mapElement.value)
 
   syncSearchPoint()
 
-  setCenterChangeHandler(center => {
+  api.setCenterChangeHandler(center => {
     emit('map-center', center)
   })
 
-  setConstructions(props.constructions, props.selectedMonths)
+  api.setConstructions(props.constructions, props.selectedMonths)
 
-  await loadRegion()
+  await api.loadRegion()
 
   await nextTick()
 
-  invalidateSize()
+  api.invalidateSize()
 })
 
 watch(
   [() => props.constructions, () => props.selectedMonths],
   ([items, months]) => {
-    setConstructions(items, months)
+    mapApi.value?.setConstructions(items, months)
   }
 )
 
@@ -123,26 +152,47 @@ watch(
 )
 
 function focusCity(city) {
-  focusToItems(
+  mapApi.value?.focusToItems(
     props.allConstructions,
     item => String(item?.city || '').trim() === String(city || '').trim()
   )
 }
 
 function moveToCoordinates(lat, lng, zoom = 14) {
-  setMapCenter(lat, lng, zoom)
+  mapApi.value?.setMapCenter(lat, lng, zoom)
+}
+
+function getCoordinatesAtScreenPoint(clientX, clientY) {
+  return (
+    mapApi.value?.getCoordinatesAtScreenPoint(clientX, clientY) ??
+    null
+  )
+}
+
+function setMapDraggingEnabled(enabled) {
+  mapApi.value?.setMapDraggingEnabled(enabled)
 }
 
 defineExpose({
   focusCity,
   setMapCenter: moveToCoordinates,
   getCoordinatesAtScreenPoint,
-  setMapDraggingEnabled
+  setMapDraggingEnabled,
+
+  /* Текущий активный движок — полезно для отладки/UI. */
+  activeEngine
 })
 
 onBeforeUnmount(() => {
-  setCenterChangeHandler(null)
-  destroyMap()
+  const api = mapApi.value
+
+  if (!api) {
+    return
+  }
+
+  api.setCenterChangeHandler(null)
+  api.destroyMap()
+  mapApi.value = null
 })
 </script>
 
