@@ -132,6 +132,12 @@
         class="portfolio-photos-toggle"
         label="Карта"
       />
+      <q-checkbox
+        v-model="fullOutput"
+        dense
+        class="portfolio-photos-toggle portfolio-full-output-toggle"
+        :label="fullOutput ? 'Полный вывод' : 'Краткий вывод'"
+      />
       <q-btn
         outline
         no-caps
@@ -537,6 +543,12 @@ const withPhotos = ref(false)
 /* Галочка «Карта» — отдельная колонка карт, панель не меняет. */
 const withMaps = ref(false)
 
+/*
+ * Галочка «Полный вывод» — раскладка «фото и карта в один ряд»
+ * вместо колонок. Выключена по умолчанию; влияет только на выгрузку/печать.
+ */
+const fullOutput = ref(false)
+
 function removeItem(item) {
   removeSurface(item.surfaceId)
 }
@@ -553,6 +565,7 @@ async function exportAs(format) {
     await downloadPortfolio(format, items.value, {
       withPhotos: withPhotos.value,
       withMaps: withMaps.value,
+      fullOutput: fullOutput.value,
       title: title.value,
       requisites: currentRequisites()
     })
@@ -576,6 +589,7 @@ function handlePrint() {
   printPortfolio(items.value, {
     withPhotos: withPhotos.value,
     withMaps: withMaps.value,
+    fullOutput: fullOutput.value,
     title: title.value,
     requisites: currentRequisites()
   })
@@ -590,6 +604,7 @@ function handleEmail() {
 
   emailPortfolio(items.value, {
     withMaps: withMaps.value,
+    fullOutput: fullOutput.value,
     title: title.value,
     requisites: currentRequisites()
   })
@@ -604,6 +619,7 @@ async function handleChat() {
 
   const text = portfolioText(items.value, {
     withMaps: withMaps.value,
+    fullOutput: fullOutput.value,
     title: title.value,
     requisites: currentRequisites()
   })
@@ -1038,6 +1054,30 @@ function handleClear() {
   font-weight: 800;
 
   letter-spacing: 0.02em;
+}
+
+/*
+ * Подпись «Полный вывод» — жирная (жирнее «Фото»/«Карта»). Класс задаёт
+ * вес только этой подписи; шрифт остальных галочек не меняется.
+ */
+/*
+ * Переключатель режима вывода. Подпись меняется («Краткий вывод» /
+ * «Полный вывод») и намеренно отличается от галочек «Фото»/«Карта»:
+ * отделена чертой, набрана прописными и акцентным цветом.
+ */
+.portfolio-full-output-toggle {
+  padding-left: 10px;
+  margin-left: 2px;
+
+  border-left: 1px solid #dfe6ea;
+}
+
+.portfolio-full-output-toggle :deep(.q-checkbox__label) {
+  color: var(--albion-accent);
+
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .04em;
 }
 
 /* --------------------------------------------------------- Тост */

@@ -1593,35 +1593,38 @@ function isSurfaceActive(id) {
 }
 
 /*
- * Приводит DOM попапа к актуальному состоянию после переключения:
- * класс is-active у кнопок «Портфель» и класс pf-mode у корня попапа.
- * Если активных кнопок не осталось — снимает is-selected со всех месяцев.
+ * Приводит DOM попапа к актуальному состоянию после переключения.
+ *
+ * Режим выбора — по СЕКЦИЯМ: у каждой «половины» карточки своя кнопка
+ * «Портфель», поэтому активность одной стороны не должна делать
+ * кликабельными месяцы соседней.
  */
 function refreshPopupState(popupRoot) {
   if (!popupRoot) {
     return
   }
 
-  let anyActive = false
+  popupRoot.querySelectorAll('.popup-side-card').forEach(section => {
+    let sectionActive = false
 
-  popupRoot.querySelectorAll('[data-pf-toggle]').forEach(button => {
-    const id = button.getAttribute('data-pf-toggle')
-    const active = isSurfaceActive(id)
+    section.querySelectorAll('[data-pf-toggle]').forEach(button => {
+      const active = isSurfaceActive(button.getAttribute('data-pf-toggle'))
 
-    button.classList.toggle('is-active', active)
+      button.classList.toggle('is-active', active)
 
-    if (active) {
-      anyActive = true
+      if (active) {
+        sectionActive = true
+      }
+    })
+
+    section.classList.toggle('pf-mode', sectionActive)
+
+    if (!sectionActive) {
+      section
+        .querySelectorAll('.popup-month.is-selected')
+        .forEach(monthEl => monthEl.classList.remove('is-selected'))
     }
   })
-
-  popupRoot.classList.toggle('pf-mode', anyActive)
-
-  if (!anyActive) {
-    popupRoot
-      .querySelectorAll('.popup-month.is-selected')
-      .forEach(monthEl => monthEl.classList.remove('is-selected'))
-  }
 }
 
 /* Снимает акцентные рамки со всех месяцев указанной поверхности. */
@@ -1691,6 +1694,16 @@ function onDocumentClick(event) {
   )
 
   if (!surface) {
+    return
+  }
+
+  /*
+   * Месяц относится к своей половине карточки: если у этой секции
+   * режим выбора не включён — клик игнорируем.
+   */
+  const section = monthEl.closest('.popup-side-card')
+
+  if (!section || !section.classList.contains('pf-mode')) {
     return
   }
 
@@ -2899,19 +2912,19 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-.popup.pf-mode .popup-months,
-.popup.pf-mode .popup-month {
+.popup-side-card.pf-mode .popup-months,
+.popup-side-card.pf-mode .popup-month {
   pointer-events: auto;
   cursor: pointer;
 }
 
 /* В режиме выбора занятый месяц выбрать нельзя. */
-.popup.pf-mode .popup-month.is-locked {
+.popup-side-card.pf-mode .popup-month.is-locked {
   cursor: not-allowed;
   opacity: .5;
 }
 
-.popup.pf-mode .popup-month:hover {
+.popup-side-card.pf-mode .popup-month:hover {
   filter: brightness(.96);
 }
 

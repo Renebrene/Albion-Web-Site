@@ -95,6 +95,16 @@ PDF_PHOTO_BOX = (240, 240)
 PDF_PHOTO_WIDTH_MM = 18.0
 DOCX_PHOTO_WIDTH_CM = 1.8
 
+# «Полный вывод»: фото и карта встают в один ряд по ширине A4.
+# Карта — 7.5 см, фото шире — 9 см; высота у обоих одна (5 см), поэтому
+# ряд ровный. Картинка НЕ растягивается: PIL-овский cover-кроп по центру
+# приводит её к точному боксу нужной пропорции (карта 3:2, фото 9:5).
+FULL_IMAGE_BOX = (600, 400)
+FULL_IMAGE_WIDTH_CM = 7.5
+FULL_PHOTO_BOX = (900, 500)
+FULL_PHOTO_WIDTH_CM = 9.0
+FULL_IMAGE_HEIGHT_CM = 5.0
+
 CONTENT_TYPES = {
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -306,6 +316,38 @@ def photo_to_bytes(image, image_format: str = "JPEG", quality: int = 82) -> byte
     return buffer.getvalue()
 
 
+def load_full_image(url: Any, box=None):
+    """Картинка «полного вывода»: cover-кроп по центру до нужного бокса.
+
+    Возвращает PIL Image ровно ``FULL_IMAGE_BOX`` (600×400, 3:2) или ``None``.
+    Благодаря точному боксу width/height в docx/pdf не искажают картинку,
+    а высота у фото и карты гарантированно совпадает.
+    """
+    path = resolve_photo_path(url)
+
+    if path is None:
+        return None
+
+    target_box = box or FULL_IMAGE_BOX
+
+    try:
+        from PIL import Image, ImageOps
+
+        with Image.open(path) as source:
+            source.load()
+            image = source.convert("RGB")
+
+        return ImageOps.fit(
+            image,
+            target_box,
+            method=Image.Resampling.LANCZOS,
+            centering=(0.5, 0.5),
+        )
+    except Exception:  # noqa: BLE001 — битый/не тот файл просто пропускаем
+        logger.warning("Не удалось подготовить изображение полного вывода: %r", url)
+        return None
+
+
 # ---------------------------------------------------------------- построитель
 
 
@@ -315,6 +357,7 @@ def build_portfolio(
     with_photos: bool = False,
     with_maps: bool = False,
     requisites: Any = None,
+    full_output: bool = False,
 ) -> dict:
     """Проверяет входные данные и собирает общую структуру для всех форматов.
 
@@ -327,6 +370,11 @@ def build_portfolio(
     попадают в ``requisites`` (список пар «подпись, значение») и печатаются
     компактным блоком под заголовком.
 
+    ``full_output`` меняет только РАСКЛАДКУ (фото и карта в один ряд вместо
+    колонок): набор данных и колонки не меняются, все форматы читают флаг
+    из результата. Для картинок «полного вывода» в строках есть поля
+    ``photo_full`` / ``map_full`` — крупные варианты с фолбэком на обычные.
+
     Возвращает::
 
         {
@@ -334,8 +382,9 @@ def build_portfolio(
           "columns": tuple[str, ...],
           "with_photos": bool,
           "with_maps": bool,
+          "full_output": bool,
           "requisites": [(label, value), ...],
-          "rows": [ {index, city, address, side, type, size, months, sum, sum_value, photo, map}, ... ],
+          "rows": [ {index, city, address, side, type, size, months, sum, sum_value, photo, map, photo_full, map_full}, ... ],
           "positions": int,
           "total": float,
           "summary": str,   # «ИТОГО: N позиций, S ₽»
@@ -383,6 +432,15 @@ def build_portfolio(
 
         total += item_sum
 
+        photo = _text(raw.get("photo"))
+        # Карта-схема: локальный файл. Крупный card, иначе large, иначе
+        # миниатюра — если ничего нет, ячейка будет пустой.
+        map_url = (
+            _text(raw.get("map_card"))
+            or _text(raw.get("map_large"))
+            or _text(raw.get("map_thumb"))
+        )
+
         rows.append(
             {
                 "index": position,
@@ -394,14 +452,12 @@ def build_portfolio(
                 "months": ", ".join(month_parts) if month_parts else "—",
                 "sum": format_money(item_sum),
                 "sum_value": item_sum,
-                "photo": _text(raw.get("photo")),
-                # Карта-схема: локальный файл. Крупный card, иначе large,
-                # иначе миниатюра — если ничего нет, ячейка будет пустой.
-                "map": (
-                    _text(raw.get("map_card"))
-                    or _text(raw.get("map_large"))
-                    or _text(raw.get("map_thumb"))
-                ),
+                "photo": photo,
+                "map": map_url,
+                # Крупные варианты — только для «полного вывода» (7.5 см),
+                # с фолбэком на обычные поля.
+                "photo_full": _text(raw.get("photo_large")) or photo,
+                "map_full": _text(raw.get("map_large")) or map_url,
             }
         )
 
@@ -426,6 +482,7 @@ def build_portfolio(
         "columns": columns,
         "with_photos": bool(with_photos),
         "with_maps": bool(with_maps),
+        "full_output": bool(full_output),
         "requisites": build_requisites_block(requisites),
         "rows": rows,
         "positions": positions,
@@ -589,8 +646,110 @@ def export_xlsx(portfolio: dict) -> bytes:
 # ---------------------------------------------------------------- docx
 
 
+def _export_docx_full(portfolio: dict) -> bytes:
+    """Word «полный вывод»: позиция абзацами, фото и карта — в один ряд.
+
+    Портретная A4 с полями 1.5 см (рабочая ширина ~18 см): два изображения
+    по 7.5 см встают в один ряд с запасом. Картинки предварительно
+    cover-кроплены до 3:2, поэтому width/height (7.5 × 5 см) не искажают их
+    и высота у фото и карты одинаковая.
+    """
+    from docx import Document
+    from docx.enum.section import WD_ORIENT
+    from docx.shared import Cm, Pt
+
+    document = Document()
+
+    section = document.sections[0]
+    section.orientation = WD_ORIENT.PORTRAIT
+    section.page_width = Cm(21)
+    section.page_height = Cm(29.7)
+    section.left_margin = section.right_margin = Cm(1.5)
+    section.top_margin = section.bottom_margin = Cm(1.5)
+
+    document.add_heading(portfolio["title"], level=1)
+
+    for label, value in portfolio.get("requisites") or []:
+        paragraph = document.add_paragraph()
+        run = paragraph.add_run(f"{label}: {value}")
+        run.font.size = Pt(9)
+
+    with_photos = bool(portfolio.get("with_photos"))
+    with_maps = bool(portfolio.get("with_maps"))
+
+    for row in portfolio["rows"]:
+        place = ", ".join(
+            part for part in (row["city"], row["address"]) if part
+        ) or "Адрес не указан"
+
+        head = document.add_paragraph()
+        head_run = head.add_run(
+            f'{row["index"]}. {row["type"] or "Формат не указан"} — {place}'
+        )
+        head_run.bold = True
+
+        meta_parts = []
+        if row["side"]:
+            meta_parts.append(f'Сторона: {row["side"]}')
+        if row["size"]:
+            meta_parts.append(f'Размер: {row["size"]}')
+        if meta_parts:
+            document.add_paragraph(" · ".join(meta_parts))
+
+        # Изображения в один ряд (внутри одного абзаца, инлайн).
+        candidates = []
+        if with_photos:
+            candidates.append(
+                (row.get("photo_full"), FULL_PHOTO_BOX, FULL_PHOTO_WIDTH_CM)
+            )
+        if with_maps:
+            candidates.append(
+                (row.get("map_full"), FULL_IMAGE_BOX, FULL_IMAGE_WIDTH_CM)
+            )
+
+        loaded = []
+        for url, box, width_cm in candidates:
+            image = load_full_image(url, box)
+            if image is not None:
+                loaded.append((image, width_cm))
+
+        if loaded:
+            picture_paragraph = document.add_paragraph()
+            for position, (image, width_cm) in enumerate(loaded):
+                if position:
+                    picture_paragraph.add_run("    ")
+                run = picture_paragraph.add_run()
+                run.add_picture(
+                    io.BytesIO(photo_to_bytes(image)),
+                    width=Cm(width_cm),
+                    height=Cm(FULL_IMAGE_HEIGHT_CM),
+                )
+
+        months_paragraph = document.add_paragraph()
+        months_run = months_paragraph.add_run(f'Месяцы: {row["months"]}')
+        months_run.font.size = Pt(9)
+
+        sum_paragraph = document.add_paragraph()
+        sum_run = sum_paragraph.add_run(f'Сумма: {row["sum"]}')
+        sum_run.bold = True
+
+        document.add_paragraph()
+
+    summary_paragraph = document.add_paragraph()
+    summary_run = summary_paragraph.add_run(portfolio["summary"])
+    summary_run.bold = True
+
+    buffer = io.BytesIO()
+    document.save(buffer)
+
+    return buffer.getvalue()
+
+
 def export_docx(portfolio: dict) -> bytes:
     """Word-документ: заголовок, таблица с теми же колонками, итог."""
+    if portfolio.get("full_output"):
+        return _export_docx_full(portfolio)
+
     from docx import Document
     from docx.enum.section import WD_ORIENT
     from docx.shared import Cm, Inches, Pt
@@ -800,8 +959,155 @@ def _pdf_photo(url: Any, keepalive: list) -> "object":
     return RLImage(buffer, width=display_width, height=display_height)
 
 
+def _export_pdf_full(portfolio: dict) -> bytes:
+    """PDF «полный вывод»: позиция абзацами, фото и карта — в один ряд.
+
+    Портретная A4, поля 1.5 см. Изображения предварительно cover-кроплены
+    до 3:2 (600×400 px), затем растянуты ровно в 7.5 × 5 см — пропорции
+    сохранены, высота у фото и карты одинаковая.
+    """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.units import cm, mm
+    from reportlab.platypus import (
+        Image as RLImage,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    regular, bold = find_cyrillic_fonts()
+    font_regular, font_bold = _register_pdf_fonts(regular, bold)
+
+    margin = 15 * mm
+
+    title_style = ParagraphStyle(
+        "FullTitle", fontName=font_bold, fontSize=14, leading=18, spaceAfter=6
+    )
+    head_style = ParagraphStyle(
+        "FullHead", fontName=font_bold, fontSize=10.5, leading=13, spaceBefore=4
+    )
+    line_style = ParagraphStyle(
+        "FullLine", fontName=font_regular, fontSize=9, leading=12
+    )
+    months_style = ParagraphStyle(
+        "FullMonths", fontName=font_regular, fontSize=8.5, leading=11
+    )
+    sum_style = ParagraphStyle(
+        "FullSum", fontName=font_bold, fontSize=9.5, leading=12
+    )
+    requisites_style = ParagraphStyle(
+        "FullRequisites", fontName=font_regular, fontSize=8, leading=10
+    )
+
+    story = [_pdf_paragraph(portfolio["title"], title_style)]
+
+    for label, value in portfolio.get("requisites") or []:
+        story.append(_pdf_paragraph(f"{label}: {value}", requisites_style))
+
+    if portfolio.get("requisites"):
+        story.append(Spacer(1, 6))
+
+    with_photos = bool(portfolio.get("with_photos"))
+    with_maps = bool(portfolio.get("with_maps"))
+
+    photo_buffers: list[io.BytesIO] = []
+
+    for row in portfolio["rows"]:
+        place = ", ".join(
+            part for part in (row["city"], row["address"]) if part
+        ) or "Адрес не указан"
+
+        story.append(
+            _pdf_paragraph(
+                f'{row["index"]}. {row["type"] or "Формат не указан"} — {place}',
+                head_style,
+            )
+        )
+
+        meta_parts = []
+        if row["side"]:
+            meta_parts.append(f'Сторона: {row["side"]}')
+        if row["size"]:
+            meta_parts.append(f'Размер: {row["size"]}')
+        if meta_parts:
+            story.append(_pdf_paragraph(" · ".join(meta_parts), line_style))
+
+        image_cells = []
+        candidates = []
+        if with_photos:
+            candidates.append(
+                (row.get("photo_full"), FULL_PHOTO_BOX, FULL_PHOTO_WIDTH_CM)
+            )
+        if with_maps:
+            candidates.append(
+                (row.get("map_full"), FULL_IMAGE_BOX, FULL_IMAGE_WIDTH_CM)
+            )
+
+        cell_widths = []
+        for url, box, width_cm in candidates:
+            image = load_full_image(url, box)
+            if image is None:
+                continue
+            buffer = io.BytesIO(photo_to_bytes(image))
+            photo_buffers.append(buffer)
+            cell_widths.append(width_cm * cm)
+            image_cells.append(
+                RLImage(
+                    buffer,
+                    width=width_cm * cm,
+                    height=FULL_IMAGE_HEIGHT_CM * cm,
+                )
+            )
+
+        if image_cells:
+            images_table = Table(
+                [image_cells],
+                colWidths=cell_widths,
+                hAlign="LEFT",
+            )
+            images_table.setStyle(
+                TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                        ("TOPPADDING", (0, 0), (-1, -1), 4),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                    ]
+                )
+            )
+            story.append(images_table)
+
+        story.append(_pdf_paragraph(f'Месяцы: {row["months"]}', months_style))
+        story.append(_pdf_paragraph(f'Сумма: {row["sum"]}', sum_style))
+        story.append(Spacer(1, 10))
+
+    story.append(
+        _pdf_paragraph(portfolio["summary"], title_style)
+    )
+
+    buffer = io.BytesIO()
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=margin,
+        rightMargin=margin,
+        topMargin=margin,
+        bottomMargin=margin,
+        title=portfolio["title"],
+    )
+    document.build(story)
+
+    return buffer.getvalue()
+
+
 def export_pdf(portfolio: dict) -> bytes:
     """PDF-документ (альбомная A4) с кириллическим шрифтом DejaVuSans."""
+    if portfolio.get("full_output"):
+        return _export_pdf_full(portfolio)
+
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import ParagraphStyle
@@ -961,11 +1267,14 @@ def render(
     with_photos: bool = False,
     with_maps: bool = False,
     requisites: Any = None,
+    full_output: bool = False,
 ) -> bytes:
     """Собирает портфель и рендерит его в выбранный формат.
 
     При ``with_photos=True`` добавляется колонка «Фото», при
     ``with_maps=True`` — колонка «Карта» (обе с миниатюрами из /storage).
+    ``full_output=True`` меняет РАСКЛАДКУ docx/pdf/печати: изображения
+    встают в один ряд фиксированной ширины (7.5 см) с одинаковой высотой.
     Непустые ``requisites`` печатаются компактным блоком под заголовком.
     """
     portfolio = build_portfolio(
@@ -974,6 +1283,7 @@ def render(
         with_photos=with_photos,
         with_maps=with_maps,
         requisites=requisites,
+        full_output=full_output,
     )
 
     if fmt == "xlsx":

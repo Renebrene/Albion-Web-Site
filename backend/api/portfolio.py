@@ -22,6 +22,10 @@
       ]
     }
 
+Необязательные переключатели (в теле; дублируются query-параметрами,
+приоритет у тела): ``with_photos``, ``with_maps``, ``full_output``.
+``full_output`` меняет только раскладку — фото и карта в один ряд.
+
 Ответ — файл с Content-Disposition: attachment.
 
 Подключение в backend/main.py:
@@ -69,6 +73,10 @@ class PortfolioExportPayload(BaseModel):
     # Необязательно: добавлять ли колонку «Карта». Same-правило, что и фото.
     with_maps: bool | None = None
 
+    # Необязательно: раскладка «Полный вывод» — фото и карта в один ряд
+    # фиксированной ширины вместо колонок. Same-правило приоритета тела.
+    full_output: bool | None = None
+
     # Необязательно: реквизиты пользователя (организация, ИНН, КПП, адрес,
     # телефон, e-mail, контактное лицо). Непустые поля печатаются блоком
     # под заголовком. Валидацию/обрезку делает сервис.
@@ -101,6 +109,10 @@ def export_portfolio(
         default=None,
         description="Добавить колонку «Карта» (1/true). Тело запроса приоритетнее.",
     ),
+    full_output: str | None = Query(
+        default=None,
+        description="Раскладка «Полный вывод» (1/true). Тело запроса приоритетнее.",
+    ),
 ):
     fmt = (format or "").strip().lower()
 
@@ -124,6 +136,11 @@ def export_portfolio(
     else:
         include_maps = bool(payload.with_maps)
 
+    if payload.full_output is None:
+        use_full_output = _query_bool(full_output)
+    else:
+        use_full_output = bool(payload.full_output)
+
     try:
         content = svc.render(
             payload.items,
@@ -132,6 +149,7 @@ def export_portfolio(
             with_photos=include_photos,
             with_maps=include_maps,
             requisites=payload.requisites,
+            full_output=use_full_output,
         )
     except svc.PortfolioExportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

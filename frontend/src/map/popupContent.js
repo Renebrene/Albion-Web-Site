@@ -329,12 +329,25 @@ function featuresBlock(item, isDynamic) {
   `
 }
 
+/*
+ * Режим выбора месяцев для СЕКЦИИ попапа.
+ *
+ * У каждой «половины» карточки своя кнопка «Портфель», поэтому режим
+ * включается по секции: активная сторона не делает кликабельными
+ * месяцы соседней.
+ */
+function groupActive(items) {
+  return (items || []).some(item => isSurfaceActive(surfaceIdOf(item)))
+}
+
 /* ---------------------------------------------------------------- блоки */
 
 /* Статичная сторона: обычная карточка */
 function sideCard(item) {
+  const mode = isSurfaceActive(surfaceIdOf(item)) ? ' pf-mode' : ''
+
   return `
-    <section class="popup-side-card">
+    <section class="popup-side-card${mode}">
       <div class="popup-side-top">
         ${sideBlock(item)}
         ${priceBlock(item)}
@@ -364,9 +377,10 @@ function dynamicRowsBlock(group) {
 
 function dynamicBlock(group) {
   const first = group.items[0]
+  const mode = groupActive(group.items) ? ' pf-mode' : ''
 
   return `
-    <section class="popup-side-card popup-side-card--dynamic">
+    <section class="popup-side-card popup-side-card--dynamic${mode}">
       <div class="popup-side-top">
         ${sideBlock({ ...first, side: parentSide(sideLabel(first), first.type) })}
         ${priceBlock(first)}
@@ -382,8 +396,10 @@ function dynamicBlock(group) {
 
 /* Видеоэкран: всегда динамический, месяцы в одну строку */
 function videoBlock(item) {
+  const mode = isSurfaceActive(surfaceIdOf(item)) ? ' pf-mode' : ''
+
   return `
-    <section class="popup-side-card popup-side-card--video">
+    <section class="popup-side-card popup-side-card--video${mode}">
       <div class="popup-side-top">
         ${sideBlock(item)}
         ${priceBlock(item)}
@@ -502,11 +518,12 @@ export function popupContent(input) {
         ? 'popup-double'
         : 'popup-single'
 
-  // Активна хотя бы одна поверхность попапа — месяцы кликабельны.
-  const pfMode = allSides.some(side => isSurfaceActive(surfaceIdOf(side)))
-
+  /*
+   * Режим выбора включается не на корне, а на секции стороны —
+   * см. groupActive()/isSurfaceActive() в построителях блоков.
+   */
   return `
-    <div class="popup ${popupClass}${pfMode ? ' pf-mode' : ''}">
+    <div class="popup ${popupClass}">
 
       ${commonHeader(allSides)}
 

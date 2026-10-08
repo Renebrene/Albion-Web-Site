@@ -367,16 +367,38 @@ function resolveWithMaps(sourceItems, options) {
 }
 
 /*
+ * Флаг «Полный вывод». Меняет только раскладку (фото и карта в один ряд
+ * шириной 7.5 см, одинаковая высота). Та же схема вызова, что у фото/карты.
+ */
+function resolveFullOutput(sourceItems, options) {
+  if (options && typeof options === 'object') {
+    return Boolean(options.fullOutput)
+  }
+
+  if (
+    sourceItems &&
+    !Array.isArray(sourceItems) &&
+    typeof sourceItems === 'object'
+  ) {
+    return Boolean(sourceItems.fullOutput)
+  }
+
+  return false
+}
+
+/*
  * Выгрузка портфеля в файл.
  * POST /api/portfolio/export?format=xlsx|docx|pdf
- * Тело: { title, items, with_photos, with_maps, requisites }. Ответ — файл (blob).
- * options: { withPhotos, withMaps, title, requisites }.
+ * Тело: { title, items, with_photos, with_maps, full_output, requisites }.
+ * Ответ — файл (blob).
+ * options: { withPhotos, withMaps, fullOutput, title, requisites }.
  */
 export async function downloadPortfolio(format, sourceItems, options) {
   const value = extensionFor(format)
   const opts = resolveOptions(sourceItems, options)
   const withPhotos = resolveWithPhotos(sourceItems, options)
   const withMaps = resolveWithMaps(sourceItems, options)
+  const fullOutput = resolveFullOutput(sourceItems, options)
   const items = Array.isArray(sourceItems)
     ? sourceItems
     : resolveItems(sourceItems)
@@ -391,6 +413,7 @@ export async function downloadPortfolio(format, sourceItems, options) {
         items,
         with_photos: withPhotos,
         with_maps: withMaps,
+        full_output: fullOutput,
         requisites: resolveRequisites(opts)
       })
     }
@@ -416,14 +439,185 @@ function escapeHtml(value) {
     .replace(/"/g, '&quot;')
 }
 
+/*
+ * «Полный вывод» для печати: позиция строкой текста, ниже фото и карта
+ * в один ряд по ширине A4 (каждое 7.5 см, одинаковая высота 5 см,
+ * object-fit: cover — не растягиваем). Одно изображение — тоже 7.5 см.
+ */
+function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
+  const headTitle = resolveTitle(title)
+  const reqEntries = requisitesEntries(requisites)
+
+  const requisitesBlock = reqEntries.length
+    ? `<div class="requisites">${reqEntries
+        .map(
+          entry =>
+            `<span class="req"><span class="req-label">${escapeHtml(entry.label)}:</span> ${escapeHtml(entry.value)}</span>`
+        )
+        .join('')}</div>`
+    : ''
+
+  const blocks = items
+    .map((item, index) => {
+      const months = selectedMonths(item)
+
+      const monthText = months.length
+        ? months
+            .map(month => {
+              const price =
+                month.price === null ? '' : ` (${formatPrice(month.price)} ₽)`
+              const stale = month.stale ? ' ⚠' : ''
+
+              return `${escapeHtml(month.full)}${escapeHtml(price)}${stale}`
+            })
+            .join(', ')
+        : '—'
+
+      const metaParts = []
+
+      if (item.side) {
+        metaParts.push(`Сторона: ${escapeHtml(item.side)}`)
+      }
+
+      if (item.size) {
+        metaParts.push(`Размер: ${escapeHtml(item.size)}`)
+      }
+
+      /* Крупные варианты — для печати в 7.5 см; фолбэк на обычные. */
+      const photoUrl =
+        withPhotos &&
+        (item.photo_large || item.photo_thumb || item.photo || '')
+      const mapUrl =
+        withMaps &&
+        (item.map_large || item.map_card || item.map_thumb || '')
+
+      /* Фото шире карты (9 см против 7.5), высота у обоих одна. */
+      const images = [
+        photoUrl
+          ? `<img class="full-thumb full-thumb--photo" src="${escapeHtml(photoUrl)}" alt="">`
+          : '',
+        mapUrl
+          ? `<img class="full-thumb full-thumb--map" src="${escapeHtml(mapUrl)}" alt="">`
+          : ''
+      ]
+        .filter(Boolean)
+        .join('')
+
+      const imagesBlock = images
+        ? `<div class="full-images">${images}</div>`
+        : ''
+
+      const metaBlock = metaParts.length
+        ? `<div class="full-meta">${metaParts.join(' · ')}</div>`
+        : ''
+
+      return `
+        <div class="full-item">
+          <div class="full-head">${index + 1}. ${escapeHtml(
+            item.type || 'Формат не указан'
+          )} — ${escapeHtml(addressLabel(item))}</div>
+          ${metaBlock}
+          ${imagesBlock}
+          <div class="full-months">Месяцы: ${monthText}</div>
+          <div class="full-sum">Сумма: ${escapeHtml(
+            formatPrice(itemSum(item))
+          )} ₽</div>
+        </div>
+      `
+    })
+    .join('')
+
+  return `<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <title>${escapeHtml(headTitle)}</title>
+  <style>
+    * { box-sizing: border-box; }
+    @page { size: A4; margin: 1.5cm; }
+    body {
+      margin: 0;
+      padding: 32px 40px;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #17212b;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .meta { margin: 0 0 20px; color: #71808c; font-size: 12px; }
+    .requisites {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2px 18px;
+      margin: 0 0 16px;
+      color: #52606a;
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .req { white-space: nowrap; }
+    .req-label { color: #71808c; }
+    .full-item {
+      padding: 12px 0;
+      border-bottom: 1px solid #e5e9ec;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .full-head { font-size: 14px; font-weight: 700; }
+    .full-meta, .full-months {
+      margin-top: 2px;
+      color: #52606a;
+      font-size: 12px;
+    }
+    .full-sum { margin-top: 2px; font-size: 13px; font-weight: 700; }
+    /* Фото и карта — в один ряд; одинаковый бокс, без растягивания. */
+    .full-images {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5cm;
+      margin: 8px 0 4px;
+    }
+    .full-thumb {
+      display: block;
+      height: 5cm;
+      object-fit: cover;
+      border: 1px solid #e3e8ec;
+      border-radius: 4px;
+    }
+    /* Фото шире карты, высота у обоих одна — ряд ровный. */
+    .full-thumb--photo { width: 9cm; }
+    .full-thumb--map { width: 7.5cm; }
+    .full-total {
+      margin-top: 16px;
+      font-size: 14px;
+      font-weight: 700;
+      text-align: right;
+    }
+    @media print {
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <h1>${escapeHtml(headTitle)}</h1>
+  ${requisitesBlock}
+  <p class="meta">Позиций: ${items.length} · Сформировано: ${escapeHtml(new Date().toLocaleString('ru-RU'))}</p>
+  <div class="full-list">${blocks}</div>
+  <div class="full-total">Итого: ${escapeHtml(formatPrice(totalSum(items)))} ₽</div>
+</body>
+</html>`
+}
+
 /* Собирает HTML печатной версии портфеля. */
-function buildPrintHtml(
+export function buildPrintHtml(
   items,
   withPhotos = false,
   withMaps = false,
+  fullOutput = false,
   title,
   requisites
 ) {
+  if (fullOutput) {
+    return buildFullPrintHtml(items, withPhotos, withMaps, title, requisites)
+  }
+
   const headTitle = resolveTitle(title)
   const reqEntries = requisitesEntries(requisites)
 
@@ -599,12 +793,13 @@ function buildPrintHtml(
 /*
  * Печать портфеля: открываем новое окно с печатной версией.
  * Если всплывающее окно заблокировано — печатаем через скрытый iframe.
- * Второй аргумент: { withPhotos, withMaps, title, requisites }.
+ * Второй аргумент: { withPhotos, withMaps, fullOutput, title, requisites }.
  */
 export function printPortfolio(sourceItems, options) {
   const opts = resolveOptions(sourceItems, options)
   const withPhotos = resolveWithPhotos(sourceItems, options)
   const withMaps = resolveWithMaps(sourceItems, options)
+  const fullOutput = resolveFullOutput(sourceItems, options)
   const items = Array.isArray(sourceItems)
     ? sourceItems
     : resolveItems(sourceItems)
@@ -612,6 +807,7 @@ export function printPortfolio(sourceItems, options) {
     items,
     withPhotos,
     withMaps,
+    fullOutput,
     resolveTitle(opts.title),
     resolveRequisites(opts)
   )
