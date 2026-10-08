@@ -382,7 +382,7 @@ onMounted(async () => {
 }
 
 .emails a:hover {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 /* ---------------------------------------------------------
@@ -419,14 +419,14 @@ onMounted(async () => {
 }
 
 .header-nav a:hover {
-  color: #e12a1f;
+  color: var(--albion-accent);
   transform: translateY(-1px);
 }
 
 /* Подсветка — только при точном совпадении маршрута,
    чтобы «Главная страница» (корень /) не была выделена постоянно */
 .header-nav a.router-link-exact-active {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .header-nav a.router-link-exact-active::after {
@@ -442,7 +442,7 @@ onMounted(async () => {
 
   border-radius: 2px;
 
-  background: #e12a1f;
+  background: var(--albion-accent);
 }
 
 /* ---------------------------------------------------------
@@ -470,7 +470,7 @@ onMounted(async () => {
 }
 
 .phone:hover {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .phone-icon {
@@ -524,7 +524,7 @@ onMounted(async () => {
 }
 
 .social:hover {
-  background: #e12a1f;
+  background: var(--albion-accent);
   color: #fff;
 }
 
@@ -567,7 +567,7 @@ onMounted(async () => {
 }
 
 .smart-chat:hover {
-  background: #e12a1f;
+  background: var(--albion-accent);
 }
 
 .chat-icon {
@@ -720,7 +720,7 @@ onMounted(async () => {
   }
 
   .burger:hover {
-    background: #e12a1f;
+    background: var(--albion-accent);
   }
 
   .burger span {
@@ -807,7 +807,7 @@ onMounted(async () => {
 
   .mobile-nav-link:hover,
   .mobile-nav-link.router-link-exact-active {
-    color: #e12a1f;
+    color: var(--albion-accent);
   }
 
   /* Компактный блок контактов */
@@ -841,7 +841,7 @@ onMounted(async () => {
   }
 
   .mobile-contact-link:hover {
-    color: #e12a1f;
+    color: var(--albion-accent);
   }
 }
 
@@ -889,7 +889,7 @@ onMounted(async () => {
 }
 
 .auth-button:hover {
-  color: #e12a1f;
+  color: var(--albion-accent);
   background: #f1f3f4;
 }
 </style>

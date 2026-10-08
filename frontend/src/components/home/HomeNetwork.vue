@@ -270,7 +270,7 @@ function goToCity(city) {
 .eyebrow {
   margin-bottom: 14px;
 
-  color: #e12a1f;
+  color: var(--albion-accent);
 
   font-size: 10px;
   font-weight: 900;
@@ -380,7 +380,7 @@ h2 span {
 
   border-radius: 50%;
 
-  background: #e12a1f;
+  background: var(--albion-accent);
 }
 
 .map-point {
@@ -403,7 +403,7 @@ h2 span {
   width: 18px;
   height: 18px;
 
-  background: #e12a1f;
+  background: var(--albion-accent);
 }
 
 .point-pulse {
@@ -438,7 +438,7 @@ h2 span {
 
   background: #fff;
 
-  color: #e12a1f;
+  color: var(--albion-accent);
 
   font-size: 9px;
 }
@@ -527,7 +527,7 @@ h2 span {
 }
 
 .block-number {
-  color: #e12a1f;
+  color: var(--albion-accent);
 
   font-size: 10px;
   font-weight: 900;
@@ -569,7 +569,7 @@ h3 {
 }
 
 .city:hover {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .city strong {
@@ -596,7 +596,7 @@ h3 {
 }
 
 .highway-icon {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-weight: 900;
 }
 

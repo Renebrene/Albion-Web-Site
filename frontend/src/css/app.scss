@@ -1,5 +1,40 @@
 // app global css
 
+/* =========================================================
+   ВНЕШНИЙ ВИД САЙТА — CSS-ПЕРЕМЕННЫЕ
+   Значения по умолчанию; переопределяются в рантайме из
+   GET /api/settings (см. src/boot/settings.js).
+   ========================================================= */
+
+:root {
+  --albion-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --albion-font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --albion-font-size: 16px;
+  --albion-heading-weight: 800;
+  --albion-accent: #e12a1f;
+  --albion-bg: #f3f5f6;
+  --albion-text: #17212b;
+  --albion-radius-cards: 18px;
+  --albion-radius-buttons: 10px;
+}
+
+body {
+  font-family: var(--albion-font-family);
+  font-size: var(--albion-font-size);
+  background: var(--albion-bg);
+  color: var(--albion-text);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--albion-font-heading);
+  font-weight: var(--albion-heading-weight);
+}
+
 /* Albion Leaflet markers */
 
 .albion-marker-wrapper {
@@ -64,7 +99,7 @@
 }
 
 .popup-price-value {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
 
   font-size: 30px;
   line-height: .95;
@@ -74,7 +109,7 @@
 }
 
 .popup-price-currency {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
 
   font-size: 18px;
   line-height: 1;
@@ -83,7 +118,7 @@
 }
 
 .popup-price-period {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
 
   font-size: 10px;
   line-height: 1;
@@ -382,7 +417,7 @@
 }
 
 .popup-side-A {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
 }
 
 .popup-side-B {
@@ -400,7 +435,7 @@
 }
 
 .popup-price-value {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
   font-size: 26px;
   line-height: .95;
   font-weight: 950;
@@ -408,13 +443,13 @@
 }
 
 .popup-price-currency {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
   font-size: 17px;
   font-weight: 900;
 }
 
 .popup-price-period {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
   font-size: 10px;
   font-weight: 700;
   opacity: .8;
@@ -437,14 +472,14 @@
 }
 
 .promo-price-value {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 18px;
   line-height: 1;
   font-weight: 900;
 }
 
 .promo-price-currency {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-weight: 900;
 }
 
@@ -743,7 +778,7 @@
 }
 
 .popup-side-A {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
 }
 
 .popup-side-B {
@@ -759,7 +794,7 @@
 }
 
 .popup-price-value {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
   font-size: 20px;
   line-height: 1;
   font-weight: 900;
@@ -767,13 +802,13 @@
 }
 
 .popup-price-currency {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
   font-size: 13px;
   font-weight: 850;
 }
 
 .popup-price-period {
-  color: #e12a1f !important;
+  color: var(--albion-accent) !important;
   font-size: 8px;
   font-weight: 700;
   opacity: .75;
@@ -1070,7 +1105,7 @@
 }
 
 .card-price-inline .price-value {
-  color: #e12a1f;
+  color: var(--albion-accent);
 
   font-size: 21px;
   line-height: 1;
@@ -1080,7 +1115,7 @@
 }
 
 .card-price-inline .price-currency {
-  color: #e12a1f;
+  color: var(--albion-accent);
 
   font-size: 13px;
   font-weight: 850;
@@ -1123,7 +1158,7 @@
 }
 
 .card-side.side-a {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .card-side.side-b {

@@ -11,12 +11,19 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
+
 import AppHeader from '../components/layout/AppHeader.vue'
 import AppFooter from '../components/layout/AppFooter.vue'
+import { applySiteSettings } from '../boot/settings'
+
+onMounted(() => {
+  applySiteSettings()
+})
 </script>
 
 <style>
 .q-page-container {
-  background: #f3f5f6;
+  background: var(--albion-bg);
 }
 </style>

@@ -38,7 +38,19 @@
         </Transition>
 
         <section class="requests-card">
-          <div class="section-title">Ваши заявки</div>
+          <div class="section-head">
+            <div class="section-title">Ваши заявки</div>
+
+            <q-btn
+              outline
+              no-caps
+              dense
+              class="refresh-btn"
+              label="Обновить"
+              :loading="loading"
+              @click="handleRefresh"
+            />
+          </div>
 
           <div v-if="loading && !requests.length" class="loading-row">
             <q-spinner size="26px" />
@@ -447,6 +459,10 @@ async function submitRecover() {
 
 /* ---------------- ВЫХОД ---------------- */
 
+async function handleRefresh() {
+  await loadMe()
+}
+
 async function handleLogout() {
   await logout()
   mode.value = 'login'
@@ -504,7 +520,7 @@ function requestDate(item) {
 }
 
 .eyebrow {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 2px;
@@ -690,7 +706,7 @@ function requestDate(item) {
 .register-note {
   margin: 0 0 18px;
   padding: 12px 14px;
-  border-left: 3px solid #e12a1f;
+  border-left: 3px solid var(--albion-accent);
   border-radius: 0 10px 10px 0;
   background: #f7f8f9;
   color: #45525c;
@@ -710,7 +726,7 @@ function requestDate(item) {
   padding: 4px;
   border: 0;
   background: transparent;
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-family: inherit;
   font-size: 13px;
   font-weight: 800;
@@ -723,10 +739,27 @@ function requestDate(item) {
 
 /* ---------------- Заявки ---------------- */
 
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
 .section-title {
   margin-bottom: 16px;
   font-size: 17px;
   font-weight: 800;
+}
+
+.section-head .section-title {
+  margin-bottom: 0;
+}
+
+.refresh-btn {
+  color: #17212b;
+  font-weight: 700;
 }
 
 .loading-row {

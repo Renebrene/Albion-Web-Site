@@ -136,7 +136,7 @@ function searchExample(example) {
 
 .eyebrow {
   margin-bottom: 14px;
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 10px;
   font-weight: 850;
   letter-spacing: 1.5px;
@@ -201,7 +201,7 @@ function searchExample(example) {
   padding: 0 20px;
   border: 0;
   border-radius: 11px;
-  background: #e12a1f;
+  background: var(--albion-accent);
   color: #fff;
   font-size: 10px;
   font-weight: 850;

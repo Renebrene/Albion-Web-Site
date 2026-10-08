@@ -221,7 +221,7 @@ function openNews() {
 }
 
 .news-category {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .news-card h2 {
@@ -261,7 +261,7 @@ function openNews() {
 }
 
 .news-read span {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 15px;
 }
 

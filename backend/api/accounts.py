@@ -10,6 +10,8 @@
 """
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 from pydantic import BaseModel
 
@@ -40,6 +42,14 @@ class RecoverPayload(BaseModel):
     login: str
     secret_phrase: str
     new_password: str
+
+
+class CreateRequestPayload(BaseModel):
+    title: str = ""
+    # surface_id/payload проверяет сервис — так ошибки приходят как HTTP 400
+    # с русским текстом, а не как 422 от pydantic.
+    surface_id: Any = None
+    payload: Any = None
 
 
 # ---------------------------------------------------------------- helpers
@@ -154,4 +164,25 @@ def account_requests(user: dict = Depends(require_account)):
     return {
         "success": True,
         "requests": svc.list_requests(user["id"]),
+    }
+
+
+@router.post("/requests")
+def account_create_request(
+    payload: CreateRequestPayload,
+    user: dict = Depends(require_account),
+):
+    try:
+        request = svc.create_request(
+            user["id"],
+            payload.title,
+            payload.surface_id,
+            payload.payload,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    return {
+        "success": True,
+        "request": request,
     }

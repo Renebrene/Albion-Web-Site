@@ -57,7 +57,7 @@ defineProps({
 }
 
 .placeholder-kicker {
-  color: #e12a1f;
+  color: var(--albion-accent);
 
   font-size: 10px;
   font-weight: 900;

@@ -268,7 +268,7 @@ function formatShortDate(date) {
 }
 
 .back-button:hover {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .back-button span {
@@ -301,7 +301,7 @@ function formatShortDate(date) {
 }
 
 .news-category {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .news-main h1 {
@@ -431,7 +431,7 @@ function formatShortDate(date) {
 
 .sidebar-label {
   margin-bottom: 8px;
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 9px;
   font-weight: 850;
   letter-spacing: 1.5px;
@@ -470,7 +470,7 @@ function formatShortDate(date) {
 }
 
 .sidebar-button:hover {
-  background: #e12a1f;
+  background: var(--albion-accent);
 }
 
 .sidebar-button span {
@@ -499,7 +499,7 @@ function formatShortDate(date) {
 }
 
 .related-item:hover strong {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .related-date {
@@ -521,7 +521,7 @@ function formatShortDate(date) {
   position: absolute;
   top: 50%;
   right: 7px;
-  color: #e12a1f;
+  color: var(--albion-accent);
   transform: translateY(-50%);
 }
 

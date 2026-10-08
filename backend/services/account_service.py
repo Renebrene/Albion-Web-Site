@@ -13,6 +13,7 @@ import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
+from psycopg.types.json import Json
 from pwdlib import PasswordHash
 
 from backend.services.data_service import get_connection
@@ -300,6 +301,50 @@ def recover_password(login: str, secret_phrase: str, new_password: str) -> bool:
         )
 
     return True
+
+
+def create_request(
+    account_id: int,
+    title: str,
+    surface_id: int | None = None,
+    payload: dict | None = None,
+) -> dict:
+    """
+    Создаёт заявку клиента в client_requests и возвращает её.
+
+    title по умолчанию пустая строка; при ошибке данных бросает ValueError.
+    """
+    clean_title = (title or "").strip()
+
+    if surface_id is not None:
+        try:
+            surface_id = int(surface_id)
+        except (TypeError, ValueError):
+            raise ValueError("Некорректный идентификатор поверхности")
+
+    if payload is not None and not isinstance(payload, dict):
+        raise ValueError("Поле payload должно быть объектом")
+
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO client_requests
+                (account_id, title, surface_id, payload)
+            VALUES
+                (%s, %s, %s, %s)
+            RETURNING id, title, status, created_at, payload, surface_id
+            """,
+            (account_id, clean_title, surface_id, Json(payload or {})),
+        ).fetchone()
+
+    return {
+        "id": row[0],
+        "title": row[1],
+        "status": row[2],
+        "created_at": row[3].isoformat() if row[3] else None,
+        "payload": row[4] or {},
+        "surface_id": row[5],
+    }
 
 
 def list_requests(account_id: int) -> list[dict]:

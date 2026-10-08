@@ -177,6 +177,40 @@ async function recover({ login: loginValue, secret_phrase, new_password }) {
   })
 }
 
+/*
+ * Создание заявки в ЛК.
+ *
+ * Требует авторизации. При успехе новая заявка сразу попадает в
+ * общий список requests (свежие сверху — как отдаёт бэкенд).
+ */
+async function createRequest({ title, surface_id, payload } = {}) {
+  return run(async () => {
+    const body = { title: title || '' }
+
+    if (surface_id !== undefined && surface_id !== null) {
+      body.surface_id = surface_id
+    }
+
+    if (payload !== undefined && payload !== null) {
+      body.payload = payload
+    }
+
+    const data = await apiRequest('/account/requests', {
+      method: 'POST',
+      auth: true,
+      body
+    })
+
+    const request = data.request || null
+
+    if (request) {
+      requests.value = [request, ...requests.value]
+    }
+
+    return request
+  })
+}
+
 export function useAccount() {
   return {
     account,
@@ -190,6 +224,7 @@ export function useAccount() {
     logout,
     recover,
     loadMe,
+    createRequest,
     clearError
   }
 }

@@ -243,7 +243,7 @@ function clearCities() {
 
 .eyebrow {
   margin-bottom: 6px;
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 9px;
   font-weight: 900;
   letter-spacing: 1.8px;
@@ -390,8 +390,8 @@ function clearCities() {
 }
 
 .chip.active {
-  border-color: #e12a1f;
-  background: #e12a1f;
+  border-color: var(--albion-accent);
+  background: var(--albion-accent);
   color: #fff;
 }
 
@@ -416,7 +416,7 @@ function clearCities() {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #e12a1f;
+  color: var(--albion-accent);
   cursor: pointer;
   font-size: 9px;
   font-weight: 800;
@@ -484,8 +484,8 @@ function clearCities() {
 }
 
 .city-row.active .city-check {
-  border-color: #e12a1f;
-  background: #e12a1f;
+  border-color: var(--albion-accent);
+  background: var(--albion-accent);
 }
 
 .city-name-button {
@@ -496,7 +496,7 @@ function clearCities() {
 }
 
 .city-name-button:hover .city-name {
-  color: #e12a1f;
+  color: var(--albion-accent);
 }
 
 .city-name {

@@ -113,7 +113,7 @@ function cardSize(index) {
 
 .news-kicker {
   margin-bottom: 5px;
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 10px;
   font-weight: 850;
   letter-spacing: 1.8px;

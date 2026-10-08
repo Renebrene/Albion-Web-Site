@@ -247,7 +247,7 @@ onMounted(async () => {
 .hero-kicker {
   margin-bottom: 20px;
 
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 2.5px;
@@ -291,7 +291,7 @@ h2 span {
   min-height: 50px;
   padding: 0 24px;
 
-  background: #e12a1f;
+  background: var(--albion-accent);
   color: #fff;
 
   border-radius: 7px;
@@ -427,7 +427,7 @@ h2 span {
 
 .hero-dot.active {
   width: 50px;
-  background: #e12a1f;
+  background: var(--albion-accent);
 }
 
 @media (max-width: 900px) {

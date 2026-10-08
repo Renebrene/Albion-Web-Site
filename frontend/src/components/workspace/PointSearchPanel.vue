@@ -406,7 +406,7 @@ function toggleType(value) {
 .panel-kicker {
   margin-bottom: 3px;
 
-  color: #e12a1f;
+  color: var(--albion-accent);
 
   font-size: 9px;
   font-weight: 900;
@@ -509,8 +509,8 @@ function toggleType(value) {
 }
 
 .chip.active {
-  border-color: #e12a1f;
-  background: #e12a1f;
+  border-color: var(--albion-accent);
+  background: var(--albion-accent);
   color: #fff;
 }
 
@@ -670,7 +670,7 @@ function toggleType(value) {
   border: 0;
   border-radius: 10px;
 
-  background: #e12a1f;
+  background: var(--albion-accent);
   color: #fff;
 
   cursor: pointer;

@@ -22,7 +22,7 @@
 }
 
 .kicker {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 2px;

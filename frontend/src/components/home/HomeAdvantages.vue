@@ -121,7 +121,7 @@ onMounted(async () => {
 
 .eyebrow {
   margin-bottom: 12px;
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 1.6px;
@@ -162,7 +162,7 @@ onMounted(async () => {
 
 .advantage-number {
   margin-bottom: 54px;
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 13px;
   font-weight: 800;
   letter-spacing: 1px;

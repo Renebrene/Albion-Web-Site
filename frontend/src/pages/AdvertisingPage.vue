@@ -420,6 +420,33 @@
 
                 </div>
 
+                <div class="card-request">
+                  <button
+                    type="button"
+                    class="card-request-btn"
+                    :disabled="requestStatus(point.key) === 'sending'"
+                    @click="submitRequest(point)"
+                  >
+                    {{ requestStatus(point.key) === 'sending'
+                      ? 'ОТПРАВЛЯЕМ…'
+                      : 'ОСТАВИТЬ ЗАЯВКУ' }}
+                  </button>
+
+                  <div
+                    v-if="requestStatus(point.key) === 'success'"
+                    class="card-request-note card-request-note--ok"
+                  >
+                    Заявка отправлена. Посмотреть можно в личном кабинете.
+                  </div>
+
+                  <div
+                    v-else-if="requestStatus(point.key) === 'error'"
+                    class="card-request-note card-request-note--err"
+                  >
+                    {{ requestError(point.key) }}
+                  </div>
+                </div>
+
               </div>
 
             </article>
@@ -498,6 +525,8 @@ import {
   useConstructionsFilter
 } from '../composables/useConstructionsFilter'
 
+import { useAccount } from '../composables/useAccount'
+
 
 /* Акционная цена из отдельной колонки 1С (пока в данных отсутствует). */
 function promoPriceOf(item) {
@@ -548,6 +577,63 @@ function hasLight(item) {
 const route = useRoute()
 const router = useRouter()
 const constructions = ref([])
+
+/* Личный кабинет: авторизация и создание заявок. */
+const { isAuthenticated, createRequest } = useAccount()
+
+/*
+ * Статус кнопки «Оставить заявку» по карточкам (ключ карточки):
+ * 'idle' | 'sending' | 'success' | 'error'.
+ */
+const requestStates = ref({})
+const requestErrors = ref({})
+
+function requestStatus(key) {
+  return requestStates.value[key] || 'idle'
+}
+
+function requestError(key) {
+  return requestErrors.value[key] || 'Не удалось отправить заявку'
+}
+
+function setRequestState(key, state) {
+  requestStates.value = { ...requestStates.value, [key]: state }
+}
+
+/*
+ * Кнопка «Оставить заявку» в карточке.
+ *
+ * Авторизован — создаём заявку (title = «формат · адрес»,
+ * surface_id = id ведущей поверхности блока). Иначе — на /account.
+ */
+async function submitRequest(card) {
+  if (!isAuthenticated.value) {
+    router.push('/account')
+    return
+  }
+
+  const key = card.key
+  const block = card.blocks?.[0] || {}
+  const surfaceId = blockPrimary(block).id
+
+  setRequestState(key, 'sending')
+  requestErrors.value = { ...requestErrors.value, [key]: '' }
+
+  try {
+    await createRequest({
+      title: `${blockType(block)} · ${card.address}`,
+      surface_id: surfaceId ?? null
+    })
+
+    setRequestState(key, 'success')
+  } catch (error) {
+    setRequestState(key, 'error')
+    requestErrors.value = {
+      ...requestErrors.value,
+      [key]: (error && error.message) || 'Не удалось отправить заявку'
+    }
+  }
+}
 const mapViewRef = ref(null)
 const pointSearchOpen = ref(false)
 
@@ -1230,7 +1316,7 @@ onMounted(async () => {
 }
 
 .list-kicker {
-  color: #e12a1f;
+  color: var(--albion-accent);
 
   font-size: 10px;
   font-weight: 800;
@@ -1418,14 +1504,14 @@ onMounted(async () => {
 }
 
 .card-promo-price .promo-price-value {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 20px;
   line-height: 1;
   font-weight: 950;
 }
 
 .card-promo-price .promo-price-currency {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-weight: 900;
 }
 
@@ -1442,6 +1528,61 @@ onMounted(async () => {
   flex-direction: column;
 
   padding: 14px 16px 15px;
+}
+
+/* Кнопка «Оставить заявку» и её статус */
+
+.card-request {
+  margin-top: 14px;
+  padding-top: 12px;
+
+  border-top: 1px solid #edf0f2;
+}
+
+.card-request-btn {
+  width: 100%;
+  min-height: 40px;
+  padding: 0 14px;
+
+  border: 0;
+  border-radius: 10px;
+
+  background: var(--albion-accent);
+  color: #fff;
+
+  cursor: pointer;
+
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .06em;
+
+  transition:
+    background .18s ease,
+    opacity .18s ease;
+}
+
+.card-request-btn:hover:not(:disabled) {
+  background: #c92219;
+}
+
+.card-request-btn:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.card-request-note {
+  margin-top: 8px;
+
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.card-request-note--ok {
+  color: #1b5e20;
+}
+
+.card-request-note--err {
+  color: #b3261e;
 }
 .card-content h2 {
   margin: 0 0 3px;
@@ -1738,7 +1879,7 @@ onMounted(async () => {
 
   border-radius: 9px;
 
-  background: #e12a1f;
+  background: var(--albion-accent);
 
   color: #fff;
 
@@ -1913,7 +2054,7 @@ onMounted(async () => {
 
 .point-confirm-button {
   border: 0;
-  background: #e12a1f;
+  background: var(--albion-accent);
   color: #fff;
 }
 
@@ -1997,14 +2138,14 @@ onMounted(async () => {
 }
 
 .point-radius-head strong {
-  color: #e12a1f;
+  color: var(--albion-accent);
   font-size: 12px;
   font-weight: 900;
 }
 
 .point-radius-range {
   width: 100%;
-  accent-color: #e12a1f;
+  accent-color: var(--albion-accent);
   cursor: pointer;
 }
 
