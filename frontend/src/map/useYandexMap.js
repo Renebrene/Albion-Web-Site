@@ -305,6 +305,12 @@ function createPlacemark(group) {
         'Рекламная конструкция'
     },
     {
+      /*
+       * Явно указываем image-раскладку: без неё Яндекс 2.1 (векторный
+       * движок) игнорирует iconImageHref и рисует дефолтный «пин»,
+       * а не нашу цветную точку.
+       */
+      iconLayout: 'default#image',
       iconImageHref: dotIconHref(color),
       iconImageSize: [16, 16],
       iconImageOffset: [-8, -8],
