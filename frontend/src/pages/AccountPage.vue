@@ -51,7 +51,7 @@
           <div v-if="error" class="message message-error">{{ error }}</div>
         </Transition>
 
-        <section class="requests-card">
+        <section v-if="!isAdmin" class="requests-card">
           <div class="section-head">
             <div class="section-title">Ваши заявки</div>
 
@@ -102,7 +102,7 @@
         <!-- ============================================================
              ПОРТФЕЛЬ, СОХРАНЁННЫЙ В ЛИЧНОМ КАБИНЕТЕ
         ============================================================ -->
-        <section class="requests-card">
+        <section v-if="!isAdmin" class="requests-card">
           <div class="section-head">
             <div class="section-title">
               Портфель
@@ -201,7 +201,7 @@
         <!-- ============================================================
              РЕКВИЗИТЫ — попадают в распечатку и копирование портфеля
         ============================================================ -->
-        <section class="requests-card requisites-card">
+        <section v-if="!isAdmin" class="requests-card requisites-card">
           <div class="section-head">
             <div class="section-title">Реквизиты</div>
           </div>
@@ -807,10 +807,51 @@ async function submitLogin() {
 
   try {
     await login(loginForm.value.login.trim(), loginForm.value.password)
+
+    /*
+     * Админ входит через личный кабинет — сразу уводим в дашборд
+     * админки: для этого получаем отдельный админ-токен (та же пара
+     * логин/пароль) и кладём его в sessionStorage.
+     */
+    if (account.value?.role === 'admin') {
+      await enterAdminArea()
+      return
+    }
+
     await loadSavedPortfolio()
   } catch {
     /* текст ошибки уже в error */
   }
+}
+
+/*
+ * Вход администратора в админку после ЛК-логина: запрашиваем админ-токен
+ * тем же логином/паролем, сохраняем и переходим на дашборд. Если не
+ * удалось — отправляем на форму входа в админку.
+ */
+async function enterAdminArea() {
+  try {
+    const response = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        login: loginForm.value.login.trim(),
+        password: loginForm.value.password
+      })
+    })
+
+    const data = await response.json()
+
+    if (response.ok && data.token) {
+      sessionStorage.setItem('albion_admin_token', data.token)
+      await router.push('/administration/dashboard')
+      return
+    }
+  } catch (exc) {
+    /* ниже — откат на форму входа в админку */
+  }
+
+  await router.push('/administration')
 }
 
 /* ---------------- РЕГИСТРАЦИЯ ---------------- */

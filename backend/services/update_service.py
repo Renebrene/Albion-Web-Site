@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -22,6 +23,74 @@ PROJECT_DIR = Path(__file__).resolve().parents[2]
 
 INPUT_DIR = PROJECT_DIR / "input"
 PREVIOUS_DIR = INPUT_DIR / ".previous"
+
+
+def _input_files() -> list[Path]:
+    """Excel-файлы в input/ — кандидаты на обновление базы."""
+    if not INPUT_DIR.exists():
+        return []
+
+    return [
+        item
+        for item in INPUT_DIR.iterdir()
+        if item.is_file() and item.suffix.lower() in {".xlsx", ".xls"}
+    ]
+
+
+# Кэш проверки файла (путь+mtime+размер), чтобы не открывать Excel на
+# каждый опрос статуса.
+_input_check_cache: dict = {"key": None, "result": (True, None)}
+
+
+def _validate_input(path: Path) -> "tuple[bool, Optional[str]]":
+    """Пригоден ли Excel: есть лист и распознаётся ли строка заголовков."""
+    try:
+        from openpyxl import load_workbook
+    except Exception:
+        return True, None
+
+    try:
+        book = load_workbook(path, read_only=True, data_only=True)
+    except Exception as exc:
+        return False, f"не удалось открыть файл: {exc}"
+
+    try:
+        if not book.worksheets:
+            return False, "в книге нет листов"
+
+        from backend.importer.constructions_excel_to_json import (
+            find_header_row,
+        )
+
+        try:
+            find_header_row(book.worksheets[0])
+        except Exception as exc:
+            return False, str(exc)
+    finally:
+        try:
+            book.close()
+        except Exception:
+            pass
+
+    return True, None
+
+
+def check_input_file(path: Path) -> "tuple[bool, Optional[str]]":
+    """Валидность файла с кэшем по (путь, mtime, размер)."""
+    try:
+        stat = path.stat()
+        key = (str(path), stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        return False, "файл недоступен"
+
+    if _input_check_cache.get("key") == key:
+        return _input_check_cache["result"]
+
+    result = _validate_input(path)
+    _input_check_cache["key"] = key
+    _input_check_cache["result"] = result
+
+    return result
 ARCHIVE_UPLOADS_DIR = (
     PROJECT_DIR
     / "archive"
@@ -596,6 +665,37 @@ def _monitor(
     _finish(status, process, dry_run, commit_key, collected, seen_lines)
 
 
+def _extract_failure(lines: list[str]) -> list[str]:
+    """Суть ошибки из лога: последний traceback либо строки с ошибкой.
+
+    Стадия могла упасть раньше staging/медиа — тогда
+    collect_staging_errors ничего не находит, и раздел «лог об ошибках»
+    оставался пустым, хотя прогон завершился с ошибкой.
+    """
+    # Первый traceback — корневая причина; последующие обычно лишь
+    # оборачивают её («стадия завершилась с кодом 1»).
+    first_tb = None
+
+    for index, line in enumerate(lines):
+        if "Traceback (most recent call last)" in line:
+            first_tb = index
+            break
+
+    if first_tb is not None:
+        return lines[first_tb:]
+
+    picked = [
+        line
+        for line in lines
+        if re.search(r"error|exception|ошибк|failed", line, re.I)
+    ]
+
+    if picked:
+        return picked[-8:]
+
+    return lines[-10:] if lines else []
+
+
 def _finish(
     status: dict,
     process: subprocess.Popen,
@@ -654,6 +754,14 @@ def _finish(
     else:
         status["state"] = "error"
 
+        # Реальная причина из лога: падение могло случиться до staging,
+        # и тогда collect_staging_errors() пуст («Ошибок не обнаружено»).
+        if not status.get("errors"):
+            failure = _extract_failure(lines)
+
+            if failure:
+                status["errors"] = failure
+
     _archive_run_log(commit_key)
 
     _write_status(status)
@@ -673,6 +781,38 @@ def get_update_status() -> dict:
 
     if _is_running() and status.get("state") != "running":
         status["state"] = "running"
+
+    # Файл, ожидающий обновления (в input/). Показываем его присутствие,
+    # имя, размер и дату загрузки (mtime).
+    files = _input_files()
+
+    if files:
+        pending = files[0]
+
+        try:
+            stat = pending.stat()
+            mtime = _dt.datetime.fromtimestamp(stat.st_mtime).isoformat()
+            size = stat.st_size
+        except OSError:
+            mtime = None
+            size = None
+
+        valid, problem = check_input_file(pending)
+
+        status["input_pending"] = {
+            "name": pending.name,
+            "size": size,
+            "mtime": mtime,
+            "valid": valid,
+            "problem": problem,
+        }
+    else:
+        status["input_pending"] = None
+
+    # Запуск возможен, только когда в input/ ровно один Excel (как требует
+    # start_update). После успешного обновления файл уходит в архив — тогда
+    # кнопка «Обновить» недоступна до загрузки нового файла.
+    status["input_ready"] = len(files) == 1
 
     return status
 

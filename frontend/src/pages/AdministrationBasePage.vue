@@ -58,6 +58,29 @@
           · предыдущий → .previous (архивируется после обновления)
         </span>
       </div>
+
+      <!-- Файл, ожидающий обновления в input/ (виден и после перезагрузки). -->
+      <div v-if="updateState.input_pending" class="pending-file">
+        <span class="pending-file-label">Файл к обновлению:</span>
+        <b :class="updateState.input_pending.valid ? 'file-ok' : 'file-bad'">
+          {{ updateState.input_pending.name }}
+        </b>
+        <span class="pending-file-meta">
+          · загружен {{ formatDateTime(updateState.input_pending.mtime) }}
+        </span>
+        <span
+          v-if="updateState.input_pending.size !== null"
+          class="pending-file-meta"
+        >
+          · {{ (updateState.input_pending.size / 1024).toFixed(1) }} KB
+        </span>
+        <span
+          v-if="!updateState.input_pending.valid && updateState.input_pending.problem"
+          class="pending-file-problem"
+        >
+          — {{ updateState.input_pending.problem }}
+        </span>
+      </div>
     </div>
 
     <!-- ============ ОБНОВЛЕНИЕ ============ -->
@@ -85,13 +108,14 @@
           v-model="dryRunMode"
           label="Тестовый прогон (без изменения PostgreSQL)"
           dense
+          :disable="updateRunning || !inputReady || !inputValid"
         />
 
         <q-btn
           color="negative"
           no-caps
           label="Обновить"
-          :disable="updateRunning || !inputReady"
+          :disable="updateRunning || !inputReady || !inputValid"
           :loading="updateRunning"
           @click="startUpdate"
         />
@@ -170,7 +194,7 @@
       >
         <div class="errors-header">
           <div class="errors-title">
-            Что не скачалось / чего не хватает
+            Ошибки обновления
           </div>
 
           <div class="errors-actions">
@@ -186,6 +210,9 @@
         </div>
 
         <pre class="scroll-field">{{ errorsText }}</pre>
+      </div>
+      <div v-else-if="updateState.state === 'error'" class="error-text">
+        Прогон завершился с ошибкой — подробности в логе ниже.
       </div>
       <div v-else class="ok-text">
         Ошибок не обнаружено.
@@ -486,7 +513,22 @@ const idleStatus = {
   errors: []
 }
 
-const inputReady = ref(true)
+/*
+ * Готовность к обновлению базы: true, только когда в input/ есть ровно
+ * один Excel (приходит из статуса). После успешного обновления файл
+ * уходит в архив → до загрузки нового файла кнопка «Обновить» неактивна.
+ */
+const inputReady = ref(false)
+
+/*
+ * Пригодность файла в input/: false — пришла проверка «невалиден»
+ * (нет листов / не распознаётся шапка). Пока файла нет — считаем true,
+ * но кнопка всё равно заблокирована через inputReady.
+ */
+const inputValid = computed(() => {
+  const pending = updateState.value.input_pending
+  return !pending || pending.valid !== false
+})
 
 let pollTimer = null
 
@@ -559,6 +601,9 @@ async function uploadFile() {
     })
 
     selectedFile.value = null
+
+    // Новый файл в input/ — обновляем статус, чтобы включить «Обновить».
+    await pollStatus()
   } catch (exc) {
     error.value = String(exc)
   } finally {
@@ -599,6 +644,8 @@ async function pollStatus() {
       ...updateState.value,
       ...status
     }
+
+    inputReady.value = Boolean(status.input_ready)
 
     if (status.state === 'running') {
       return
@@ -806,6 +853,38 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   font-size: 14px;
   margin-top: 10px;
+}
+
+/* Файл, ожидающий обновления в input/ */
+.pending-file {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #eef4fb;
+  color: #1f3a5f;
+  font-size: 14px;
+}
+
+.pending-file-label {
+  color: #68757e;
+  font-weight: 700;
+}
+
+.pending-file-meta {
+  color: #52606a;
+}
+
+/* Имя файла: зелёный — пригоден, красный — без нужных данных. */
+.file-ok {
+  color: #2e7d32;
+}
+
+.file-bad {
+  color: #c62828;
+}
+
+.pending-file-problem {
+  color: #c62828;
 }
 
 .warn {
