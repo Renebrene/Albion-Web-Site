@@ -250,19 +250,19 @@ export function portfolioText(sourceItems, options) {
       lines.push(`   Размер: ${item.size}`)
     }
 
-    if (months.length) {
-      const monthText = months
-        .map(month => {
-          const price =
-            month.price === null ? '' : ` — ${formatPrice(month.price)} ₽`
-          const stale = month.stale ? ' (статус изменился)' : ''
+    const monthText = months.length
+      ? months
+          .map(month => {
+            const price =
+              month.price === null ? '' : ` — ${formatPrice(month.price)} ₽`
+            const stale = month.stale ? ' (статус изменился)' : ''
 
-          return `${month.full}${price}${stale}`
-        })
-        .join('; ')
+            return `${month.full}${price}${stale}`
+          })
+          .join('; ')
+      : 'ничего не выбрано'
 
-      lines.push(`   Месяцы: ${monthText}`)
-    }
+    lines.push(`   Месяцы: ${monthText}`)
 
     lines.push(`   Сумма: ${formatPrice(itemSum(item))} ₽`)
 
@@ -471,7 +471,7 @@ function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
               return `${escapeHtml(month.full)}${escapeHtml(price)}${stale}`
             })
             .join(', ')
-        : '—'
+        : 'ничего не выбрано'
 
       const metaParts = []
 
@@ -644,7 +644,7 @@ export function buildPrintHtml(
               return `${escapeHtml(month.full)}${escapeHtml(price)}${stale}`
             })
             .join(', ')
-        : '—'
+        : 'ничего не выбрано'
 
       /* Без колонки «Фото» показываем прежнюю ссылку на фото. */
       const photo =

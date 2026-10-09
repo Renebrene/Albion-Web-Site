@@ -447,7 +447,9 @@ def build_portfolio(
                 "side": _text(raw.get("side")),
                 "type": _text(raw.get("type")),
                 "size": _text(raw.get("size")),
-                "months": ", ".join(month_parts) if month_parts else "—",
+                # Пустая позиция остаётся в списке: пишем явный текст,
+                # сумма при этом 0 ₽ (см. format_money).
+                "months": ", ".join(month_parts) if month_parts else "ничего не выбрано",
                 "sum": format_money(item_sum),
                 "sum_value": item_sum,
                 "photo": photo,

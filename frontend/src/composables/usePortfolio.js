@@ -346,14 +346,9 @@ function toggleMonth(surface, monthFull, price) {
     delete item.months[monthFull]
 
     /*
-     * Снят последний месяц — позиция больше не нужна: убираем её
-     * целиком, чтобы счётчик отражал реальное число выбранных
-     * поверхностей.
+     * Позицию НЕ удаляем, даже если снят последний месяц: конструкция
+     * остаётся в портфеле, а в выводе для неё пишется «ничего не выбрано».
      */
-    if (Object.keys(item.months).length === 0) {
-      removeSurface(surfaceId)
-    }
-
     return
   }
 
@@ -386,11 +381,7 @@ function toggleItemMonth(surfaceId, monthFull) {
   if (item.months[monthFull]) {
     delete item.months[monthFull]
 
-    /* Снят последний месяц — позиция больше не нужна. */
-    if (Object.keys(item.months).length === 0) {
-      removeSurface(surfaceId)
-    }
-
+    /* Позиция остаётся в списке даже без выбранных месяцев. */
     return
   }
 
