@@ -454,8 +454,15 @@ function monthChips(item) {
     const selected = Boolean(value)
     const price = selected ? toNumber(value.price) : toNumber(prices[full])
 
-    /* Тот же разбор статуса, что и на карточках: свободно/резерв/занято. */
-    const state = getAvailabilityState({ statuses: item?.statuses }, full)
+    /*
+     * Статус — тем же разбором, что на карте и в списке: сначала сырой
+     * текст месяцев (item.monthTexts), затем statuses как запасной
+     * вариант (см. getMonthValue в utils/availability).
+     */
+    const state = getAvailabilityState(
+      { months: item?.monthTexts, statuses: item?.statuses },
+      full
+    )
     const free = state === 'free'
 
     /*

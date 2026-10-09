@@ -1,6 +1,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 
 import { useAccount } from './useAccount'
+import { isFree } from '../utils/availability'
 
 /*
  * Портфель — корзина избранных поверхностей.
@@ -15,6 +16,10 @@ import { useAccount } from './useAccount'
  *     photo, photo_thumb, photo_large,
  *     map_card, map_thumb, map_large,
  *     months: { [monthFull]: { price, addedAt, stale } },
+ *     // Снимки для статуса/цен по ВСЕМ месяцам (не только выбранным):
+ *     prices: { [monthFull]: number|null },
+ *     statuses: { [monthFull]: string },   // нормализованный статус
+ *     monthTexts: { [monthFull]: string }, // сырой текст месяцев (как на карте)
  *     addedAt
  *   }
  *
@@ -161,15 +166,6 @@ function getToken() {
   }
 }
 
-// Пустой статус и «Свободно» (в любом регистре) считаются свободными.
-function isFreeStatus(value) {
-  const status = String(value ?? '')
-    .trim()
-    .toLowerCase()
-
-  return status === '' || status === 'свободно'
-}
-
 /*
  * Нормализует plain-позицию к внутреннему виду.
  * Возвращает null, если surfaceId не является числом.
@@ -199,6 +195,40 @@ function monthStatusesOf(surface) {
   })
 
   return statuses
+}
+
+/*
+ * Сырой текст доступности месяцев из поля `months` конструкции
+ * («33%», «Резерв до 17.08», «Свободно»).
+ *
+ * Карта и список читают статус ИМЕННО отсюда — getMonthValue отдаёт
+ * приоритет `months`, а `statuses` берёт лишь как запасной вариант.
+ * Поэтому портфель хранит такой же снимок: иначе статусы расходятся
+ * (например, у видеоэкранов, где `months` = «8%», а `statuses` =
+ * «Доступность»).
+ *
+ * ВНИМАНИЕ: не путать с item.months — там лежат ВЫБРАННЫЕ месяцы.
+ */
+function monthTextsOf(surface) {
+  const texts = {}
+
+  Object.entries(surface?.months || {}).forEach(([month, value]) => {
+    texts[month] = String(value ?? '')
+  })
+
+  return texts
+}
+
+function normalizeMonthTexts(raw) {
+  const texts = {}
+
+  if (raw && typeof raw === 'object') {
+    Object.entries(raw).forEach(([month, value]) => {
+      texts[month] = String(value ?? '')
+    })
+  }
+
+  return texts
 }
 
 function normalizePrices(raw) {
@@ -258,7 +288,8 @@ function normalizeItem(raw) {
     months,
     addedAt: raw.addedAt || null,
     prices: normalizePrices(raw.prices),
-    statuses: normalizeStatuses(raw.statuses)
+    statuses: normalizeStatuses(raw.statuses),
+    monthTexts: normalizeMonthTexts(raw.monthTexts)
   }
 
   PASSPORT_FIELDS.forEach(field => {
@@ -323,7 +354,8 @@ function toggleMonth(surface, monthFull, price) {
       months: {},
       addedAt: nowIso(),
       prices: monthPricesOf(surface),
-      statuses: monthStatusesOf(surface)
+      statuses: monthStatusesOf(surface),
+      monthTexts: monthTextsOf(surface)
     }
 
     PASSPORT_FIELDS.forEach(field => {
@@ -340,6 +372,10 @@ function toggleMonth(surface, monthFull, price) {
 
   if (!Object.keys(item.statuses || {}).length) {
     item.statuses = monthStatusesOf(surface)
+  }
+
+  if (!Object.keys(item.monthTexts || {}).length) {
+    item.monthTexts = monthTextsOf(surface)
   }
 
   if (item.months[monthFull]) {
@@ -456,6 +492,7 @@ function syncWithConstructions(constructions) {
     })
 
     item.statuses = { ...item.statuses, ...monthStatusesOf(construction) }
+    item.monthTexts = { ...item.monthTexts, ...monthTextsOf(construction) }
 
     Object.keys(item.months).forEach(monthFull => {
       const month = item.months[monthFull]
@@ -464,7 +501,8 @@ function syncWithConstructions(constructions) {
         return
       }
 
-      month.stale = !isFreeStatus(construction.statuses?.[monthFull])
+      /* Свободность — по той же логике, что на карте и в списке. */
+      month.stale = !isFree(construction, monthFull)
 
       const price = toNumber(construction.month_prices?.[monthFull])
 
