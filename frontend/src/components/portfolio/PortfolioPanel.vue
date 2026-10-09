@@ -457,8 +457,11 @@ function monthChips(item) {
     const state = getAvailabilityState({ statuses: item?.statuses }, full)
     const free = state === 'free'
 
-    /* Добавить можно только свободный месяц с известной ценой. */
-    const canPick = selected || (price !== null && free)
+    /*
+     * Добавить можно любой свободный месяц — цена не обязательна
+     * (как в попапе карты). Если цены нет, месяц добавится без суммы.
+     */
+    const canPick = selected || free
 
     let title
 
@@ -469,7 +472,7 @@ function monthChips(item) {
     } else if (!free) {
       title = `${full}: ${state === 'reserve' ? 'в резерве' : 'занято'} — выбрать нельзя`
     } else if (price === null) {
-      title = `${full}: цена неизвестна`
+      title = `${full}: свободен — нажмите, чтобы добавить (цена не указана)`
     } else {
       title = `${full}: ${formatPrice(price)} ₽ — нажмите, чтобы добавить`
     }
