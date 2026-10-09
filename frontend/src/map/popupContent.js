@@ -354,8 +354,8 @@ function sideCard(item) {
       </div>
       ${typeBlock(item)}
       ${photoBlock(item)}
-      ${featuresBlock(item, false)}
       ${monthBlock(item)}
+      ${featuresBlock(item, false)}
       ${portfolioBlock(item)}
     </section>
   `

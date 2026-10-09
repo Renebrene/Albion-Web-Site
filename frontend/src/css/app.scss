@@ -378,6 +378,11 @@ h6 {
 }
 
 .popup-side-card {
+  /* Flex-колонка: позволяет прижать нижний блок (features + портфель)
+     к нижнему краю — см. правило ниже. */
+  display: flex;
+  flex-direction: column;
+
   min-width: 0;
   box-sizing: border-box;
   padding: 12px 12px 13px;
@@ -930,6 +935,18 @@ h6 {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 9px;
+}
+
+/*
+ * В попапе текст под месяцами («подсветка / статика / динамика») и
+ * следующая за ним кнопка «Портфель» прижимаются к нижнему краю
+ * карточки. Так у половинок с разным числом строк месяцев низ совпадает.
+ * padding-top (а не margin) сохраняет минимум 9px зазора, когда свободного
+ * места нет (одиночная карточка) — auto-отступ тогда равен нулю.
+ */
+.popup-side-card .popup-features {
+  margin-top: auto;
+  padding-top: 9px;
 }
 
 .card-features {
