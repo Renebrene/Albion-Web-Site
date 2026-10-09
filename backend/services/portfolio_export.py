@@ -96,13 +96,11 @@ PDF_PHOTO_WIDTH_MM = 18.0
 DOCX_PHOTO_WIDTH_CM = 1.8
 
 # «Полный вывод»: фото и карта встают в один ряд по ширине A4.
-# Карта — 7.5 см, фото шире — 9 см; высота у обоих одна (5 см), поэтому
+# Оба — 8 × 5 см (пропорция 8:5), поэтому ширины и высоты совпадают и
 # ряд ровный. Картинка НЕ растягивается: PIL-овский cover-кроп по центру
-# приводит её к точному боксу нужной пропорции (карта 3:2, фото 9:5).
-FULL_IMAGE_BOX = (600, 400)
-FULL_IMAGE_WIDTH_CM = 7.5
-FULL_PHOTO_BOX = (900, 500)
-FULL_PHOTO_WIDTH_CM = 9.0
+# приводит её к точному боксу, задание width/height в docx/pdf её не искажает.
+FULL_IMAGE_BOX = (800, 500)
+FULL_IMAGE_WIDTH_CM = 8.0
 FULL_IMAGE_HEIGHT_CM = 5.0
 
 CONTENT_TYPES = {
@@ -699,29 +697,25 @@ def _export_docx_full(portfolio: dict) -> bytes:
         # Изображения в один ряд (внутри одного абзаца, инлайн).
         candidates = []
         if with_photos:
-            candidates.append(
-                (row.get("photo_full"), FULL_PHOTO_BOX, FULL_PHOTO_WIDTH_CM)
-            )
+            candidates.append(row.get("photo_full"))
         if with_maps:
-            candidates.append(
-                (row.get("map_full"), FULL_IMAGE_BOX, FULL_IMAGE_WIDTH_CM)
-            )
+            candidates.append(row.get("map_full"))
 
         loaded = []
-        for url, box, width_cm in candidates:
-            image = load_full_image(url, box)
+        for url in candidates:
+            image = load_full_image(url)
             if image is not None:
-                loaded.append((image, width_cm))
+                loaded.append(image)
 
         if loaded:
             picture_paragraph = document.add_paragraph()
-            for position, (image, width_cm) in enumerate(loaded):
+            for position, image in enumerate(loaded):
                 if position:
                     picture_paragraph.add_run("    ")
                 run = picture_paragraph.add_run()
                 run.add_picture(
                     io.BytesIO(photo_to_bytes(image)),
-                    width=Cm(width_cm),
+                    width=Cm(FULL_IMAGE_WIDTH_CM),
                     height=Cm(FULL_IMAGE_HEIGHT_CM),
                 )
 
@@ -1037,26 +1031,20 @@ def _export_pdf_full(portfolio: dict) -> bytes:
         image_cells = []
         candidates = []
         if with_photos:
-            candidates.append(
-                (row.get("photo_full"), FULL_PHOTO_BOX, FULL_PHOTO_WIDTH_CM)
-            )
+            candidates.append(row.get("photo_full"))
         if with_maps:
-            candidates.append(
-                (row.get("map_full"), FULL_IMAGE_BOX, FULL_IMAGE_WIDTH_CM)
-            )
+            candidates.append(row.get("map_full"))
 
-        cell_widths = []
-        for url, box, width_cm in candidates:
-            image = load_full_image(url, box)
+        for url in candidates:
+            image = load_full_image(url)
             if image is None:
                 continue
             buffer = io.BytesIO(photo_to_bytes(image))
             photo_buffers.append(buffer)
-            cell_widths.append(width_cm * cm)
             image_cells.append(
                 RLImage(
                     buffer,
-                    width=width_cm * cm,
+                    width=FULL_IMAGE_WIDTH_CM * cm,
                     height=FULL_IMAGE_HEIGHT_CM * cm,
                 )
             )
@@ -1064,7 +1052,7 @@ def _export_pdf_full(portfolio: dict) -> bytes:
         if image_cells:
             images_table = Table(
                 [image_cells],
-                colWidths=cell_widths,
+                colWidths=[FULL_IMAGE_WIDTH_CM * cm] * len(image_cells),
                 hAlign="LEFT",
             )
             images_table.setStyle(

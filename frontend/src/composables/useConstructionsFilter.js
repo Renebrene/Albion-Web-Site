@@ -215,16 +215,6 @@ export function useConstructionsFilter(constructions) {
       return true
     })
 
-    console.log('Albion filter:', {
-      total: constructions.value?.length || 0,
-      result: result.length,
-      months: selectedMonths.value,
-      monthLogic: monthLogic.value,
-      types: selectedTypes.value,
-      cities: selectedCities.value,
-      search: searchQuery.value
-    })
-
     return result
   })
 

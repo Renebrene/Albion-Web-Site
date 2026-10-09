@@ -574,16 +574,15 @@ function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
       gap: 0.5cm;
       margin: 8px 0 4px;
     }
+    /* Фото и карта — одинаковые: 8 × 5 см, ряд ровный. */
     .full-thumb {
       display: block;
+      width: 8cm;
       height: 5cm;
       object-fit: cover;
       border: 1px solid #e3e8ec;
       border-radius: 4px;
     }
-    /* Фото шире карты, высота у обоих одна — ряд ровный. */
-    .full-thumb--photo { width: 9cm; }
-    .full-thumb--map { width: 7.5cm; }
     .full-total {
       margin-top: 16px;
       font-size: 14px;

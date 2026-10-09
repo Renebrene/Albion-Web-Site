@@ -90,7 +90,12 @@
         ============================================================ -->
         <section class="requests-card">
           <div class="section-head">
-            <div class="section-title">Портфель</div>
+            <div class="section-title">
+              Портфель
+              <span v-if="accountTitle" class="section-subtitle">
+                «{{ accountTitle }}»
+              </span>
+            </div>
 
             <q-btn
               v-if="savedPortfolio.length"
@@ -553,7 +558,7 @@ const router = useRouter()
  * Сохранённый в личном кабинете портфель — только для показа.
  * Текущий (несохранённый) портфель живёт в usePortfolio().
  */
-const { fetchAccountPortfolio, mergeFromAccount } = usePortfolio()
+const { fetchAccountPortfolio, mergeFromAccount, accountTitle } = usePortfolio()
 
 const savedPortfolio = ref([])
 const portfolioLoading = ref(false)
@@ -1148,6 +1153,14 @@ function requestDate(item) {
 
 .section-head .section-title {
   margin-bottom: 0;
+}
+
+/* Название сохранённого портфеля — рядом с заголовком раздела. */
+.section-subtitle {
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #6b7785;
 }
 
 .refresh-btn {

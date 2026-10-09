@@ -59,6 +59,12 @@ const items = ref([])
 // Название портфеля (для распечатки/выгрузки/копирования).
 const title = ref('')
 
+/*
+ * Название портфеля, СОХРАНЁННОГО в личном кабинете (не текущего).
+ * Нужно странице ЛК: она показывает, что именно лежит на сервере.
+ */
+const accountTitle = ref('')
+
 // surfaceId (в виде строки) -> true, если включён режим выбора месяцев.
 const selectionMode = reactive({})
 
@@ -562,6 +568,8 @@ async function loadFromAccount() {
     // Непустой серверный заголовок применяется; пустой — не затирает локальный.
     const serverTitle = normalizeTitle(data && data.title)
 
+    accountTitle.value = serverTitle
+
     return hydrate({
       version: 1,
       title: serverTitle || title.value,
@@ -600,6 +608,8 @@ async function fetchAccountPortfolio() {
      */
     const serverTitle = normalizeTitle(data && data.title)
 
+    accountTitle.value = serverTitle
+
     if (serverTitle && !title.value) {
       title.value = serverTitle
     }
@@ -631,6 +641,11 @@ async function saveToAccount() {
         items: serialize().items
       })
     })
+
+    /* Сохранили — значит в ЛК лежит именно это название. */
+    if (response.ok) {
+      accountTitle.value = normalizeTitle(title.value)
+    }
 
     return response.ok
   } catch {
@@ -715,6 +730,7 @@ async function mergeFromAccount() {
       const data = await response.json()
       serverItems = Array.isArray(data && data.items) ? data.items : []
       serverTitle = normalizeTitle(data && data.title)
+      accountTitle.value = serverTitle
     }
   } catch {
     return false
@@ -773,6 +789,7 @@ export function usePortfolio() {
     // состояние
     items,
     title,
+    accountTitle,
     count,
     totalPrice,
     selectionMode,

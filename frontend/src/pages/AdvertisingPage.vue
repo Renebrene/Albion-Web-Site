@@ -2579,8 +2579,33 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 760px) {
+  /* На узком экране колонки встают друг под друга. Базовые правила
+     (fixed height + overflow: hidden у .app и .advertising-page) при этом
+     схлопывали рабочую область в полоску: её дети позиционированы
+     absolute и собственной высоты не имеют. Поэтому на мобильном
+     отпускаем высоту и задаём рабочей области явную высоту. */
+  .advertising-page {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
   .app {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
+  }
+
+  /* Панель фильтров сверху — ограничиваем высоту, чтобы не выдавливать карту. */
+  .app :deep(.filters-sidebar) {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+
+  /* Рабочая область (карта/список) получает реальную высоту экрана. */
+  .workspace {
+    height: 78vh;
+    min-height: 460px;
   }
 
   .list-view {
