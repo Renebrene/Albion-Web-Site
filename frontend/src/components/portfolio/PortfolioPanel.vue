@@ -699,9 +699,37 @@ function handleClear() {
   width: min(760px, 92vw);
   max-height: 70vh;
 
-  overflow-y: auto;
+  /* Панель не прокручивается целиком: шапка и нижний блок действий
+     зафиксированы, прокручивается только список позиций (см. ниже).
+     Иначе при большом числе позиций терялось нижнее поле с кнопками. */
+  overflow: hidden;
 
   padding: 16px 18px;
+}
+
+/*
+ * В дропдауне список позиций — единственная прокручиваемая область.
+ * flex: 1 + min-height: 0 заставляют его занять остаток высоты и
+ * скроллиться, не растягивая панель.
+ */
+.portfolio-panel--dropdown .portfolio-list {
+  flex: 1 1 auto;
+  min-height: 0;
+
+  overflow-y: auto;
+
+  /* Небольшой отступ, чтобы скроллбар не лип к карточкам. */
+  padding-right: 4px;
+  margin-right: -4px;
+}
+
+/* Шапка, название, итог и блок действий не сжимаются — они всегда видны. */
+.portfolio-panel--dropdown .portfolio-head,
+.portfolio-panel--dropdown .portfolio-title,
+.portfolio-panel--dropdown .portfolio-total,
+.portfolio-panel--dropdown .portfolio-actions,
+.portfolio-panel--dropdown .portfolio-empty {
+  flex-shrink: 0;
 }
 
 .portfolio-panel--page {

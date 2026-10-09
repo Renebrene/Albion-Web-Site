@@ -1206,5 +1206,10 @@ onMounted(async () => {
   border-radius: 14px;
   box-shadow: 0 18px 40px rgba(25, 35, 45, .18);
   overflow: hidden;
+
+  /* Снимаем умолчательный max-height q-menu (65vh): высотой управляет
+     сама панель портфеля, иначе её нижний блок с кнопками обрезался
+     меню, хотя список внутри панели прокручивался. */
+  max-height: none;
 }
 </style>

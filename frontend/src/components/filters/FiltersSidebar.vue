@@ -281,8 +281,8 @@ function clearCities() {
 }
 
 .logic-help {
-  position: relative;
-
+  /* position намеренно не задаём: тултип позиционируется относительно
+     всей строки (см. .month-title-row), иначе он уходит влево за край. */
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
@@ -307,7 +307,9 @@ function clearCities() {
   top: calc(100% + 8px);
   right: 0;
 
-  width: min(240px, calc(100vw - 40px));
+  /* Ширина ограничена шириной строки, чтобы тултип не выходил за сайдбар
+     (у сайдбара overflow-y: auto — всё, что вылезает влево, обрезается). */
+  width: min(240px, 100%);
   padding: 8px 10px;
 
   border-radius: 8px;
@@ -401,6 +403,11 @@ function clearCities() {
   justify-content: space-between;
   gap: 8px;
   margin-bottom: 9px;
+}
+
+/* Строка «Свободные месяцы» — точка привязки тултипа подсказки. */
+.month-title-row {
+  position: relative;
 }
 
 .section-title-row .section-label {
