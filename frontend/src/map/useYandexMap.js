@@ -11,6 +11,7 @@
 import { popupContent } from './popupContent'
 import { groupByPoint } from '../utils/constructionGroups'
 import { getAvailabilityState } from '../utils/availability'
+import { mapDotColors } from '../config/mapColors'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -127,7 +128,7 @@ function markerColor(items) {
   const sides = uniqueSides(items)
 
   if (!sides.length) {
-    return '#2ea66d'
+    return mapDotColors.value.free
   }
 
   let freeCount = 0
@@ -149,14 +150,14 @@ function markerColor(items) {
   }
 
   if (busyCount === 0 && reserveCount === 0) {
-    return '#2ea66d'
+    return mapDotColors.value.free
   }
 
   if (freeCount === 0 && reserveCount === 0) {
-    return '#e24b42'
+    return mapDotColors.value.busy
   }
 
-  return '#e6a51c'
+  return mapDotColors.value.mixed
 }
 
 /*

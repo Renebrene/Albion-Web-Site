@@ -245,11 +245,11 @@ h6 {
 }
 
 .popup-month strong.free {
-  color: #2ea66d;
+  color: var(--albion-map-free, #2ea66d);
 }
 
 .popup-month strong.reserve {
-  color: #e6a51c;
+  color: var(--albion-map-mixed, #e6a51c);
 }
 
 .popup-month strong.approval {
@@ -257,7 +257,7 @@ h6 {
 }
 
 .popup-month strong.busy {
-  color: #e24b42;
+  color: var(--albion-map-busy, #e24b42);
 }
 
 /* Фото */
@@ -536,11 +536,11 @@ h6 {
 }
 
 .popup-month strong.free {
-  color: #2ea66d;
+  color: var(--albion-map-free, #2ea66d);
 }
 
 .popup-month strong.reserve {
-  color: #e6a51c;
+  color: var(--albion-map-mixed, #e6a51c);
 }
 
 .popup-month strong.approval {
@@ -548,7 +548,7 @@ h6 {
 }
 
 .popup-month strong.busy {
-  color: #e24b42;
+  color: var(--albion-map-busy, #e24b42);
 }
 
 .popup-photo-link {

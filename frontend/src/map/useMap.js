@@ -3,6 +3,7 @@ import 'leaflet.markercluster'
 
 import { popupContent } from './popupContent'
 import { getAvailabilityState } from '../utils/availability'
+import { mapDotColors } from '../config/mapColors'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -162,9 +163,10 @@ function uniqueSides(items) {
 
 /*
  * Цвет точки — комбинация статусов её сторон (по выбранным месяцам):
- *   всё свободно          → зелёный;
- *   всё занято            → красный;
- *   иначе (есть резерв или смесь) → оранжевый.
+ *   всё свободно                  → mapDotColors.free;
+ *   всё занято                    → mapDotColors.busy;
+ *   иначе (есть резерв или смесь) → mapDotColors.mixed.
+ * Сами цвета задаются в админ-настройках (см. config/mapColors.js).
  */
 function markerColor(items) {
   const months =
@@ -176,7 +178,7 @@ function markerColor(items) {
   const sides = uniqueSides(items)
 
   if (!sides.length) {
-    return '#2ea66d'
+    return mapDotColors.value.free
   }
 
   let freeCount = 0
@@ -197,18 +199,18 @@ function markerColor(items) {
     }
   }
 
-  // Всё свободно → зелёный.
+  // Всё свободно → «свободный» цвет.
   if (busyCount === 0 && reserveCount === 0) {
-    return '#2ea66d'
+    return mapDotColors.value.free
   }
 
-  // Всё занято → красный.
+  // Всё занято → «занятый» цвет.
   if (freeCount === 0 && reserveCount === 0) {
-    return '#e24b42'
+    return mapDotColors.value.busy
   }
 
-  // Есть резерв или смесь → оранжевый.
-  return '#e6a51c'
+  // Есть резерв или смесь → «смешанный» цвет.
+  return mapDotColors.value.mixed
 }
 
 function markerIcon(items) {

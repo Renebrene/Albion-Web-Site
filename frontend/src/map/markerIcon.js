@@ -1,5 +1,6 @@
 import L from 'leaflet'
 import { getAvailabilityState, getMonthValue } from '../utils/availability'
+import { mapDotColors } from '../config/mapColors'
 
 export function escapeHtml(value) {
   return String(value ?? '')
@@ -84,16 +85,16 @@ function getColor(item, selectedMonths = []) {
 
   // Все выбранные месяцы заняты
   if (busyCount === states.length) {
-    return '#e24b42'
+    return mapDotColors.value.busy
   }
 
   // Ни одного занятого месяца
   if (busyCount === 0) {
-    return '#2ea66d'
+    return mapDotColors.value.free
   }
 
   // Есть и занятые, и свободные
-  return '#e6a51c'
+  return mapDotColors.value.mixed
 }
 
 export function markerIcon(item, selectedMonths = []) {

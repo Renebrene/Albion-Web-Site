@@ -10,6 +10,7 @@
 // оставляя значения по умолчанию, объявленные в :root.
 
 import { setMapEngine } from '../config/mapConfig'
+import { mapDotColors, setMapDotColors } from '../config/mapColors'
 import { applySiteFonts } from '../config/fontLoader'
 
 const SYSTEM_FONT_STACK =
@@ -78,6 +79,16 @@ async function loadAndApply() {
 
   /* Оператор карты: 'osm' | 'yandex' (см. config/mapConfig.js). */
   setMapEngine(settings.map_engine)
+
+  /*
+   * Цвета точек на карте (см. config/mapColors.js). Применяем и в JS
+   * (маркеры Leaflet/Яндекс), и как CSS-переменные — их используют
+   * подписи статусов в попапах, чтобы палитра совпадала с точками.
+   */
+  setMapDotColors(settings)
+  set('--albion-map-free', mapDotColors.value.free)
+  set('--albion-map-busy', mapDotColors.value.busy)
+  set('--albion-map-mixed', mapDotColors.value.mixed)
 
   /*
    * Веб-шрифты (Inter/Roboto/PT Sans/…) больше не в бандле — подгружаем

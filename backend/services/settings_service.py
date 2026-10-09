@@ -105,6 +105,29 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         ],
         "default": "osm",
     },
+    # Цвета точек на карте: состояние конструкции по выбранным месяцам.
+    # Используются и в маркерах (Leaflet/Яндекс), и в подписях статусов.
+    {
+        "key": "map_color_free",
+        "label": "Цвет точки: свободно",
+        "type": "color",
+        "group": "map",
+        "default": "#2ea66d",
+    },
+    {
+        "key": "map_color_busy",
+        "label": "Цвет точки: занято",
+        "type": "color",
+        "group": "map",
+        "default": "#e24b42",
+    },
+    {
+        "key": "map_color_mixed",
+        "label": "Цвет точки: частично занято",
+        "type": "color",
+        "group": "map",
+        "default": "#e6a51c",
+    },
 ]
 
 # Список ключей в порядке формы (для фронта)
