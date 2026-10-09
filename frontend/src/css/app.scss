@@ -701,7 +701,7 @@ h6 {
 
 .popup {
   box-sizing: border-box;
-  padding: 14px;
+  padding: 10px;
   color: #17212b;
   text-align: center;
 }
@@ -715,8 +715,19 @@ h6 {
   max-width: calc(100vw - 60px);
 }
 
+/*
+ * Тройной попап (пиллар: три стороны). Раньше раскладку в три колонки
+ * задавало ТОЛЬКО правило под классом Leaflet-обёртки
+ * `.albion-popup-double`, поэтому на Яндекс-движке карточки вставали в
+ * столбик и попап вырастал по вертикали. Здесь задаём и ширину, и сетку.
+ */
+.popup-triple {
+  width: 720px;
+  max-width: calc(100vw - 60px);
+}
+
 .popup-header {
-  margin-bottom: 9px;
+  margin-bottom: 6px;
 }
 
 .popup-title {
@@ -746,9 +757,13 @@ h6 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.popup-triple .popup-sides {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .popup-side-card {
   min-width: 0;
-  padding: 10px 11px 11px;
+  padding: 8px 10px 9px;
   border: 1px solid #e5e9ec;
   border-radius: 11px;
   background: #fff;
@@ -760,7 +775,7 @@ h6 {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 5px;
+  margin-bottom: 3px;
 }
 
 .popup-side {
@@ -842,8 +857,8 @@ h6 {
 .popup-photo {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 9;
-  margin-top: 8px;
+  aspect-ratio: 16 / 6;
+  margin-top: 6px;
   border-radius: 7px;
   overflow: hidden;
   background: #f1f3f4;
@@ -870,7 +885,7 @@ h6 {
   display: flex;
   justify-content: center;
   gap: 4px;
-  margin-top: 9px;
+  margin-top: 6px;
 }
 
 .popup-month {
@@ -915,7 +930,7 @@ h6 {
   min-width: 22px;
   height: 22px;
   padding: 0 5px;
-  margin-bottom: 9px;
+  margin-bottom: 6px;
 
   border-radius: 6px;
   background: #e6e9ec;
@@ -934,19 +949,19 @@ h6 {
   justify-content: center;
   flex-wrap: wrap;
   gap: 12px;
-  margin-top: 9px;
+  margin-top: 6px;
 }
 
 /*
  * В попапе текст под месяцами («подсветка / статика / динамика») и
  * следующая за ним кнопка «Портфель» прижимаются к нижнему краю
  * карточки. Так у половинок с разным числом строк месяцев низ совпадает.
- * padding-top (а не margin) сохраняет минимум 9px зазора, когда свободного
+ * padding-top (а не margin) сохраняет минимум зазора, когда свободного
  * места нет (одиночная карточка) — auto-отступ тогда равен нулю.
  */
 .popup-side-card .popup-features {
   margin-top: auto;
-  padding-top: 9px;
+  padding-top: 4px;
 }
 
 .card-features {
@@ -1021,8 +1036,8 @@ h6 {
 .popup-dynamic-rows {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 9px;
+  gap: 2px;
+  margin-top: 6px;
 }
 
 .popup-dynamic-row {
@@ -1041,13 +1056,13 @@ h6 {
 
 .popup-dynamic-row .popup-month {
   width: 26px;
-  height: 18px;
+  height: 15px;
   font-size: 7px;
 }
 
 /* Видеоэкраны: месяцы в одну строку с процентом в подсказке */
 .popup-months--video {
-  margin-top: 9px;
+  margin-top: 6px;
 }
 
 @media (max-width: 760px) {
@@ -1057,6 +1072,15 @@ h6 {
   }
 
   .popup-double .popup-sides {
+    grid-template-columns: 1fr;
+  }
+
+  .popup-triple {
+    width: 320px;
+    max-width: calc(100vw - 45px);
+  }
+
+  .popup-triple .popup-sides {
     grid-template-columns: 1fr;
   }
 }

@@ -19,6 +19,16 @@ const DEFAULT_ZOOM = 10
 /* Тайминги анимации перелётов, мс. */
 const FLY_DURATION = 400
 
+/*
+ * Предельные размеры внешнего кольца маски (градусы).
+ *
+ * Яндекс.Карты 2.1 не отрисовывают крупные контуры: проверено — кольцо
+ * ~126° по долготе рисуется, ~148° уже отбрасывается (и маска
+ * инвертируется). Держимся заведомо ниже порога.
+ */
+const MAX_RING_LNG = 140
+const MAX_RING_LAT = 100
+
 const ALL_MONTHS = [
   'Август',
   'Сентябрь',
@@ -34,6 +44,12 @@ let containerElement = null
 
 let regionOutline = null
 let maskPolygon = null
+
+/* Внешние кольца области (для пересборки маски под текущий вид). */
+let regionRings = []
+
+/* rAF-троттлинг пересборки маски. */
+let maskRefreshFrame = null
 
 let searchPointPlacemark = null
 let searchRadiusCircle = null
@@ -658,6 +674,102 @@ function getVisibleConstructions() {
    REGION (маска области + граница)
    ========================================================= */
 
+/*
+ * «Внешнее» кольцо маски строим ПО РАЗМЕРУ ТЕКУЩЕГО ВИДА карты.
+ *
+ * Почему не мировой прямоугольник: векторный движок Яндекс.Карт 2.1 не
+ * рисует очень большие контуры (проверено: ~148° по долготе и мировой
+ * прямоугольник ±90/±180 отбрасываются, ~126° рисуется). Если внешнее
+ * кольцо отброшено, из геометрии [рамка, ...область] остаётся только
+ * контур области — и маска получается ИНВЕРТИРОВАННОЙ (тёмная область
+ * вместо тёмного фона).
+ *
+ * Поэтому берём прямоугольник текущего вида с запасом — он всегда мельче
+ * порога и всегда перекрывает экран (его края уходят за пределы вида).
+ */
+function viewportMaskRing(padFactor = 0.5) {
+  if (!map) {
+    return null
+  }
+
+  const bounds = map.getBounds()
+
+  if (!bounds || !bounds.length) {
+    return null
+  }
+
+  const [[south, west], [north, east]] = bounds
+
+  const padLat = Math.max((north - south) * padFactor, 1)
+  const padLng = Math.max((east - west) * padFactor, 1)
+
+  let s = Math.max(-85, south - padLat)
+  let n = Math.min(85, north + padLat)
+
+  let w = west - padLng
+  let e = east + padLng
+
+  /*
+   * Жёсткие пределы: контуры крупнее этих размеров Яндекс отбрасывает.
+   * Если рамка с запасом вышла больше — сжимаем её до предела, сохраняя
+   * центр. На обычных зумах края всё равно за экраном; на самом мелком
+   * масштабе возможен незатемнённый кант.
+   */
+  if (n - s > MAX_RING_LAT) {
+    const mc = (s + n) / 2
+    s = mc - MAX_RING_LAT / 2
+    n = mc + MAX_RING_LAT / 2
+  }
+
+  if (e - w > MAX_RING_LNG) {
+    const center = (w + e) / 2
+    w = center - MAX_RING_LNG / 2
+    e = center + MAX_RING_LNG / 2
+  }
+
+  return [
+    [s, w],
+    [s, e],
+    [n, e],
+    [n, w],
+    [s, w]
+  ]
+}
+
+/* Пересобрать геометрию маски под текущий вид (дешёвая операция). */
+function refreshMaskGeometry() {
+  if (!map || !maskPolygon || !regionRings.length) {
+    return
+  }
+
+  const ring = viewportMaskRing()
+
+  if (!ring) {
+    return
+  }
+
+  try {
+    maskPolygon.geometry.setCoordinates([ring, ...regionRings])
+  } catch (error) {
+    console.warn(
+      'Albion Map (Yandex): не удалось обновить маску',
+      error
+    )
+  }
+}
+
+/* Обновление маски не чаще кадра — boundschange срабатывает часто. */
+function scheduleMaskRefresh() {
+  if (maskRefreshFrame) {
+    return
+  }
+
+  maskRefreshFrame = requestAnimationFrame(() => {
+    maskRefreshFrame = null
+    refreshMaskGeometry()
+  })
+}
+
 /* Внешние кольца области из GeoJSON в формате [lat, lng]. */
 function geojsonOuterRings(geojson) {
   const features =
@@ -699,6 +811,13 @@ function removeRegionLayers() {
     return
   }
 
+  map.events.remove('boundschange', scheduleMaskRefresh)
+
+  if (maskRefreshFrame) {
+    cancelAnimationFrame(maskRefreshFrame)
+    maskRefreshFrame = null
+  }
+
   if (regionOutline) {
     map.geoObjects.remove(regionOutline)
     regionOutline = null
@@ -708,6 +827,8 @@ function removeRegionLayers() {
     map.geoObjects.remove(maskPolygon)
     maskPolygon = null
   }
+
+  regionRings = []
 }
 
 async function loadRegion() {
@@ -728,20 +849,18 @@ async function loadRegion() {
 
     const rings = geojsonOuterRings(geojson)
 
-    const worldRing = [
-      [90, -180],
-      [90, 180],
-      [-90, 180],
-      [-90, -180],
-      [90, -180]
-    ]
+    regionRings = rings
+
+    const maskRing = viewportMaskRing()
 
     /*
      * Маска: всё ВНЕ Ростовской области затемняем серым.
-     * Полигон мира с «дыркой» по области (fillRule: evenOdd).
+     * Прямоугольник текущего вида с «дыркой» по контуру области
+     * (fillRule: evenOdd). Внешнее кольцо пересобирается при
+     * перемещении/зуме — см. viewportMaskRing() и refreshMaskGeometry().
      */
     maskPolygon = new ymaps.Polygon(
-      [worldRing, ...rings],
+      maskRing ? [maskRing, ...rings] : rings,
       {},
       {
         fill: true,
@@ -756,6 +875,9 @@ async function loadRegion() {
     )
 
     map.geoObjects.add(maskPolygon)
+
+    /* Держим рамку маски по размеру текущего вида. */
+    map.events.add('boundschange', scheduleMaskRefresh)
 
     /* Граница области — поверх маски. */
     regionOutline = new ymaps.Polyline(
@@ -821,13 +943,24 @@ function destroyMap() {
     )
 
     map.events.remove(
+      'boundschange',
+      scheduleMaskRefresh
+    )
+
+    map.events.remove(
       'actionend',
       handleBoundsChange
     )
   }
 
+  if (maskRefreshFrame) {
+    cancelAnimationFrame(maskRefreshFrame)
+    maskRefreshFrame = null
+  }
+
   regionOutline = null
   maskPolygon = null
+  regionRings = []
 
   if (clusterer) {
     clusterer.removeAll()

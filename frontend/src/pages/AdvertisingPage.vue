@@ -2964,7 +2964,7 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: center;
 
-  margin-top: 9px;
+  margin-top: 5px;
 }
 
 .popup-pf-toggle {
@@ -2972,7 +2972,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
 
-  padding: 5px 11px;
+  padding: 4px 10px;
 
   border: 1px solid #dce2e6;
   border-radius: 8px;
