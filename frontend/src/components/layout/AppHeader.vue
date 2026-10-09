@@ -179,12 +179,23 @@
             <q-item-section>
               <div class="auth-user-name">{{ account.login }}</div>
               <div class="auth-user-role">
-                {{ account.role === 'manager' ? 'Менеджер' : 'Клиент' }}
+                {{ roleLabel }}
               </div>
             </q-item-section>
           </q-item>
 
           <q-separator v-if="account" />
+
+          <!-- Вход в админку — только для администраторов -->
+          <q-item
+            v-if="isAdmin"
+            clickable
+            v-close-popup
+            class="auth-item"
+            to="/administration"
+          >
+            <q-item-section>АДМИНКА</q-item-section>
+          </q-item>
 
           <q-item
             v-if="!account"
@@ -322,6 +333,19 @@ const { account, isAuthenticated, logout, loadMe } = useAccount()
 
 /* Портфель: счётчик для бейджа и синхронизация с ЛК */
 const { count, mergeFromAccount } = usePortfolio()
+
+/* Подпись роли в меню аккаунта. */
+const roleLabel = computed(() => {
+  const role = account.value?.role
+
+  if (role === 'admin') return 'Администратор'
+  if (role === 'manager') return 'Менеджер'
+
+  return 'Клиент'
+})
+
+/* Пункт «Админка» показываем только администраторам. */
+const isAdmin = computed(() => account.value?.role === 'admin')
 
 async function handleLogout() {
   await logout()

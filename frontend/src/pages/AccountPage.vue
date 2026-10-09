@@ -23,14 +23,28 @@
             </div>
           </div>
 
-          <q-btn
-            outline
-            no-caps
-            class="logout-btn"
-            label="Выйти"
-            :loading="loading"
-            @click="handleLogout"
-          />
+          <div class="profile-actions">
+            <!-- Вход в админку — только для аккаунтов с ролью администратора.
+                 Ведёт на отдельную форму входа /administration. -->
+            <q-btn
+              v-if="isAdmin"
+              unelevated
+              no-caps
+              class="admin-btn"
+              label="Админка"
+              icon="admin_panel_settings"
+              to="/administration"
+            />
+
+            <q-btn
+              outline
+              no-caps
+              class="logout-btn"
+              label="Выйти"
+              :loading="loading"
+              @click="handleLogout"
+            />
+          </div>
         </section>
 
         <Transition name="fade">
@@ -739,6 +753,9 @@ const avatarLetter = computed(() =>
     .toUpperCase()
 )
 
+/* Админ ли текущий пользователь ЛК — управляет показом кнопки «Админка». */
+const isAdmin = computed(() => account.value?.role === 'admin')
+
 const roleLabel = computed(() => {
   const role = account.value?.role
 
@@ -992,6 +1009,19 @@ function requestDate(item) {
   margin-top: 2px;
   color: #8b8b8b;
   font-size: 12px;
+  font-weight: 700;
+}
+
+.profile-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-btn {
+  background: #17212b;
+  color: #ffffff;
   font-weight: 700;
 }
 
