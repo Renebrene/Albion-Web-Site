@@ -8,6 +8,10 @@ from backend.services.data_service import (
     get_base_stats,
     get_data_json,
 )
+from backend.services.update_service import (
+    get_last_restore,
+    get_last_run_state,
+)
 from backend.services.about_service import get_about
 from backend.services.contacts_service import get_contacts
 from backend.services.news_service import get_news, get_news_item
@@ -214,7 +218,12 @@ def constructions(request: Request):
 
 @app.get("/api/admin/constructions/stats")
 def admin_constructions_stats(auth=Depends(require_admin)):
-    return {"success": True, **get_base_stats()}
+    return {
+        "success": True,
+        **get_base_stats(),
+        "update_state": get_last_run_state(),
+        "last_restore": get_last_restore(),
+    }
 
 
 

@@ -18,6 +18,7 @@ from backend.services.update_service import (
     get_update_log_by_name,
     get_update_status,
     list_update_logs,
+    record_restore,
     save_uploaded_file,
     start_update,
 )
@@ -52,10 +53,17 @@ def restore(
     auth=Depends(require_admin),
 ):
     try:
-        return restore_archive(
+        result = restore_archive(
             import_key,
             dry_run=dry_run,
         )
+
+        # Реальное восстановление (не проверка) — запоминаем факт и время,
+        # чтобы показать в разделах «Конструкции» и «Обновление базы».
+        if not dry_run:
+            record_restore(import_key)
+
+        return result
     except FileNotFoundError as exc:
         raise HTTPException(
             status_code=404,

@@ -103,6 +103,17 @@
         </span>
       </div>
 
+      <!-- Факт восстановления старой базы из архива. -->
+      <div v-if="updateState.last_restore" class="restore-note">
+        База восстановлена из архива
+        <b>{{ updateState.last_restore.import_key }}</b>
+        <template v-if="updateState.last_restore.base_date">
+          — от
+          {{ (updateState.last_restore.base_date || '').split('-').reverse().join('.') }}
+        </template>
+        · восстановление {{ formatDateTime(updateState.last_restore.restored_at) }}
+      </div>
+
       <div class="upload-row">
         <q-checkbox
           v-model="dryRunMode"
@@ -885,6 +896,17 @@ onBeforeUnmount(() => {
 
 .pending-file-problem {
   color: #c62828;
+}
+
+/* Факт восстановления базы из архива */
+.restore-note {
+  margin-top: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #fff8e6;
+  border: 1px solid #e6c77a;
+  color: #8a5a00;
+  font-size: 14px;
 }
 
 .warn {

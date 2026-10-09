@@ -16,6 +16,16 @@
       />
     </div>
 
+    <!-- Факт восстановления старой базы из архива. -->
+    <div v-if="baseStats.last_restore" class="restore-banner">
+      <q-icon name="history" size="18px" />
+      <span>
+        База восстановлена из архива
+        <b>{{ baseStats.last_restore.import_key }}</b>
+        · {{ formatDate(baseStats.last_restore.restored_at) }}
+      </span>
+    </div>
+
     <div class="status-grid">
       <q-card flat bordered class="status-card">
         <q-card-section>
@@ -24,15 +34,28 @@
           <div class="status-row">
             <span
               class="status-dot"
-              :class="baseStats.last_update ? 'status-green' : 'status-gray'"
+              :class="{
+                'status-green': baseStatus.kind === 'fresh',
+                'status-orange': baseStatus.kind === 'stale',
+                'status-red': baseStatus.kind === 'error',
+                'status-gray': baseStatus.kind === 'pending'
+              }"
             ></span>
-            <strong>
-              {{ baseStats.last_update ? 'База актуальна' : 'Ожидание обновления' }}
-            </strong>
+            <strong>{{ baseStatus.label }}</strong>
           </div>
 
           <div class="card-meta">
-            Последнее обновление: {{ formatDate(baseStats.last_update) }}
+            Дата актуальной базы: {{ formatDate(baseStats.last_update) }}
+          </div>
+
+          <div v-if="baseStats.last_restore" class="card-meta restore-meta">
+            Сейчас восстановлена база из архива
+            <b>{{ baseStats.last_restore.import_key }}</b>
+            <template v-if="baseStats.last_restore.base_date">
+              — от
+              {{ (baseStats.last_restore.base_date || '').split('-').reverse().join('.') }}
+            </template>
+            · восстановление {{ formatDate(baseStats.last_restore.restored_at) }}
           </div>
         </q-card-section>
       </q-card>
@@ -627,6 +650,47 @@ const baseStats = ref({
   previews: 0
 })
 
+/* Порог «свежести» базы, дней. */
+const FRESH_DAYS = 7
+
+/*
+ * Состояние базы:
+ *   fresh   — зелёный: обновлена не старше 7 дней;
+ *   stale   — оранжевый: старше 7 дней (неактуальна);
+ *   error   — красный: последняя загрузка завершилась ошибкой;
+ *   pending — серый: базы ещё нет.
+ */
+const baseStatus = computed(() => {
+  const stats = baseStats.value || {}
+
+  const state = String(stats.update_state || '').toLowerCase()
+
+  if (state === 'error') {
+    return { kind: 'error', label: 'Ошибка загрузки' }
+  }
+
+  if (!stats.last_update) {
+    return { kind: 'pending', label: 'Ожидание обновления' }
+  }
+
+  const time = new Date(stats.last_update).getTime()
+
+  if (!Number.isFinite(time)) {
+    return { kind: 'pending', label: 'Ожидание обновления' }
+  }
+
+  const days = Math.floor((Date.now() - time) / 86400000)
+
+  if (days > FRESH_DAYS) {
+    return {
+      kind: 'stale',
+      label: `База неактуальна — обновлена ${days} дн. назад`
+    }
+  }
+
+  return { kind: 'fresh', label: 'База актуальна' }
+})
+
 const searchQuery = ref('')
 const locationFilter = ref([])
 const formatFilter = ref([])
@@ -981,6 +1045,26 @@ function saveEdit() {
   font-weight: 800;
 }
 
+/* Баннер восстановления базы из архива */
+.restore-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-bottom: 20px;
+  padding: 12px 16px;
+
+  border: 1px solid #e6c77a;
+  border-radius: 12px;
+  background: #fff8e6;
+  color: #8a5a00;
+  font-size: 14px;
+}
+
+.restore-meta {
+  color: #8a5a00;
+}
+
 .page-header p {
   margin: 0;
   color: #777;
@@ -1020,6 +1104,14 @@ function saveEdit() {
 
 .status-green {
   background: #2e7d32;
+}
+
+.status-orange {
+  background: #e6a51c;
+}
+
+.status-red {
+  background: #e24b42;
 }
 
 .card-meta {

@@ -103,6 +103,9 @@ STATUS_FILE = TMP_DIR / "update_status.json"
 LOG_FILE = TMP_DIR / "update_log.txt"
 LOGS_DIR = TMP_DIR / "update_logs"
 
+# Факт последнего восстановления базы из архива (для отображения в админке).
+RESTORE_FILE = TMP_DIR / "last_restore.json"
+
 STEP_MARKERS = {
     1: "Excel → JSON",
     2: "SQLite staging",
@@ -751,6 +754,10 @@ def _finish(
             # Данные изменились — сбрасываем кэш /api/constructions,
             # чтобы карта/список отдали свежий список сразу.
             invalidate_data_cache()
+
+            # База теперь из нового импорта, а не из архива — снимаем
+            # пометку о восстановлении.
+            clear_last_restore()
     else:
         status["state"] = "error"
 
@@ -814,7 +821,60 @@ def get_update_status() -> dict:
     # кнопка «Обновить» недоступна до загрузки нового файла.
     status["input_ready"] = len(files) == 1
 
+    # Последнее восстановление базы из архива (если было).
+    status["last_restore"] = get_last_restore()
+
     return status
+
+
+def record_restore(import_key: str) -> None:
+    """Запомнить факт восстановления базы из архива (import_key)."""
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Ключ вида YYYYMMDD-HHMMSS → дата самой восстановленной базы.
+    match = re.match(r"(\d{4})(\d{2})(\d{2})", str(import_key))
+    base_date = (
+        f"{match.group(1)}-{match.group(2)}-{match.group(3)}"
+        if match
+        else None
+    )
+
+    payload = {
+        "import_key": str(import_key),
+        "base_date": base_date,
+        "restored_at": _dt.datetime.now().isoformat(timespec="seconds"),
+    }
+
+    RESTORE_FILE.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def clear_last_restore() -> None:
+    """Сбросить пометку о восстановлении (после нового успешного импорта)."""
+    try:
+        RESTORE_FILE.unlink()
+    except OSError:
+        pass
+
+
+def get_last_run_state() -> "Optional[str]":
+    """Состояние последнего запуска обновления ('success'/'error'/…)."""
+    return _read_status().get("state")
+
+
+def get_last_restore() -> "Optional[dict]":
+    """Последнее восстановление из архива или None."""
+    if not RESTORE_FILE.exists():
+        return None
+
+    try:
+        data = json.loads(RESTORE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+    return data if isinstance(data, dict) else None
 
 
 def get_update_log() -> str:
