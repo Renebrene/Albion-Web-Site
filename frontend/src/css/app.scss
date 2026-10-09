@@ -857,7 +857,7 @@ h6 {
 .popup-photo {
   display: block;
   width: 100%;
-  aspect-ratio: 16 / 6;
+  aspect-ratio: 16 / 9;
   margin-top: 6px;
   border-radius: 7px;
   overflow: hidden;
@@ -961,7 +961,7 @@ h6 {
  */
 .popup-side-card .popup-features {
   margin-top: auto;
-  padding-top: 4px;
+  padding-top: 3px;
 }
 
 .card-features {
@@ -1056,13 +1056,28 @@ h6 {
 
 .popup-dynamic-row .popup-month {
   width: 26px;
-  height: 15px;
+  height: 14px;
   font-size: 7px;
 }
 
 /* Видеоэкраны: месяцы в одну строку с процентом в подсказке */
 .popup-months--video {
   margin-top: 6px;
+}
+
+/* ---------------------------------------------------------
+   Яндекс-балун: фото 16:9 (как в OSM), но попап делаем УЖЕ, чтобы
+   при 16:9 высота уложилась в лимит контента балуна (~400px) без
+   вертикальной прокрутки. OSM/Leaflet не затрагиваем — там попап
+   шире и такого лимита высоты нет. Селектор бьёт по контейнеру
+   балуна Яндекса (в Leaflet он иной — leaflet-popup-content).
+   --------------------------------------------------------- */
+[class*='balloon__content'] .popup-double {
+  width: 500px;
+}
+
+[class*='balloon__content'] .popup-triple {
+  width: 660px;
 }
 
 @media (max-width: 760px) {
