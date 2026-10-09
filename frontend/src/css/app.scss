@@ -1098,6 +1098,17 @@ h6 {
   .popup-triple .popup-sides {
     grid-template-columns: 1fr;
   }
+
+  /*
+   * Яндекс-балун: сбросить повышенную специфичность базовых
+   * [class*='balloon__content'] .popup-* правил, иначе на телефоне
+   * попап останется 500/660px и вылезет за экран.
+   */
+  [class*='balloon__content'] .popup-double,
+  [class*='balloon__content'] .popup-triple {
+    width: 320px;
+    max-width: calc(100vw - 45px);
+  }
 }
 
 /* =========================================================

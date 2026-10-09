@@ -483,6 +483,30 @@ function normalizeSides(input) {
   return []
 }
 
+/*
+ * Класс раскладки попапа — по ЧИСЛУ ВИДИМЫХ ГРУПП сторон, а не по сырому
+ * числу сторон.
+ *
+ * Единый источник и для разметки (popupContent), и для выбора движком
+ * ширины/обёртки маркера. Иначе получается рассинхрон: например, призматрон
+ * A(1)+A(2)+A(3) — это 3 «сырые» стороны (движок считал попап двойным и
+ * давал широкую обёртку/балон), хотя popupContent схлопывает их в одну
+ * карточку → попап шире контента, пустое поле.
+ */
+export function popupLayout(input) {
+  const items = normalizeSides(input)
+
+  if (!items.length) {
+    return 'single'
+  }
+
+  const sides = dedupeSides(items)
+  const maxBlocks = maxBlocksFor(familyOf(sides))
+  const count = Math.min(groupSides(sides).length, maxBlocks)
+
+  return count === 3 ? 'triple' : count > 1 ? 'double' : 'single'
+}
+
 export function popupContent(input) {
   const items = normalizeSides(input)
 
@@ -511,12 +535,7 @@ export function popupContent(input) {
   const visibleGroups = groups.slice(0, maxBlocks)
   const allSides = visibleGroups.flatMap(group => group.items)
 
-  const popupClass =
-    visibleGroups.length === 3
-      ? 'popup-triple'
-      : visibleGroups.length > 1
-        ? 'popup-double'
-        : 'popup-single'
+  const popupClass = `popup-${popupLayout(items)}`
 
   /*
    * Режим выбора включается не на корне, а на секции стороны —

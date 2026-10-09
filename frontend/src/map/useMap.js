@@ -1,7 +1,7 @@
 import L from 'leaflet'
 import 'leaflet.markercluster'
 
-import { popupContent } from './popupContent'
+import { popupContent, popupLayout } from './popupContent'
 import { getAvailabilityState } from '../utils/availability'
 import { mapDotColors } from '../config/mapColors'
 
@@ -367,8 +367,12 @@ function createMarker(group) {
   /*
    * popupContent получает ВСЕ стороны,
    * которые прошли фильтр.
+   *
+   * Ширину попапа выбираем по ЧИСЛУ ВИДИМЫХ ГРУПП (popupLayout), а не по
+   * сырому числу сторон: иначе призматрон A(1)+A(2)+A(3) (3 стороны → одна
+   * карточка) получал широкую обёртку при узком контенте.
    */
-  const isDoublePopup = items.length >= 2
+  const isDoublePopup = popupLayout(items) !== 'single'
 
   marker.bindPopup(
     popupContent(items),

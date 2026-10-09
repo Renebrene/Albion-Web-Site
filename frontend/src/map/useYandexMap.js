@@ -8,7 +8,7 @@
  * (см. src/map/yandexLoader.js).
  */
 
-import { popupContent } from './popupContent'
+import { popupContent, popupLayout } from './popupContent'
 import { groupByPoint } from '../utils/constructionGroups'
 import { getAvailabilityState } from '../utils/availability'
 import { mapDotColors } from '../config/mapColors'
@@ -304,7 +304,12 @@ function createPlacemark(group) {
 
   const color = markerColor(items)
 
-  const isDoublePopup = items.length >= 2
+  /*
+   * Ширина балуна — по числу ВИДИМЫХ ГРУПП (popupLayout), а не по сырому
+   * числу сторон: иначе призматрон A(1)+A(2)+A(3) получал широкий балун
+   * при узком контенте (пустое поле).
+   */
+  const isDoublePopup = popupLayout(items) !== 'single'
 
   return new ymaps.Placemark(
     [lat, lng],
@@ -338,8 +343,13 @@ function createPlacemark(group) {
         radius: 9
       },
 
-      balloonMaxWidth: isDoublePopup ? 780 : 360,
-      balloonMinWidth: isDoublePopup ? 700 : 300,
+      /*
+       * Ширины балуна подогнаны под попап: двойной/тройной сужены
+       * (см. CSS [class*='balloon__content'] .popup-double/-triple),
+       * одиночный — 300px. Иначе балон шире контента и по бокам пусто.
+       */
+      balloonMaxWidth: isDoublePopup ? 700 : 340,
+      balloonMinWidth: isDoublePopup ? 480 : 280,
       balloonAutoPan: true,
 
       hasBalloon: true,
