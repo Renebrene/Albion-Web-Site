@@ -163,6 +163,15 @@
               placeholder="{}"
             />
           </div>
+
+          <div class="field">
+            <label>Фото блока</label>
+            <NewsMediaField
+              v-model="block.media"
+              v-model:cover-id="block.coverId"
+              @notify="onMediaNotify"
+            />
+          </div>
         </article>
       </section>
 
@@ -291,6 +300,8 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import NewsMediaField from '../components/admin/NewsMediaField.vue'
+
 const router = useRouter()
 
 const networkTypeOptions = [
@@ -342,6 +353,9 @@ const stats = ref([])
 const network = ref([])
 
 function blockFromApi(block) {
+  const media = Array.isArray(block.media) ? block.media : []
+  const cover = media.find(item => item.is_cover)
+
   return {
     id: block.id,
     block_key: block.block_key || '',
@@ -352,7 +366,19 @@ function blockFromApi(block) {
     body: block.body || '',
     contentText: JSON.stringify(block.content || {}, null, 2),
     sort_order: block.sort_order ?? 0,
-    is_active: block.is_active !== false
+    is_active: block.is_active !== false,
+    media,
+    coverId: cover ? cover.id : (media[0]?.id ?? null)
+  }
+}
+
+function onMediaNotify(message, type = 'success') {
+  if (type === 'error') {
+    error.value = message
+    notice.value = ''
+  } else {
+    notice.value = message
+    error.value = ''
   }
 }
 
@@ -405,7 +431,9 @@ function addBlock() {
     body: '',
     contentText: '{}',
     sort_order: nextOrder,
-    is_active: true
+    is_active: true,
+    media: [],
+    coverId: null
   })
 }
 
@@ -463,7 +491,9 @@ function buildBlockPayload(block) {
     body: block.body,
     content,
     sort_order: block.sort_order,
-    is_active: block.is_active
+    is_active: block.is_active,
+    media_ids: (block.media || []).map(item => item.id),
+    cover_media_id: block.coverId ?? null
   }
 }
 

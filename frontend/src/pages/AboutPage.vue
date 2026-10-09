@@ -26,8 +26,26 @@
         </div>
 
         <div class="about-hero-image">
+          <!-- Несколько фото — карусель -->
+          <NewsMediaCarousel
+            v-if="blockMedia('hero').length > 1"
+            class="about-block-carousel"
+            :media="about.blocks_media.hero"
+            alt="О компании"
+          />
+
+          <!-- Одно фото — обычная картинка -->
+          <img
+            v-else-if="blockMedia('hero').length === 1"
+            class="about-image"
+            :src="blockMedia('hero')[0].url"
+            :alt="blockMedia('hero')[0].alt || 'О компании'"
+            loading="lazy"
+            decoding="async"
+          >
+
           <div
-            v-if="about.images?.hero"
+            v-else-if="about.images?.hero"
             class="about-image"
             :style="{
               backgroundImage: `url(${about.images.hero})`
@@ -85,6 +103,21 @@
               {{ highway }}
             </li>
           </ul>
+
+          <NewsMediaCarousel
+            v-if="blockMedia('network').length > 1"
+            class="about-block-carousel"
+            :media="about.blocks_media.network"
+            alt="Сеть"
+          />
+          <img
+            v-else-if="blockMedia('network').length === 1"
+            class="about-block-photo"
+            :src="blockMedia('network')[0].url"
+            :alt="blockMedia('network')[0].alt || 'Сеть'"
+            loading="lazy"
+            decoding="async"
+          >
         </article>
 
         <!-- ACTIVITIES -->
@@ -103,6 +136,21 @@
               <strong>{{ item }}</strong>
             </div>
           </div>
+
+          <NewsMediaCarousel
+            v-if="blockMedia('activities').length > 1"
+            class="about-block-carousel"
+            :media="about.blocks_media.activities"
+            alt="Направления"
+          />
+          <img
+            v-else-if="blockMedia('activities').length === 1"
+            class="about-block-photo"
+            :src="blockMedia('activities')[0].url"
+            :alt="blockMedia('activities')[0].alt || 'Направления'"
+            loading="lazy"
+            decoding="async"
+          >
         </article>
 
         <!-- PRODUCTION -->
@@ -126,6 +174,21 @@
               </div>
             </div>
           </div>
+
+          <NewsMediaCarousel
+            v-if="blockMedia('production').length > 1"
+            class="about-block-carousel"
+            :media="about.blocks_media.production"
+            alt="Производство"
+          />
+          <img
+            v-else-if="blockMedia('production').length === 1"
+            class="about-block-photo"
+            :src="blockMedia('production')[0].url"
+            :alt="blockMedia('production')[0].alt || 'Производство'"
+            loading="lazy"
+            decoding="async"
+          >
         </article>
 
       </section>
@@ -134,8 +197,11 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { getAbout } from '../services/api'
+import NewsMediaCarousel, {
+  normalizeMedia
+} from '../components/news/NewsMediaCarousel.vue'
 
 const loading = ref(true)
 const error = ref(false)
@@ -162,8 +228,24 @@ const about = ref({
     hero: '',
     network: '',
     production: ''
-  }
+  },
+  blocks_media: {}
 })
+
+/* Медиа блоков из публичного API: { block_key: [media, ...] }.
+   Нормализуем тем же хелпером, что и новости (url/kind/alt/poster). */
+const blocksMedia = computed(() => {
+  const source = about.value.blocks_media || {}
+  const result = {}
+  for (const key of Object.keys(source)) {
+    result[key] = normalizeMedia(source[key], 'large')
+  }
+  return result
+})
+
+function blockMedia(key) {
+  return blocksMedia.value[key] || []
+}
 
 async function loadAbout() {
   loading.value = true
@@ -286,6 +368,25 @@ onMounted(loadAbout)
   font-size: 11px;
   letter-spacing: 0.18em;
   opacity: 0.7;
+}
+
+/* Фото, прикреплённые к блокам (одно — img, несколько — карусель) */
+
+.about-block-carousel {
+  margin-top: 18px;
+  border-radius: 14px;
+}
+
+.about-hero-image .about-block-carousel {
+  margin-top: 0;
+}
+
+.about-block-photo {
+  display: block;
+  width: 100%;
+  margin-top: 18px;
+  border-radius: 14px;
+  object-fit: cover;
 }
 
 /* STATS */

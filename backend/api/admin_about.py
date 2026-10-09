@@ -49,6 +49,10 @@ class BlockPayload(BaseModel):
     content: dict | None = None
     sort_order: int | None = None
     is_active: bool | None = None
+    # Медиа блока. `media_ids is None` — связи не трогаем (обновление только
+    # текстовых полей), пустой список — удаляем все связи.
+    media_ids: list[int] | None = None
+    cover_media_id: int | None = None
 
 
 class StatPayload(BaseModel):
@@ -135,6 +139,152 @@ def _delete_missing(conn, table: str, page_id: int, keep_ids: list[int]) -> None
         )
 
 
+# ---------------------------------------------------------------- media
+
+
+# Сериализация медиа повторяет формат новостей
+# (backend/services/news_admin_service.py::_media_item), чтобы фронт
+# использовал один и тот же компонент для новостей и блоков страниц.
+_MEDIA_SELECT = """
+    SELECT
+        m.id,
+        m.original_name,
+        m.storage_path,
+        m.mime_type,
+        m.file_size,
+        m.width,
+        m.height,
+        m.alt,
+        m.title,
+        pbm.sort_order,
+        pbm.is_cover,
+        COALESCE(
+            (
+                SELECT json_agg(
+                    json_build_object(
+                        'variant', mv.variant,
+                        'storage_path', mv.storage_path,
+                        'mime_type', mv.mime_type,
+                        'width', mv.width,
+                        'height', mv.height,
+                        'file_size', mv.file_size
+                    )
+                    ORDER BY CASE mv.variant
+                        WHEN 'large' THEN 1
+                        WHEN 'card' THEN 2
+                        WHEN 'thumb' THEN 3
+                        ELSE 4
+                    END
+                )
+                FROM media_variants mv
+                WHERE mv.media_id = m.id
+            ),
+            '[]'::json
+        ) AS variants,
+        m.preview_path
+    FROM page_block_media pbm
+    JOIN media m
+        ON m.id = pbm.media_id
+    WHERE pbm.block_id = %s
+    ORDER BY pbm.sort_order, pbm.id
+"""
+
+
+def _media_item(row) -> dict:
+    (
+        media_id,
+        original_name,
+        storage_path,
+        mime_type,
+        file_size,
+        width,
+        height,
+        alt,
+        title,
+        sort_order,
+        is_cover,
+        variants,
+        preview_path,
+    ) = row
+
+    return {
+        "id": media_id,
+        "original_name": original_name,
+        "storage_path": storage_path,
+        "mime_type": mime_type,
+        "file_size": file_size,
+        "width": width,
+        "height": height,
+        "alt": alt,
+        "title": title,
+        "sort_order": sort_order,
+        "is_cover": is_cover,
+        "variants": variants or [],
+        "preview_path": preview_path,
+    }
+
+
+def _valid_media_ids(conn, media_ids) -> list[int]:
+    """Схлопывает дубликаты (первое вхождение) и отбрасывает
+    несуществующие в таблице media id, сохраняя порядок."""
+    ordered: list[int] = []
+    seen: set[int] = set()
+
+    for media_id in media_ids:
+        if media_id is None or media_id in seen:
+            continue
+        seen.add(media_id)
+        ordered.append(media_id)
+
+    if not ordered:
+        return []
+
+    rows = conn.execute(
+        "SELECT id FROM media WHERE id = ANY(%s)",
+        (ordered,),
+    ).fetchall()
+
+    existing = {row[0] for row in rows}
+    return [media_id for media_id in ordered if media_id in existing]
+
+
+def _sync_block_media(
+    conn,
+    block_id: int,
+    media_ids: list[int] | None,
+    cover_media_id: int | None,
+) -> None:
+    """Полная синхронизация связей блока с медиа.
+
+    `media_ids is None` — связи не трогаем. Пустой список или список,
+    состоящий только из несуществующих id, — удаляем все связи.
+    """
+    if media_ids is None:
+        return
+
+    conn.execute(
+        "DELETE FROM page_block_media WHERE block_id = %s",
+        (block_id,),
+    )
+
+    valid_ids = _valid_media_ids(conn, media_ids)
+    if not valid_ids:
+        return
+
+    cover = cover_media_id if cover_media_id in valid_ids else valid_ids[0]
+
+    for index, media_id in enumerate(valid_ids):
+        conn.execute(
+            """
+            INSERT INTO page_block_media (
+                block_id, media_id, role, sort_order, is_cover
+            )
+            VALUES (%s, %s, %s, %s, %s)
+            """,
+            (block_id, media_id, "photo", index, media_id == cover),
+        )
+
+
 # ---------------------------------------------------------------- read
 
 
@@ -161,6 +311,25 @@ def get_admin_about() -> dict:
             """,
             (page_id,),
         ).fetchall()
+
+        block_items = []
+        for row in blocks:
+            media_rows = conn.execute(_MEDIA_SELECT, (row[0],)).fetchall()
+            block_items.append(
+                {
+                    "id": row[0],
+                    "block_key": row[1],
+                    "block_type": row[2],
+                    "eyebrow": row[3] or "",
+                    "title": row[4] or "",
+                    "subtitle": row[5] or "",
+                    "body": row[6] or "",
+                    "content": row[7] or {},
+                    "sort_order": row[8],
+                    "is_active": row[9],
+                    "media": [_media_item(media) for media in media_rows],
+                }
+            )
 
         stats = conn.execute(
             """
@@ -191,21 +360,7 @@ def get_admin_about() -> dict:
             "seo_description": page[4] or "",
             "is_published": page[5],
         },
-        "blocks": [
-            {
-                "id": row[0],
-                "block_key": row[1],
-                "block_type": row[2],
-                "eyebrow": row[3] or "",
-                "title": row[4] or "",
-                "subtitle": row[5] or "",
-                "body": row[6] or "",
-                "content": row[7] or {},
-                "sort_order": row[8],
-                "is_active": row[9],
-            }
-            for row in blocks
-        ],
+        "blocks": block_items,
         "stats": [
             {
                 "id": row[0],
@@ -297,6 +452,9 @@ def _sync_blocks(
                 ),
             )
             keep_ids.append(block.id)
+            _sync_block_media(
+                conn, block.id, block.media_ids, block.cover_media_id
+            )
             continue
 
         block_type = _clean(block.block_type) or "text"
@@ -329,6 +487,9 @@ def _sync_blocks(
             ),
         ).fetchone()
         keep_ids.append(row[0])
+        _sync_block_media(
+            conn, row[0], block.media_ids, block.cover_media_id
+        )
 
     if delete_missing:
         _delete_missing(conn, "page_blocks", page_id, keep_ids)
