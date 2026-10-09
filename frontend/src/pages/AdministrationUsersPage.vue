@@ -83,6 +83,65 @@
       </table>
     </section>
 
+    <!-- ============================================================
+         ПОЛЬЗОВАТЕЛИ ЛИЧНОГО КАБИНЕТА
+         Отдельная система (user_accounts) — учётки посетителей,
+         зарегистрировавшихся на сайте. Только просмотр.
+    ============================================================ -->
+    <section class="section-card">
+      <div class="section-title">
+        Пользователи личного кабинета
+        <span class="counter">{{ cabinetUsers.length }}</span>
+      </div>
+
+      <p class="section-note">
+        Аккаунты, зарегистрированные на сайте (личный кабинет). Отдельная
+        система от учётных записей панели управления.
+      </p>
+
+      <div v-if="cabinetLoading" class="loading-row">
+        <q-spinner size="24px" />
+      </div>
+
+      <div v-else-if="!cabinetUsers.length" class="empty-text">
+        Пользователи кабинета пока не регистрировались.
+      </div>
+
+      <table v-else class="users-table">
+        <thead>
+          <tr>
+            <th>Логин</th>
+            <th>Роль</th>
+            <th>Статус</th>
+            <th>Заявки</th>
+            <th>Создан</th>
+            <th>Вход</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="user in cabinetUsers" :key="user.id">
+            <td class="login-cell">{{ user.login }}</td>
+            <td>
+              <span class="role-badge">
+                {{ user.role_label || cabinetRoleLabel(user.role) }}
+              </span>
+            </td>
+            <td>
+              <span
+                class="status-badge"
+                :class="user.is_active ? 'is-active' : 'is-inactive'"
+              >
+                {{ user.is_active ? 'Активен' : 'Отключён' }}
+              </span>
+            </td>
+            <td class="date-cell">{{ user.requests_count }}</td>
+            <td class="date-cell">{{ formatDate(user.created_at) }}</td>
+            <td class="date-cell">{{ formatDate(user.last_login_at) }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <!-- ============ ДИАЛОГ СОЗДАНИЯ / РЕДАКТИРОВАНИЯ ============ -->
     <q-dialog v-model="editOpen" persistent>
       <q-card class="editor-dialog">
@@ -223,6 +282,17 @@ function roleLabel(role) {
   return found ? found.label : role
 }
 
+/* Роли личного кабинета отличаются от ролей панели. */
+const CABINET_ROLE_LABELS = {
+  client: 'Клиент',
+  manager: 'Менеджер',
+  admin: 'Администратор'
+}
+
+function cabinetRoleLabel(role) {
+  return CABINET_ROLE_LABELS[role] || role
+}
+
 function formatDate(value) {
   if (!value) return '—'
   const date = new Date(value)
@@ -241,6 +311,10 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref('')
 const message = ref('')
+
+/* Пользователи личного кабинета (отдельная таблица user_accounts). */
+const cabinetUsers = ref([])
+const cabinetLoading = ref(true)
 
 const editOpen = ref(false)
 const isNew = ref(true)
@@ -276,6 +350,19 @@ async function loadUsers() {
     error.value = String(exc)
   } finally {
     loading.value = false
+  }
+}
+
+/* Тихо грузим ЛК-пользователей: ошибка не должна ломать основную таблицу. */
+async function loadCabinetUsers() {
+  cabinetLoading.value = true
+  try {
+    const result = await request('/api/admin/cabinet-users')
+    cabinetUsers.value = result.users || []
+  } catch (exc) {
+    cabinetUsers.value = []
+  } finally {
+    cabinetLoading.value = false
   }
 }
 
@@ -387,7 +474,10 @@ async function savePassword() {
   }
 }
 
-onMounted(loadUsers)
+onMounted(() => {
+  loadUsers()
+  loadCabinetUsers()
+})
 </script>
 
 <style scoped>
@@ -456,6 +546,19 @@ onMounted(loadUsers)
 .empty-text {
   color: #777;
   padding: 18px;
+}
+
+.loading-row {
+  padding: 18px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Пояснение под заголовком раздела. */
+.section-note {
+  margin: -6px 0 14px;
+  color: #8b8b8b;
+  font-size: 13px;
 }
 
 .section-card {

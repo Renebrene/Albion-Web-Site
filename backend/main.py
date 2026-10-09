@@ -81,6 +81,10 @@ from backend.api.admin_users import router as admin_users_router
 
 app.include_router(admin_users_router)
 
+from backend.api.admin_cabinet_users import router as cabinet_users_router
+
+app.include_router(cabinet_users_router)
+
 from backend.api.portfolio import router as portfolio_router
 
 app.include_router(portfolio_router)
