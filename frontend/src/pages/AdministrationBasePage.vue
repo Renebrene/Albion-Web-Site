@@ -351,9 +351,10 @@
         <q-card-section>
           <div class="dialog-title">Восстановить архив?</div>
           <div class="dialog-text">
-            Версия <b>{{ confirmKey }}</b> заменит активную базу
-            PostgreSQL и восстановит media из архива.
-            Текущая база будет сохранена в архив
+            Версия <b>{{ confirmKey }}</b> заменит конструкции и их медиа
+            данными из архива. Остальные разделы базы — новости, настройки,
+            пользователи, контакты — не изменятся.
+            Текущее состояние будет сохранено в архив
             <code>_safety</code> перед восстановлением.
           </div>
         </q-card-section>
@@ -419,24 +420,20 @@
             v-if="result?.verify"
             class="result-grid"
           >
-            <div>ACTIVE import</div>
-            <div>{{ result.verify.active_import_key }}</div>
+            <div>constructions</div>
+            <div>{{ result.verify.counts?.constructions }}</div>
 
-            <div v-for="(count, table) in result.verify.counts" :key="table">
-              {{ table }}
-            </div>
-            <div
-              v-for="count in result.verify.counts"
-              :key="'v' + count"
-            >
-              {{ count }}
-            </div>
+            <div>surfaces</div>
+            <div>{{ result.verify.counts?.surfaces }}</div>
 
-            <div>media rows</div>
-            <div>{{ result.verify.media_rows }}</div>
+            <div>construction_media</div>
+            <div>{{ result.verify.counts?.construction_media }}</div>
 
-            <div>missing media files</div>
-            <div>{{ result.verify.missing_media_files }}</div>
+            <div>новости (сохранено)</div>
+            <div>{{ result.verify.preserved?.news }}</div>
+
+            <div>пользователи (сохранено)</div>
+            <div>{{ result.verify.preserved?.user_accounts }}</div>
           </div>
         </q-card-section>
 

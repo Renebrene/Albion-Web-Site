@@ -106,6 +106,14 @@ LOGS_DIR = TMP_DIR / "update_logs"
 # Факт последнего восстановления базы из архива (для отображения в админке).
 RESTORE_FILE = TMP_DIR / "last_restore.json"
 
+# Факт последнего восстановления «всего остального» (часть site).
+SITE_RESTORE_FILE = TMP_DIR / "last_site_restore.json"
+
+_RESTORE_FILES = {
+    "constructions": RESTORE_FILE,
+    "site": SITE_RESTORE_FILE,
+}
+
 STEP_MARKERS = {
     1: "Excel → JSON",
     2: "SQLite staging",
@@ -827,8 +835,10 @@ def get_update_status() -> dict:
     return status
 
 
-def record_restore(import_key: str) -> None:
-    """Запомнить факт восстановления базы из архива (import_key)."""
+def record_restore(import_key: str, kind: str = "constructions") -> None:
+    """Запомнить факт восстановления из архива (import_key)."""
+    path = _RESTORE_FILES.get(kind, RESTORE_FILE)
+
     TMP_DIR.mkdir(parents=True, exist_ok=True)
 
     # Ключ вида YYYYMMDD-HHMMSS → дата самой восстановленной базы.
@@ -840,21 +850,22 @@ def record_restore(import_key: str) -> None:
     )
 
     payload = {
+        "kind": kind,
         "import_key": str(import_key),
         "base_date": base_date,
         "restored_at": _dt.datetime.now().isoformat(timespec="seconds"),
     }
 
-    RESTORE_FILE.write_text(
+    path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
 
-def clear_last_restore() -> None:
+def clear_last_restore(kind: str = "constructions") -> None:
     """Сбросить пометку о восстановлении (после нового успешного импорта)."""
     try:
-        RESTORE_FILE.unlink()
+        _RESTORE_FILES.get(kind, RESTORE_FILE).unlink()
     except OSError:
         pass
 
@@ -896,17 +907,28 @@ def get_last_run_state() -> "Optional[str]":
     return _read_status().get("state")
 
 
-def get_last_restore() -> "Optional[dict]":
+def get_last_restore(kind: str = "constructions") -> "Optional[dict]":
     """Последнее восстановление из архива или None."""
-    if not RESTORE_FILE.exists():
+    path = _RESTORE_FILES.get(kind, RESTORE_FILE)
+
+    if not path.exists():
         return None
 
     try:
-        data = json.loads(RESTORE_FILE.read_text(encoding="utf-8"))
+        data = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
 
     return data if isinstance(data, dict) else None
+
+
+def mark_site_restored(import_key: str) -> None:
+    """Зафиксировать восстановление части «всё остальное».
+
+    Дату актуальной базы конструкций и статус обновления не трогаем —
+    они относятся к части конструкций.
+    """
+    record_restore(import_key, kind="site")
 
 
 def get_update_log() -> str:

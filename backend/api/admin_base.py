@@ -13,12 +13,19 @@ from backend.services.import_archive_service import (
     list_archives,
     restore_archive,
 )
+from backend.services.site_backup_service import (
+    create_backup,
+    list_backups,
+    restore_backup,
+)
 from backend.services.update_service import (
+    get_last_restore,
     get_update_log,
     get_update_log_by_name,
     get_update_status,
     list_update_logs,
     mark_restored,
+    mark_site_restored,
     save_uploaded_file,
     start_update,
 )
@@ -40,6 +47,24 @@ def archives(
     }
 
 
+@router.get("/restore-info")
+def restore_info(
+    kind: str = Query("constructions"),
+    auth=Depends(require_admin),
+):
+    """Последнее восстановление из архива для указанной части."""
+    try:
+        last = get_last_restore(kind)
+    except Exception:
+        last = None
+
+    return {
+        "success": True,
+        "kind": kind,
+        "last_restore": last,
+    }
+
+
 @router.post("/archives/{import_key}/restore")
 def restore(
     import_key: str,
@@ -58,8 +83,8 @@ def restore(
             dry_run=dry_run,
         )
 
-        # Реальное восстановление (не проверка) — запоминаем факт, сбрасываем
-        # ошибку прошлого прогона и показываем дату восстановленной базы.
+        # Реальное восстановление (не проверка) — сбрасываем ошибку прошлого
+        # прогона и показываем дату восстановленной базы конструкций.
         if not dry_run:
             mark_restored(import_key)
 
@@ -74,6 +99,65 @@ def restore(
             status_code=400,
             detail=str(exc),
         ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Ошибка восстановления: {exc}",
+        ) from exc
+
+
+# ------------------------------------------------ бекапы сайта
+
+
+@router.get("/site-backups")
+def site_backups(auth=Depends(require_admin)):
+    return {
+        "success": True,
+        "backups": list_backups(),
+    }
+
+
+@router.post("/site-backups")
+def site_backup_create(
+    reason: str = Query("manual"),
+    auth=Depends(require_admin),
+):
+    """Принудительно создать бекап сайта."""
+    try:
+        backup = create_backup(reason)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Не удалось создать бекап: {exc}",
+        ) from exc
+
+    return {
+        "success": True,
+        "backup": backup,
+        "backups": list_backups(),
+    }
+
+
+@router.post("/site-backups/{name}/restore")
+def site_backup_restore(
+    name: str,
+    dry_run: bool = Query(False),
+    auth=Depends(require_admin),
+):
+    """Восстановить бекап сайта (текущее состояние сохраняется в бекап)."""
+    try:
+        result = restore_backup(name, dry_run=dry_run)
+
+        if not dry_run:
+            mark_site_restored(name)
+
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(
             status_code=500,

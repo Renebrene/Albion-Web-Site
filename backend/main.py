@@ -102,6 +102,16 @@ from backend.api.portfolio import router as portfolio_router
 app.include_router(portfolio_router)
 
 
+from backend.services.site_backup_service import start_scheduler
+
+
+@app.on_event("startup")
+def _start_site_backup_scheduler():
+    # Авто-бекап сайта раз в 7 дней (безопасно при нескольких worker'ах —
+    # защищено advisory-блокировкой в site_backup_service).
+    start_scheduler()
+
+
 from backend.services.site_menu_service import get_public_menu
 
 

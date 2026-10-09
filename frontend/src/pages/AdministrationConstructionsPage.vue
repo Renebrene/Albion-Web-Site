@@ -175,13 +175,37 @@
           >
             <div class="construction-photo">
               <img
-                v-if="item.photo"
-                :src="item.photo"
+                v-if="cardImage(item)"
+                :src="cardImage(item)"
                 :alt="item.address"
                 loading="lazy"
               >
               <div v-else class="photo-placeholder">
                 ALBION
+              </div>
+
+              <!-- Переключатель: фото ↔ карта-схема -->
+              <div
+                v-if="item.photo && item.mapLarge"
+                class="media-switch"
+                @click.stop
+              >
+                <button
+                  type="button"
+                  class="media-switch__btn"
+                  :class="{ 'is-active': mediaMode(item.id) === 'photo' }"
+                  @click.stop="setCardMedia(item, 'photo')"
+                >
+                  Фото
+                </button>
+                <button
+                  type="button"
+                  class="media-switch__btn"
+                  :class="{ 'is-active': mediaMode(item.id) === 'map' }"
+                  @click.stop="setCardMedia(item, 'map')"
+                >
+                  Карта-схема
+                </button>
               </div>
             </div>
 
@@ -789,6 +813,12 @@ function mapConstruction(item) {
     lat: item.lat,
     lng: item.lng,
     map: item.map || "",
+    mapLarge:
+      item.map_large ||
+      item.map_card ||
+      item.map_thumb ||
+      item.map ||
+      "",
     name: item.name || "",
     number: item.number || "",
     district: item.district || "",
@@ -798,6 +828,28 @@ function mapConstruction(item) {
       { name: "Район", value: item.district || "" },
       { name: "", value: "" }
     ]
+  }
+}
+
+/* -------- фото ↔ карта-схема на карточке -------- */
+const cardMedia = ref({})
+
+function mediaMode(id) {
+  return cardMedia.value[id] || "photo"
+}
+
+function cardImage(item) {
+  if (mediaMode(item.id) === "map" && item.mapLarge) {
+    return item.mapLarge
+  }
+
+  return item.photo || item.mapLarge || ""
+}
+
+function setCardMedia(item, mode) {
+  cardMedia.value = {
+    ...cardMedia.value,
+    [item.id]: mode
   }
 }
 
@@ -1714,6 +1766,7 @@ function saveEdit() {
 }
 
 .construction-photo {
+  position: relative;
   aspect-ratio: 16 / 9;
   background: #f0f0f0;
   overflow: hidden;

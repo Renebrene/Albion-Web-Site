@@ -9,12 +9,18 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+from backend.services.import_archive_service import (
+    CONSTRUCTIONS_ARCHIVE_ROOT,
+    CONSTRUCTIONS_SEQUENCES,
+    CONSTRUCTIONS_TABLES,
+)
+
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 INPUT_DIR = PROJECT_DIR / "input"
 TMP_DIR = PROJECT_DIR / "tmp"
 IMPORT_DIR = TMP_DIR / "import"
-ARCHIVE_DIR = PROJECT_DIR / "archive" / "constructions"
+ARCHIVE_DIR = CONSTRUCTIONS_ARCHIVE_ROOT
 
 
 def load_project_env() -> dict[str, str]:
@@ -123,13 +129,7 @@ def archive_source(source: Path, import_key: str) -> Path:
     return destination
 
 
-def archive_database(import_key: str) -> Path:
-    staging_db = IMPORT_DIR / import_key / "staging.sqlite"
-    archive_root = ARCHIVE_DIR / import_key
-    destination = archive_root / "database.dump"
-
-    archive_root.mkdir(parents=True, exist_ok=True)
-
+def _db_params() -> tuple[list[str], dict[str, str]]:
     password = None
     env_file = PROJECT_DIR / ".env"
 
@@ -140,30 +140,27 @@ def archive_database(import_key: str) -> Path:
                 break
 
     if not password:
-        raise RuntimeError(
-            "Не найден ALBION_DB_PASSWORD в .env"
-        )
+        raise RuntimeError("Не найден ALBION_DB_PASSWORD в .env")
 
-    dump_command = [
-        "pg_dump",
-        "-Fc",
-        "-h",
-        os.getenv("ALBION_DB_HOST", "127.0.0.1"),
-        "-p",
-        os.getenv("ALBION_DB_PORT", "5432"),
-        "-U",
-        os.getenv("ALBION_DB_USER", "albion_app"),
-        "-d",
-        os.getenv("ALBION_DB_NAME", "albion"),
-        "-f",
-        str(destination),
+    params = [
+        "-h", os.getenv("ALBION_DB_HOST", "127.0.0.1"),
+        "-p", os.getenv("ALBION_DB_PORT", "5432"),
+        "-U", os.getenv("ALBION_DB_USER", "albion_app"),
+        "-d", os.getenv("ALBION_DB_NAME", "albion"),
     ]
 
     command_env = os.environ.copy()
     command_env["PGPASSWORD"] = password
 
+    return params, command_env
+
+
+def _pg_dump(destination: Path, selectors: list[str]) -> None:
+    params, command_env = _db_params()
+    destination.parent.mkdir(parents=True, exist_ok=True)
+
     result = subprocess.run(
-        dump_command,
+        ["pg_dump", "-Fc", *selectors, *params, "-f", str(destination)],
         cwd=PROJECT_DIR,
         env=command_env,
     )
@@ -173,6 +170,16 @@ def archive_database(import_key: str) -> Path:
             f"pg_dump завершился с кодом {result.returncode}"
         )
 
+
+def archive_constructions_database(import_key: str) -> Path:
+    """Архив данных из XLS: только таблицы конструкций и медиа-реестр."""
+    destination = ARCHIVE_DIR / import_key / "database.dump"
+
+    selectors: list[str] = []
+    for name in (*CONSTRUCTIONS_TABLES, *CONSTRUCTIONS_SEQUENCES):
+        selectors += ["-t", name]
+
+    _pg_dump(destination, selectors)
     return destination
 
 
@@ -220,12 +227,15 @@ def cleanup_import_storage(import_key: str) -> None:
         shutil.rmtree(storage_root)
 
 
-def cleanup_old_archives(*, keep: int = 5) -> list[str]:
+def cleanup_old_archives(root: Path, *, keep: int = 5) -> list[str]:
+    if not root.exists():
+        return []
+
     archives = sorted(
         (
             path
-            for path in ARCHIVE_DIR.iterdir()
-            if path.is_dir()
+            for path in root.iterdir()
+            if path.is_dir() and not path.name.startswith("_")
         ),
         key=lambda path: path.name,
         reverse=True,
@@ -321,16 +331,16 @@ def run(*, commit: bool) -> None:
     print("===== STEP 6: ARCHIVE =====")
 
     archived_source = archive_source(source, import_key)
-    print(f"source.xlsx:   {archived_source}")
+    print(f"source.xlsx:            {archived_source}")
 
-    archived_db = archive_database(import_key)
-    print(f"database.dump: {archived_db}")
+    archived_db = archive_constructions_database(import_key)
+    print(f"constructions database: {archived_db}")
 
     if old_active_import_key:
         archived_media = archive_old_import_media(
             old_active_import_key
         )
-        print(f"old media:     {archived_media}")
+        print(f"constructions media:    {archived_media}")
 
         cleanup_import_storage(old_active_import_key)
         print(
@@ -347,13 +357,13 @@ def run(*, commit: bool) -> None:
 
     print()
     print("===== ARCHIVE RETENTION =====")
-    removed_archives = cleanup_old_archives(keep=5)
+    removed_archives = cleanup_old_archives(ARCHIVE_DIR, keep=5)
 
     if removed_archives:
         for archive_name in removed_archives:
             print(f"Удалён старый архив: {archive_name}")
     else:
-        print("Удаление не требуется: архивов не больше 5.")
+        print("Архивов не больше 5, удаление не требуется.")
 
     print()
     print("=" * 70)

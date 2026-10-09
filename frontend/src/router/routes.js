@@ -105,6 +105,13 @@ const routes = [
         }
       },
       {
+        path: 'site',
+        component: () => import('@/pages/AdministrationSitePage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
         path: 'contacts',
         component: () => import('@/pages/AdministrationContactsPage.vue'),
         meta: {

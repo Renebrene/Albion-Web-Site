@@ -354,9 +354,9 @@
                     <div class="card-photo card-photo--block">
 
                       <img
-                        v-if="photoCard(blockPrimary(block))"
-                        :src="photoThumb(blockPrimary(block))"
-                        :srcset="photoSrcset(blockPrimary(block))"
+                        v-if="hasCardImage(point, block, blockIndex)"
+                        :src="cardImageSrc(point, block, blockIndex)"
+                        :srcset="cardImageSrcset(point, block, blockIndex)"
                         sizes="(max-width: 760px) 100vw, (max-width: 1200px) 70vw, 900px"
                         :alt="point.address"
                         loading="lazy"
@@ -364,7 +364,9 @@
                         width="1000"
                         height="625"
                         class="card-photo-clickable"
-                        title="Открыть фото"
+                        :title="cardImageMode(point, block, blockIndex) === 'map'
+                          ? 'Открыть карту и фото'
+                          : 'Открыть фото и карту'"
                         @click.stop="openBlockPhoto(point, block)"
                       >
 
@@ -373,6 +375,34 @@
                         class="no-photo"
                       >
                         ALBION
+                      </div>
+
+                      <!-- Переключатель: фото ↔ карта-схема -->
+                      <div
+                        v-if="canSwitchCardMedia(block)"
+                        class="media-switch"
+                        @click.stop
+                      >
+                        <button
+                          type="button"
+                          class="media-switch__btn"
+                          :class="{
+                            'is-active': cardImageMode(point, block, blockIndex) === 'photo'
+                          }"
+                          @click.stop="setCardMedia(point, blockIndex, 'photo')"
+                        >
+                          Фото
+                        </button>
+                        <button
+                          type="button"
+                          class="media-switch__btn"
+                          :class="{
+                            'is-active': cardImageMode(point, block, blockIndex) === 'map'
+                          }"
+                          @click.stop="setCardMedia(point, blockIndex, 'map')"
+                        >
+                          Карта-схема
+                        </button>
                       </div>
 
                     </div>
@@ -488,33 +518,6 @@
 
                 </div>
 
-                <div class="card-request">
-                  <button
-                    type="button"
-                    class="card-request-btn"
-                    :disabled="requestStatus(point.key) === 'sending'"
-                    @click="submitRequest(point)"
-                  >
-                    {{ requestStatus(point.key) === 'sending'
-                      ? 'ОТПРАВЛЯЕМ…'
-                      : 'ОСТАВИТЬ ЗАЯВКУ' }}
-                  </button>
-
-                  <div
-                    v-if="requestStatus(point.key) === 'success'"
-                    class="card-request-note card-request-note--ok"
-                  >
-                    Заявка отправлена. Посмотреть можно в личном кабинете.
-                  </div>
-
-                  <div
-                    v-else-if="requestStatus(point.key) === 'error'"
-                    class="card-request-note card-request-note--err"
-                  >
-                    {{ requestError(point.key) }}
-                  </div>
-                </div>
-
               </div>
 
             </article>
@@ -596,8 +599,6 @@ import { getConstructions } from '../services/api'
 import {
   useConstructionsFilter
 } from '../composables/useConstructionsFilter'
-
-import { useAccount } from '../composables/useAccount'
 
 import { usePortfolio } from '../composables/usePortfolio'
 import {
@@ -688,6 +689,72 @@ function photoSrcset(item) {
   }
 
   return parts.join(', ')
+}
+
+/* ------------------------------------------- карта-схема на карточке */
+
+/*
+ * На карточке можно переключать, что показывать: фото или карту-схему
+ * (крупный вариант map_large). Выбор запоминается по ключу карточки и
+ * блока, чтобы не сбиваться при виртуальном скролле. Если чего-то из
+ * двух изображений нет — показываем то, что есть, без переключателя.
+ */
+const cardMedia = ref({})
+
+function blockMap(item) {
+  return item?.map_large || item?.map_card || item?.map_thumb || item?.map || ''
+}
+
+function hasBlockMap(item) {
+  return Boolean(blockMap(item))
+}
+
+function canSwitchCardMedia(block) {
+  const item = blockPrimary(block)
+
+  return Boolean(photoCard(item)) && Boolean(blockMap(item))
+}
+
+function cardImageMode(point, block, blockIndex) {
+  const item = blockPrimary(block)
+  const wanted = cardMedia.value[`${point.key}-${blockIndex}`] || 'photo'
+
+  if (wanted === 'map') {
+    return hasBlockMap(item) ? 'map' : 'photo'
+  }
+
+  if (photoCard(item)) {
+    return 'photo'
+  }
+
+  return hasBlockMap(item) ? 'map' : 'none'
+}
+
+function hasCardImage(point, block, blockIndex) {
+  return cardImageMode(point, block, blockIndex) !== 'none'
+}
+
+function cardImageSrc(point, block, blockIndex) {
+  const item = blockPrimary(block)
+
+  return cardImageMode(point, block, blockIndex) === 'map'
+    ? blockMap(item)
+    : photoThumb(item)
+}
+
+function cardImageSrcset(point, block, blockIndex) {
+  if (cardImageMode(point, block, blockIndex) === 'map') {
+    return undefined
+  }
+
+  return photoSrcset(blockPrimary(block))
+}
+
+function setCardMedia(point, blockIndex, mode) {
+  cardMedia.value = {
+    ...cardMedia.value,
+    [`${point.key}-${blockIndex}`]: mode
+  }
 }
 
 /* ---------------------------------------------------------- портфель */
@@ -863,62 +930,6 @@ const route = useRoute()
 const router = useRouter()
 const constructions = ref([])
 
-/* Личный кабинет: авторизация и создание заявок. */
-const { isAuthenticated, createRequest } = useAccount()
-
-/*
- * Статус кнопки «Оставить заявку» по карточкам (ключ карточки):
- * 'idle' | 'sending' | 'success' | 'error'.
- */
-const requestStates = ref({})
-const requestErrors = ref({})
-
-function requestStatus(key) {
-  return requestStates.value[key] || 'idle'
-}
-
-function requestError(key) {
-  return requestErrors.value[key] || 'Не удалось отправить заявку'
-}
-
-function setRequestState(key, state) {
-  requestStates.value = { ...requestStates.value, [key]: state }
-}
-
-/*
- * Кнопка «Оставить заявку» в карточке.
- *
- * Авторизован — создаём заявку (title = «формат · адрес»,
- * surface_id = id ведущей поверхности блока). Иначе — на /account.
- */
-async function submitRequest(card) {
-  if (!isAuthenticated.value) {
-    router.push('/account')
-    return
-  }
-
-  const key = card.key
-  const block = card.blocks?.[0] || {}
-  const surfaceId = blockPrimary(block).id
-
-  setRequestState(key, 'sending')
-  requestErrors.value = { ...requestErrors.value, [key]: '' }
-
-  try {
-    await createRequest({
-      title: `${blockType(block)} · ${card.address}`,
-      surface_id: surfaceId ?? null
-    })
-
-    setRequestState(key, 'success')
-  } catch (error) {
-    setRequestState(key, 'error')
-    requestErrors.value = {
-      ...requestErrors.value,
-      [key]: (error && error.message) || 'Не удалось отправить заявку'
-    }
-  }
-}
 const mapViewRef = ref(null)
 const pointSearchOpen = ref(false)
 
@@ -2146,61 +2157,7 @@ onBeforeUnmount(() => {
   padding: 14px 16px 15px;
 }
 
-/* Кнопка «Оставить заявку» и её статус */
-
-.card-request {
-  /* Прижимаем кнопку к низу карточки — низ выровнен у всех */
-  margin-top: auto;
-  padding-top: 12px;
-
-  border-top: 1px solid #edf0f2;
-}
-
-.card-request-btn {
-  width: 100%;
-  min-height: 40px;
-  padding: 0 14px;
-
-  border: 0;
-  border-radius: 10px;
-
-  background: var(--albion-accent);
-  color: #fff;
-
-  cursor: pointer;
-
-  font-size: 11px;
-  font-weight: 900;
-  letter-spacing: .06em;
-
-  transition:
-    background .18s ease,
-    opacity .18s ease;
-}
-
-.card-request-btn:hover:not(:disabled) {
-  background: #c92219;
-}
-
-.card-request-btn:disabled {
-  opacity: .6;
-  cursor: default;
-}
-
-.card-request-note {
-  margin-top: 8px;
-
-  font-size: 11px;
-  line-height: 1.4;
-}
-
-.card-request-note--ok {
-  color: #1b5e20;
-}
-
-.card-request-note--err {
-  color: #b3261e;
-}
+/* Кнопка «Оставить заявку» убрана. */
 .card-content h2 {
   margin: 0 0 3px;
 
@@ -2268,12 +2225,24 @@ onBeforeUnmount(() => {
   gap: 14px;
 
   margin-top: 10px;
+
+  /* Занимаем всю доступную высоту карточки, чтобы блок «Портфель» и
+     строка «подсветка/статика/динамика» вставали по нижнему краю. */
+  flex: 1;
 }
 
 .card-block {
+  display: flex;
+  flex-direction: column;
+
   padding-top: 12px;
 
   border-top: 1px solid #edf0f2;
+}
+
+/* Последний блок тянется вниз и прижимает «Портфель» к нижнему краю. */
+.card-block:last-child {
+  flex: 1;
 }
 
 .card-block:first-child {
@@ -2298,6 +2267,7 @@ onBeforeUnmount(() => {
 .card-photo-clickable {
   cursor: pointer;
 }
+
 
 .card-block .card-months {
   margin-top: 10px;
@@ -2326,6 +2296,13 @@ onBeforeUnmount(() => {
 
 .card-portfolio {
   margin-top: 10px;
+}
+
+/* В последнем блоке «Портфель» + фичи прижаты к низу карточки. */
+.card-block:last-child .card-portfolio {
+  margin-top: auto;
+
+  padding-top: 10px;
 }
 
 .card-pf-toggle {

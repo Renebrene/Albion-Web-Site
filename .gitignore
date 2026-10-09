@@ -43,4 +43,8 @@ storage/
 
 # Local input files
 input/
+
+# Archives (constructions / site / safety backups)
 archive/constructions/
+archive/site/
+archive/_safety/

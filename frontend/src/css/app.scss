@@ -871,6 +871,49 @@ h6 {
   object-fit: cover;
 }
 
+/* Общий переключатель «Фото | Карта-схема» (список, попапы, карточки,
+   портфель) — одинаковый везде. */
+.media-switch {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+
+  display: inline-flex;
+
+  border-radius: 999px;
+
+  overflow: hidden;
+
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.media-switch__btn {
+  border: 0;
+
+  background: transparent;
+
+  color: #e2e8f0;
+
+  font-size: 12px;
+  line-height: 1;
+
+  padding: 6px 10px;
+
+  cursor: pointer;
+
+  transition: background 0.15s, color 0.15s;
+}
+
+.media-switch__btn.is-active {
+  background: #f8fafc;
+
+  color: #0f172a;
+
+  font-weight: 600;
+}
+
 .popup-photo-empty {
   display: flex;
   align-items: center;

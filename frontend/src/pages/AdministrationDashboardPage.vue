@@ -83,8 +83,13 @@ const sections = [
   },
   {
     title: 'Обновление базы',
-    text: 'Загрузка Excel, обновление и архивы базы',
+    text: 'Загрузка Excel, обновление и архивы конструкций',
     path: '/administration/base'
+  },
+  {
+    title: 'Бекап сайта',
+    text: 'Резервные копии новостей, страниц, настроек и медиа сайта',
+    path: '/administration/site'
   },
   {
     title: 'Новости',
