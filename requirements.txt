@@ -12,3 +12,6 @@ pillow-heif==1.7.0
 python-multipart
 
 psutil
+
+# Гео-статистика: чтение локальной базы .mmdb (DB-IP Lite / GeoLite2)
+maxminddb

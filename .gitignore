@@ -18,6 +18,10 @@ frontend/.quasar/
 # Logs
 *.log
 
+# Гео-базы (GeoIP) — скачиваются скриптом scripts/fetch_geoip.py, не коммитим
+*.mmdb
+*.mmdb.gz
+
 # Temporary import data
 tmp/
 *.tmp

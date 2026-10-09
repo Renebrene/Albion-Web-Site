@@ -152,6 +152,13 @@ const routes = [
         meta: {
           requiresAdmin: true
         }
+      },
+      {
+        path: 'statistics',
+        component: () => import('@/pages/AdministrationStatisticsPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
       }
     ]
   },

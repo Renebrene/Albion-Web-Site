@@ -125,6 +125,11 @@ const sections = [
     title: 'Журнал действий',
     text: 'История изменений в административной панели',
     path: '/administration/audit'
+  },
+  {
+    title: 'Статистика',
+    text: 'Посещаемость страниц и география',
+    path: '/administration/statistics'
   }
 ]
 
