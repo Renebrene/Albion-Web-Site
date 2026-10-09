@@ -64,7 +64,8 @@
               :class="{
                 'is-selected': month.selected,
                 'is-stale': month.stale,
-                'is-disabled': !month.canPick
+                'is-disabled': !month.canPick,
+                [`state-${month.state}`]: true
               }"
               :disabled="!month.canPick"
               :title="month.title"
@@ -483,6 +484,8 @@ function monthChips(item) {
       selected,
       canPick,
       free,
+      /* Статус для раскраски чипа: free / reserve / busy. */
+      state,
       price: selected ? toNumber(value.price) : null,
       stale: selected && Boolean(value.stale),
       title
@@ -499,6 +502,7 @@ function monthChips(item) {
       short: full.slice(0, 3).toUpperCase(),
       selected: true,
       canPick: true,
+      state: 'free',
       price: toNumber(value.price),
       stale: Boolean(value.stale),
       title: `${full}: выбран — нажмите, чтобы убрать`
@@ -966,24 +970,44 @@ function handleClear() {
   transition: .15s ease;
 }
 
-.portfolio-month:hover:not(.is-disabled) {
-  background: #e2e8ec;
-  color: #52606a;
+/*
+ * Статус месяца — та же палитра, что на карточках карты:
+ * свободно — зелёный, резерв — янтарный, занято — красный.
+ * (Идут до .is-selected, чтобы выбранный месяц перекрывал цвет статуса.)
+ */
+.portfolio-month.state-free {
+  background: #dff3e4;
+  color: #16803a;
 }
 
-.portfolio-month.is-selected:hover {
-  filter: brightness(.94);
+.portfolio-month.state-reserve {
+  background: #fff0d2;
+  color: #b96b00;
 }
 
-/* Цена месяца неизвестна — добавлять нельзя. */
+.portfolio-month.state-busy {
+  background: #f9dede;
+  color: #c62828;
+}
+
+/* Свободный месяц кликабелен: клик добавляет и убирает его. */
+.portfolio-month.state-free:hover:not(.is-disabled) {
+  filter: brightness(.95);
+}
+
+/* Занятые и резервные добавить нельзя — цвет статуса оставляем читаемым. */
 .portfolio-month.is-disabled {
-  opacity: .55;
+  opacity: .8;
   cursor: not-allowed;
 }
 
 .portfolio-month.is-selected {
   background: var(--albion-accent);
   color: #fff;
+}
+
+.portfolio-month.is-selected:hover {
+  filter: brightness(.94);
 }
 
 .portfolio-month.is-stale {
