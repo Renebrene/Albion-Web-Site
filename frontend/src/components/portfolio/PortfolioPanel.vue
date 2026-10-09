@@ -93,6 +93,14 @@
           <img :src="itemThumb(item)" alt="" loading="lazy" decoding="async" />
         </button>
 
+        <!-- Плейсхолдер, когда фото нет: держит колонку, чтобы строки с фото
+             и без него стояли на одной вертикальной оси. -->
+        <div
+          v-else
+          class="portfolio-row-photo portfolio-row-photo--empty"
+          aria-hidden="true"
+        ></div>
+
         <div class="portfolio-row-side">
           <div class="portfolio-row-sum">
             {{ formatPrice(itemSum(item)) }} ₽
@@ -868,7 +876,11 @@ function handleClear() {
 
 .portfolio-row {
   display: grid;
-  grid-template-columns: 26px 1fr auto;
+  /* Колонки превью (96px) и правого столбца (96px) фиксированы, поэтому
+     превью и цена/«Убрать» во всех строках встают на одну вертикальную ось
+     (раньше ширина правой колонки «auto» зависела от длины цены и смещала
+     колонку фото). */
+  grid-template-columns: 26px minmax(0, 1fr) 96px 96px;
 
   gap: 10px;
 
@@ -880,17 +892,15 @@ function handleClear() {
   background: #fafbfc;
 }
 
-/* Колонка под превью — справа от текста, только если фото есть. */
-.portfolio-row.has-photo {
-  grid-template-columns: 26px 1fr 96px auto;
-}
-
 /* Маленькое превью позиции. */
 .portfolio-row-photo {
   display: block;
 
   width: 96px;
   aspect-ratio: 16 / 10;
+
+  /* По вертикальному центру строки (иначе превью прижималось к верху). */
+  align-self: center;
 
   padding: 0;
   border: 1px solid #e3e8ec;
@@ -906,6 +916,12 @@ function handleClear() {
 
 .portfolio-row-photo:hover {
   border-color: var(--albion-accent);
+}
+
+/* Плейсхолдер без фото — только держит колонку, невидим. */
+.portfolio-row-photo--empty {
+  border: 0;
+  background: transparent;
 }
 
 .portfolio-row-photo img {

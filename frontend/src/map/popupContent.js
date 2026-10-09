@@ -241,7 +241,28 @@ function photoBlock(item) {
   const thumb = item?.photo_thumb || item?.photo || ''
   const card = item?.photo || thumb
 
+  /* Крупный вариант карты-схемы — чтобы окно просмотра (как в портфеле)
+     могло показать и сохранить карту рядом с фото. */
+  const mapLarge = String(
+    item?.map_large || item?.map_card || item?.map_thumb || item?.map || ''
+  ).trim()
+
   if (!thumb) {
+    /* Нет фото, но есть карта — по клику откроем карту в общем окне. */
+    if (mapLarge) {
+      return `
+        <div
+          class="popup-photo popup-photo-empty"
+          style="cursor: pointer;"
+          data-photo
+          data-photo-map="${escapeHtml(mapLarge)}"
+          title="Открыть карту"
+        >
+          Фото
+        </div>
+      `
+    }
+
     return `
       <div class="popup-photo popup-photo-empty">
         Фото
@@ -277,9 +298,10 @@ function photoBlock(item) {
       style="cursor: pointer;"
       role="button"
       tabindex="0"
-      title="Открыть фото"
+      title="${mapLarge ? 'Открыть фото и карту' : 'Открыть фото'}"
       data-photo
       data-photo-url="${escapeHtml(large)}"
+      data-photo-map="${escapeHtml(mapLarge)}"
       data-photo-title="${escapeHtml(label)}"
       data-photo-filename="${escapeHtml(fileName)}"
     >

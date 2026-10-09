@@ -23,6 +23,21 @@ export const DEFAULT_MAP_DOT_COLORS = Object.freeze({
 /* Текущая палитра точек. */
 export const mapDotColors = ref({ ...DEFAULT_MAP_DOT_COLORS })
 
+/*
+ * Логика цвета точки:
+ *   'three' — три цвета (free/busy/mixed), как раньше;
+ *   'two'   — два цвета: зелёный, если есть хоть одна свободная
+ *             поверхность, иначе красный (занято/резерв/утверждение).
+ */
+export const DEFAULT_MAP_COLOR_MODE = 'three'
+
+export const mapColorMode = ref(DEFAULT_MAP_COLOR_MODE)
+
+/* Допустимые значения — 'three' | 'two'. */
+export function setMapColorMode(value) {
+  mapColorMode.value = value === 'two' ? 'two' : 'three'
+}
+
 function pick(value, fallback) {
   const text = String(value ?? '').trim()
 

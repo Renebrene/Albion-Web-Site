@@ -36,20 +36,34 @@ if __name__ == "__main__":
     signal.signal(signal.SIGTERM, stop)
 
     # backend: uvicorn backend.main:app — нужен venv проекта
-    # (в системном python3 нет fastapi)
+    # (в системном python3 нет fastapi).
+    #
+    # Воркеры = половина ядер (сборка/сериализация /api/constructions и gzip
+    # грузят CPU). С несколькими воркерами --reload недоступен (uvicorn не
+    # совмещает их) — при workers>1 запускаем без авто-перезагрузки.
+    import os as _os
+
+    workers = max(1, (_os.cpu_count() or 2) // 2)
+
+    backend_args = [
+        str(PYTHON),
+        "-m",
+        "uvicorn",
+        "backend.main:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+    ]
+
+    if workers > 1:
+        backend_args += ["--workers", str(workers)]
+    else:
+        backend_args += ["--reload"]
+
     procs = [
         subprocess.Popen(
-            [
-                str(PYTHON),
-                "-m",
-                "uvicorn",
-                "backend.main:app",
-                "--host",
-                "0.0.0.0",
-                "--port",
-                "8000",
-                "--reload",
-            ],
+            backend_args,
             cwd=str(PROJECT_DIR),
         ),
         # frontend: quasar dev на порту 9000.

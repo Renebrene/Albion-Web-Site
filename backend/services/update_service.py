@@ -9,6 +9,8 @@ import subprocess
 import sys
 import threading
 from pathlib import Path
+
+from backend.services.data_service import invalidate_data_cache
 from typing import Optional
 
 from backend.services.data_service import (
@@ -645,6 +647,10 @@ def _finish(
 
             if archived:
                 status["archived_previous"] = archived
+
+            # Данные изменились — сбрасываем кэш /api/constructions,
+            # чтобы карта/список отдали свежий список сразу.
+            invalidate_data_cache()
     else:
         status["state"] = "error"
 

@@ -10,7 +10,7 @@
 // оставляя значения по умолчанию, объявленные в :root.
 
 import { setMapEngine } from '../config/mapConfig'
-import { mapDotColors, setMapDotColors } from '../config/mapColors'
+import { mapDotColors, setMapDotColors, setMapColorMode } from '../config/mapColors'
 import { applySiteFonts } from '../config/fontLoader'
 
 const SYSTEM_FONT_STACK =
@@ -79,6 +79,9 @@ async function loadAndApply() {
 
   /* Оператор карты: 'osm' | 'yandex' (см. config/mapConfig.js). */
   setMapEngine(settings.map_engine)
+
+  /* Логика цвета точек: 'three' | 'two' (см. config/mapColors.js). */
+  setMapColorMode(settings.map_color_mode)
 
   /*
    * Цвета точек на карте (см. config/mapColors.js). Применяем и в JS

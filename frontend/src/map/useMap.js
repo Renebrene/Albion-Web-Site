@@ -3,7 +3,7 @@ import 'leaflet.markercluster'
 
 import { popupContent, popupLayout } from './popupContent'
 import { getAvailabilityState } from '../utils/availability'
-import { mapDotColors } from '../config/mapColors'
+import { mapDotColors, mapColorMode } from '../config/mapColors'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -197,6 +197,17 @@ function markerColor(items) {
         freeCount += 1
       }
     }
+  }
+
+  /*
+   * Двухцветная логика: зелёный, если есть хотя бы одна свободная
+   * поверхность; иначе красный (всё занято/резерв/утверждение).
+   * Оранжевый в этом режиме не используется.
+   */
+  if (mapColorMode.value === 'two') {
+    return freeCount > 0
+      ? mapDotColors.value.free
+      : mapDotColors.value.busy
   }
 
   // Всё свободно → «свободный» цвет.

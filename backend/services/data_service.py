@@ -1,4 +1,7 @@
+import hashlib
+import json
 import os
+import time
 from pathlib import Path
 
 import psycopg
@@ -263,16 +266,10 @@ def get_data():
                         # отдельным LEFT JOIN cmm (media_type='map').
                         # Поле "map" выше — прежняя ссылка Яндекс.Диска,
                         # её не перезаписываем.
-                        "map_thumb": (
-                            "/" + _text(map_thumb_path)
-                            if map_thumb_path
-                            else None
-                        ),
-                        "map_card": (
-                            "/" + _text(map_card_path)
-                            if map_card_path
-                            else None
-                        ),
+                        #
+                        # Отдаём только крупный вариант: map_card и map_thumb
+                        # всегда присутствуют вместе с map_large, а фронтенд
+                        # берёт их лишь как фолбэк. Экономия ~0.4 МБ.
                         "map_large": (
                             "/" + _text(map_large_path)
                             if map_large_path
@@ -310,3 +307,52 @@ def get_data():
         result.append(item)
 
     return result
+
+
+# --------------------------------------------------------------- кэш ответа
+
+# Публичный /api/constructions отдаётся целиком и стоит ~100 мс CPU
+# (SQL + сборка + сериализация). Данные меняются только при импорте,
+# поэтому кэшируем сериализованное тело и повторно отдаём его с ETag.
+# TTL — страховка на случай правок мимо импорта; основной сброс —
+# invalidate_data_cache() после успешного импорта.
+DATA_CACHE_TTL = float(os.environ.get("ALBION_DATA_CACHE_TTL", "30"))
+
+_data_cache = {
+    "ts": 0.0,
+    "body": None,
+    "etag": None,
+}
+
+
+def get_data_json() -> "tuple[bytes, str]":
+    """Сериализованный /api/constructions: (тело, ETag)."""
+    now = time.monotonic()
+    cached = _data_cache
+
+    if (
+        cached["body"] is not None
+        and (now - cached["ts"]) < DATA_CACHE_TTL
+    ):
+        return cached["body"], cached["etag"]
+
+    body = json.dumps(
+        get_data(),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+
+    etag = '"' + hashlib.sha1(body).hexdigest() + '"'
+
+    _data_cache["ts"] = now
+    _data_cache["body"] = body
+    _data_cache["etag"] = etag
+
+    return body, etag
+
+
+def invalidate_data_cache() -> None:
+    """Сбросить кэш /api/constructions (вызывается после импорта)."""
+    _data_cache["ts"] = 0.0
+    _data_cache["body"] = None
+    _data_cache["etag"] = None

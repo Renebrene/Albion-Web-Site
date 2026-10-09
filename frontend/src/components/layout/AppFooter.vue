@@ -13,7 +13,7 @@
     </nav>
 
     <div class="footer-brand">
-      © ALBION
+      2027@АЛЬБИОН
     </div>
   </footer>
 </template>
@@ -46,6 +46,14 @@ onMounted(async () => {
 
 <style scoped>
 .site-footer {
+  /* Всегда виден: зафиксирован у нижнего края, контент прокручивается
+     «мимо» него (высота компенсируется padding-bottom у q-page-container). */
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+
   display: flex;
   align-items: center;
   justify-content: space-between;

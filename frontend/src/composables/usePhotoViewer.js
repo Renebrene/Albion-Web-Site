@@ -249,17 +249,39 @@ function openFromElement(element) {
     return
   }
 
-  const photoUrl = element.getAttribute('data-photo-url')
+  const photoUrl = element.getAttribute('data-photo-url') || ''
+  const mapUrl = element.getAttribute('data-photo-map') || ''
+  const title = element.getAttribute('data-photo-title') || ''
 
-  if (!photoUrl) {
+  if (!photoUrl && !mapUrl) {
     return
   }
 
-  openPhoto({
-    url: photoUrl,
-    title: element.getAttribute('data-photo-title') || '',
-    filename: element.getAttribute('data-photo-filename') || ''
-  })
+  /*
+   * Как в портфеле: фото + карта-схема в одном окне (переключение
+   * стрелками/точками и сохранение для каждого изображения).
+   */
+  const images = []
+
+  if (photoUrl) {
+    images.push({
+      url: photoUrl,
+      label: 'Фото',
+      filename:
+        element.getAttribute('data-photo-filename') ||
+        sanitizeFileName(title, photoUrl)
+    })
+  }
+
+  if (mapUrl) {
+    images.push({
+      url: mapUrl,
+      label: 'Карта',
+      filename: sanitizeFileName(`${title} · карта`, mapUrl)
+    })
+  }
+
+  openPhoto({ images, title })
 }
 
 // ---------------------------------------------------------------- делегирование
@@ -275,7 +297,10 @@ function onDocumentClick(event) {
 
   const el = target.closest('[data-photo]')
 
-  if (!el || !el.getAttribute('data-photo-url')) {
+  if (
+    !el ||
+    (!el.getAttribute('data-photo-url') && !el.getAttribute('data-photo-map'))
+  ) {
     return
   }
 

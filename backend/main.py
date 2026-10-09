@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -6,7 +6,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from backend.services.data_service import (
     PROJECT_DIR,
     get_base_stats,
-    get_data,
+    get_data_json,
 )
 from backend.services.about_service import get_about
 from backend.services.contacts_service import get_contacts
@@ -188,8 +188,28 @@ def health():
 
 
 @app.get("/api/constructions")
-def constructions():
-    return get_data()
+def constructions(request: Request):
+    """Полный список конструкций.
+
+    Отдаём кэшированное сериализованное тело с ETag: повторные заходы
+    (карта, список, портфель) не пересобирают 2.8 МБ заново, а браузер
+    после max-age присылает If-None-Match и получает 304.
+    """
+    body, etag = get_data_json()
+
+    headers = {
+        "ETag": etag,
+        "Cache-Control": "public, max-age=30",
+    }
+
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers=headers)
+
+    return Response(
+        content=body,
+        media_type="application/json",
+        headers=headers,
+    )
 
 
 @app.get("/api/admin/constructions/stats")

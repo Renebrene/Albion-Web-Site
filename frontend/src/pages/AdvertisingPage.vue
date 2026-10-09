@@ -132,76 +132,82 @@
             <span></span>
           </div>
 
-          <div
-            v-if="pointSelectionState === 'pending'"
-            class="point-confirmation"
-          >
-            <div class="point-confirmation-title">
-              Зафиксировать эту точку?
+          <!--
+            Панель управления точкой — ОДНА плашка, закреплена внизу
+            по центру. Слева — статус точки (подтверждение или бейдж),
+            справа — радиус поиска; в один ряд.
+          -->
+          <div class="point-controls">
+            <div
+              v-if="pointSelectionState !== 'fixed'"
+              class="point-confirmation"
+            >
+              <div class="point-confirmation-title">
+                Зафиксировать эту точку?
+              </div>
+
+              <div class="point-confirmation-coordinates">
+                {{ pointCoordinates }}
+              </div>
+
+              <div class="point-confirmation-actions">
+                <button
+                  type="button"
+                  class="point-confirm-button"
+                  @click="fixSelectedPoint"
+                >
+                  ЗАФИКСИРОВАТЬ
+                </button>
+
+                <button
+                  type="button"
+                  class="point-change-button"
+                  @click="changeSelectedPoint"
+                >
+                  ИЗМЕНИТЬ
+                </button>
+              </div>
             </div>
 
-            <div class="point-confirmation-coordinates">
-              {{ pointCoordinates }}
-            </div>
-
-            <div class="point-confirmation-actions">
-              <button
-                type="button"
-                class="point-confirm-button"
-                @click="fixSelectedPoint"
-              >
-                ЗАФИКСИРОВАТЬ
-              </button>
+            <div
+              v-if="pointSelectionState === 'fixed'"
+              class="point-fixed-badge"
+            >
+              <span>ТОЧКА ЗАФИКСИРОВАНА</span>
 
               <button
                 type="button"
-                class="point-change-button"
                 @click="changeSelectedPoint"
               >
-                ИЗМЕНИТЬ
+                ИЗМЕНИТЬ ТОЧКУ
               </button>
             </div>
-          </div>
 
-          <div
-            v-if="pointSelectionState === 'fixed'"
-            class="point-fixed-badge"
-          >
-            <span>ТОЧКА ЗАФИКСИРОВАНА</span>
+            <div class="point-radius-float">
+              <div class="point-radius-head">
+                <span>РАДИУС ПОИСКА</span>
+                <strong>{{ formatRadius(pointRadius) }}</strong>
+              </div>
 
-            <button
-              type="button"
-              @click="changeSelectedPoint"
-            >
-              ИЗМЕНИТЬ ТОЧКУ
-            </button>
-          </div>
-
-          <!-- Плавающий слайдер радиуса — под плашкой точки -->
-          <div class="point-radius-float">
-            <div class="point-radius-head">
-              <span>РАДИУС ПОИСКА</span>
-              <strong>{{ formatRadius(pointRadius) }}</strong>
-            </div>
-
-            <input
-              class="point-radius-range"
-              type="range"
-              :min="0"
-              :max="RADIUS_STEPS.length - 1"
-              step="1"
-              :value="pointRadiusIndex"
-              @input="onPointRadiusInput"
-            >
-
-            <div class="point-radius-marks">
-              <span
-                v-for="(value, index) in RADIUS_STEPS"
-                :key="value"
-                :class="{ active: index === pointRadiusIndex }"
+              <input
+                class="point-radius-range"
+                type="range"
+                :min="0"
+                :max="RADIUS_STEPS.length - 1"
+                step="1"
+                :value="pointRadiusIndex"
+                @input="onPointRadiusInput"
               >
-                {{ formatRadius(value) }}
-              </span>
+
+              <div class="point-radius-marks">
+                <span
+                  v-for="(value, index) in RADIUS_STEPS"
+                  :key="value"
+                  :class="{ active: index === pointRadiusIndex }"
+                >
+                  {{ formatRadius(value) }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -705,14 +711,17 @@ const {
 const { openPhoto } = usePhotoViewer()
 
 /*
- * Клик по фото карточки: открываем общее окно просмотра.
- * Название и имя файла — «город, адрес · Сторона X».
+ * Клик по фото карточки: открываем общее окно просмотра (как в портфеле) —
+ * фото и карта-схема, с переключением и сохранением.
+ * Название — «город, адрес · Сторона X».
  */
 function openBlockPhoto(point, block) {
   const item = blockPrimary(block)
-  const src = item?.photo_large || item?.photo || item?.photo_thumb || ''
+  const photoUrl = item?.photo_large || item?.photo || item?.photo_thumb || ''
+  const mapUrl =
+    item?.map_large || item?.map_card || item?.map_thumb || item?.map || ''
 
-  if (!src) {
+  if (!photoUrl && !mapUrl) {
     return
   }
 
@@ -722,11 +731,25 @@ function openBlockPhoto(point, block) {
     side: blockSide(block)
   })
 
-  openPhoto({
-    url: src,
-    title: label,
-    filename: sanitizeFileName(label, src)
-  })
+  const images = []
+
+  if (photoUrl) {
+    images.push({
+      url: photoUrl,
+      label: 'Фото',
+      filename: sanitizeFileName(label, photoUrl)
+    })
+  }
+
+  if (mapUrl) {
+    images.push({
+      url: mapUrl,
+      label: 'Карта',
+      filename: sanitizeFileName(`${label} · карта`, mapUrl)
+    })
+  }
+
+  openPhoto({ images, title: label })
 }
 
 /* id поверхности (в портфеле может быть и число, и строка). */
@@ -1767,7 +1790,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .advertising-page {
-  height: 100%;
+  /* Высоту задаёт .app (100dvh минус шапка и подвал). Гасим min-height
+     от Quasar q-page: иначе страница получает полную высоту вьюпорта,
+     шапка и подвал добавляются сверху — лишняя прокрутка на их высоту. */
+  height: auto;
+  min-height: 0;
   overflow: hidden;
   background: #f3f5f6;
 }
@@ -1794,7 +1821,9 @@ onBeforeUnmount(() => {
 /* Переключатель режимов */
 
 .workspace-float {
-  position: absolute;
+  /* «Липкий» блок: остаётся на месте у верха области карты при прокрутке
+     страницы (absolute уезжал вместе с содержимым). */
+  position: sticky;
   top: 18px;
   left: 18px;
   z-index: 1500;
@@ -1804,7 +1833,10 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
   gap: 10px;
 
+  width: max-content;
   max-width: calc(100% - 36px);
+
+  margin: 18px 0 0 18px;
 }
 
 .workspace-mode-switch {
@@ -2694,20 +2726,39 @@ onBeforeUnmount(() => {
   cursor: default;
 }
 
-.point-confirmation {
+/* Одна плашка внизу по центру: статус точки + радиус — в один ряд. */
+.point-controls {
   position: absolute;
   left: 50%;
-  bottom: 96px;
+  bottom: 18px;
   transform: translateX(-50%);
   z-index: 950;
 
-  min-width: 290px;
-  padding: 16px 18px;
+  display: flex;
+  align-items: stretch;
+
+  width: min(760px, calc(100% - 24px));
 
   background: rgba(255, 255, 255, .97);
   border: 1px solid #dfe4e7;
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: 0 10px 30px rgba(23, 33, 43, .18);
+  overflow: hidden;
+}
+
+/* Левая колонка — статус точки (подтверждение выбора). */
+.point-confirmation {
+  flex: 0 0 auto;
+
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  min-width: 240px;
+  max-width: 300px;
+  padding: 14px 18px;
+
+  border-right: 1px solid #e7ebee;
 
   text-align: center;
 }
@@ -2758,26 +2809,24 @@ onBeforeUnmount(() => {
 }
 
 .point-fixed-badge {
-  position: absolute;
-  left: 50%;
-  bottom: 96px;
-  transform: translateX(-50%);
-  z-index: 950;
+  flex: 0 0 auto;
 
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
+  justify-content: center;
+  gap: 10px;
 
-  padding: 8px 10px 8px 14px;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 14px 18px;
 
-  background: rgba(255, 255, 255, .96);
-  border: 1px solid #dfe4e7;
-  border-radius: 7px;
-  box-shadow: 0 6px 20px rgba(23, 33, 43, .14);
+  border-right: 1px solid #e7ebee;
 
   font-size: 11px;
   font-weight: 700;
   color: #17212b;
+  text-align: center;
 }
 
 .point-fixed-badge button {
@@ -2793,22 +2842,16 @@ onBeforeUnmount(() => {
   font-weight: 700;
 }
 
-/* Плавающий слайдер радиуса (под плашкой точки) */
+/* Правая колонка — радиус поиска (внутри общей плашки). */
 .point-radius-float {
-  position: absolute;
-  left: 50%;
-  bottom: 18px;
-  transform: translateX(-50%);
-  z-index: 949;
+  flex: 1 1 320px;
 
-  width: min(460px, calc(100% - 40px));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 
-  padding: 10px 14px 8px;
-
-  background: rgba(255, 255, 255, .97);
-  border: 1px solid #dfe4e7;
-  border-radius: 10px;
-  box-shadow: 0 10px 30px rgba(23, 33, 43, .16);
+  min-width: 200px;
+  padding: 14px 16px;
 }
 
 .point-radius-head {
@@ -2852,6 +2895,26 @@ onBeforeUnmount(() => {
 
 .point-radius-marks span.active {
   color: #17212b;
+}
+
+/* Узкий экран: панель по-прежнему внизу по центру, но колонки в столбик. */
+@media (max-width: 720px) {
+  .point-controls {
+    flex-direction: column;
+    width: min(460px, calc(100% - 24px));
+  }
+
+  .point-confirmation,
+  .point-fixed-badge {
+    min-width: 0;
+    max-width: none;
+    border-right: 0;
+    border-bottom: 1px solid #e7ebee;
+  }
+
+  .point-radius-float {
+    min-width: 0;
+  }
 }
 
 /* Мишень поиска: двойное кольцо (тёмное + акцент) и центральная точка. */
@@ -3004,5 +3067,23 @@ onBeforeUnmount(() => {
 .popup-pf-icon {
   font-size: 15px;
   line-height: 1;
+}
+
+/*
+ * Quasar q-page-container по умолчанию имеет min-height:100vh и стоит ПОД
+ * шапкой. Вместе с подвалом это давало лишнюю прокрутку страницы ровно на
+ * высоту шапки+подвала, из-за чего плавающие элементы уезжали. Ограничиваем
+ * контейнер по высоте ТОЛЬКО для этой страницы и ТОЛЬКО на десктопе (на
+ * мобильном контент в столбик и должен прокручиваться).
+ * Не-scoped: элемент вне компонента, у него нет data-v-атрибута.
+ */
+@media (min-width: 761px) {
+  body:has(.advertising-page) .q-page-container {
+    height: calc(
+      100dvh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px)
+    );
+    min-height: 0;
+    overflow: hidden;
+  }
 }
 </style>
