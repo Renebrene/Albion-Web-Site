@@ -176,6 +176,7 @@
         class="portfolio-action"
         label="Печать"
         :disable="!count"
+        :loading="busy === 'print'"
         @click="handlePrint"
       />
       <q-btn
@@ -594,20 +595,31 @@ async function exportAs(format) {
   }
 }
 
-/* Печать: печатная HTML-версия в новом окне. */
-function handlePrint() {
+/* Печать: PDF (та же doc-раскладка), открывается и печатается. */
+async function handlePrint() {
   if (!count.value) {
     return
   }
 
-  printPortfolio(items.value, {
-    withPhotos: withPhotos.value,
-    withMaps: withMaps.value,
-    fullOutput: fullOutput.value,
-    title: title.value,
-    requisites: currentRequisites()
-  })
-  notify('Открываю версию для печати.')
+  busy.value = 'print'
+
+  try {
+    await printPortfolio(items.value, {
+      withPhotos: withPhotos.value,
+      withMaps: withMaps.value,
+      fullOutput: fullOutput.value,
+      title: title.value,
+      requisites: currentRequisites()
+    })
+    notify('Открываю версию для печати.')
+  } catch (exc) {
+    notify(
+      exc && exc.message ? exc.message : 'Не удалось подготовить печать.',
+      'error'
+    )
+  } finally {
+    busy.value = ''
+  }
 }
 
 /* Почта: mailto с темой и телом. */

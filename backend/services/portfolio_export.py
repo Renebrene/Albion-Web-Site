@@ -962,6 +962,7 @@ def _export_pdf_full(portfolio: dict) -> bytes:
     до 3:2 (600×400 px), затем растянуты ровно в 7.5 × 5 см — пропорции
     сохранены, высота у фото и карты одинаковая.
     """
+    from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.units import cm, mm
@@ -979,7 +980,12 @@ def _export_pdf_full(portfolio: dict) -> bytes:
     margin = 15 * mm
 
     title_style = ParagraphStyle(
-        "FullTitle", fontName=font_bold, fontSize=14, leading=18, spaceAfter=6
+        "FullTitle",
+        fontName=font_bold,
+        fontSize=16,
+        leading=20,
+        textColor=colors.HexColor("#2E74B5"),
+        spaceAfter=6,
     )
     head_style = ParagraphStyle(
         "FullHead", fontName=font_bold, fontSize=10.5, leading=13, spaceBefore=4
@@ -993,8 +999,15 @@ def _export_pdf_full(portfolio: dict) -> bytes:
     sum_style = ParagraphStyle(
         "FullSum", fontName=font_bold, fontSize=9.5, leading=12
     )
+    summary_style = ParagraphStyle(
+        "FullSummary", fontName=font_bold, fontSize=11, leading=14, spaceBefore=4
+    )
     requisites_style = ParagraphStyle(
-        "FullRequisites", fontName=font_regular, fontSize=8, leading=10
+        "FullRequisites",
+        fontName=font_regular,
+        fontSize=9,
+        leading=12,
+        spaceAfter=6,
     )
 
     story = [_pdf_paragraph(portfolio["title"], title_style)]
@@ -1075,7 +1088,7 @@ def _export_pdf_full(portfolio: dict) -> bytes:
         story.append(Spacer(1, 10))
 
     story.append(
-        _pdf_paragraph(portfolio["summary"], title_style)
+        _pdf_paragraph(portfolio["summary"], summary_style)
     )
 
     buffer = io.BytesIO()
@@ -1107,21 +1120,26 @@ def export_pdf(portfolio: dict) -> bytes:
     regular, bold = find_cyrillic_fonts()
     font_regular, font_bold = _register_pdf_fonts(regular, bold)
 
-    left_margin = right_margin = 10 * mm
+    # Поля и оформление — как в DOCX (Word: пустые поля 2 см по кругу,
+    # заголовок Heading 1 — синий, реквизиты отдельными строками, таблица
+    # «Table Grid» без заливки, «Итого» — отдельный жирный абзац).
+    margin = 20 * mm
+    left_margin = right_margin = margin
     available_width = landscape(A4)[0] - left_margin - right_margin
 
     title_style = ParagraphStyle(
         "PortfolioTitle",
         fontName=font_bold,
-        fontSize=14,
-        leading=18,
+        fontSize=16,
+        leading=20,
+        textColor=colors.HexColor("#2E74B5"),
         spaceAfter=6,
     )
     cell_style = ParagraphStyle(
         "PortfolioCell",
         fontName=font_regular,
-        fontSize=7.5,
-        leading=9.5,
+        fontSize=9,
+        leading=11,
     )
     bold_style = ParagraphStyle(
         "PortfolioCellBold",
@@ -1131,8 +1149,17 @@ def export_pdf(portfolio: dict) -> bytes:
     requisites_style = ParagraphStyle(
         "PortfolioRequisites",
         fontName=font_regular,
-        fontSize=8,
-        leading=10,
+        fontSize=9,
+        leading=12,
+        spaceAfter=6,
+    )
+    summary_style = ParagraphStyle(
+        "PortfolioSummary",
+        fontName=font_bold,
+        fontSize=11,
+        leading=14,
+        spaceBefore=4,
+        spaceAfter=4,
     )
 
     story = [
@@ -1178,13 +1205,6 @@ def export_pdf(portfolio: dict) -> bytes:
 
         data.append(cells)
 
-    # Итоговая строка — объединена по всем колонкам.
-    summary_index = len(data)
-    data.append(
-        [_pdf_paragraph(portfolio["summary"], bold_style)]
-        + [""] * (len(columns) - 1)
-    )
-
     # Пропорциональные ширины колонок: сумма растягивается на лист.
     if with_photos or with_maps:
         base_widths_mm = (7, 20, 40, 12, 17, 18, 66, 24)
@@ -1210,27 +1230,20 @@ def export_pdf(portfolio: dict) -> bytes:
     table.setStyle(
         TableStyle(
             [
-                ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#9a9a9a")),
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e9e9e9")),
+                ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 3),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 3),
-                ("TOPPADDING", (0, 0), (-1, -1), 2),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
-                ("SPAN", (0, summary_index), (-1, summary_index)),
-                (
-                    "BACKGROUND",
-                    (0, summary_index),
-                    (-1, summary_index),
-                    colors.HexColor("#f2f2f2"),
-                ),
-                ("TOPPADDING", (0, summary_index), (-1, summary_index), 6),
-                ("BOTTOMPADDING", (0, summary_index), (-1, summary_index), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 3),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
             ]
         )
     )
 
     story.append(table)
+
+    # «Итого» — отдельный жирный абзац под таблицей (как в DOCX).
+    story.append(_pdf_paragraph(portfolio["summary"], summary_style))
 
     buffer = io.BytesIO()
     document = SimpleDocTemplate(
@@ -1238,8 +1251,8 @@ def export_pdf(portfolio: dict) -> bytes:
         pagesize=landscape(A4),
         leftMargin=left_margin,
         rightMargin=right_margin,
-        topMargin=12 * mm,
-        bottomMargin=12 * mm,
+        topMargin=margin,
+        bottomMargin=margin,
         title=portfolio["title"],
     )
     document.build(story)

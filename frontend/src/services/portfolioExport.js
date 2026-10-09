@@ -393,6 +393,34 @@ function resolveFullOutput(sourceItems, options) {
  * Ответ — файл (blob).
  * options: { withPhotos, withMaps, fullOutput, title, requisites }.
  */
+/*
+ * Запрашивает собранный файл портфеля у backend и возвращает blob.
+ * payload: { title, withPhotos, withMaps, fullOutput, requisites }.
+ */
+async function requestPortfolioFile(format, items, payload) {
+  const response = await fetch(
+    `${API_URL}/portfolio/export?format=${encodeURIComponent(format)}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: payload.title,
+        items,
+        with_photos: payload.withPhotos,
+        with_maps: payload.withMaps,
+        full_output: payload.fullOutput,
+        requisites: payload.requisites
+      })
+    }
+  )
+
+  if (!response.ok) {
+    throw new Error(`Не удалось сформировать файл (${response.status})`)
+  }
+
+  return response.blob()
+}
+
 export async function downloadPortfolio(format, sourceItems, options) {
   const value = extensionFor(format)
   const opts = resolveOptions(sourceItems, options)
@@ -403,27 +431,13 @@ export async function downloadPortfolio(format, sourceItems, options) {
     ? sourceItems
     : resolveItems(sourceItems)
 
-  const response = await fetch(
-    `${API_URL}/portfolio/export?format=${encodeURIComponent(value)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: resolveTitle(opts.title),
-        items,
-        with_photos: withPhotos,
-        with_maps: withMaps,
-        full_output: fullOutput,
-        requisites: resolveRequisites(opts)
-      })
-    }
-  )
-
-  if (!response.ok) {
-    throw new Error(`Не удалось сформировать файл (${response.status})`)
-  }
-
-  const blob = await response.blob()
+  const blob = await requestPortfolioFile(value, items, {
+    title: resolveTitle(opts.title),
+    withPhotos,
+    withMaps,
+    fullOutput,
+    requisites: resolveRequisites(opts)
+  })
 
   triggerDownload(blob, `albion-portfolio.${value}`)
 }
@@ -790,11 +804,13 @@ export function buildPrintHtml(
 }
 
 /*
- * Печать портфеля: открываем новое окно с печатной версией.
- * Если всплывающее окно заблокировано — печатаем через скрытый iframe.
- * Второй аргумент: { withPhotos, withMaps, fullOutput, title, requisites }.
+ * Печать портфеля — это PDF, собранный из той же «doc»-раскладки
+ * (тот же backend-экспорт, что «DOC»/«PDF»). Открываем PDF в новом окне
+ * и вызываем системную печать. Если PDF не удалось получить (или окно
+ * заблокировано) — откат на прежнюю печать из HTML.
+ * options: { withPhotos, withMaps, fullOutput, title, requisites }.
  */
-export function printPortfolio(sourceItems, options) {
+export async function printPortfolio(sourceItems, options) {
   const opts = resolveOptions(sourceItems, options)
   const withPhotos = resolveWithPhotos(sourceItems, options)
   const withMaps = resolveWithMaps(sourceItems, options)
@@ -802,13 +818,95 @@ export function printPortfolio(sourceItems, options) {
   const items = Array.isArray(sourceItems)
     ? sourceItems
     : resolveItems(sourceItems)
+  const title = resolveTitle(opts.title)
+  const requisites = resolveRequisites(opts)
+
+  /*
+   * Окно открываем СИНХРОННО — до await. Иначе блокировщик всплывающих
+   * окон обрежет window.open, вызванный уже вне обработчика клика.
+   * Затем навигируем это окно на готовый PDF.
+   */
+  const win = window.open('', '_blank')
+
+  try {
+    const blob = await requestPortfolioFile('pdf', items, {
+      title,
+      withPhotos,
+      withMaps,
+      fullOutput,
+      requisites
+    })
+
+    const url = URL.createObjectURL(blob)
+
+    if (win) {
+      win.location.href = url
+
+      if (win.focus) {
+        win.focus()
+      }
+
+      // Даём просмотрщику PDF отрисоваться, затем системная печать.
+      window.setTimeout(() => {
+        try {
+          win.print()
+        } catch (error) {
+          /* просмотрщик PDF сам предложит печать */
+        }
+      }, 1000)
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 60000)
+
+      return
+    }
+
+    URL.revokeObjectURL(url)
+
+    // Всплывающее окно заблокировано — печатаем HTML-версию.
+    printPortfolioHtml(
+      items,
+      withPhotos,
+      withMaps,
+      fullOutput,
+      title,
+      requisites
+    )
+  } catch (error) {
+    if (win) {
+      try {
+        win.close()
+      } catch (closeError) {
+        /* окно уже закрыто */
+      }
+    }
+
+    printPortfolioHtml(
+      items,
+      withPhotos,
+      withMaps,
+      fullOutput,
+      title,
+      requisites
+    )
+  }
+}
+
+/* Прежняя печать: HTML-версия в новом окне или скрытом iframe. */
+function printPortfolioHtml(
+  items,
+  withPhotos,
+  withMaps,
+  fullOutput,
+  title,
+  requisites
+) {
   const html = buildPrintHtml(
     items,
     withPhotos,
     withMaps,
     fullOutput,
-    resolveTitle(opts.title),
-    resolveRequisites(opts)
+    title,
+    requisites
   )
 
   const win = window.open('', '_blank', 'width=900,height=700')
