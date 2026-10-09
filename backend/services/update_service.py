@@ -11,7 +11,7 @@ import sys
 import threading
 from pathlib import Path
 
-from backend.services.data_service import invalidate_data_cache
+from backend.services.data_service import get_base_stats, invalidate_data_cache
 from typing import Optional
 
 from backend.services.data_service import (
@@ -857,6 +857,38 @@ def clear_last_restore() -> None:
         RESTORE_FILE.unlink()
     except OSError:
         pass
+
+
+def mark_restored(import_key: str) -> None:
+    """Зафиксировать восстановление базы из архива.
+
+    Дополнительно сбрасываем статус обновления: ошибка прошлого прогона
+    больше не актуальна, а «Дата и время последнего обновления» показывает
+    дату восстановленной базы (created_at активного импорта).
+    """
+    record_restore(import_key)
+
+    base_datetime = None
+
+    try:
+        value = get_base_stats().get("last_update")
+
+        if hasattr(value, "isoformat"):
+            base_datetime = value.isoformat()
+        elif value:
+            base_datetime = str(value)
+    except Exception:
+        base_datetime = None
+
+    status = _read_status()
+    status["state"] = "idle"
+    status["errors"] = []
+    status["exit_code"] = None
+
+    if base_datetime:
+        status["finished_at"] = base_datetime
+
+    _write_status(status)
 
 
 def get_last_run_state() -> "Optional[str]":

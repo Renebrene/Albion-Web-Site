@@ -778,6 +778,12 @@ async function runRestore(importKey, dryRun) {
     resultOpen.value = true
 
     await loadArchives()
+
+    if (!dryRun) {
+      // После восстановления: ошибка прошлого прогона сбрасывается,
+      // а «Дата и время последнего обновления» показывает дату базы.
+      await pollStatus()
+    }
   } catch (exc) {
     error.value = String(exc)
   } finally {

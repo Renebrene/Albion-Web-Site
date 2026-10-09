@@ -18,7 +18,7 @@ from backend.services.update_service import (
     get_update_log_by_name,
     get_update_status,
     list_update_logs,
-    record_restore,
+    mark_restored,
     save_uploaded_file,
     start_update,
 )
@@ -58,10 +58,10 @@ def restore(
             dry_run=dry_run,
         )
 
-        # Реальное восстановление (не проверка) — запоминаем факт и время,
-        # чтобы показать в разделах «Конструкции» и «Обновление базы».
+        # Реальное восстановление (не проверка) — запоминаем факт, сбрасываем
+        # ошибку прошлого прогона и показываем дату восстановленной базы.
         if not dry_run:
-            record_restore(import_key)
+            mark_restored(import_key)
 
         return result
     except FileNotFoundError as exc:
