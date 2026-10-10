@@ -50,14 +50,13 @@ const routes = [
       },
 
       /*
-       * Разделы из верхнего меню, страницы которых ещё в разработке.
-       * Важно: они должны лежать внутри MainLayout, иначе <q-page>
-       * окажется вне <q-layout> и Quasar отрисует пустую страницу.
+       * «Информация» — закладки (ОБЩЕЕ, КОНСТРУКЦИИ, ГОРОДА И РАЙОНЫ,
+       * ТЕХ ТРЕБОВАНИЯ и др.). Состав и содержание закладок задаются
+       * в админке (/administration/info).
        */
       {
         path: 'informaciya',
-        component: () => import('@/pages/PlaceholderPage.vue'),
-        props: { title: 'Информация' }
+        component: () => import('@/pages/InfoPage.vue')
       },
 
       {
@@ -140,6 +139,20 @@ const routes = [
         }
       },
       {
+        path: 'home',
+        component: () => import('@/pages/AdministrationHomePage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
+        path: 'info',
+        component: () => import('@/pages/AdministrationInfoPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
         path: 'about',
         component: () => import('@/pages/AdministrationAboutPage.vue'),
         meta: {
@@ -169,7 +182,6 @@ const routes = [
       }
     ]
   },
-
 
   {
     path: '/:catchAll(.*)*',

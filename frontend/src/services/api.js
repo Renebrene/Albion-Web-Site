@@ -22,7 +22,6 @@ export function getAbout() {
   return request('/about')
 }
 
-
 export function getContacts() {
   return request('/contacts')
 }
@@ -37,4 +36,8 @@ export function getNews() {
 
 export function getNewsItem(slug) {
   return request(`/news/${encodeURIComponent(slug)}`)
+}
+
+export function getInfo() {
+  return request('/info')
 }

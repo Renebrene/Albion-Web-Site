@@ -219,33 +219,50 @@
           ref="listViewRef"
           class="list-view"
         >
+          <!-- Шапка списка закреплена: заголовок и переключатель колонок
+               не двигаются, карточки прокручиваются под ними. -->
+          <div class="list-header">
+            <div>
+              <div class="list-kicker">
+                РЕКЛАМНЫЕ ВОЗМОЖНОСТИ
+              </div>
+
+              <h1>
+                {{ displayedConstructions.length }}
+                конструкций
+              </h1>
+            </div>
+
+            <!-- Ручной выбор числа колонок карточек. -->
+            <div
+              class="list-columns"
+              role="group"
+              aria-label="Число колонок"
+            >
+              <button
+                v-for="count in columnOptions"
+                :key="count"
+                type="button"
+                :class="{ active: listColumns === count }"
+                @click="setListColumns(count)"
+              >
+                {{ count }}
+              </button>
+            </div>
+          </div>
+
           <!--
             Виртуальный скролл строками: в DOM рендерятся только видимые
             строки сетки (плюс буфер), а не весь список целиком.
           -->
           <q-virtual-scroll
             v-if="listPoints.length"
+            ref="virtualListRef"
             class="construction-list"
             :items="listRows"
             :virtual-scroll-item-size="820"
+            @virtual-scroll="onListScroll"
           >
-            <!-- Шапка списка — слот «before» q-virtual-scroll: прокручивается
-                 вместе с карточками, и её высота учитывается в расчёте. -->
-            <template #before>
-              <div class="list-header">
-                <div>
-                  <div class="list-kicker">
-                    РЕКЛАМНЫЕ ВОЗМОЖНОСТИ
-                  </div>
-
-                  <h1>
-                    {{ displayedConstructions.length }}
-                    конструкций
-                  </h1>
-                </div>
-              </div>
-            </template>
-
             <template #default="{ item: row }">
 
             <!-- Строка сетки: columns колонок, повторяет прежний auto-fill. -->
@@ -377,7 +394,7 @@
                         ALBION
                       </div>
 
-                      <!-- Переключатель: фото ↔ карта-схема -->
+                      <!-- Переключатель: фото ↔ карта -->
                       <div
                         v-if="canSwitchCardMedia(block)"
                         class="media-switch"
@@ -401,7 +418,7 @@
                           }"
                           @click.stop="setCardMedia(point, blockIndex, 'map')"
                         >
-                          Карта-схема
+                          Карта
                         </button>
                       </div>
 
@@ -551,6 +568,32 @@
             </button>
           </div>
 
+          <!-- Быстрый возврат к началу списка. -->
+          <button
+            v-if="listScrolled"
+            type="button"
+            class="list-to-top"
+            aria-label="Наверх"
+            title="Наверх"
+            @click="scrollListToTop"
+          >
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M12 19V5M5 12l7-7 7 7"
+                stroke="currentColor"
+                stroke-width="2.2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+          </button>
+
         </div>
 
         <div class="map-tools">
@@ -600,6 +643,7 @@ import {
   useConstructionsFilter
 } from '../composables/useConstructionsFilter'
 
+import { useChatWorkspace } from '../composables/useChatWorkspace'
 import { usePortfolio } from '../composables/usePortfolio'
 import {
   photoLabel,
@@ -929,6 +973,7 @@ function onCardMonthClick(block, surface, month) {
 const route = useRoute()
 const router = useRouter()
 const constructions = ref([])
+const { resultIds: chatResultIds } = useChatWorkspace()
 
 const mapViewRef = ref(null)
 const pointSearchOpen = ref(false)
@@ -1209,11 +1254,19 @@ const pointFilteredConstructions = computed(() => {
  * Результаты для закладок «Список» и «Интерактивная карта»:
  * если точка зафиксирована — показываем результаты поиска по точке.
  */
-const displayedConstructions = computed(() =>
-  pointSelectionState.value === 'fixed'
+const displayedConstructions = computed(() => {
+  const source = pointSelectionState.value === 'fixed'
     ? pointFilteredConstructions.value
     : filteredConstructions.value
-)
+
+  if (route.query.chat !== '1' || !chatResultIds.value.length) {
+    return source
+  }
+
+  const ids = new Set(chatResultIds.value.map(value => String(value)))
+
+  return source.filter(item => ids.has(String(item?.id)))
+})
 
 /* Из панели точки: открыть закладку «Список» с найденными результатами. */
 function openListFromPoint() {
@@ -1369,8 +1422,46 @@ const listPoints = computed(() => {
  * от реальной ширины области списка (ResizeObserver ниже).
  */
 const listViewRef = ref(null)
-const listColumns = ref(3)
+/* Авто-число колонок по ширине области (ResizeObserver). */
+const autoListColumns = ref(3)
+/* Ручной выбор переключателем 4/5/6; null — авто. */
+const userListColumns = ref(null)
 let listResizeObserver = null
+
+// Колонок в ряду: ручной выбор (4/5/6), если он задан и экран достаточно
+// широкий; иначе — авто по ширине. На узких экранах ручной выбор
+// игнорируем, иначе карточки станут нечитаемыми.
+const listColumns = computed(() => {
+  const auto = autoListColumns.value
+  const manual = userListColumns.value
+
+  return manual && auto >= 3 ? manual : auto
+})
+
+const columnOptions = [4, 5, 6]
+
+function setListColumns(count) {
+  userListColumns.value = count
+}
+
+/* Прокрутка списка: ref на q-virtual-scroll и признак «список прокручен»
+   для кнопки возврата наверх. */
+const virtualListRef = ref(null)
+const listScrolled = ref(false)
+
+function onListScroll({ index }) {
+  listScrolled.value = index > 0
+}
+
+function scrollListToTop() {
+  virtualListRef.value?.scrollTo(0)
+}
+
+/* При смене режима список монтируется заново сверху — сбрасываем признак
+   прокрутки, чтобы кнопка «наверх» не висела зря. */
+watch(workspaceMode, () => {
+  listScrolled.value = false
+})
 
 function computeListColumns(width) {
   if (!width) {
@@ -1429,13 +1520,13 @@ watch(listViewRef, el => {
   }
 
   // Стартовое значение — по ширине контента (без паддингов).
-  listColumns.value = computeListColumns(availableListWidth(el))
+  autoListColumns.value = computeListColumns(availableListWidth(el))
 
   listResizeObserver = new ResizeObserver(entries => {
     const width = entries[0]?.contentRect?.width
 
     if (width) {
-      listColumns.value = computeListColumns(width)
+      autoListColumns.value = computeListColumns(width)
     }
   })
 
@@ -1774,6 +1865,12 @@ onMounted(async () => {
     const data = await getConstructions()
     constructions.value = Array.isArray(data) ? data : []
 
+    if (route.query.chat === '1' && route.query.mode === 'map') {
+      workspaceMode.value = 'map'
+    } else if (route.query.chat === '1') {
+      workspaceMode.value = 'list'
+    }
+
     // Подтягиваем свежие цены/статусы выбранных месяцев из psql.
     syncWithConstructions(constructions.value)
 
@@ -1910,16 +2007,29 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 0;
 
-  /* Скроллится не вся область, а сам виртуальный список внутри
-     (см. .construction-list) — иначе высоту не ограничить. */
+  /* Колонка: закреплённая шапка + прокручивающийся список. Скроллится
+     не вся область, а сам виртуальный список (см. .construction-list),
+     поэтому шапка не двигается при прокрутке карточек. */
+  display: flex;
+  flex-direction: column;
+
   overflow: hidden;
 
-  padding: 122px 28px 40px;
+  /* Верхний отступ оставляет запас под плавающий блок с переключателем
+     режимов и поиском. */
+  padding: 88px 28px 40px;
 
   background: #f4f6f7;
 }
 
 .list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+
+  flex-shrink: 0;
+
   margin-bottom: 22px;
 }
 
@@ -1941,11 +2051,96 @@ onBeforeUnmount(() => {
   line-height: 1.1;
 }
 
+/* Переключатель числа колонок карточек (4/5/6). */
+.list-columns {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+
+  flex-shrink: 0;
+
+  padding: 4px;
+
+  background: #fff;
+  border: 1px solid #e1e6e9;
+  border-radius: 11px;
+}
+
+.list-columns button {
+  min-width: 36px;
+  height: 32px;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #71808c;
+
+  font-size: 12px;
+  font-weight: 800;
+
+  cursor: pointer;
+
+  transition:
+    background .18s ease,
+    color .18s ease;
+}
+
+.list-columns button.active {
+  background: #17212b;
+  color: #fff;
+}
+
+.list-columns button:hover:not(.active) {
+  background: #f0f3f4;
+  color: #17212b;
+}
+
+/* Кнопка «наверх»: прозрачный круг со стрелкой в правом нижнем углу
+   области списка, появляется при прокрутке. Стоит над кнопкой-инструментом
+   .map-tools (↺), чтобы не перекрываться с ней. */
+.list-to-top {
+  position: absolute;
+  right: 24px;
+  bottom: 80px;
+  z-index: 20;
+
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border: 1px solid rgba(23, 33, 43, .12);
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, .55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+
+  color: #17212b;
+
+  cursor: pointer;
+
+  box-shadow: 0 8px 24px rgba(23, 33, 43, .16);
+
+  transition:
+    background .18s ease,
+    transform .18s ease;
+}
+
+.list-to-top:hover {
+  background: rgba(255, 255, 255, .85);
+  transform: translateY(-2px);
+}
+
 .construction-list {
-  /* Корень q-virtual-scroll — единственный скроллер списка:
-     высота ограничена рамкой .list-view, поэтому прокручивается
-     только область списка, а не страница целиком. */
-  height: 100%;
+  /* Корень q-virtual-scroll — единственный скроллер списка: занимает всё
+     оставшееся под шапкой место (flex), поэтому прокручивается только
+     область списка, а не страница целиком. */
+  flex: 1 1 auto;
+  min-height: 0;
 
   overflow-y: auto;
 
@@ -2180,6 +2375,9 @@ onBeforeUnmount(() => {
 
   font-size: 17px;
   line-height: 1.15;
+
+  /* Название адреса — жирным. */
+  font-weight: 700;
 
   margin-bottom: 3px;
 }
@@ -2500,6 +2698,7 @@ onBeforeUnmount(() => {
 }
 
 .empty-state {
+  flex: 1 1 auto;
   min-height: 50vh;
 
   display: flex;
@@ -2619,6 +2818,12 @@ onBeforeUnmount(() => {
 
   .list-view {
     padding: 30px 16px;
+  }
+
+  /* Переключатель колонок на узком экране не нужен — число колонок
+     определяется шириной автоматически. */
+  .list-columns {
+    display: none;
   }
 
   /* Число колонок строки задаётся из JS (listColumns) inline-стилем,

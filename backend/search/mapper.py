@@ -37,7 +37,26 @@ def _price(value: Any) -> int | None:
 def _float(value: Any) -> float | None:
     if value is None or value == "":
         return None
-    return float(value)
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+
+    return number
+
+
+def _media_path(value: Any) -> str | None:
+    """Return a browser-safe URL for an imported media variant."""
+    value = _optional_text(value)
+
+    if not value:
+        return None
+
+    if value.startswith(("/", "http://", "https://")):
+        return value
+
+    return f"/{value.lstrip('/')}"
 
 
 class SiteSurfaceMapper:
@@ -86,10 +105,16 @@ class SiteSurfaceMapper:
             material=_optional_text(data.get("material")),
 
             external_id=_optional_text(data.get("external_id")),
-            photo_url=_optional_text(data.get("photo_url")),
-            map_url=_optional_text(data.get("map_url")),
+            photo_url=(
+                _media_path(data.get("photo_large"))
+                or _media_path(data.get("photo_url"))
+            ),
+            map_url=(
+                _media_path(data.get("map_large"))
+                or _media_path(data.get("map_url"))
+            ),
 
-            district=None,
+            district=_optional_text(data.get("district")),
             lot_number=None,
             owner=None,
             passport_number=None,
@@ -98,4 +123,24 @@ class SiteSurfaceMapper:
             created_at=data.get("created_at"),
             updated_at=data.get("updated_at"),
             is_active=bool(data.get("is_active", True)),
+            metadata={
+                "name": _optional_text(data.get("title")),
+                "type": _optional_text(data.get("type"))
+                or _optional_text(data.get("media_type")),
+                "photo": (
+                    _media_path(data.get("photo_card"))
+                    or _media_path(data.get("photo_url"))
+                ),
+                "photo_thumb": _media_path(data.get("photo_thumb")),
+                "photo_card": _media_path(data.get("photo_card")),
+                "photo_large": _media_path(data.get("photo_large")),
+                "map": (
+                    _media_path(data.get("map_card"))
+                    or _media_path(data.get("map_url"))
+                ),
+                "map_thumb": _media_path(data.get("map_thumb")),
+                "map_card": _media_path(data.get("map_card")),
+                "map_large": _media_path(data.get("map_large")),
+                "surface_hash": _optional_text(data.get("surface_hash")),
+            },
         )

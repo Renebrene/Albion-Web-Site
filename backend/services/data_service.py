@@ -356,3 +356,104 @@ def invalidate_data_cache() -> None:
     _data_cache["ts"] = 0.0
     _data_cache["body"] = None
     _data_cache["etag"] = None
+
+
+# Нормализованный ключ физической конструкции.
+#
+# Одна физическая конструкция может занимать несколько строк в constructions:
+# например, призматрон «40 Лет Победы пр-кт 146А» хранится двумя строками
+# «…(в Александровку)» и «…(в город)» (по одной стороне в каждой), а
+# двусторонний щит на разделительной — строками «…(в центр)» / «…(из центра)».
+# Поэтому физическую конструкцию считаем по адресу без хвостовой скобки.
+# Исключение: если в скобке указана самостоятельная позиция (км/поз./№/
+# «конструкция N»/начало-середина-конец), строки остаются разными объектами.
+_PHYSICAL_KEY = (
+    r"CASE WHEN address ~* "
+    r"'\([^)]*(поз|позиц|км|№|конструкц|начал|середин|конец)[^)]*\)\s*$' "
+    r"THEN address "
+    r"ELSE regexp_replace(address, '\s*\([^)]*\)\s*$', '') END"
+)
+# Сторона физической конструкции: у поверхности side вида «A1(1)» сторона — «A1».
+_PARENT_SIDE = r"regexp_replace(s.side, '\(.*\)$', '')"
+
+_CTE_PHYSICAL = (
+    "WITH cc AS (SELECT id, city_id, " + _PHYSICAL_KEY + " AS pkey "
+    "FROM constructions WHERE is_active) "
+)
+
+
+def get_constructions_stats() -> dict:
+    """Сводка по рекламной сети: конструкции, стороны, поверхности, форматы.
+
+    все числа — по физическим конструкциям, а не по строкам-адресам
+    (см. ``_PHYSICAL_KEY``). Формат конструкции — преобладающий тип её
+    поверхностей, поэтому сумма по форматам совпадает с числом конструкций.
+    """
+    with get_connection() as conn:
+        total = conn.execute(
+            _CTE_PHYSICAL + "SELECT COUNT(DISTINCT (city_id, pkey)) FROM cc"
+        ).fetchone()[0]
+
+        surfaces = conn.execute(
+            "SELECT COUNT(*) FROM surfaces WHERE is_active"
+        ).fetchone()[0]
+
+        sides = conn.execute(
+            _CTE_PHYSICAL
+            + "SELECT COUNT(DISTINCT (c.city_id, c.pkey, " + _PARENT_SIDE + ")) "
+            "FROM surfaces s JOIN cc c ON c.id = s.construction_id "
+            "WHERE s.is_active"
+        ).fetchone()[0]
+
+        rows = conn.execute(
+            _CTE_PHYSICAL
+            + ", st AS (SELECT c.city_id, c.pkey, "
+            "COALESCE(NULLIF(s.type, ''), '—') AS tp, COUNT(*) AS n "
+            "FROM surfaces s JOIN cc c ON c.id = s.construction_id "
+            "WHERE s.is_active GROUP BY 1, 2, 3), "
+            "rk AS (SELECT tp, ROW_NUMBER() OVER ("
+            "PARTITION BY city_id, pkey ORDER BY n DESC, tp) AS rn FROM st) "
+            "SELECT tp, COUNT(*) AS c FROM rk WHERE rn = 1 "
+            "GROUP BY tp ORDER BY c DESC"
+        ).fetchall()
+
+    return {
+        "constructions": total,
+        "surfaces": surfaces,
+        "sides": sides,
+        "formats": [{"name": r[0], "count": r[1]} for r in rows],
+    }
+
+
+def get_geo_location_stats() -> dict:
+    """Статистика по городам/районам для geo-слайда главной.
+
+    Возвращает словарь ``{имя_города_lower: {"constructions": N, "formats": [...]}}``
+    — число физических конструкций (см. ``_PHYSICAL_KEY``) и разбивка по форматам.
+    """
+    with get_connection() as conn:
+        rows = conn.execute(
+            "WITH cc AS (SELECT id, city_id, " + _PHYSICAL_KEY + " AS pkey "
+            "FROM constructions WHERE is_active), "
+            "st AS (SELECT c.city_id, c.pkey, "
+            "COALESCE(NULLIF(s.type, ''), '—') AS tp, COUNT(*) AS n "
+            "FROM surfaces s JOIN cc c ON c.id = s.construction_id "
+            "WHERE s.is_active GROUP BY 1, 2, 3), "
+            "rk AS (SELECT city_id, pkey, tp, ROW_NUMBER() OVER ("
+            "PARTITION BY city_id, pkey ORDER BY n DESC, tp) AS rn FROM st) "
+            "SELECT ci.name, tp, COUNT(*) FROM ("
+            "SELECT city_id, tp FROM rk WHERE rn = 1) o "
+            "JOIN cities ci ON ci.id = o.city_id GROUP BY ci.name, tp"
+        ).fetchall()
+
+    result: dict[str, dict] = {}
+    for name, tp, count in rows:
+        key = str(name or "").strip().lower()
+        item = result.setdefault(key, {"constructions": 0, "formats": []})
+        item["constructions"] += count
+        item["formats"].append({"name": tp, "count": count})
+
+    for item in result.values():
+        item["formats"].sort(key=lambda f: (-f["count"], f["name"]))
+
+    return result

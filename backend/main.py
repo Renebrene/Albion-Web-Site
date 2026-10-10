@@ -31,6 +31,7 @@ from backend.services.media_service import (
 )
 
 from backend.search.api import SearchRequest, SearchResponse, execute_search
+from backend.api.chat import router as chat_router
 
 from backend.services.auth_api import (
     LoginRequest,
@@ -101,6 +102,19 @@ from backend.api.portfolio import router as portfolio_router
 
 app.include_router(portfolio_router)
 
+from backend.api.admin_home import router as admin_home_router
+
+app.include_router(admin_home_router)
+app.include_router(chat_router)
+
+from backend.api.info import (
+    router as admin_info_router,
+    public_router as public_info_router,
+)
+
+app.include_router(admin_info_router)
+app.include_router(public_info_router)
+
 
 from backend.services.site_backup_service import start_scheduler
 
@@ -118,6 +132,26 @@ from backend.services.site_menu_service import get_public_menu
 @app.get("/api/site-menu")
 def site_menu():
     return get_public_menu()
+
+
+from backend.services.home_service import create_feedback, get_home
+
+
+@app.get("/api/home")
+def home_content():
+    """Слайды главной страницы (вертикальные + карточки верхнего слайда)."""
+    return get_home()
+
+
+@app.post("/api/feedback")
+def feedback_submit(payload: dict):
+    """Форма обратной связи на главной странице."""
+    try:
+        result = create_feedback(payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"success": True, **result}
 
 STORAGE_ROOT = PROJECT_DIR / "storage"
 STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
@@ -224,6 +258,15 @@ def constructions(request: Request):
         media_type="application/json",
         headers=headers,
     )
+
+
+from backend.services.data_service import get_constructions_stats
+
+
+@app.get("/api/constructions/stats")
+def constructions_stats():
+    """Сводка: конструкции всего, по форматам, стороны, поверхности."""
+    return get_constructions_stats()
 
 
 @app.get("/api/admin/constructions/stats")

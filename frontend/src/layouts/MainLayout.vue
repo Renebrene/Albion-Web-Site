@@ -78,4 +78,11 @@ watch(
     padding-bottom: 0;
   }
 }
+
+/* Главная: слайдер фиксирован во весь экран — контейнер не должен
+   добавлять высоту/отступ под подвал, чтобы не появлялась прокрутка. */
+body:has(.home-slider) .q-page-container {
+  min-height: 0;
+  padding-bottom: 0;
+}
 </style>

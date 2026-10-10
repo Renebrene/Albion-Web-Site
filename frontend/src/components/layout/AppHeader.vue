@@ -149,14 +149,48 @@
 
     </div>
 
-    <!-- УМНЫЙ ЧАТ -->
-    <RouterLink
-      to="/chat"
+    <!-- УМНЫЙ ЧАТ — открывает окно вниз, размером как «Портфель».
+         Логику/наполнение/поведение опишем позже. -->
+    <div
       class="smart-chat"
+      role="button"
+      tabindex="0"
+      aria-label="Умный чат"
+      :aria-expanded="chatOpen"
+      @keydown.enter.prevent="chatOpen = !chatOpen"
+      @keydown.space.prevent="chatOpen = !chatOpen"
     >
       <span class="chat-icon">✦</span>
-      <span>УМНЫЙ ЧАТ</span>
-    </RouterLink>
+      <span class="smart-chat-label">УМНЫЙ ЧАТ</span>
+
+      <q-menu
+        v-model="chatOpen"
+        class="smart-chat-menu"
+        anchor="bottom middle"
+        self="top middle"
+        :offset="[0, 12]"
+      >
+        <div class="smart-chat-panel">
+          <div class="smart-chat-head">
+            <span class="smart-chat-head-icon">✦</span>
+            <span class="smart-chat-head-title">УМНЫЙ ЧАТ</span>
+          </div>
+
+          <div class="smart-chat-body">
+            <SmartChatPanel />
+            <q-btn
+              flat
+              dense
+              no-caps
+              label="Открыть на странице"
+              class="smart-chat-page-link"
+              to="/chat"
+              @click="chatOpen = false"
+            />
+          </div>
+        </div>
+      </q-menu>
+    </div>
 
     <!-- АВТОРИЗАЦИЯ -->
     <q-btn
@@ -322,6 +356,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import PortfolioPanel from '../portfolio/PortfolioPanel.vue'
+import SmartChatPanel from '../chat/SmartChatPanel.vue'
 import { useAccount } from '../../composables/useAccount'
 import { usePortfolio } from '../../composables/usePortfolio'
 
@@ -379,6 +414,9 @@ const navItems = computed(() =>
 
 /* Выпадающая панель портфеля в шапке (десктоп/планшет) */
 const portfolioOpen = ref(false)
+
+/* Окно «Умного чата» (выпадает вниз, как портфель). */
+const chatOpen = ref(false)
 
 /* Мобильное выпадающее меню */
 const mobileOpen = ref(false)
@@ -757,16 +795,20 @@ onMounted(async () => {
 
   padding: 9px 11px;
 
+  border: 0;
   border-radius: 9px;
 
   background: #17212b;
 
   color: #fff;
 
+  font-family: inherit;
   font-size: 9px;
   font-weight: 900;
 
   text-decoration: none;
+
+  cursor: pointer;
 
   transition: .15s ease;
 }
@@ -777,6 +819,50 @@ onMounted(async () => {
 
 .chat-icon {
   font-size: 12px;
+}
+
+/* Окно «Умного чата» — размер как у панели портфеля. */
+.smart-chat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  width: min(760px, 92vw);
+  min-height: 320px;
+  max-height: 70vh;
+
+  overflow: hidden;
+
+  padding: 16px 18px;
+
+  background: #fff;
+  color: #17212b;
+}
+
+.smart-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  flex-shrink: 0;
+
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: .08em;
+}
+
+.smart-chat-head-icon {
+  font-size: 14px;
+}
+
+.smart-chat-body {
+  flex: 1 1 auto;
+  min-height: 0;
+
+  overflow-y: auto;
+
+  color: #64748b;
+  font-size: 14px;
 }
 
 /* ---------------------------------------------------------
@@ -1112,7 +1198,7 @@ onMounted(async () => {
     display: none;
   }
 
-  .smart-chat span:last-child {
+  .smart-chat-label {
     display: none;
   }
 }

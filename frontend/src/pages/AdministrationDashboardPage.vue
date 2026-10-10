@@ -10,11 +10,7 @@
             title="Перейти на сайт"
             aria-label="Albion — перейти на сайт"
           >
-            <img
-              src="/logo.png"
-              alt="Albion"
-              class="dashboard-brand-logo"
-            >
+            <img src="/logo.png" alt="Albion" class="dashboard-brand-logo" />
           </RouterLink>
           <h1>Администрирование</h1>
           <p v-if="user" class="dashboard-user">
@@ -90,6 +86,16 @@ const sections = [
     title: 'Бекап сайта',
     text: 'Резервные копии новостей, страниц, настроек и медиа сайта',
     path: '/administration/site'
+  },
+  {
+    title: 'Главная страница',
+    text: 'Вертикальные слайды и карточки верхнего слайда',
+    path: '/administration/home'
+  },
+  {
+    title: 'Информация',
+    text: 'Закладки страницы «Информация»: состав и содержание',
+    path: '/administration/info'
   },
   {
     title: 'Новости',

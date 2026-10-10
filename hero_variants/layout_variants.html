@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0;font-family:Inter,Arial,sans-serif}
+body{background:#2a2e34}
+.v{position:relative;width:1280px;height:720px;overflow:hidden;color:#fff;margin:0 auto}
+.img{position:absolute;inset:0;background-image:url('file:///home/alexice/projects/albion_yandex_maps_presentation_demo%20(Copy)/storage/constructions/imports/20260927-180927/photo/card/0060a6c48c0057103104ed82441d549eb9cd8e107c07199d79db53d37f2cc1ad_photo.jpg');background-size:cover;background-position:center}
+.veil{position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,12,16,.95),rgba(8,12,16,.72) 48%,rgba(8,12,16,.18))}
+.veil-c{background:rgba(10,13,16,.66)}
+.tag{position:absolute;top:12px;left:16px;z-index:9;font-size:12px;letter-spacing:.1em;text-transform:uppercase;opacity:.85}
+.company{font-size:14px;letter-spacing:.3em;text-transform:uppercase;opacity:.85}
+.name{font-size:104px;line-height:.95;font-weight:900;letter-spacing:.02em;text-shadow:0 2px 20px rgba(0,0,0,.5)}
+.slogan{font-size:40px;line-height:1.08;font-weight:800;text-shadow:0 2px 20px rgba(0,0,0,.5)}
+.text{font-size:18px;line-height:1.4;opacity:.92;max-width:560px}
+.btn{display:inline-block;padding:13px 28px;border-radius:999px;font-weight:800;font-size:14px}
+.a{background:#e2231a;color:#fff}.g{border:1px solid rgba(255,255,255,.6);color:#fff}
+.stats{display:flex;gap:34px}.stats b{display:block;font-size:30px;font-weight:900;line-height:1}.stats span{font-size:11px;opacity:.75}
+
+.v1 .in{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:16px;padding:0 100px}
+.v2{display:flex}
+.v2 .l{width:56%;position:relative;z-index:2;padding:80px 60px;display:flex;flex-direction:column;justify-content:center;gap:18px}
+.v2 .r{width:44%;position:relative;z-index:2;display:flex;align-items:flex-end;padding:0 40px 60px}
+.v2 .card{background:rgba(10,14,18,.72);border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:26px;display:flex;flex-direction:column;gap:14px}
+.v3 .name{position:absolute;right:-30px;top:40%;transform:translateY(-50%);font-size:210px;line-height:.85;font-weight:900;color:transparent;-webkit-text-stroke:2px rgba(255,255,255,.28);letter-spacing:.02em}
+.v3 .in{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:16px;padding:0 100px;max-width:760px}
+.v4 .in{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:16px;padding:0 60px}
+.v4 .name{font-size:96px}.v4 .slogan{font-size:36px}.v4 .text{max-width:720px}
+.v4 .stats{justify-content:center}
+</style></head><body>
+
+<div class="v v1" id="V1">
+  <div class="img"></div><div class="veil"></div>
+  <div class="tag">V1 · стек влево</div>
+  <div class="in">
+    <div><div class="company">Группа компаний</div><div class="name">АЛЬБИОН</div></div>
+    <div class="text">Мы создаём комплексные рекламные решения — от собственной сети конструкций и производства до монтажа, брендинга и полиграфии.</div>
+    <div><span class="btn a">Смотреть карту</span> &nbsp; <span class="btn g">Деятельность</span></div>
+    <div class="stats">
+      <div><b>1995</b><span>год основания</span></div><div><b>6</b><span>городов</span></div>
+      <div><b>4</b><span>трассы</span></div><div><b>5</b><span>бригад</span></div><div><b>32</b><span>района</span></div>
+    </div>
+    <div class="slogan">Более 30 лет делаем бизнес заметнее</div>
+  </div>
+</div>
+
+<div class="v v2" id="V2">
+  <div class="img"></div><div class="veil"></div>
+  <div class="tag">V2 · две колонки</div>
+  <div class="l">
+    <div><div class="company">Группа компаний</div><div class="name" style="font-size:88px">АЛЬБИОН</div></div>
+    <div class="slogan" style="font-size:34px">Более 30 лет<br>делаем бизнес заметнее</div>
+  </div>
+  <div class="r">
+    <div class="card">
+      <div class="text">Комплексные рекламные решения: сеть конструкций, производство, монтаж, брендинг и полиграфия.</div>
+      <div><span class="btn a">Смотреть карту</span> &nbsp; <span class="btn g">Деятельность</span></div>
+      <div class="stats">
+        <div><b>1995</b><span>осн.</span></div><div><b>6</b><span>городов</span></div>
+        <div><b>5</b><span>бригад</span></div><div><b>32</b><span>района</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="v v3" id="V3">
+  <div class="img"></div><div class="veil"></div>
+  <div class="name">АЛЬБИОН</div>
+  <div class="tag">V3 · водяное имя</div>
+  <div class="in">
+    <div class="company">Группа компаний</div>
+    <div class="slogan">Более 30 лет делаем бизнес заметнее</div>
+    <div class="text">Комплексные рекламные решения — от собственной сети конструкций до монтажа и производства.</div>
+    <div><span class="btn a">Смотреть карту</span> &nbsp; <span class="btn g">Деятельность</span></div>
+    <div class="stats">
+      <div><b>1995</b><span>осн.</span></div><div><b>6</b><span>городов</span></div><div><b>32</b><span>района</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="v v4" id="V4">
+  <div class="img"></div><div class="veil veil-c"></div>
+  <div class="tag">V4 · центр</div>
+  <div class="in">
+    <div><div class="company">Группа компаний</div><div class="name">АЛЬБИОН</div></div>
+    <div class="text">Комплексные рекламные решения — от собственной сети конструкций и производства до монтажа, брендинга и полиграфии.</div>
+    <div><span class="btn a">Смотреть карту</span> &nbsp; <span class="btn g">Деятельность</span></div>
+    <div class="stats">
+      <div><b>1995</b><span>осн.</span></div><div><b>6</b><span>городов</span></div>
+      <div><b>5</b><span>бригад</span></div><div><b>32</b><span>района</span></div>
+    </div>
+    <div class="slogan">Более 30 лет делаем бизнес заметнее</div>
+  </div>
+</div>
+
+</body></html>

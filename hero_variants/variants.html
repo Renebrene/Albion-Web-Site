@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; margin: 0; font-family: Inter, Arial, sans-serif; }
+  body { background: #2a2e34; }
+  .variant { position: relative; width: 1280px; height: 720px; overflow: hidden; color: #fff; margin: 0 auto; border-radius: 12px; }
+  .tag { position: absolute; top: 14px; left: 16px; z-index: 9; font-size: 12px; letter-spacing:.1em; text-transform:uppercase; opacity:.85; }
+  .btn { display:inline-block; padding: 14px 30px; border-radius: 999px; font-weight:800; font-size:15px; }
+  .btn--accent { background:#e2231a; color:#fff; }
+  .btn--ghost { border:1px solid rgba(255,255,255,.6); color:#fff; }
+  .stats { display:flex; gap:34px; }
+  .stats b { display:block; font-size:32px; font-weight:900; line-height:1; }
+  .stats span { font-size:12px; opacity:.75; }
+
+  .A { background:#0f1317 center/cover no-repeat; }
+  .A .veil { position:absolute; inset:0; background:linear-gradient(90deg, rgba(8,12,16,.92) 0%, rgba(8,12,16,.55) 55%, rgba(8,12,16,.15) 100%); }
+  .A .inner { position:relative; z-index:2; height:100%; display:flex; flex-direction:column; justify-content:center; gap:20px; padding:0 90px; max-width:780px; }
+  .A h1 { font-size:56px; line-height:1.05; }
+  .A p { font-size:19px; opacity:.9; }
+
+  .B { display:flex; background:#161b20; }
+  .B .left { width:52%; padding:70px 60px; display:flex; flex-direction:column; justify-content:center; gap:20px; }
+  .B .right { width:48%; background:#0f1317 center/cover no-repeat; }
+  .B h1 { font-size:44px; line-height:1.08; }
+
+  .C { background:#141a1f; }
+  .C .inner { position:relative; z-index:2; height:100%; display:flex; flex-direction:column; justify-content:center; gap:18px; padding:0 70px; max-width:600px; }
+  .C h1 { font-size:42px; line-height:1.1; }
+  .C .deck { position:absolute; right:-30px; top:50%; width:760px; height:560px; transform:translateY(-50%); }
+  .card { position:absolute; width:300px; height:400px; border-radius:14px; box-shadow:0 24px 60px rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.15); background-size:cover; background-position:center; }
+  .card.c1 { left:0; top:40px; transform:rotate(-10deg); }
+  .card.c2 { left:180px; top:10px; transform:rotate(-2deg); }
+  .card.c3 { left:360px; top:60px; transform:rotate(9deg); }
+
+  .D { background:#0e1216 center/cover no-repeat; }
+  .D .veil { position:absolute; inset:0; background:rgba(10,13,16,.62); }
+  .D .inner { position:relative; z-index:2; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:22px; text-align:center; padding:0 60px; }
+  .D h1 { font-size:96px; letter-spacing:.02em; line-height:.95; font-weight:900; }
+  .D .sub { font-size:22px; opacity:.9; }
+</style>
+</head>
+<body>
+
+<div class="variant A" id="A" style="background-image:url('file:///home/alexice/projects/albion_yandex_maps_presentation_demo%20(Copy)/storage/constructions/imports/20260927-180927/photo/card/0060a6c48c0057103104ed82441d549eb9cd8e107c07199d79db53d37f2cc1ad_photo.jpg')">
+  <div class="veil"></div>
+  <div class="tag">Вариант A · фото на весь экран, текст слева</div>
+  <div class="inner">
+    <h1>Наружная реклама, которую видно</h1>
+    <p>Собственная сеть конструкций в Ростове-на-Дону и области: щиты, пилоны, призматроны и видеоэкраны.</p>
+    <div><a class="btn btn--accent">Смотреть карту</a> &nbsp; <a class="btn btn--ghost">Деятельность</a></div>
+    <div class="stats">
+      <div><b>1995</b><span>год основания</span></div>
+      <div><b>1500+</b><span>конструкций</span></div>
+      <div><b>6</b><span>городов</span></div>
+      <div><b>32</b><span>района</span></div>
+      <div><b>5</b><span>монтажных бригад</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="variant B" id="B">
+  <div class="tag" style="color:#fff">Вариант B · разделённый экран</div>
+  <div class="left">
+    <h1>Ваш бренд увидят на трассах юга</h1>
+    <p style="opacity:.85">Размещение, изготовление и монтаж под ключ — с 1995 года.</p>
+    <div><a class="btn btn--accent">Смотреть карту</a> &nbsp; <a class="btn btn--ghost">Узнать больше</a></div>
+    <div class="stats">
+      <div><b>1995</b><span>год основания</span></div>
+      <div><b>1500+</b><span>конструкций</span></div>
+      <div><b>32</b><span>района</span></div>
+    </div>
+  </div>
+  <div class="right" style="background-image:url('file:///home/alexice/projects/albion_yandex_maps_presentation_demo%20(Copy)/storage/constructions/imports/20260927-180927/photo/card/0073c624388de46d1fb1228d50e2bf101ba7255299e0c1647aaea120dcca5469_photo.jpg')"></div>
+</div>
+
+<div class="variant C" id="C">
+  <div class="tag">Вариант C · колода фото + слоган</div>
+  <div class="inner">
+    <h1>Реклама на собственной сети конструкций</h1>
+    <p style="opacity:.85">От идеи и макета до печати и монтажа.</p>
+    <div><a class="btn btn--accent">Смотреть карту</a> &nbsp; <a class="btn btn--ghost">Портфель</a></div>
+  </div>
+  <div class="deck">
+    <div class="card c1" style="background-image:url('file:///home/alexice/projects/albion_yandex_maps_presentation_demo%20(Copy)/storage/constructions/imports/20260927-180927/photo/card/009ae460c780b39cec544e0a092361250179660bff7f3b817755010c2805064e_photo.jpg')"></div>
+    <div class="card c2" style="background-image:url('file:///home/alexice/projects/albion_yandex_maps_presentation_demo%20(Copy)/storage/constructions/imports/20260927-180927/photo/card/00bd6148588e88c56f49b0d9feb7f566f7a99cf9a38f2e2e30d9d445719611ca_photo.jpg')"></div>
+    <div class="card c3" style="background-image:url('file:///home/alexice/projects/albion_yandex_maps_presentation_demo%20(Copy)/storage/constructions/imports/20260927-180927/photo/card/00ec1ea008b2801ef66ef1c45605d1633e4c67498e779d760434c0f39062d7c4_photo.jpg')"></div>
+  </div>
+</div>
+
+<div class="variant D" id="D" style="background-image:url('file:///home/alexice/projects/albion_yandex_maps_presentation_demo%20(Copy)/storage/constructions/imports/20260927-180927/photo/card/0060a6c48c0057103104ed82441d549eb9cd8e107c07199d79db53d37f2cc1ad_photo.jpg')">
+  <div class="veil"></div>
+  <div class="tag">Вариант D · крупная типографика</div>
+  <div class="inner">
+    <h1>АЛЬБИОН</h1>
+    <div class="sub">Наружная реклама в Ростовской области с 1995 года</div>
+    <div><a class="btn btn--accent">Смотреть карту</a> &nbsp; <a class="btn btn--ghost">Контакты</a></div>
+  </div>
+</div>
+
+</body>
+</html>

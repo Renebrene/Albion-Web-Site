@@ -184,7 +184,7 @@
                 ALBION
               </div>
 
-              <!-- Переключатель: фото ↔ карта-схема -->
+              <!-- Переключатель: фото ↔ карта -->
               <div
                 v-if="item.photo && item.mapLarge"
                 class="media-switch"
@@ -204,7 +204,7 @@
                   :class="{ 'is-active': mediaMode(item.id) === 'map' }"
                   @click.stop="setCardMedia(item, 'map')"
                 >
-                  Карта-схема
+                  Карта
                 </button>
               </div>
             </div>

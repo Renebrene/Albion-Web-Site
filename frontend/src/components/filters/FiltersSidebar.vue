@@ -234,11 +234,26 @@ function clearCities() {
   overflow-y: auto;
   background: #fff;
   border-right: 1px solid #e5e9eb;
-  padding: 28px 20px 30px;
+  /* Верхний отступ переехал в .sidebar-head — чтобы его фон закрывал
+     прокручиваемые фильтры, когда заголовок закреплён. */
+  padding: 0 20px 30px;
 }
 
+/* Заголовок «Интерактивная карта» закреплён: фильтры прокручиваются под
+   ним, а не уносят его вверх. */
 .sidebar-head {
-  margin-bottom: 22px;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+
+  padding: 28px 0 22px;
+
+  background: #fff;
+}
+
+/* Отступ до первого блока даёт padding-bottom заголовка, второй не нужен. */
+.sidebar-head + .filter-section {
+  margin-top: 0;
 }
 
 .eyebrow {

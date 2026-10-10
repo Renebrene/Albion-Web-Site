@@ -2,52 +2,58 @@
   <q-page class="news-page">
     <div class="news-container">
 
-      <header class="news-header">
-        <div>
-          <div class="news-kicker">ALBION</div>
-          <h1>Новости</h1>
-        </div>
+      <!-- Заголовок и фильтры зафиксированы, лента новостей
+           прокручивается под ними. -->
+      <div class="news-sticky">
+        <header class="news-header">
+          <div>
+            <div class="news-kicker">ALBION</div>
+            <h1>Новости</h1>
+          </div>
 
-        <p>
-          События, проекты и новые возможности
-          компании
-        </p>
-      </header>
+          <p>
+            События, проекты и новые возможности
+            компании
+          </p>
+        </header>
 
-      <nav class="news-categories">
-        <button
-          v-for="category in categories"
-          :key="category"
-          type="button"
-          :class="{ active: selectedCategory === category }"
-          @click="selectedCategory = category"
-        >
-          {{ category }}
-        </button>
-      </nav>
-
-      <div v-if="loading" class="news-loading">
-        <q-spinner-dots size="42px" color="primary" />
+        <nav class="news-categories">
+          <button
+            v-for="category in categories"
+            :key="category"
+            type="button"
+            :class="{ active: selectedCategory === category }"
+            @click="selectedCategory = category"
+          >
+            {{ category }}
+          </button>
+        </nav>
       </div>
 
-      <template v-else>
-        <section ref="grid" class="news-grid">
-          <NewsCard
-            v-for="(item, index) in filteredNews"
-            :key="item.id"
-            :news="item"
-            :size="cardSize(index)"
-          />
-        </section>
-
-        <div
-          v-if="!filteredNews.length"
-          class="news-empty"
-        >
-          <strong>Новостей пока нет</strong>
-          <span>Попробуйте выбрать другую категорию.</span>
+      <div class="news-body">
+        <div v-if="loading" class="news-loading">
+          <q-spinner-dots size="42px" color="primary" />
         </div>
-      </template>
+
+        <template v-else>
+          <section ref="grid" class="news-grid">
+            <NewsCard
+              v-for="(item, index) in filteredNews"
+              :key="item.id"
+              :news="item"
+              :size="cardSize(index)"
+            />
+          </section>
+
+          <div
+            v-if="!filteredNews.length"
+            class="news-empty"
+          >
+            <strong>Новостей пока нет</strong>
+            <span>Попробуйте выбрать другую категорию.</span>
+          </div>
+        </template>
+      </div>
 
     </div>
   </q-page>
@@ -147,12 +153,24 @@ const filteredNews = computed(() => {
     })
 })
 
-function cardSize(index) {
-  if (index === 0) return 'large'
-  if (index === 3) return 'horizontal'
-  if (index === 6) return 'horizontal'
+/*
+ * Высота карточки. Ширина у всех одинаковая — одна колонка сетки, а
+ * высоту задаёт пропорция медиа: «large» — высокие, «horizontal» —
+ * приземистые, «normal» — средние. Ритм повторяется по массиву, чтобы
+ * лента выглядела несимметричной, но не «рваной».
+ */
+const CARD_SIZE_PATTERN = [
+  'large',
+  'normal',
+  'horizontal',
+  'normal',
+  'large',
+  'horizontal',
+  'normal'
+]
 
-  return 'normal'
+function cardSize(index) {
+  return CARD_SIZE_PATTERN[index % CARD_SIZE_PATTERN.length]
 }
 
 /*
@@ -233,7 +251,7 @@ watch([filteredNews, loading], async () => {
 
 <style scoped>
 .news-page {
-  min-height: calc(100vh - 115px);
+  min-height: calc(100dvh - var(--albion-header-h, 78px));
   /* Фон заметно темнее светлых карточек — сетка читается как сетка */
   background: #d3dbe0;
 }
@@ -241,7 +259,28 @@ watch([filteredNews, loading], async () => {
 .news-container {
   max-width: 1500px;
   margin: 0 auto;
-  padding: 42px 42px 70px;
+  /* Боковые и нижний отступы плавно растут вместе с окном (clamp) — без
+     резких скачков на границах брейкпоинтов. Верхний отступ переехал в
+     .news-sticky, чтобы фон зафиксированного блока накрывал ленту. */
+  padding: 0 clamp(15px, 2.8vw, 42px) clamp(45px, 5vw, 70px);
+}
+
+/*
+ * Название и фильтры «прилипают» под шапкой сайта: лента новостей
+ * прокручивается под ними. Непрозрачный фон обязателен — иначе карточки
+ * будут видны сквозь зафиксированный блок.
+ */
+.news-sticky {
+  position: sticky;
+  top: var(--albion-header-h, 78px);
+  z-index: 20;
+  padding-top: clamp(25px, 2.8vw, 42px);
+  background: #d3dbe0;
+}
+
+/* Отступ от фильтров до первой карточки. */
+.news-body {
+  padding-top: clamp(16px, 1.5vw, 22px);
 }
 
 .news-header {
@@ -263,7 +302,7 @@ watch([filteredNews, loading], async () => {
 .news-header h1 {
   margin: 0;
   color: #17212b;
-  font-size: 42px;
+  font-size: clamp(30px, 3vw, 42px);
   line-height: 1;
   font-weight: 900;
   letter-spacing: -1.5px;
@@ -273,7 +312,7 @@ watch([filteredNews, loading], async () => {
   max-width: 300px;
   margin: 0;
   color: #78848b;
-  font-size: 12px;
+  font-size: clamp(11px, .8vw, 12px);
   line-height: 1.45;
   text-align: right;
 }
@@ -282,7 +321,9 @@ watch([filteredNews, loading], async () => {
   display: flex;
   align-items: center;
   gap: 5px;
-  margin-bottom: 22px;
+  /* Без нижнего отступа: граница фильтров — низ зафиксированного блока,
+     под ним лента уходит при прокрутке. Отступ до карточек даёт
+     .news-body. */
   padding-bottom: 13px;
   border-bottom: 1px solid #dfe4e7;
 }
@@ -313,7 +354,9 @@ watch([filteredNews, loading], async () => {
 
 .news-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  /* Пять карточек в ряд на широких экранах; на меньших ширинах число
+     колонок уменьшается (см. медиазапросы ниже). */
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 
   /*
    * Строка-единица для плиточной укладки. Значения должны совпадать
@@ -353,27 +396,32 @@ watch([filteredNews, loading], async () => {
   font-size: 12px;
 }
 
-@media (max-width: 1100px) {
-  .news-container {
-    padding: 32px 25px 55px;
+/*
+ * Число карточек в ряду уменьшается вместе с окном, чтобы карточки не
+ * становились слишком узкими. Размер самих карточек при этом не
+ * масштабируется — меняется только количество колонок.
+ */
+@media (max-width: 1400px) {
+  .news-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
 
+@media (max-width: 1100px) {
+  .news-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
   .news-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 650px) {
-  .news-container {
-    padding: 25px 15px 45px;
-  }
-
   .news-header {
     display: block;
-  }
-
-  .news-header h1 {
-    font-size: 34px;
   }
 
   .news-header p {
@@ -388,9 +436,30 @@ watch([filteredNews, loading], async () => {
   .news-categories button {
     flex: 0 0 auto;
   }
+}
 
+@media (max-width: 540px) {
   .news-grid {
     grid-template-columns: 1fr;
   }
+}
+</style>
+
+<style>
+/*
+ * Пока открыта страница новостей, системный скроллбар окна прячем: лента
+ * прокручивается под зафиксированными заголовком и фильтрами, а «поле
+ * прокрутки» остаётся невидимым. Правила глобальные (вне scoped), потому
+ * что прокручивается сам документ, а не внутренний контейнер.
+ */
+html:has(.news-page),
+body:has(.news-page) {
+  scrollbar-width: none;      /* Firefox */
+  -ms-overflow-style: none;   /* старый Edge / IE */
+}
+
+html:has(.news-page)::-webkit-scrollbar,
+body:has(.news-page)::-webkit-scrollbar {
+  display: none;              /* Chrome / Safari */
 }
 </style>

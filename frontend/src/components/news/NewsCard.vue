@@ -7,7 +7,10 @@
     ]"
     @click="openNews"
   >
-    <div class="news-media">
+    <div
+      class="news-media"
+      :style="mediaAspect ? { aspectRatio: mediaAspect } : null"
+    >
       <template v-if="mediaItems.length">
         <!-- Видео в карточке: без автозапуска, показываем постер/первый кадр -->
         <video
@@ -125,6 +128,22 @@ const mediaItems = computed(
 )
 const activeMedia = computed(() => mediaItems.value[currentSlide.value] || {})
 
+/*
+ * Пропорция кадра по обложке (реальные width/height из API). Задаём её
+ * контейнеру медиа: тогда фото ложится по ширине карточки целиком, без
+ * обрезки, а высота карточки остаётся стабильной до загрузки картинки.
+ * Если размеров нет — работает запасная пропорция из CSS (.news-card-*).
+ */
+const coverMedia = computed(
+  () => mediaItems.value[coverIndex(mediaItems.value)] || {}
+)
+const mediaAspect = computed(() => {
+  const width = Number(coverMedia.value.width)
+  const height = Number(coverMedia.value.height)
+
+  return width > 0 && height > 0 ? `${width} / ${height}` : null
+})
+
 watch(
   mediaItems,
   list => {
@@ -193,14 +212,11 @@ function openNews() {
   box-shadow: 0 12px 32px rgba(20, 30, 40, .10);
 }
 
-/* Ширину задаёт разметка, высоту считает плиточная укладка (NewsPage). */
-.news-card-large {
-  grid-column: span 2;
-}
-
-.news-card-horizontal {
-  grid-column: span 2;
-}
+/*
+ * Ширину задаёт сетка (NewsPage) — все карточки одной ширины.
+ * «large» / «horizontal» влияют только на высоту (пропорцию медиа) и
+ * размер заголовка, но не на ширину.
+ */
 
 .news-media {
   position: relative;
@@ -219,12 +235,14 @@ function openNews() {
   aspect-ratio: 1.35;
 }
 
+/* Высокая карточка: медиа выше — карточка заметно длиннее соседей. */
 .news-card-large .news-media {
-  aspect-ratio: 1.55;
+  aspect-ratio: 1.05;
 }
 
+/* Приземистая карточка: широкое медиа — карточка короткая. */
 .news-card-horizontal .news-media {
-  aspect-ratio: 2.1;
+  aspect-ratio: 2;
 }
 
 .news-media img,
@@ -232,7 +250,10 @@ function openNews() {
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  /* Вписываем кадр целиком: для обложки пропорция контейнера совпадает
+     с пропорцией фото, поэтому оно занимает всю площадь без обрезки;
+     прочие кадры карусели показываются полностью, без кропа. */
+  object-fit: contain;
   transition: transform .4s ease;
 }
 
@@ -255,7 +276,9 @@ function openNews() {
 }
 
 .news-card-content {
-  padding: 15px 17px 18px;
+  padding: clamp(12px, 1.15vw, 15px)
+           clamp(13px, 1.3vw, 17px)
+           clamp(14px, 1.5vw, 18px);
 }
 
 .news-meta {
@@ -265,7 +288,7 @@ function openNews() {
   gap: 12px;
   margin-bottom: 8px;
   color: #89949b;
-  font-size: 9px;
+  font-size: clamp(8px, .62vw, 9px);
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: .35px;
@@ -278,24 +301,24 @@ function openNews() {
 .news-card h2 {
   margin: 0;
   color: #17212b;
-  font-size: 17px;
+  font-size: clamp(15px, 1.15vw, 17px);
   line-height: 1.12;
   font-weight: 850;
 }
 
 .news-card-large h2 {
-  font-size: 25px;
+  font-size: clamp(19px, 1.7vw, 25px);
   line-height: 1.08;
 }
 
 .news-card-horizontal h2 {
-  font-size: 21px;
+  font-size: clamp(17px, 1.4vw, 21px);
 }
 
 .news-card p {
   margin: 9px 0 0;
   color: #65727b;
-  font-size: 12px;
+  font-size: clamp(11px, .85vw, 12px);
   line-height: 1.45;
 }
 
@@ -305,7 +328,7 @@ function openNews() {
   gap: 6px;
   margin-top: 13px;
   color: #17212b;
-  font-size: 10px;
+  font-size: clamp(9px, .7vw, 10px);
   font-weight: 850;
   text-transform: uppercase;
   letter-spacing: .3px;
@@ -373,20 +396,12 @@ function openNews() {
 }
 
 @media (max-width: 800px) {
-  .news-card-large,
-  .news-card-horizontal {
-    grid-column: span 1;
-    grid-row: span 1;
-  }
-
+  /* На узких экранах выравниваем пропорции медиа, чтобы высокие
+     карточки не растягивали плитку. Кегль заголовка уже упирается в
+     нижнюю границу clamp и отдельной правки не требует. */
   .news-card-large .news-media,
   .news-card-horizontal .news-media {
     aspect-ratio: 1.35;
-  }
-
-  .news-card-large h2,
-  .news-card-horizontal h2 {
-    font-size: 19px;
   }
 }
 </style>

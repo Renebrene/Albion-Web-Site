@@ -178,7 +178,11 @@ export function normalizeMedia(list, preferred) {
         // другой вариант (card/thumb/large) и постер видео.
         storage_path: item.storage_path || '',
         variants: Array.isArray(item.variants) ? item.variants : [],
-        preview_path: item.preview_path || null
+        preview_path: item.preview_path || null,
+        // Реальные размеры исходника — из них считаем пропорцию кадра,
+        // чтобы фото вписывалось по ширине без обрезки.
+        width: item.width ?? null,
+        height: item.height ?? null
       }
     })
     .filter(item => item.url)

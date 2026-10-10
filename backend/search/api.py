@@ -16,6 +16,7 @@ class SearchRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     city: str | None = None
+    district: str | None = None
     address: str | None = None
 
     media_type: str | None = None
@@ -41,6 +42,16 @@ class SearchRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_period(self) -> "SearchRequest":
+        if self.availability not in {None, "FREE"}:
+            raise ValueError("availability должен быть FREE или не задан")
+
+        if self.sort_by not in {None, "price_asc", "load_asc"}:
+            raise ValueError("sort_by должен быть price_asc или load_asc")
+
+        if self.availability == "FREE" and self.month is None and not self.months:
+            raise ValueError(
+                "Для поиска свободных конструкций укажите месяц или период"
+            )
         if self.month is not None and self.months:
             raise ValueError(
                 "Нельзя одновременно задавать month и months"
@@ -71,6 +82,7 @@ class SearchRequest(BaseModel):
     def to_search_query(self) -> SearchQuery:
         return SearchQuery(
             city=self.city,
+            district=self.district,
             address=self.address,
             media_type=self.media_type,
             size=self.size,
@@ -94,16 +106,34 @@ class SearchResult(BaseModel):
     id: int
     external_id: str | None = None
     city: str | None = None
+    district: str | None = None
     address: str | None = None
+    name: str | None = None
     side: str | None = None
+    type: str | None = None
     media_type: str | None = None
     size: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
     price: int | None = None
     load_percent: int | None = None
     status: str | None = None
     raw_value: str | None = None
     photo_url: str | None = None
+    photo: str | None = None
+    photo_thumb: str | None = None
+    photo_large: str | None = None
+    map: str | None = None
+    map_thumb: str | None = None
+    map_card: str | None = None
+    map_large: str | None = None
+    light: str | None = None
+    material: str | None = None
+    monthly_loads: dict[int, int | None] = Field(default_factory=dict)
+    month_texts: dict[int, str | None] = Field(default_factory=dict)
 
     monthly_prices: dict[int, int | None] = Field(
         default_factory=dict
@@ -131,6 +161,44 @@ class SearchResult(BaseModel):
             monthly_statuses=dict(item.monthly_statuses),
         )
 
+    @classmethod
+    def from_rich(cls, item: dict[str, Any]) -> "SearchResult":
+        """Serialize the site-compatible result used by chat and map UI."""
+        return cls(
+            id=int(item.get("id") or 0),
+            external_id=item.get("external_id"),
+            city=item.get("city"),
+            district=item.get("district"),
+            address=item.get("address"),
+            name=item.get("name") or item.get("title"),
+            side=item.get("side"),
+            type=item.get("type"),
+            media_type=item.get("media_type"),
+            size=item.get("size"),
+            lat=item.get("lat"),
+            lng=item.get("lng"),
+            latitude=item.get("latitude"),
+            longitude=item.get("longitude"),
+            price=item.get("price"),
+            load_percent=item.get("load_percent"),
+            status=item.get("status"),
+            raw_value=item.get("raw_value"),
+            photo_url=item.get("photo_url"),
+            photo=item.get("photo"),
+            photo_thumb=item.get("photo_thumb"),
+            photo_large=item.get("photo_large"),
+            map=item.get("map"),
+            map_thumb=item.get("map_thumb"),
+            map_card=item.get("map_card"),
+            map_large=item.get("map_large"),
+            light=item.get("light"),
+            material=item.get("material"),
+            monthly_prices=dict(item.get("monthly_prices") or {}),
+            monthly_statuses=dict(item.get("monthly_statuses") or {}),
+            monthly_loads=dict(item.get("monthly_loads") or {}),
+            month_texts=dict(item.get("month_texts") or {}),
+        )
+
 
 class SearchResponse(BaseModel):
     """HTTP response for Albion search."""
@@ -151,6 +219,19 @@ class SearchResponse(BaseModel):
             ],
         )
 
+    @classmethod
+    def from_rich_items(
+        cls,
+        items: list[dict[str, Any]],
+    ) -> "SearchResponse":
+        return cls(
+            count=len(items),
+            results=[
+                SearchResult.from_rich(item)
+                for item in items
+            ],
+        )
+
 
 def execute_search(
     request: SearchRequest,
@@ -160,8 +241,12 @@ def execute_search(
 
     search_bridge = bridge or AlbionSearchBridge()
 
-    items = search_bridge.search(
-        request.to_search_query()
-    )
+    query = request.to_search_query()
 
-    return SearchResponse.from_items(items)
+    if hasattr(search_bridge, "search_rich"):
+        items = search_bridge.search_rich(query)
+        return SearchResponse.from_rich_items(items)
+
+    # Preserve compatibility with small test/dummy bridges that implement
+    # only the original SearchResultItem contract.
+    return SearchResponse.from_items(search_bridge.search(query))

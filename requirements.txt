@@ -1,6 +1,8 @@
 fastapi
 uvicorn
 psycopg[binary]
+SQLAlchemy>=2,<3
+# The runtime search engine is vendored under ./engine (top-level import: engine).
 pwdlib
 openpyxl
 xlrd

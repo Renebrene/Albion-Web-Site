@@ -64,10 +64,12 @@ class SitePostgreSQLSearchRepository:
                 s.id,
                 s.uuid,
                 ci.name AS city,
+                c.district,
                 s.name AS title,
                 c.address,
                 s.side,
-                s.type AS media_type,
+                COALESCE(NULLIF(s.type, ''), NULLIF(s.media_type, '')) AS media_type,
+                s.type,
                 s.size,
                 s.price,
                 s.external_number AS external_id,
@@ -78,6 +80,73 @@ class SitePostgreSQLSearchRepository:
                 s.light,
                 s.material,
                 c.address_key,
+                s.surface_hash,
+                (
+                    SELECT cm.card_path
+                    FROM construction_media cm
+                    JOIN construction_imports ci2
+                      ON ci2.id = cm.import_id
+                    WHERE cm.surface_hash = s.surface_hash
+                      AND cm.media_type = 'photo'
+                      AND ci2.status = 'active'
+                    ORDER BY ci2.id DESC, cm.id DESC
+                    LIMIT 1
+                ) AS photo_card,
+                (
+                    SELECT cm.thumb_path
+                    FROM construction_media cm
+                    JOIN construction_imports ci2
+                      ON ci2.id = cm.import_id
+                    WHERE cm.surface_hash = s.surface_hash
+                      AND cm.media_type = 'photo'
+                      AND ci2.status = 'active'
+                    ORDER BY ci2.id DESC, cm.id DESC
+                    LIMIT 1
+                ) AS photo_thumb,
+                (
+                    SELECT cm.large_path
+                    FROM construction_media cm
+                    JOIN construction_imports ci2
+                      ON ci2.id = cm.import_id
+                    WHERE cm.surface_hash = s.surface_hash
+                      AND cm.media_type = 'photo'
+                      AND ci2.status = 'active'
+                    ORDER BY ci2.id DESC, cm.id DESC
+                    LIMIT 1
+                ) AS photo_large,
+                (
+                    SELECT cm.card_path
+                    FROM construction_media cm
+                    JOIN construction_imports ci2
+                      ON ci2.id = cm.import_id
+                    WHERE cm.surface_hash = s.surface_hash
+                      AND cm.media_type = 'map'
+                      AND ci2.status = 'active'
+                    ORDER BY ci2.id DESC, cm.id DESC
+                    LIMIT 1
+                ) AS map_card,
+                (
+                    SELECT cm.thumb_path
+                    FROM construction_media cm
+                    JOIN construction_imports ci2
+                      ON ci2.id = cm.import_id
+                    WHERE cm.surface_hash = s.surface_hash
+                      AND cm.media_type = 'map'
+                      AND ci2.status = 'active'
+                    ORDER BY ci2.id DESC, cm.id DESC
+                    LIMIT 1
+                ) AS map_thumb,
+                (
+                    SELECT cm.large_path
+                    FROM construction_media cm
+                    JOIN construction_imports ci2
+                      ON ci2.id = cm.import_id
+                    WHERE cm.surface_hash = s.surface_hash
+                      AND cm.media_type = 'map'
+                      AND ci2.status = 'active'
+                    ORDER BY ci2.id DESC, cm.id DESC
+                    LIMIT 1
+                ) AS map_large,
                 s.is_active,
                 s.created_at,
                 s.updated_at
@@ -143,7 +212,7 @@ class SitePostgreSQLSearchRepository:
 
         if media_type:
             conditions.append(
-                "LOWER(s.type) LIKE LOWER(:media_type)"
+                "LOWER(COALESCE(NULLIF(s.type, ''), NULLIF(s.media_type, ''))) LIKE LOWER(:media_type)"
             )
             params["media_type"] = f"%{media_type.strip()}%"
 
@@ -171,10 +240,15 @@ class SitePostgreSQLSearchRepository:
                 params,
             ).mappings().all()
 
-        surfaces = [
-            SiteSurfaceMapper.map(row)
-            for row in rows
-        ]
+        # Joining availability can produce one row per month. Keep one
+        # canonical surface before applying in-memory price/load predicates.
+        mapped: dict[int, SurfaceRecord] = {}
+        for row in rows:
+            surface = SiteSurfaceMapper.map(row)
+            if surface.id is not None:
+                mapped[surface.id] = surface
+
+        surfaces = list(mapped.values())
 
         if min_price is not None:
             surfaces = [
@@ -588,7 +662,7 @@ class SitePostgreSQLSearchRepository:
 
         if media_type:
             conditions.append(
-                "LOWER(s.type) LIKE LOWER(:media_type)"
+                "LOWER(COALESCE(NULLIF(s.type, ''), NULLIF(s.media_type, ''))) LIKE LOWER(:media_type)"
             )
             params["media_type"] = f"%{media_type.strip()}%"
 
