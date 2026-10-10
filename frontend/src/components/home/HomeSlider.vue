@@ -276,7 +276,10 @@
                   <a class="slide-btn" href="/vozmozhnosti">
                     Перейти на интерактивную карту
                   </a>
-                  <a class="slide-btn slide-btn--ghost" href="/informaciya">
+                  <a
+                    class="slide-btn slide-btn--ghost"
+                    href="/informaciya?tab=%D0%B3%D0%BE%D1%80%D0%BE%D0%B4%D0%B0%20%D0%B8%20%D1%80%D0%B0%D0%B9%D0%BE%D0%BD%D1%8B"
+                  >
                     Смотреть описание городов и районов
                   </a>
                 </div>
@@ -1081,19 +1084,27 @@ onBeforeUnmount(() => {
 .hero-a-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: clamp(22px, 3vw, 46px);
-  margin-top: 4px;
+  gap: clamp(18px, 2.6vw, 40px);
+  margin-top: 6px;
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(10, 14, 18, 0.5);
 }
 
 .hero-a-stat {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 4px;
 }
 
 .hero-a-stat-label {
-  font-size: clamp(11px, 1vw, 13px);
-  opacity: 0.72;
+  font-size: clamp(9px, 0.85vw, 11px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.62;
 }
 
 .hero-a-stat b {
@@ -1128,6 +1139,8 @@ onBeforeUnmount(() => {
 .hero-net-cell {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  text-align: center;
   gap: 4px;
 }
 

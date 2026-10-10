@@ -3,7 +3,14 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
+import {
+  ref,
+  shallowRef,
+  onMounted,
+  onBeforeUnmount,
+  watch,
+  nextTick
+} from 'vue'
 
 import { mapEngine } from '../config/mapConfig'
 import { ensureSiteSettings } from '../boot/settings'
@@ -46,6 +53,21 @@ const mapElement = ref(null)
  */
 const mapApi = shallowRef(null)
 const activeEngine = ref('')
+
+/*
+ * Готовность карты: движок создан и регион загружен. Нужна, чтобы
+ * центровка по городу/району (из ссылки на карточке) выполнялась
+ * ПОСЛЕ инициализации карты, а не молча терялась.
+ */
+const isReady = ref(false)
+let readyResolve = null
+const readyPromise = new Promise(resolve => {
+  readyResolve = resolve
+})
+
+function whenReady() {
+  return isReady.value ? Promise.resolve() : readyPromise
+}
 
 /* CSS Leaflet грузим только если реально используется Leaflet-движок. */
 async function loadLeafletCss() {
@@ -103,10 +125,7 @@ function syncSearchPoint() {
   const lng = Number(point?.lng)
   const radius = Number(props.searchRadius)
 
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng)
-  ) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     api.clearSearchPoint()
     api.clearSearchRadius()
     return
@@ -114,10 +133,7 @@ function syncSearchPoint() {
 
   api.setSearchPoint(lat, lng)
 
-  if (
-    Number.isFinite(radius) &&
-    radius > 0
-  ) {
+  if (Number.isFinite(radius) && radius > 0) {
     api.setSearchRadius(lat, lng, radius)
   } else {
     api.clearSearchRadius()
@@ -138,11 +154,23 @@ onMounted(async () => {
 
   api.setConstructions(props.constructions, props.selectedMonths)
 
-  await api.loadRegion()
+  try {
+    await api.loadRegion()
+  } catch (error) {
+    /* Регион не критичен для центровки по городу — не блокируем готовность. */
+    console.warn('Albion map: не удалось загрузить регион.', error)
+  }
 
   await nextTick()
 
   api.invalidateSize()
+
+  isReady.value = true
+
+  if (readyResolve) {
+    readyResolve()
+    readyResolve = null
+  }
 })
 
 watch(
@@ -174,10 +202,7 @@ function moveToCoordinates(lat, lng, zoom = 14) {
 }
 
 function getCoordinatesAtScreenPoint(clientX, clientY) {
-  return (
-    mapApi.value?.getCoordinatesAtScreenPoint(clientX, clientY) ??
-    null
-  )
+  return mapApi.value?.getCoordinatesAtScreenPoint(clientX, clientY) ?? null
 }
 
 function setMapDraggingEnabled(enabled) {
@@ -189,6 +214,7 @@ defineExpose({
   setMapCenter: moveToCoordinates,
   getCoordinatesAtScreenPoint,
   setMapDraggingEnabled,
+  whenReady,
 
   /* Текущий активный движок — полезно для отладки/UI. */
   activeEngine

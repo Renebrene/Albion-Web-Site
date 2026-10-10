@@ -23,10 +23,15 @@ def _media_url(storage_path: str | None) -> str:
 
 
 def _map_href(kind: str, value: str, enabled: bool) -> str:
+    """Ссылка на интерактивную карту с выбранным направлением.
+
+    Города и районы — это записи одного фильтра «Город» на карте,
+    поэтому параметр всегда ``city``: по нему карта ставит галочку в
+    фильтре и центрируется на направлении (как клик по названию).
+    """
     if not enabled or not value:
         return ''
-    key = 'city' if kind == 'city' else 'address'
-    return f'/vozmozhnosti?{key}={quote(value, safe="")}'
+    return f'/vozmozhnosti?city={quote(value, safe="")}'
 
 
 WHEEL_MODES = ('off', 'v1', 'v2', 'v3')

@@ -258,6 +258,8 @@ onMounted(load)
 
 <style scoped>
 .info-page {
+  /* Общая высота панелей: список слева и карточка справа совпадают. */
+  --info-panel-h: 600px;
   background: #f3f5f6;
 }
 
@@ -379,7 +381,7 @@ onMounted(load)
 .geo-list {
   display: flex;
   flex-direction: column;
-  max-height: 600px;
+  max-height: var(--info-panel-h);
   overflow-y: auto;
   border-top: 1px solid #dfe4e7;
 }
@@ -423,6 +425,7 @@ onMounted(load)
 .geo-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  height: var(--info-panel-h);
   border-radius: 18px;
   overflow: hidden;
   background: #182127;
@@ -450,10 +453,12 @@ onMounted(load)
 .geo-card-body {
   display: flex;
   flex-direction: column;
+  min-height: 0;
   padding: 34px 38px 28px;
 }
 
 .geo-card-title {
+  flex: 0 0 auto;
   margin: 0 0 14px;
   color: #fff;
   font-size: clamp(24px, 2.4vw, 34px);
@@ -461,7 +466,12 @@ onMounted(load)
   font-weight: 900;
 }
 
+/* Текст занимает свободное место; при нехватке — прокручивается,
+   а блок статистики и кнопка остаются на месте. */
 .geo-card-text {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   color: rgba(255, 255, 255, 0.85);
   font-size: 15px;
   line-height: 1.7;
@@ -481,6 +491,7 @@ onMounted(load)
 }
 
 .geo-card-stats {
+  flex: 0 0 auto;
   margin-top: 16px;
   padding: 12px 14px;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -522,6 +533,7 @@ onMounted(load)
 }
 
 .geo-card-mapbtn {
+  flex: 0 0 auto;
   align-self: flex-start;
   margin-top: 16px;
   padding: 11px 18px;
@@ -539,7 +551,8 @@ onMounted(load)
 }
 
 .geo-card-credit {
-  margin-top: auto;
+  flex: 0 0 auto;
+  margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.5);
@@ -582,6 +595,7 @@ onMounted(load)
 
   .geo-card {
     grid-template-columns: 1fr;
+    height: auto;
   }
 
   .geo-card-photo {
@@ -590,6 +604,12 @@ onMounted(load)
 
   .geo-card-body {
     padding: 24px 20px;
+  }
+
+  /* На мобильном карточка растёт по контенту — прокрутка текста не нужна. */
+  .geo-card-text {
+    flex: none;
+    overflow: visible;
   }
 }
 </style>

@@ -1,9 +1,6 @@
 <template>
   <q-page class="advertising-page">
-
-
     <div class="app">
-
       <FiltersSidebar
         v-if="workspaceMode !== 'point'"
         v-model:selected-months="selectedMonths"
@@ -37,7 +34,6 @@
       />
 
       <main class="workspace">
-
         <!-- Плавающий блок: переключатель (слева) + поиск (справа) -->
         <div class="workspace-float">
           <div class="workspace-mode-switch">
@@ -76,10 +72,7 @@
 
         <!-- КАРТА -->
 
-        <div
-          v-if="workspaceMode === 'map'"
-          class="map-wrap"
-        >
+        <div v-if="workspaceMode === 'map'" class="map-wrap">
           <MapView
             ref="mapViewRef"
             :constructions="displayedConstructions"
@@ -90,10 +83,7 @@
 
         <!-- ПОИСК ПО ТОЧКЕ И АДРЕСУ -->
 
-        <div
-          v-else-if="workspaceMode === 'point'"
-          class="map-wrap"
-        >
+        <div v-else-if="workspaceMode === 'point'" class="map-wrap">
           <MapView
             ref="mapViewRef"
             :constructions="pointFilteredConstructions"
@@ -103,8 +93,6 @@
             :search-radius="pointRadius"
             @map-center="updatePointCoordinatesFromMap"
           />
-
-
 
           <div
             v-if="pointSelectionState !== 'fixed'"
@@ -175,10 +163,7 @@
             >
               <span>ТОЧКА ЗАФИКСИРОВАНА</span>
 
-              <button
-                type="button"
-                @click="changeSelectedPoint"
-              >
+              <button type="button" @click="changeSelectedPoint">
                 ИЗМЕНИТЬ ТОЧКУ
               </button>
             </div>
@@ -197,7 +182,7 @@
                 step="1"
                 :value="pointRadiusIndex"
                 @input="onPointRadiusInput"
-              >
+              />
 
               <div class="point-radius-marks">
                 <span
@@ -223,9 +208,7 @@
                не двигаются, карточки прокручиваются под ними. -->
           <div class="list-header">
             <div>
-              <div class="list-kicker">
-                РЕКЛАМНЫЕ ВОЗМОЖНОСТИ
-              </div>
+              <div class="list-kicker"> РЕКЛАМНЫЕ ВОЗМОЖНОСТИ </div>
 
               <h1>
                 {{ displayedConstructions.length }}
@@ -234,11 +217,7 @@
             </div>
 
             <!-- Ручной выбор числа колонок карточек. -->
-            <div
-              class="list-columns"
-              role="group"
-              aria-label="Число колонок"
-            >
+            <div class="list-columns" role="group" aria-label="Число колонок">
               <button
                 v-for="count in columnOptions"
                 :key="count"
@@ -264,306 +243,308 @@
             @virtual-scroll="onListScroll"
           >
             <template #default="{ item: row }">
+              <!-- Строка сетки: columns колонок, повторяет прежний auto-fill. -->
+              <div
+                :key="row.key"
+                class="construction-row"
+                :style="{ gridTemplateColumns: `repeat(${listColumns}, 1fr)` }"
+              >
+                <article
+                  v-for="point in row.items"
+                  :key="point.key"
+                  class="construction-card"
+                >
+                  <div class="card-content">
+                    <div class="card-address-main">
+                      {{ point.address }}
+                    </div>
 
-            <!-- Строка сетки: columns колонок, повторяет прежний auto-fill. -->
-            <div
-              :key="row.key"
-              class="construction-row"
-              :style="{ gridTemplateColumns: `repeat(${listColumns}, 1fr)` }"
-            >
+                    <div class="card-place">
+                      {{ point.city }}
+                    </div>
 
-            <article
-              v-for="point in row.items"
-              :key="point.key"
-              class="construction-card"
-            >
-
-              <div class="card-content">
-
-                <div class="card-address-main">
-                  {{ point.address }}
-                </div>
-
-                <div class="card-place">
-                  {{ point.city }}
-                </div>
-
-                <div class="card-blocks">
-
-                  <div
-                    v-for="(block, blockIndex) in point.blocks"
-                    :key="`${block.type}-${block.parent}-${blockIndex}`"
-                    class="card-block"
-                    :class="[
-                      `card-block--${block.kind}`,
-                      { 'pf-mode': isBlockActive(block) }
-                    ]"
-                  >
-
-                    <div class="card-topline">
-
-                      <div class="card-type">
-
-                        <strong>
-                          {{ blockType(block) }}
-                        </strong>
-
-                        <span
-                          v-if="blockSize(block)"
-                          class="card-size"
-                        >
-                          {{ blockSize(block) }}
-                        </span>
-
-                      </div>
-
+                    <div class="card-blocks">
                       <div
-                        v-if="hasPrice(blockPrimary(block))"
-                        class="card-price-inline"
+                        v-for="(block, blockIndex) in point.blocks"
+                        :key="`${block.type}-${block.parent}-${blockIndex}`"
+                        class="card-block"
+                        :class="[
+                          `card-block--${block.kind}`,
+                          { 'pf-mode': isBlockActive(block) }
+                        ]"
                       >
-                        <span
-                          v-if="blockPrimary(block).price"
-                          class="price-value"
-                          :class="{ 'is-old': promoPriceOf(blockPrimary(block)) }"
-                        >
-                          {{ blockPrimary(block).price }}
-                        </span>
+                        <div class="card-topline">
+                          <div class="card-type">
+                            <strong>
+                              {{ blockType(block) }}
+                            </strong>
 
-                        <span
-                          v-if="blockPrimary(block).price"
-                          class="price-currency"
-                        >
-                          ₽
-                        </span>
+                            <span v-if="blockSize(block)" class="card-size">
+                              {{ blockSize(block) }}
+                            </span>
+                          </div>
 
-                        <span
-                          v-if="blockPrimary(block).price"
-                          class="price-period"
-                        >
-                          / мес.
-                        </span>
+                          <div
+                            v-if="hasPrice(blockPrimary(block))"
+                            class="card-price-inline"
+                          >
+                            <span
+                              v-if="blockPrimary(block).price"
+                              class="price-value"
+                              :class="{
+                                'is-old': promoPriceOf(blockPrimary(block))
+                              }"
+                            >
+                              {{ blockPrimary(block).price }}
+                            </span>
 
-                        <div
-                          v-if="promoPriceOf(blockPrimary(block))"
-                          class="card-promo-price"
-                        >
-                          <span class="promo-price-value">
-                            {{ promoPriceOf(blockPrimary(block)) }}
-                          </span>
-                          <span class="promo-price-currency">
-                            ₽
-                          </span>
-                          <span class="promo-price-note">
-                            акционная цена
-                          </span>
+                            <span
+                              v-if="blockPrimary(block).price"
+                              class="price-currency"
+                            >
+                              ₽
+                            </span>
+
+                            <span
+                              v-if="blockPrimary(block).price"
+                              class="price-period"
+                            >
+                              / мес.
+                            </span>
+
+                            <div
+                              v-if="promoPriceOf(blockPrimary(block))"
+                              class="card-promo-price"
+                            >
+                              <span class="promo-price-value">
+                                {{ promoPriceOf(blockPrimary(block)) }}
+                              </span>
+                              <span class="promo-price-currency"> ₽ </span>
+                              <span class="promo-price-note">
+                                акционная цена
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
 
-                    </div>
+                        <div v-if="blockSide(block)" class="card-side-line">
+                          СТОРОНА <b>{{ blockSide(block) }}</b>
+                        </div>
 
-                    <div
-                      v-if="blockSide(block)"
-                      class="card-side-line"
-                    >
-                      СТОРОНА <b>{{ blockSide(block) }}</b>
-                    </div>
+                        <div class="card-photo card-photo--block">
+                          <img
+                            v-if="hasCardImage(point, block, blockIndex)"
+                            :src="cardImageSrc(point, block, blockIndex)"
+                            :srcset="cardImageSrcset(point, block, blockIndex)"
+                            sizes="(max-width: 760px) 100vw, (max-width: 1200px) 70vw, 900px"
+                            :alt="point.address"
+                            loading="lazy"
+                            decoding="async"
+                            width="1000"
+                            height="625"
+                            class="card-photo-clickable"
+                            :title="
+                              cardImageMode(point, block, blockIndex) === 'map'
+                                ? 'Открыть карту и фото'
+                                : 'Открыть фото и карту'
+                            "
+                            @click.stop="openBlockPhoto(point, block)"
+                          />
 
-                    <div class="card-photo card-photo--block">
+                          <div v-else class="no-photo"> ALBION </div>
 
-                      <img
-                        v-if="hasCardImage(point, block, blockIndex)"
-                        :src="cardImageSrc(point, block, blockIndex)"
-                        :srcset="cardImageSrcset(point, block, blockIndex)"
-                        sizes="(max-width: 760px) 100vw, (max-width: 1200px) 70vw, 900px"
-                        :alt="point.address"
-                        loading="lazy"
-                        decoding="async"
-                        width="1000"
-                        height="625"
-                        class="card-photo-clickable"
-                        :title="cardImageMode(point, block, blockIndex) === 'map'
-                          ? 'Открыть карту и фото'
-                          : 'Открыть фото и карту'"
-                        @click.stop="openBlockPhoto(point, block)"
-                      >
+                          <!-- Переключатель: фото ↔ карта -->
+                          <div
+                            v-if="canSwitchCardMedia(block)"
+                            class="media-switch"
+                            @click.stop
+                          >
+                            <button
+                              type="button"
+                              class="media-switch__btn"
+                              :class="{
+                                'is-active':
+                                  cardImageMode(point, block, blockIndex) ===
+                                  'photo'
+                              }"
+                              @click.stop="
+                                setCardMedia(point, blockIndex, 'photo')
+                              "
+                            >
+                              Фото
+                            </button>
+                            <button
+                              type="button"
+                              class="media-switch__btn"
+                              :class="{
+                                'is-active':
+                                  cardImageMode(point, block, blockIndex) ===
+                                  'map'
+                              }"
+                              @click.stop="
+                                setCardMedia(point, blockIndex, 'map')
+                              "
+                            >
+                              Карта
+                            </button>
+                          </div>
+                        </div>
 
-                      <div
-                        v-else
-                        class="no-photo"
-                      >
-                        ALBION
-                      </div>
-
-                      <!-- Переключатель: фото ↔ карта -->
-                      <div
-                        v-if="canSwitchCardMedia(block)"
-                        class="media-switch"
-                        @click.stop
-                      >
-                        <button
-                          type="button"
-                          class="media-switch__btn"
-                          :class="{
-                            'is-active': cardImageMode(point, block, blockIndex) === 'photo'
-                          }"
-                          @click.stop="setCardMedia(point, blockIndex, 'photo')"
+                        <!-- Динамика: строки A(1)/A(2)… с месяцами -->
+                        <div
+                          v-if="block.kind === 'dynamic'"
+                          class="card-dynamic-rows"
                         >
-                          Фото
-                        </button>
-                        <button
-                          type="button"
-                          class="media-switch__btn"
-                          :class="{
-                            'is-active': cardImageMode(point, block, blockIndex) === 'map'
-                          }"
-                          @click.stop="setCardMedia(point, blockIndex, 'map')"
-                        >
-                          Карта
-                        </button>
-                      </div>
+                          <div
+                            v-for="row in block.items"
+                            :key="sideLabel(row)"
+                            class="card-dynamic-row"
+                          >
+                            <span class="card-dynamic-side">
+                              {{ sideLabel(row) }}
+                            </span>
 
-                    </div>
+                            <div class="card-months card-months--inline">
+                              <div
+                                v-for="month in MONTHS"
+                                :key="month.full"
+                                class="card-month"
+                                :class="[
+                                  getCardMonthState(row, month.full),
+                                  {
+                                    'is-selected':
+                                      surfaceIdOf(row) !== null &&
+                                      isMonthSelected(row.id, month.full),
+                                    'is-locked':
+                                      isBlockActive(block) &&
+                                      isMonthLocked(row, month.full)
+                                  }
+                                ]"
+                                :title="getMonthStatusLabel(row, month.full)"
+                                @click="onCardMonthClick(block, row, month)"
+                              >
+                                {{ month.short }}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
 
-                    <!-- Динамика: строки A(1)/A(2)… с месяцами -->
-                    <div
-                      v-if="block.kind === 'dynamic'"
-                      class="card-dynamic-rows"
-                    >
-                      <div
-                        v-for="row in block.items"
-                        :key="sideLabel(row)"
-                        class="card-dynamic-row"
-                      >
-                        <span class="card-dynamic-side">
-                          {{ sideLabel(row) }}
-                        </span>
-
-                        <div class="card-months card-months--inline">
-
+                        <!-- Статика и видеоэкран: одна строка месяцев -->
+                        <div v-else class="card-months">
                           <div
                             v-for="month in MONTHS"
                             :key="month.full"
                             class="card-month"
                             :class="[
-                              getCardMonthState(row, month.full),
+                              getCardMonthState(
+                                blockPrimary(block),
+                                month.full
+                              ),
                               {
-                                'is-selected': surfaceIdOf(row) !== null && isMonthSelected(row.id, month.full),
-                                'is-locked': isBlockActive(block) && isMonthLocked(row, month.full)
+                                'is-selected':
+                                  surfaceIdOf(blockPrimary(block)) !== null &&
+                                  isMonthSelected(
+                                    blockPrimary(block).id,
+                                    month.full
+                                  ),
+                                'is-locked':
+                                  isBlockActive(block) &&
+                                  isMonthLocked(blockPrimary(block), month.full)
                               }
                             ]"
-                            :title="getMonthStatusLabel(row, month.full)"
-                            @click="onCardMonthClick(block, row, month)"
+                            :title="
+                              getMonthStatusLabel(
+                                blockPrimary(block),
+                                month.full
+                              )
+                            "
+                            @click="
+                              onCardMonthClick(
+                                block,
+                                blockPrimary(block),
+                                month
+                              )
+                            "
                           >
                             {{ month.short }}
                           </div>
+                        </div>
 
+                        <!-- Портфель: кнопка (два состояния) + кликабельные месяцы -->
+                        <div class="card-portfolio">
+                          <button
+                            type="button"
+                            class="card-pf-toggle"
+                            :class="{ 'is-active': isBlockActive(block) }"
+                            :title="
+                              isBlockActive(block)
+                                ? 'Убрать из портфеля'
+                                : 'Добавить в портфель'
+                            "
+                            @click="toggleBlockPfMode(block)"
+                          >
+                            <q-icon name="work_outline" size="16px" />
+                            <span>Портфель</span>
+                          </button>
+                        </div>
+
+                        <div class="card-features">
+                          <span
+                            class="card-feature"
+                            :title="
+                              hasLight(blockPrimary(block))
+                                ? 'Подсветка есть'
+                                : 'Без подсветки'
+                            "
+                          >
+                            <span
+                              class="feature-picto lightbulb"
+                              :class="
+                                hasLight(blockPrimary(block)) ? 'on' : 'off'
+                              "
+                              >💡</span
+                            >
+                            <span class="feature-label">подсветка</span>
+                          </span>
+
+                          <span class="card-feature" title="статика/динамика">
+                            <span class="feature-dyn">
+                              <span
+                                class="dyn-word"
+                                :class="{
+                                  'is-active': block.kind === 'static'
+                                }"
+                                >статика</span
+                              >
+
+                              <span class="dyn-sep">/</span>
+
+                              <span
+                                class="dyn-word"
+                                :class="{
+                                  'is-active': block.kind !== 'static'
+                                }"
+                                >динамика</span
+                              >
+                            </span>
+                          </span>
                         </div>
                       </div>
                     </div>
-
-                    <!-- Статика и видеоэкран: одна строка месяцев -->
-                    <div
-                      v-else
-                      class="card-months"
-                    >
-
-                      <div
-                        v-for="month in MONTHS"
-                        :key="month.full"
-                        class="card-month"
-                        :class="[
-                          getCardMonthState(blockPrimary(block), month.full),
-                          {
-                            'is-selected': surfaceIdOf(blockPrimary(block)) !== null && isMonthSelected(blockPrimary(block).id, month.full),
-                            'is-locked': isBlockActive(block) && isMonthLocked(blockPrimary(block), month.full)
-                          }
-                        ]"
-                        :title="getMonthStatusLabel(blockPrimary(block), month.full)"
-                        @click="onCardMonthClick(block, blockPrimary(block), month)"
-                      >
-                        {{ month.short }}
-                      </div>
-
-                    </div>
-
-                    <!-- Портфель: кнопка (два состояния) + кликабельные месяцы -->
-                    <div class="card-portfolio">
-                      <button
-                        type="button"
-                        class="card-pf-toggle"
-                        :class="{ 'is-active': isBlockActive(block) }"
-                        :title="isBlockActive(block)
-                          ? 'Убрать из портфеля'
-                          : 'Добавить в портфель'"
-                        @click="toggleBlockPfMode(block)"
-                      >
-                        <q-icon name="work_outline" size="16px" />
-                        <span>Портфель</span>
-                      </button>
-                    </div>
-
-                    <div class="card-features">
-                      <span
-                        class="card-feature"
-                        :title="hasLight(blockPrimary(block)) ? 'Подсветка есть' : 'Без подсветки'"
-                      >
-                        <span
-                          class="feature-picto lightbulb"
-                          :class="hasLight(blockPrimary(block)) ? 'on' : 'off'"
-                        >💡</span>
-                        <span class="feature-label">подсветка</span>
-                      </span>
-
-                      <span class="card-feature" title="статика/динамика">
-                        <span class="feature-dyn">
-                          <span
-                            class="dyn-word"
-                            :class="{ 'is-active': block.kind === 'static' }"
-                          >статика</span>
-
-                          <span class="dyn-sep">/</span>
-
-                          <span
-                            class="dyn-word"
-                            :class="{ 'is-active': block.kind !== 'static' }"
-                          >динамика</span>
-                        </span>
-                      </span>
-                    </div>
-
                   </div>
-
-                </div>
-
+                </article>
               </div>
-
-            </article>
-
-            </div>
-
             </template>
           </q-virtual-scroll>
 
-          <div
-            v-else
-            class="empty-state"
-          >
-            <div class="empty-icon">
-              0
-            </div>
+          <div v-else class="empty-state">
+            <div class="empty-icon"> 0 </div>
 
-            <h2>
-              Ничего не найдено
-            </h2>
+            <h2> Ничего не найдено </h2>
 
-            <p>
-              Измените параметры фильтра или очистите поиск.
-            </p>
+            <p> Измените параметры фильтра или очистите поиск. </p>
 
-            <button
-              type="button"
-              @click="resetFilters"
-            >
+            <button type="button" @click="resetFilters">
               Сбросить фильтры
             </button>
           </div>
@@ -593,25 +574,15 @@
               />
             </svg>
           </button>
-
         </div>
 
         <div class="map-tools">
-
-          <button
-            class="tool"
-            title="Сбросить фильтры"
-            @click="resetFilters"
-          >
+          <button class="tool" title="Сбросить фильтры" @click="resetFilters">
             ↺
           </button>
-
         </div>
-
       </main>
-
     </div>
-
   </q-page>
 </template>
 
@@ -629,7 +600,7 @@ import {
   groupSides,
   groupByPoint
 } from '../utils/constructionGroups'
-import { computed, ref, onMounted, onBeforeUnmount, watch } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import FiltersSidebar from '../components/filters/FiltersSidebar.vue'
@@ -639,9 +610,7 @@ import MapView from '../map/MapView.vue'
 
 import { getConstructions } from '../services/api'
 
-import {
-  useConstructionsFilter
-} from '../composables/useConstructionsFilter'
+import { useConstructionsFilter } from '../composables/useConstructionsFilter'
 
 import { useChatWorkspace } from '../composables/useChatWorkspace'
 import { usePortfolio } from '../composables/usePortfolio'
@@ -651,14 +620,9 @@ import {
   usePhotoViewer
 } from '../composables/usePhotoViewer'
 
-
 /* Акционная цена из отдельной колонки 1С (пока в данных отсутствует). */
 function promoPriceOf(item) {
-  return String(
-    item?.promoPrice ??
-    item?.promo_price ??
-    ''
-  ).trim()
+  return String(item?.promoPrice ?? item?.promo_price ?? '').trim()
 }
 
 function getCardMonthState(item, month) {
@@ -690,12 +654,11 @@ function hasPrice(item) {
 }
 
 function hasLight(item) {
-  return [
-    'да',
-    'yes',
-    'true',
-    '1'
-  ].includes(String(item?.light || '').trim().toLowerCase())
+  return ['да', 'yes', 'true', '1'].includes(
+    String(item?.light || '')
+      .trim()
+      .toLowerCase()
+  )
 }
 
 /* ------------------------------------------------- фото (адаптивные) */
@@ -963,11 +926,7 @@ function onCardMonthClick(block, surface, month) {
     return
   }
 
-  toggleMonth(
-    surface,
-    month.full,
-    surface.month_prices?.[month.full]
-  )
+  toggleMonth(surface, month.full, surface.month_prices?.[month.full])
 }
 
 const route = useRoute()
@@ -979,7 +938,8 @@ const mapViewRef = ref(null)
 const pointSearchOpen = ref(false)
 
 function focusCity(city) {
-  mapViewRef.value?.focusCity(city)
+  /* Как клик по названию в списке городов — центрируем после готовности карты. */
+  focusCityWhenReady(city)
 }
 
 const workspaceMode = ref('map')
@@ -1118,18 +1078,16 @@ function movePointTarget(event) {
     y
   }
 
-  const coordinates =
-    mapViewRef.value?.getCoordinatesAtScreenPoint(
-      event.clientX,
-      event.clientY
-    )
+  const coordinates = mapViewRef.value?.getCoordinatesAtScreenPoint(
+    event.clientX,
+    event.clientY
+  )
 
   if (!coordinates) {
     return
   }
 
-  pointCoordinates.value =
-    `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`
+  pointCoordinates.value = `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`
 }
 
 function finishPointTargetDrag(event) {
@@ -1195,7 +1153,7 @@ function changeSelectedPoint() {
 function distanceInMeters(lat1, lng1, lat2, lng2) {
   const earthRadius = 6371000
 
-  const toRadians = value => value * Math.PI / 180
+  const toRadians = value => (value * Math.PI) / 180
 
   const dLat = toRadians(lat2 - lat1)
   const dLng = toRadians(lng2 - lng1)
@@ -1203,13 +1161,10 @@ function distanceInMeters(lat1, lng1, lat2, lng2) {
   const a =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(toRadians(lat1)) *
-    Math.cos(toRadians(lat2)) *
-    Math.sin(dLng / 2) ** 2
+      Math.cos(toRadians(lat2)) *
+      Math.sin(dLng / 2) ** 2
 
-  return 2 * earthRadius * Math.atan2(
-    Math.sqrt(a),
-    Math.sqrt(1 - a)
-  )
+  return 2 * earthRadius * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
 /*
@@ -1234,19 +1189,11 @@ const pointFilteredConstructions = computed(() => {
     const lat = Number(item?.lat)
     const lng = Number(item?.lng)
 
-    if (
-      !Number.isFinite(lat) ||
-      !Number.isFinite(lng)
-    ) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return false
     }
 
-    return distanceInMeters(
-      centerLat,
-      centerLng,
-      lat,
-      lng
-    ) <= radius
+    return distanceInMeters(centerLat, centerLng, lat, lng) <= radius
   })
 })
 
@@ -1255,9 +1202,10 @@ const pointFilteredConstructions = computed(() => {
  * если точка зафиксирована — показываем результаты поиска по точке.
  */
 const displayedConstructions = computed(() => {
-  const source = pointSelectionState.value === 'fixed'
-    ? pointFilteredConstructions.value
-    : filteredConstructions.value
+  const source =
+    pointSelectionState.value === 'fixed'
+      ? pointFilteredConstructions.value
+      : filteredConstructions.value
 
   if (route.query.chat !== '1' || !chatResultIds.value.length) {
     return source
@@ -1318,7 +1266,6 @@ function onTopSearch() {
   onMapSearch()
 }
 
-
 function executePointSearch() {
   const parts = String(pointCoordinates.value || '')
     .split(',')
@@ -1335,12 +1282,7 @@ function executePointSearch() {
 
   const [lat, lng] = parts
 
-  if (
-    lat < -90 ||
-    lat > 90 ||
-    lng < -180 ||
-    lng > 180
-  ) {
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
     console.warn('Albion point search: координаты вне допустимого диапазона')
     return
   }
@@ -1362,10 +1304,7 @@ function executeAddressSearch() {
     return
   }
 
-  console.log(
-    'Albion address search:',
-    address
-  )
+  console.log('Albion address search:', address)
 }
 
 const {
@@ -1399,7 +1338,9 @@ const listPoints = computed(() => {
     const deduped = dedupeSides(point.items)
 
     const first = point.items[0] || {}
-    const address = String(first.address || first.name || 'Адрес не указан').trim()
+    const address = String(
+      first.address || first.name || 'Адрес не указан'
+    ).trim()
     const city = String(first.city || '').trim() || '—'
 
     for (const block of groupSides(deduped)) {
@@ -1469,10 +1410,7 @@ function computeListColumns(width) {
   }
 
   // auto-fill minmax(300px, 1fr) + gap 18px: сколько колонок влезает.
-  return Math.max(
-    1,
-    Math.floor((width + 18) / (300 + 18))
-  )
+  return Math.max(1, Math.floor((width + 18) / (300 + 18)))
 }
 
 /* listPoints режем на строки по listColumns (последняя может быть короче). */
@@ -1534,13 +1472,51 @@ watch(listViewRef, el => {
 })
 
 /*
- * Синхронизация города из URL с фильтром.
+ * Синхронизация фильтров из URL.
  *
- * useConstructionsFilter сначала выбирает все города
- * после загрузки данных. Поэтому город из URL применяем
- * после того, как список cities уже сформирован.
+ * useConstructionsFilter после загрузки данных выбирает ВСЕ города,
+ * поэтому город/формат из адреса применяем после того, как списки
+ * cities/types сформированы — и повторно на следующем тике, чтобы
+ * гарантированно перекрыть автоматический «выбор всех».
+ *
+ * Для города, помимо галочки в фильтре, центрируем карту так же,
+ * как при клике по названию в списке городов.
  */
+function focusCityWhenReady(city) {
+  let frames = 0
 
+  const attempt = () => {
+    const view = mapViewRef.value
+    const hasData =
+      Array.isArray(constructions.value) && constructions.value.length > 0
+
+    /*
+     * Ждём И готовности карты, И загрузки конструкций: focusToItems
+     * центрируется по данным, и без них центрировать не по чему.
+     * Клик по названию на уже загруженной карте поэтому работает,
+     * а переход по ссылке из карточки — нет, пока данные не пришли.
+     */
+    if (!view || !hasData) {
+      if (frames++ < 600) {
+        requestAnimationFrame(attempt)
+      }
+
+      return
+    }
+
+    const ready =
+      typeof view.whenReady === 'function'
+        ? view.whenReady()
+        : Promise.resolve()
+
+    ready.then(() => {
+      /* Даём Vue разложить данные в пропсы карты, затем центрируем. */
+      nextTick(() => view.focusCity(city))
+    })
+  }
+
+  requestAnimationFrame(attempt)
+}
 
 watch(
   [cities, types],
@@ -1549,107 +1525,34 @@ watch(
     const typeFromUrl = String(route.query.type || '').trim()
     const addressFromUrl = String(route.query.address || '').trim()
 
-    if (cityFromUrl && cityValues.length) {
-      const actualCity = cityValues.find(
-        city => city === cityFromUrl
-      )
+    const actualCity =
+      cityFromUrl && cityValues.length
+        ? cityValues.find(city => city === cityFromUrl)
+        : null
 
-      if (actualCity) {
-        selectedCities.value = [actualCity]
-      }
-    }
-
-    if (typeFromUrl && typeValues.length) {
-      const actualType = typeValues.find(
-        type => type === typeFromUrl
-      )
-
-      if (actualType) {
-        selectedTypes.value = [actualType]
-      }
-    }
+    const actualType =
+      typeFromUrl && typeValues.length
+        ? typeValues.find(type => type === typeFromUrl)
+        : null
 
     if (addressFromUrl) {
       searchQuery.value = addressFromUrl
     }
-  },
-  { immediate: true }
-)
 
-watch(
-  selectedCities,
-  values => {
-    if (values.length !== 1) {
-      return
-    }
-
-    const cityFromUrl = String(route.query.city || '').trim()
-
-    if (values[0] !== cityFromUrl) {
-      return
-    }
-
-    requestAnimationFrame(() => {
-      mapViewRef.value?.focusCity(values[0])
-    })
-  },
-  { flush: 'post' }
-)
-
-watch(
-  [cities, types],
-  ([cityValues, typeValues]) => {
-    const cityFromUrl = String(route.query.city || '').trim()
-    const typeFromUrl = String(route.query.type || '').trim()
-    const addressFromUrl = String(route.query.address || '').trim()
-
-    if (cityFromUrl && cityValues.length) {
-      const actualCity = cityValues.find(
-        city => city === cityFromUrl
-      )
-
-      if (actualCity) {
-        selectedCities.value = [actualCity]
-      }
-    }
-
-    if (typeFromUrl && typeValues.length) {
-      const actualType = typeValues.find(
-        type => type === typeFromUrl
-      )
-
+    nextTick(() => {
       if (actualType) {
         selectedTypes.value = [actualType]
       }
-    }
 
-    if (addressFromUrl) {
-      searchQuery.value = addressFromUrl
-    }
+      if (actualCity) {
+        /* Галочка в фильтре + центровка карты (как клик по названию). */
+        selectedCities.value = [actualCity]
+        focusCityWhenReady(actualCity)
+      }
+    })
   },
   { immediate: true }
 )
-
-watch(
-  selectedCities,
-  values => {
-    if (values.length !== 1) {
-      return
-    }
-
-    const cityFromUrl = String(route.query.city || '').trim()
-
-    if (values[0] !== cityFromUrl) {
-      return
-    }
-
-    requestAnimationFrame(() => {
-      mapViewRef.value?.focusCity(values[0])
-    })
-  },
-  { flush: 'post' }
-)
-
 
 // URL ← фильтры
 watch(
@@ -1778,8 +1681,7 @@ function onDocumentClick(event) {
 
     if (id) {
       const popupRoot =
-        toggleEl.closest('.popup') ||
-        toggleEl.closest('.albion-popup')
+        toggleEl.closest('.popup') || toggleEl.closest('.albion-popup')
 
       if (isSurfaceActive(id)) {
         // Сброс: removeSurface удаляет и месяцы, и режим из стора,
@@ -1839,14 +1741,10 @@ function onDocumentClick(event) {
 
   toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
 
-  monthEl.classList.toggle(
-    'is-selected',
-    isMonthSelected(surfaceId, monthFull)
-  )
+  monthEl.classList.toggle('is-selected', isMonthSelected(surfaceId, monthFull))
 
   const popupRoot =
-    monthEl.closest('.popup') ||
-    monthEl.closest('.albion-popup')
+    monthEl.closest('.popup') || monthEl.closest('.albion-popup')
 
   // Снят последний месяц — позиция ушла из портфеля: убираем рамки
   // со всех её месяцев, иначе они останутся висеть.
@@ -1874,15 +1772,9 @@ onMounted(async () => {
     // Подтягиваем свежие цены/статусы выбранных месяцев из psql.
     syncWithConstructions(constructions.value)
 
-    console.log(
-      'Albion page: загружено',
-      constructions.value.length
-    )
+    console.log('Albion page: загружено', constructions.value.length)
   } catch (error) {
-    console.error(
-      'Albion page: ошибка загрузки конструкций:',
-      error
-    )
+    console.error('Albion page: ошибка загрузки конструкций:', error)
   }
 })
 
@@ -1910,8 +1802,12 @@ onBeforeUnmount(() => {
 .app {
   /* Ровно экран минус реальные высоты шапки и подвала (меряются в MainLayout)
      — подвал встаёт сразу под контентом, без пустого зазора. */
-  height: calc(100vh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px));
-  height: calc(100dvh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px));
+  height: calc(
+    100vh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px)
+  );
+  height: calc(
+    100dvh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px)
+  );
 
   display: grid;
   grid-template-columns: 310px 1fr;
@@ -1956,11 +1852,11 @@ onBeforeUnmount(() => {
 
   flex-shrink: 0;
 
-  background: rgba(255, 255, 255, .96);
+  background: rgba(255, 255, 255, 0.96);
   border: 1px solid #e1e6e9;
   border-radius: 13px;
 
-  box-shadow: 0 8px 28px rgba(23, 33, 43, .14);
+  box-shadow: 0 8px 28px rgba(23, 33, 43, 0.14);
   backdrop-filter: blur(12px);
 }
 
@@ -1977,13 +1873,13 @@ onBeforeUnmount(() => {
 
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: .02em;
+  letter-spacing: 0.02em;
 
   cursor: pointer;
 
   transition:
-    background .18s ease,
-    color .18s ease;
+    background 0.18s ease,
+    color 0.18s ease;
 }
 
 .workspace-mode-switch button.active {
@@ -1995,8 +1891,6 @@ onBeforeUnmount(() => {
   background: #f0f3f4;
   color: #17212b;
 }
-
-
 
 .map-wrap {
   position: absolute;
@@ -2082,8 +1976,8 @@ onBeforeUnmount(() => {
   cursor: pointer;
 
   transition:
-    background .18s ease,
-    color .18s ease;
+    background 0.18s ease,
+    color 0.18s ease;
 }
 
 .list-columns button.active {
@@ -2112,10 +2006,10 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
 
-  border: 1px solid rgba(23, 33, 43, .12);
+  border: 1px solid rgba(23, 33, 43, 0.12);
   border-radius: 50%;
 
-  background: rgba(255, 255, 255, .55);
+  background: rgba(255, 255, 255, 0.55);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 
@@ -2123,15 +2017,15 @@ onBeforeUnmount(() => {
 
   cursor: pointer;
 
-  box-shadow: 0 8px 24px rgba(23, 33, 43, .16);
+  box-shadow: 0 8px 24px rgba(23, 33, 43, 0.16);
 
   transition:
-    background .18s ease,
-    transform .18s ease;
+    background 0.18s ease,
+    transform 0.18s ease;
 }
 
 .list-to-top:hover {
-  background: rgba(255, 255, 255, .85);
+  background: rgba(255, 255, 255, 0.85);
   transform: translateY(-2px);
 }
 
@@ -2181,19 +2075,17 @@ onBeforeUnmount(() => {
 
   border-radius: 18px;
 
-  box-shadow:
-    0 8px 30px rgba(25,35,45,.06);
+  box-shadow: 0 8px 30px rgba(25, 35, 45, 0.06);
 
   transition:
-    transform .15s ease,
-    box-shadow .15s ease;
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .construction-card:hover {
   transform: translateY(-2px);
 
-  box-shadow:
-    0 14px 40px rgba(25,35,45,.1);
+  box-shadow: 0 14px 40px rgba(25, 35, 45, 0.1);
 }
 
 .card-photo {
@@ -2258,7 +2150,7 @@ onBeforeUnmount(() => {
   font-weight: 900;
 
   text-transform: uppercase;
-  letter-spacing: .25px;
+  letter-spacing: 0.25px;
 }
 
 /* формат жирный, размер обычным — в одну строку */
@@ -2289,7 +2181,7 @@ onBeforeUnmount(() => {
 
   font-weight: 900;
 
-  letter-spacing: -.5px;
+  letter-spacing: -0.5px;
 }
 
 /* основная цена бледная и зачёркнутая при наличии акционной */
@@ -2406,7 +2298,7 @@ onBeforeUnmount(() => {
   color: #8a959c;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .1em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -2466,7 +2358,6 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
-
 .card-block .card-months {
   margin-top: 10px;
   padding-top: 9px;
@@ -2520,9 +2411,9 @@ onBeforeUnmount(() => {
 
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: .3px;
+  letter-spacing: 0.3px;
 
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 .card-pf-toggle:hover {
@@ -2543,13 +2434,13 @@ onBeforeUnmount(() => {
 }
 
 .card-block.pf-mode .card-month:not(.is-locked):hover {
-  filter: brightness(.96);
+  filter: brightness(0.96);
 }
 
 /* Занятый/резервный месяц выбрать нельзя. */
 .card-block.pf-mode .card-month.is-locked {
   cursor: not-allowed;
-  opacity: .5;
+  opacity: 0.5;
 }
 
 /* Выбранный месяц — акцентная рамка. */
@@ -2588,7 +2479,7 @@ onBeforeUnmount(() => {
   font-size: 10px;
   font-weight: 900;
   line-height: 1.2;
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
 }
 
 /* месяцы и прочее прижаты к нижнему краю — единое выравнивание */
@@ -2651,7 +2542,7 @@ onBeforeUnmount(() => {
 
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: .8px;
+  letter-spacing: 0.8px;
 }
 
 .card-price .price-main {
@@ -2664,7 +2555,7 @@ onBeforeUnmount(() => {
   color: #17212b;
 
   font-size: 32px;
-  line-height: .95;
+  line-height: 0.95;
 
   font-weight: 950;
   letter-spacing: -1.2px;
@@ -2782,8 +2673,7 @@ onBeforeUnmount(() => {
 
   font-size: 20px;
 
-  box-shadow:
-    0 10px 30px rgba(25,35,45,.14);
+  box-shadow: 0 10px 30px rgba(25, 35, 45, 0.14);
 }
 
 @media (max-width: 760px) {
@@ -2879,8 +2769,6 @@ onBeforeUnmount(() => {
   line-height: 1;
 }
 
-
-
 .point-map-crosshair {
   position: absolute;
 
@@ -2921,10 +2809,10 @@ onBeforeUnmount(() => {
 
   width: min(760px, calc(100% - 24px));
 
-  background: rgba(255, 255, 255, .97);
+  background: rgba(255, 255, 255, 0.97);
   border: 1px solid #dfe4e7;
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(23, 33, 43, .18);
+  box-shadow: 0 10px 30px rgba(23, 33, 43, 0.18);
   overflow: hidden;
 }
 
@@ -3106,10 +2994,10 @@ onBeforeUnmount(() => {
   position: absolute;
   inset: 3px;
 
-  border: 2px solid rgba(23, 33, 43, .8);
+  border: 2px solid rgba(23, 33, 43, 0.8);
   border-radius: 50%;
 
-  box-shadow: 0 1px 6px rgba(23, 33, 43, .18);
+  box-shadow: 0 1px 6px rgba(23, 33, 43, 0.18);
 }
 
 .point-map-crosshair::after {
@@ -3138,7 +3026,7 @@ onBeforeUnmount(() => {
 
   background: var(--albion-accent);
 
-  box-shadow: 0 1px 4px rgba(23, 33, 43, .4);
+  box-shadow: 0 1px 4px rgba(23, 33, 43, 0.4);
 }
 
 /* Точка выбрана и ждёт фиксации — мягкая пульсация. */
@@ -3155,10 +3043,9 @@ onBeforeUnmount(() => {
   }
 
   50% {
-    box-shadow: 0 0 0 8px rgba(225, 42, 31, .12);
+    box-shadow: 0 0 0 8px rgba(225, 42, 31, 0.12);
   }
 }
-
 </style>
 
 <style>
@@ -3191,11 +3078,11 @@ onBeforeUnmount(() => {
 /* В режиме выбора занятый месяц выбрать нельзя. */
 .popup-side-card.pf-mode .popup-month.is-locked {
   cursor: not-allowed;
-  opacity: .5;
+  opacity: 0.5;
 }
 
 .popup-side-card.pf-mode .popup-month:hover {
-  filter: brightness(.96);
+  filter: brightness(0.96);
 }
 
 /* Выбранный месяц — акцентная рамка (как на карточках списка). */
@@ -3230,9 +3117,9 @@ onBeforeUnmount(() => {
   font-family: inherit;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: .3px;
+  letter-spacing: 0.3px;
 
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 .popup-pf-toggle:hover {
