@@ -12,6 +12,7 @@
 import { setMapEngine } from '../config/mapConfig'
 import { mapDotColors, setMapDotColors, setMapColorMode } from '../config/mapColors'
 import { setAvailableMode } from '../config/availableMode'
+import { setShowDynCount } from '../config/dynCount'
 import { applySiteFonts } from '../config/fontLoader'
 
 const SYSTEM_FONT_STACK =
@@ -52,6 +53,16 @@ async function loadAndApply() {
     return null
   }
 
+  return applyAppearanceSettings(settings)
+}
+
+/*
+ * Применяет объект настроек (ключи схемы → CSS-переменные и реактивные
+ * конфиги). Публичный: админка вызывает его сразу после сохранения, чтобы
+ * смена, например, режима доступности (`available_mode`) отражалась на
+ * открытых страницах без перезагрузки.
+ */
+export function applyAppearanceSettings(settings) {
   if (!settings || typeof settings !== 'object') {
     return null
   }
@@ -86,6 +97,9 @@ async function loadAndApply() {
 
   /* Доступность в списке: 'surfaces' | 'sides' (см. config/availableMode.js). */
   setAvailableMode(settings.available_mode)
+
+  /* Показ количества поверхностей у динамики (см. config/dynCount.js). */
+  setShowDynCount(settings.show_dyn_count)
 
   /*
    * Цвета точек на карте (см. config/mapColors.js). Применяем и в JS
@@ -122,6 +136,53 @@ export function ensureSiteSettings() {
 
 export function applySiteSettings() {
   return ensureSiteSettings()
+}
+
+/*
+ * Живое обновление настроек: когда вкладка снова получает фокус, тихо
+ * перечитываем их с сервера. Так правки, сделанные в админке в другой
+ * вкладке, применяются на уже открытой публичной странице сразу же.
+ * Админские страницы пропускаем — чтобы не спорить с формой настроек.
+ */
+let lastSettingsRefresh = 0
+
+function refreshSettingsOnFocus() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return
+  }
+
+  if (window.location.pathname.startsWith('/administration')) {
+    return
+  }
+
+  const now = Date.now()
+
+  if (now - lastSettingsRefresh < 2000) {
+    return
+  }
+
+  lastSettingsRefresh = now
+
+  fetch('/api/settings')
+    .then(response => (response.ok ? response.json() : null))
+    .then(settings => {
+      if (settings) {
+        applyAppearanceSettings(settings)
+      }
+    })
+    .catch(() => {
+      /* офлайн/ошибка — оставляем текущие значения */
+    })
+}
+
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  window.addEventListener('focus', refreshSettingsOnFocus)
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      refreshSettingsOnFocus()
+    }
+  })
 }
 
 export default applySiteSettings

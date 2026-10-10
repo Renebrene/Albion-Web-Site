@@ -25,9 +25,15 @@
 """
 from __future__ import annotations
 
+import csv
 import io
+import json
 import logging
 import math
+import os
+import shutil
+import subprocess
+import tempfile
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -39,7 +45,24 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------- константы
 
-SUPPORTED_FORMATS = ("xlsx", "docx", "pdf")
+SUPPORTED_FORMATS = (
+    "xls",
+    "xlsx",
+    "doc",
+    "docx",
+    "pdf",
+    "odt",
+    "ods",
+    "rtf",
+    "csv",
+    "txt",
+    "md",
+    "json",
+)
+
+# Форматы «только текст»: отдают текстовую часть без фото/карт и без учёта
+# переключателя «полный/краткий вывод» (см. пользовательское ТЗ).
+TEXT_FORMATS = ("csv", "txt", "md", "json")
 
 MAX_ITEMS = 500
 
@@ -55,6 +78,9 @@ COLUMNS = (
     "Месяцы",
     "Сумма за месяцы",
 )
+
+# Колонки «текстовых» форматов (без фото/карт).
+TEXT_COLUMNS = COLUMNS
 
 # Дополнительная колонка, появляется только при with_photos=true.
 PHOTO_COLUMN = "Фото"
@@ -104,9 +130,18 @@ FULL_IMAGE_WIDTH_CM = 8.0
 FULL_IMAGE_HEIGHT_CM = 5.0
 
 CONTENT_TYPES = {
+    "xls": "application/vnd.ms-excel",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "doc": "application/msword",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "pdf": "application/pdf",
+    "odt": "application/vnd.oasis.opendocument.text",
+    "ods": "application/vnd.oasis.opendocument.spreadsheet",
+    "rtf": "application/rtf",
+    "csv": "text/csv; charset=utf-8",
+    "txt": "text/plain; charset=utf-8",
+    "md": "text/markdown; charset=utf-8",
+    "json": "application/json; charset=utf-8",
 }
 
 
@@ -1263,6 +1298,225 @@ def export_pdf(portfolio: dict) -> bytes:
 # ---------------------------------------------------------------- фасад
 
 
+# ---------------------------------------------------------------- LibreOffice
+#
+# doc/odt/rtf/pdf получаем из ОДНОГО канонического DOCX через LibreOffice —
+# так pdf, doc/docx и odt гарантированно идентичны (и на их основе идёт печать).
+# xls/ods — аналогично из канонического XLSX. Требуется установленный soffice.
+
+
+# Фильтры конвертации для «старых» форматов MS Office.
+_LO_FILTERS = {
+    "doc": "doc:MS Word 97",
+    "xls": "xls:MS Excel 97",
+}
+
+
+def _soffice_binary() -> str | None:
+    for name in ("soffice", "libreoffice"):
+        path = shutil.which(name)
+
+        if path:
+            return path
+
+    return None
+
+
+def libreoffice_convert(
+    content: bytes,
+    src_ext: str,
+    target_ext: str,
+    timeout: int = 120,
+) -> bytes:
+    """Конвертирует документ через headless LibreOffice.
+
+    Каждый вызов — в своём временном каталоге с отдельным профилем
+    (-env:UserInstallation), иначе параллельные конвертации конфликтуют.
+    """
+    binary = _soffice_binary()
+
+    if not binary:
+        raise PortfolioExportError(
+            "Конвертер LibreOffice недоступен на сервере."
+        )
+
+    workdir = tempfile.mkdtemp(prefix="albion-lo-")
+
+    try:
+        src_path = os.path.join(workdir, f"portfolio.{src_ext}")
+
+        with open(src_path, "wb") as handle:
+            handle.write(content)
+
+        profile = os.path.join(workdir, "profile")
+        target = _LO_FILTERS.get(target_ext, target_ext)
+
+        command = [
+            binary,
+            "--headless",
+            "--norestore",
+            "--nolockcheck",
+            f"-env:UserInstallation=file://{profile}",
+            "--convert-to",
+            target,
+            "--outdir",
+            workdir,
+            src_path,
+        ]
+
+        try:
+            subprocess.run(
+                command,
+                capture_output=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise PortfolioExportError(
+                "Превышено время подготовки файла."
+            ) from exc
+
+        out_path = os.path.join(workdir, f"portfolio.{target_ext}")
+
+        if not os.path.exists(out_path):
+            raise PortfolioExportError(
+                f"Не удалось подготовить файл формата {target_ext}."
+            )
+
+        with open(out_path, "rb") as handle:
+            return handle.read()
+    finally:
+        shutil.rmtree(workdir, ignore_errors=True)
+
+
+# ---------------------------------------------------------------- текст
+#
+# csv/txt/md/json — «только текст»: адрес, сторона, формат, месяцы, суммы.
+# Ни фото, ни карт, независимо от переключателя «полный/краткий вывод».
+
+
+def _position_head(row: dict) -> str:
+    place = ", ".join(part for part in (row["city"], row["address"]) if part)
+    place = place or "Адрес не указан"
+
+    return f'{row["index"]}. {row["type"] or "Формат не указан"} — {place}'
+
+
+def export_txt(portfolio: dict) -> bytes:
+    lines: list[str] = [portfolio["title"], ""]
+
+    for row in portfolio["rows"]:
+        lines.append(_position_head(row))
+
+        if row["side"]:
+            lines.append(f'   Сторона: {row["side"]}')
+
+        if row["size"]:
+            lines.append(f'   Размер: {row["size"]}')
+
+        lines.append(f'   Месяцы: {row["months"]}')
+        lines.append(f'   Сумма: {row["sum"]}')
+
+    lines.append("")
+    lines.append(portfolio["summary"])
+
+    for label, value in portfolio["requisites"]:
+        lines.append(f"{label}: {value}")
+
+    return ("\n".join(lines)).encode("utf-8")
+
+
+def export_csv(portfolio: dict) -> bytes:
+    buffer = io.StringIO()
+    writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
+
+    writer.writerow(TEXT_COLUMNS)
+
+    for row in portfolio["rows"]:
+        writer.writerow(
+            [
+                row["index"],
+                row["city"],
+                row["address"],
+                row["side"],
+                row["type"],
+                row["size"],
+                row["months"],
+                row["sum"],
+            ]
+        )
+
+    writer.writerow([])
+    writer.writerow(["", "", "", "", "", "", "ИТОГО", format_money(portfolio["total"])])
+
+    # BOM — чтобы Excel распознал UTF-8.
+    return buffer.getvalue().encode("utf-8-sig")
+
+
+def export_md(portfolio: dict) -> bytes:
+    lines: list[str] = [f'# {portfolio["title"]}', ""]
+    lines.append("| " + " | ".join(TEXT_COLUMNS) + " |")
+    lines.append("|" + "---|" * len(TEXT_COLUMNS))
+
+    for row in portfolio["rows"]:
+        cells = [
+            str(row["index"]),
+            row["city"],
+            row["address"],
+            row["side"],
+            row["type"],
+            row["size"],
+            row["months"].replace("|", "\\|"),
+            row["sum"],
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
+
+    lines.append("")
+    lines.append(
+        f'**{portfolio["summary"]}**'
+    )
+
+    if portfolio["requisites"]:
+        lines.append("")
+
+        for label, value in portfolio["requisites"]:
+            lines.append(f"- **{label}:** {value}")
+
+    return ("\n".join(lines)).encode("utf-8")
+
+
+def export_json(portfolio: dict) -> bytes:
+    data = {
+        "title": portfolio["title"],
+        "positions": portfolio["positions"],
+        "total": portfolio["total"],
+        "summary": portfolio["summary"],
+        "requisites": [
+            {"label": label, "value": value}
+            for label, value in portfolio["requisites"]
+        ],
+        "items": [
+            {
+                "index": row["index"],
+                "city": row["city"],
+                "address": row["address"],
+                "side": row["side"],
+                "type": row["type"],
+                "size": row["size"],
+                "months": row["months"],
+                "sum": row["sum"],
+                "sum_value": row["sum_value"],
+            }
+            for row in portfolio["rows"]
+        ],
+    }
+
+    return json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+
+
+# ---------------------------------------------------------------- render
+
+
 def render(
     items: Any,
     fmt: str,
@@ -1274,32 +1528,76 @@ def render(
 ) -> bytes:
     """Собирает портфель и рендерит его в выбранный формат.
 
-    При ``with_photos=True`` добавляется колонка «Фото», при
-    ``with_maps=True`` — колонка «Карта» (обе с миниатюрами из /storage).
-    ``full_output=True`` меняет РАСКЛАДКУ docx/pdf/печати: изображения
-    встают в один ряд фиксированной ширины (7.5 см) с одинаковой высотой.
+    Документы: docx (канонический) → doc/odt/rtf/pdf через LibreOffice,
+    поэтому pdf, doc/docx и odt идентичны. xlsx (канонический) → xls/ods.
+    «Текстовые» форматы (csv/txt/md/json) отдают только текстовую часть,
+    без фото/карт, независимо от full_output.
+
     Непустые ``requisites`` печатаются компактным блоком под заголовком.
     """
+    fmt = (fmt or "").strip().lower()
+
+    if fmt not in SUPPORTED_FORMATS:
+        raise PortfolioExportError(
+            f"Неподдерживаемый формат: {fmt!r}. "
+            "Допустимо: " + ", ".join(SUPPORTED_FORMATS) + "."
+        )
+
+    text_only = fmt in TEXT_FORMATS
+
     portfolio = build_portfolio(
         items,
         title,
-        with_photos=with_photos,
-        with_maps=with_maps,
+        with_photos=False if text_only else with_photos,
+        with_maps=False if text_only else with_maps,
         requisites=requisites,
-        full_output=full_output,
+        full_output=False if text_only else full_output,
     )
 
     if fmt == "xlsx":
         return export_xlsx(portfolio)
 
+    if fmt == "xls":
+        return libreoffice_convert(export_xlsx(portfolio), "xlsx", "xls")
+
     if fmt == "docx":
         return export_docx(portfolio)
 
+    if fmt == "doc":
+        return libreoffice_convert(export_docx(portfolio), "docx", "doc")
+
+    if fmt == "odt":
+        return libreoffice_convert(export_docx(portfolio), "docx", "odt")
+
+    if fmt == "rtf":
+        return libreoffice_convert(export_docx(portfolio), "docx", "rtf")
+
+    if fmt == "ods":
+        return libreoffice_convert(export_xlsx(portfolio), "xlsx", "ods")
+
     if fmt == "pdf":
-        return export_pdf(portfolio)
+        # Тот же канонический docx → pdf, что и doc/odt: файлы идентичны.
+        # Если LibreOffice недоступен — откат на прежний reportlab-рендер.
+        try:
+            return libreoffice_convert(export_docx(portfolio), "docx", "pdf")
+        except PortfolioExportError:
+            return export_pdf(portfolio)
+
+    if fmt == "csv":
+        return export_csv(portfolio)
+
+    if fmt == "txt":
+        return export_txt(portfolio)
+
+    if fmt == "md":
+        return export_md(portfolio)
+
+    if fmt == "json":
+        return export_json(portfolio)
 
     raise PortfolioExportError(
-        f"Неподдерживаемый формат: {fmt}. Допустимо: xlsx, docx, pdf."
+        f"Неподдерживаемый формат: {fmt!r}. "
+        "Допустимо: " + ", ".join(SUPPORTED_FORMATS) + "."
     )
 
 

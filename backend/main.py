@@ -106,6 +106,15 @@ app.include_router(portfolio_router)
 from backend.api.admin_home import router as admin_home_router
 
 app.include_router(admin_home_router)
+
+from backend.api.admin_dashboard import router as admin_dashboard_router
+
+app.include_router(admin_dashboard_router)
+
+from backend.api.admin_chat_log import router as admin_chat_log_router
+
+app.include_router(admin_chat_log_router)
+
 app.include_router(chat_router)
 
 from backend.api.info import (

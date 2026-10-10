@@ -13,6 +13,8 @@ import {
 } from 'vue'
 
 import { mapEngine } from '../config/mapConfig'
+import { availableMode } from '../config/availableMode'
+import { showDynCount } from '../config/dynCount'
 import { ensureSiteSettings } from '../boot/settings'
 import { loadYandexMaps } from './yandexLoader'
 
@@ -174,7 +176,12 @@ onMounted(async () => {
 })
 
 watch(
-  [() => props.constructions, () => props.selectedMonths],
+  [
+    () => props.constructions,
+    () => props.selectedMonths,
+    availableMode,
+    showDynCount
+  ],
   ([items, months]) => {
     mapApi.value?.setConstructions(items, months)
   }

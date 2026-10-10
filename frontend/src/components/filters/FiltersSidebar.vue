@@ -1,7 +1,7 @@
 <template>
   <aside class="filters-sidebar">
     <div class="sidebar-head">
-      <h2>Интерактивная карта</h2>
+      <h2>{{ mode === 'list' ? 'Список конструкций' : 'Интерактивная карта' }}</h2>
     </div>
 
     <section class="filter-section">
@@ -122,6 +122,12 @@
 
 <script setup>
 const props = defineProps({
+  /* Текущий режим рабочей области: 'map' | 'list' — от него зависит заголовок. */
+  mode: {
+    type: String,
+    default: 'map'
+  },
+
   selectedMonths: {
     type: Array,
     default: () => []

@@ -129,92 +129,77 @@
 
     <!-- ДЕЙСТВИЯ -->
     <div class="portfolio-actions">
-      <q-checkbox
-        v-model="withPhotos"
-        dense
-        class="portfolio-photos-toggle"
-        label="Фото"
-      />
-      <q-checkbox
-        v-model="withMaps"
-        dense
-        class="portfolio-photos-toggle"
-        label="Карта"
-      />
+      <!-- Полный вывод: фото и карта добавляются автоматически
+           (отдельные галочки «Фото»/«Карта» убраны). -->
       <q-checkbox
         v-model="fullOutput"
         dense
         class="portfolio-photos-toggle portfolio-full-output-toggle"
         :label="fullOutput ? 'Полный вывод' : 'Краткий вывод'"
+        :disable="!count"
       />
-      <q-btn
+
+      <!-- Вывод: форматы файлов -->
+      <q-btn-dropdown
         outline
         no-caps
         dense
         class="portfolio-action"
-        label="XLS"
-        :disable="!count"
-        :loading="busy === 'xlsx'"
-        @click="exportAs('xlsx')"
-      />
-      <q-btn
+        label="Вывод"
+        :disable="!count || Boolean(busy)"
+      >
+        <q-list dense class="portfolio-export-menu">
+          <q-item
+            v-for="option in exportOptions"
+            :key="option.value"
+            v-close-popup
+            clickable
+            @click="exportAs(option.value)"
+          >
+            <q-item-section>
+              <q-item-label>{{ option.label }}</q-item-label>
+            </q-item-section>
+          </q-item>
+        </q-list>
+      </q-btn-dropdown>
+
+      <!-- Действия: принтер / почта / чат -->
+      <q-btn-dropdown
         outline
         no-caps
         dense
         class="portfolio-action"
-        label="DOC"
-        :disable="!count"
-        :loading="busy === 'docx'"
-        @click="exportAs('docx')"
-      />
-      <q-btn
-        outline
-        no-caps
-        dense
-        class="portfolio-action"
-        label="PDF"
-        :disable="!count"
-        :loading="busy === 'pdf'"
-        @click="exportAs('pdf')"
-      />
-      <q-btn
-        outline
-        no-caps
-        dense
-        class="portfolio-action"
-        label="Печать"
-        :disable="!count"
-        :loading="busy === 'print'"
-        @click="handlePrint"
-      />
-      <q-btn
-        outline
-        no-caps
-        dense
-        class="portfolio-action"
-        label="Почта"
-        :disable="!count"
-        @click="handleEmail"
-      />
-      <q-btn
-        outline
-        no-caps
-        dense
-        class="portfolio-action"
-        label="Чат"
-        :disable="!count"
-        @click="handleChat"
-      />
-      <q-btn
-        outline
-        no-caps
-        dense
-        class="portfolio-action"
-        label="Сохранить"
-        :disable="!count"
-        :loading="saving"
-        @click="handleSave"
-      />
+        label="Действия"
+        :disable="!count || Boolean(busy)"
+      >
+        <q-list dense class="portfolio-action-menu">
+          <q-item v-close-popup clickable @click="handlePrint">
+            <q-item-section>Принтер</q-item-section>
+          </q-item>
+          <q-item v-close-popup clickable @click="handleEmail">
+            <q-item-section>Почта</q-item-section>
+          </q-item>
+          <q-item v-close-popup clickable @click="handleChat">
+            <q-item-section>Чат</q-item-section>
+          </q-item>
+        </q-list>
+      </q-btn-dropdown>
+
+      <!-- Сохранить в ЛК: активно только при входе; иначе — подсказка. -->
+      <span class="portfolio-save-wrap">
+        <q-btn
+          outline
+          no-caps
+          dense
+          class="portfolio-action"
+          label="Сохранить"
+          :disable="!count || !isAuthenticated"
+          :loading="saving"
+          @click="handleSave"
+        />
+        <q-tooltip v-if="!isAuthenticated">Войдите в личный кабинет</q-tooltip>
+      </span>
+
       <q-btn
         flat
         no-caps
@@ -560,23 +545,38 @@ function notify(text, type = 'ok') {
 const busy = ref('')
 const saving = ref(false)
 
-/* Галочка «Фото» — влияет только на выгрузку и печать. */
-const withPhotos = ref(false)
-
-/* Галочка «Карта» — отдельная колонка карт, панель не меняет. */
-const withMaps = ref(false)
-
 /*
- * Галочка «Полный вывод» — раскладка «фото и карта в один ряд»
- * вместо колонок. Выключена по умолчанию; влияет только на выгрузку/печать.
+ * «Полный вывод»: фото и карта добавляются в документ автоматически
+ * (отдельных галочек «Фото»/«Карта» больше нет). Выключен по умолчанию;
+ * влияет на выгрузку и печать.
  */
 const fullOutput = ref(false)
+
+/*
+ * Форматы выгрузки («Вывод»). Текстовые (csv/txt/md/json) отдают только
+ * текстовую часть и не зависят от «полный/краткий вывод» — это обеспечивает
+ * сервер (см. backend/services/portfolio_export.py).
+ */
+const exportOptions = [
+  { label: 'XLS — Excel 97-2003', value: 'xls' },
+  { label: 'XLSX — Excel 2007+', value: 'xlsx' },
+  { label: 'DOC — Word 97-2003', value: 'doc' },
+  { label: 'DOCX — Word 2007+', value: 'docx' },
+  { label: 'PDF', value: 'pdf' },
+  { label: 'ODT — LibreOffice/OpenOffice (документ)', value: 'odt' },
+  { label: 'ODS — LibreOffice/OpenOffice (таблица)', value: 'ods' },
+  { label: 'RTF — Rich Text', value: 'rtf' },
+  { label: 'CSV — таблица (только текст)', value: 'csv' },
+  { label: 'TXT — текст', value: 'txt' },
+  { label: 'MD — Markdown', value: 'md' },
+  { label: 'JSON — данные', value: 'json' }
+]
 
 function removeItem(item) {
   removeSurface(item.surfaceId)
 }
 
-/* Excel/Word/PDF: формируем файл на сервере и скачиваем. */
+/* Файл формируется на сервере и скачивается. */
 async function exportAs(format) {
   if (!count.value) {
     return
@@ -586,8 +586,8 @@ async function exportAs(format) {
 
   try {
     await downloadPortfolio(format, items.value, {
-      withPhotos: withPhotos.value,
-      withMaps: withMaps.value,
+      withPhotos: fullOutput.value,
+      withMaps: fullOutput.value,
       fullOutput: fullOutput.value,
       title: title.value,
       requisites: currentRequisites()
@@ -613,8 +613,8 @@ async function handlePrint() {
 
   try {
     await printPortfolio(items.value, {
-      withPhotos: withPhotos.value,
-      withMaps: withMaps.value,
+      withPhotos: fullOutput.value,
+      withMaps: fullOutput.value,
       fullOutput: fullOutput.value,
       title: title.value,
       requisites: currentRequisites()
@@ -630,14 +630,14 @@ async function handlePrint() {
   }
 }
 
-/* Почта: mailto с темой и телом. */
+/* Почта: mailto с темой и телом; адрес по умолчанию — с сайта. */
 function handleEmail() {
   if (!count.value) {
     return
   }
 
   emailPortfolio(items.value, {
-    withMaps: withMaps.value,
+    withMaps: fullOutput.value,
     fullOutput: fullOutput.value,
     title: title.value,
     requisites: currentRequisites()
@@ -645,29 +645,36 @@ function handleEmail() {
   notify('Открываю почтовый клиент.')
 }
 
-/* Чат: копируем текст в буфер и уходим на /chat с черновиком. */
+/*
+ * Чат: заглушка под виджет сайта (JivoSite и т.п.). Сейчас виджета нет —
+ * копируем текст портфеля и показываем подсказку. Когда виджет появится,
+ * здесь достаточно будет window.jivo_api.open().
+ */
 async function handleChat() {
   if (!count.value) {
     return
   }
 
   const text = portfolioText(items.value, {
-    withMaps: withMaps.value,
+    withMaps: fullOutput.value,
     fullOutput: fullOutput.value,
     title: title.value,
     requisites: currentRequisites()
   })
+
   const copied = await copyToClipboard(text)
+
+  if (window.jivo_api && typeof window.jivo_api.open === 'function') {
+    window.jivo_api.open()
+    notify('Открываю чат поддержки.')
+    return
+  }
 
   notify(
     copied
-      ? 'Портфель скопирован, перехожу в чат.'
-      : 'Перехожу в чат (копирование недоступно).'
+      ? 'Чат пока не подключён (заглушка). Текст портфеля скопирован — вставьте его в чат.'
+      : 'Чат пока не подключён (заглушка).'
   )
-
-  emit('navigate')
-
-  router.push({ path: '/chat', query: { draft: text } })
 }
 
 /* ЛК: сохраняем при авторизации, иначе отправляем на вход. */
@@ -1134,6 +1141,40 @@ function handleClear() {
 
 .portfolio-action--danger {
   color: #c62828;
+}
+
+/* Обёртка «Сохранить»: нужна, чтобы тултип показывался и когда кнопка
+   задизейблена (disabled-элементы не принимают наведение). */
+.portfolio-save-wrap {
+  display: inline-flex;
+}
+
+/* Гасим указатель у выключенной кнопки — наведение ловит обёртка,
+   и тултип «Войдите в личный кабинет» показывается. */
+.portfolio-save-wrap .q-btn--disabled {
+  pointer-events: none;
+}
+
+/* Длинный список форматов «Вывода» — с прокруткой. */
+.portfolio-export-menu {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+/* Пункты выпадающих списков — тем же кеглем и весом, что подписи кнопок
+   («Вывод», «Действия»), чтобы меню выглядело компактнее. */
+.portfolio-export-menu :deep(.q-item__label),
+.portfolio-action-menu :deep(.q-item__label) {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.portfolio-export-menu :deep(.q-item),
+.portfolio-action-menu :deep(.q-item) {
+  min-height: 30px;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 
 /* Галочка «Фото» — по размеру кнопок действий. */

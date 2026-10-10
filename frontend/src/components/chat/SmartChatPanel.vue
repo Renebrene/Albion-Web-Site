@@ -1,11 +1,40 @@
 <template>
-  <section class="chat-panel" aria-label="Спроси помощника">
+  <section
+    class="chat-panel"
+    :class="[`chat-panel--${variant}`, { 'is-expanded': expanded }]"
+    aria-label="Спроси помощника"
+  >
     <div class="chat-title">
-      <span class="chat-title-icon" aria-hidden="true">✦</span>
-      <span>СПРОСИ ПОМОЩНИКА</span>
-      <span v-if="lastResponse?.results?.count" class="chat-title-count">
-        {{ lastResponse.results.count }}
+      <span
+        v-if="variant !== 'compact'"
+        class="chat-title-icon"
+        aria-hidden="true"
+      >
+        ✦
       </span>
+      <span v-if="variant !== 'compact' && chatNumber" class="chat-title-count">
+        {{ chatNumber }}
+      </span>
+
+      <!-- Подсказка-заглушка — в один ряд со значком и номером. -->
+      <span
+        v-if="variant !== 'compact' && !messages.length"
+        class="chat-title-hint"
+      >
+        Спросите про конструкции, цену, доступность или загрузку.
+      </span>
+
+      <!-- Развернуть чат вниз до конца страницы. -->
+      <q-btn
+        v-if="variant !== 'compact'"
+        class="chat-expand"
+        flat
+        dense
+        round
+        :icon="expanded ? 'unfold_less' : 'unfold_more'"
+        :title="expanded ? 'Свернуть чат' : 'Развернуть чат вниз'"
+        @click="expanded = !expanded"
+      />
 
       <q-btn
         v-if="pageLink"
@@ -20,27 +49,13 @@
       />
     </div>
 
-    <div v-if="exchanges.length" class="chat-rows">
-      <span class="chat-rows-label">Рядов:</span>
-      <button
-        v-for="value in 6"
-        :key="value"
-        type="button"
-        class="chat-rows-btn"
-        :class="{ 'is-active': moduleRows === value }"
-        @click="moduleRows = value"
-      >
-        {{ value }}
-      </button>
-    </div>
-
     <div
       class="chat-session"
-      :style="{ '--rows': moduleRows }"
+      :style="{ '--cols': columns }"
       role="log"
       aria-live="polite"
     >
-      <div v-if="!messages.length" class="chat-empty">
+      <div v-if="!messages.length && variant === 'compact'" class="chat-empty">
         Спросите про конструкции, цену, доступность или загрузку.
       </div>
 
@@ -50,7 +65,22 @@
         class="chat-module"
       >
         <div v-if="exchange.question" class="chat-message chat-message-user">
-          <div class="chat-bubble">{{ exchange.question.text }}</div>
+          <div class="chat-message-row">
+            <div class="chat-bubble">{{ exchange.question.text }}</div>
+            <button
+              type="button"
+              class="chat-copy"
+              :title="
+                copiedKey === `q-${index}` ? 'Скопировано' : 'Скопировать'
+              "
+              @click="copyMessage(exchange.question, `q-${index}`)"
+            >
+              <q-icon
+                :name="copiedKey === `q-${index}` ? 'check' : 'content_copy'"
+                size="14px"
+              />
+            </button>
+          </div>
         </div>
 
         <template
@@ -58,7 +88,26 @@
           :key="`answer-${index}-${ai}`"
         >
           <div class="chat-message chat-message-assistant">
-            <div class="chat-bubble">{{ message.text }}</div>
+            <div class="chat-message-row">
+              <div class="chat-bubble">{{ message.text }}</div>
+              <button
+                type="button"
+                class="chat-copy"
+                :title="
+                  copiedKey === `a-${index}-${ai}`
+                    ? 'Скопировано'
+                    : 'Скопировать'
+                "
+                @click="copyMessage(message, `a-${index}-${ai}`)"
+              >
+                <q-icon
+                  :name="
+                    copiedKey === `a-${index}-${ai}` ? 'check' : 'content_copy'
+                  "
+                  size="14px"
+                />
+              </button>
+            </div>
             <div v-if="message.warnings?.length" class="chat-warning">
               {{ message.warnings.join(' ') }}
             </div>
@@ -90,33 +139,39 @@
               >
                 <div class="chat-result-num">{{ position + 1 }}</div>
 
-                <button
-                  v-if="hasMedia(point.primary)"
-                  type="button"
-                  class="chat-result-photo"
-                  :title="point.address"
-                  @click="openMediaViewer(point.primary)"
-                >
-                  <img
-                    :src="mediaSrc(point.primary)"
-                    :alt="point.address"
-                    loading="lazy"
-                  />
-                </button>
-                <div v-else class="chat-result-photo is-empty" />
+                <div class="chat-result-photo-col">
+                  <button
+                    v-if="hasMedia(point.primary)"
+                    type="button"
+                    class="chat-result-photo"
+                    :title="point.address"
+                    @click="openMediaViewer(point.primary)"
+                  >
+                    <img
+                      :src="mediaSrc(point.primary)"
+                      :alt="point.address"
+                      loading="lazy"
+                    />
+                  </button>
+                  <div v-else class="chat-result-photo is-empty" />
+
+                  <div
+                    v-if="point.price != null"
+                    class="chat-result-photo-price"
+                  >
+                    {{ formatPrice(point.price) }} ₽
+                  </div>
+                </div>
 
                 <div class="chat-result-info">
+                  <div class="chat-result-line chat-result-format">
+                    <span class="chat-result-type">{{ point.type }}</span>
+                  </div>
                   <div
                     v-if="point.city"
                     class="chat-result-line chat-result-city"
                   >
                     {{ point.city }}
-                  </div>
-                  <div class="chat-result-line chat-result-format">
-                    <span class="chat-result-type">{{ point.type }}</span>
-                    <span v-if="point.size" class="chat-result-size">
-                      {{ point.size }}
-                    </span>
                   </div>
                   <div class="chat-result-line chat-result-address">
                     {{ point.address }}
@@ -136,98 +191,84 @@
                     class="chat-side"
                     :class="{ 'is-pf-mode': isBlockActive(side) }"
                   >
-                    <div class="chat-side-head">
-                      <span class="chat-side-label">{{ side.parent }}</span>
-                      <span class="chat-side-size" v-if="side.size">
-                        {{ side.size }}
-                      </span>
-                    </div>
-
                     <!-- Свёрнутый режим «по сторонам»: одна строка на сторону,
                          месяц свободен, если свободна хоть одна поверхность. -->
                     <div
-                      v-if="availableMode === 'sides' && side.kind === 'dynamic'"
+                      v-if="collapseToSides && side.kind === 'dynamic'"
                       class="chat-side-row"
                     >
+                      <span class="chat-side-label">{{ side.parent }}</span>
+
                       <div class="chat-months">
                         <button
-                          v-for="month in MONTHS"
+                          v-for="month in sideMonthChips(side)"
                           :key="month.full"
                           type="button"
                           class="chat-month"
-                          :class="[
-                            sideState(side, month.full),
-                            {
-                              'is-selected': isSideMonthSelected(
-                                side,
-                                month.full
-                              ),
-                              'is-locked':
-                                isBlockActive(side) &&
-                                !isSideFree(side, month.full)
-                            }
-                          ]"
-                          :title="sideStateLabel(side, month.full)"
+                          :class="{
+                            'is-selected': month.selected,
+                            'is-disabled': !month.canPick,
+                            [`state-${month.state}`]: true
+                          }"
+                          :disabled="!month.canPick"
+                          :title="month.title"
                           @click="onSideMonthClick(side, month)"
                         >
-                          <span>{{ month.short }}</span>
+                          {{ month.short }}
                         </button>
                       </div>
                     </div>
 
                     <template v-else>
                       <div
-                        v-for="row in side.items"
+                        v-for="(row, ri) in side.items"
                         :key="row.id"
                         class="chat-side-row"
                       >
+                        <span v-if="ri === 0" class="chat-side-label">
+                          {{ side.parent }}
+                        </span>
+
                         <div class="chat-months">
                           <button
-                            v-for="month in MONTHS"
+                            v-for="month in rowMonthChips(side, row)"
                             :key="month.full"
                             type="button"
                             class="chat-month"
-                            :class="[
-                              rowState(row, month.full),
-                              {
-                                'is-selected': isMonthSelected(
-                                  row.id,
-                                  month.full
-                                ),
-                                'is-locked':
-                                  isBlockActive(side) &&
-                                  rowLocked(row, month.full)
-                              }
-                            ]"
-                            :title="rowStatusLabel(row, month.full)"
+                            :class="{
+                              'is-selected': month.selected,
+                              'is-disabled': !month.canPick,
+                              [`state-${month.state}`]: true
+                            }"
+                            :disabled="!month.canPick"
+                            :title="month.title"
                             @click="onRowMonthClick(side, row, month)"
                           >
-                            <span>{{ month.short }}</span>
-                            <span
-                              v-if="
-                                isMonthSelected(row.id, month.full) &&
-                                monthPrice(row, month.full) != null
-                              "
-                              class="chat-month-price"
-                            >
-                              {{ formatPrice(monthPrice(row, month.full)) }} ₽
-                            </span>
+                            {{ month.short }}
                           </button>
                         </div>
 
                         <span class="chat-side-load">{{ loadLabel(row) }}</span>
                       </div>
                     </template>
-
-                    <button
-                      type="button"
-                      class="chat-pf-toggle"
-                      :class="{ 'is-active': isBlockActive(side) }"
-                      @click="onBlockToggle(side)"
-                    >
-                      {{ isBlockActive(side) ? 'В портфеле' : 'Портфель' }}
-                    </button>
                   </div>
+
+                  <!-- «Портфель» общий для всех сторон конструкции.
+                       Кнопка только включает/выключает выбор месяцев. -->
+                  <button
+                    type="button"
+                    class="chat-pf-toggle"
+                    :class="{ 'is-active': isPointActive(point) }"
+                    :title="
+                      isPointActive(point)
+                        ? 'Убрать из портфеля'
+                        : 'Добавить в портфель'
+                    "
+                    @click="onPointToggle(point)"
+                  >
+                    <q-icon name="work_outline" size="16px" />
+                    <span>Портфель</span>
+                  </button>
                 </div>
               </article>
             </div>
@@ -275,18 +316,14 @@ import { computed, ref } from 'vue'
 import { usePhotoViewer } from '../../composables/usePhotoViewer'
 import { usePortfolio } from '../../composables/usePortfolio'
 import { useSmartChat } from '../../composables/useSmartChat'
+import { copyToClipboard } from '../../services/portfolioExport'
 import {
   MONTHS,
   dedupeSides,
   groupByPoint,
-  groupSides,
-  sideLabel
+  groupSides
 } from '../../utils/constructionGroups'
-import {
-  getAvailabilityState,
-  getMonthStatusLabel,
-  isFree
-} from '../../utils/availability'
+import { getAvailabilityState, isFree } from '../../utils/availability'
 import { availableMode } from '../../config/availableMode'
 
 const props = defineProps({
@@ -294,10 +331,35 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  /*
+   * Оформление окна:
+   *   'compact' — маленькое окно в шапке (выпадающее меню);
+   *   'page'    — большое окно на странице /chat.
+   * Варианты стилизуются независимо (см. .chat-panel--compact / --page).
+   */
+  variant: {
+    type: String,
+    default: 'compact'
+  },
   /* Показать ссылку «Открыть на странице» (в выпадающем меню шапки). */
   pageLink: {
     type: Boolean,
     default: false
+  },
+  /* Число столбцов сетки модулей (большое окно). */
+  columns: {
+    type: Number,
+    default: 1
+  },
+  /* Ключ независимого чата: у каждого чатика своё состояние. */
+  chatKey: {
+    type: String,
+    default: 'default'
+  },
+  /* Номер чата (порядковый) — показывается после значка. */
+  chatNumber: {
+    type: Number,
+    default: null
   }
 })
 
@@ -305,9 +367,20 @@ defineEmits(['close'])
 
 const draft = ref(props.initialDraft)
 
-/* Сколько рядов модулей показывать в сетке сессии (1–6). */
-const moduleRows = ref(2)
-const { messages, loading, lastResponse, send, reset } = useSmartChat()
+/* Развёрнут ли чат вниз (до конца страницы). */
+const expanded = ref(false)
+
+/*
+ * Сворачивать поверхности до одной строки на сторону.
+ *   маленькое окно — всегда;
+ *   большое окно — по настройке «Внешний вид» (available_mode).
+ */
+const collapseToSides = computed(
+  () => props.variant === 'compact' || availableMode.value === 'sides'
+)
+const { messages, loading, lastResponse, send, reset } = useSmartChat(
+  props.chatKey
+)
 const { openPhoto } = usePhotoViewer()
 const {
   isInPortfolio,
@@ -343,6 +416,24 @@ const exchanges = computed(() => {
 
   return list
 })
+
+/* Ключ сообщения, текст которого только что скопирован (для иконки-галочки). */
+const copiedKey = ref('')
+
+async function copyMessage(message, key) {
+  const ok = await copyToClipboard(message?.text || '')
+
+  if (!ok) {
+    return
+  }
+
+  copiedKey.value = key
+  window.setTimeout(() => {
+    if (copiedKey.value === key) {
+      copiedKey.value = ''
+    }
+  }, 1500)
+}
 
 function submit() {
   const text = draft.value.trim()
@@ -490,6 +581,23 @@ function surfaceOf(item) {
  * Поверхности одной конструкции → одна карточка, как в каталоге:
  * группируем по точке, затем по стороне (kind: dynamic/static/video).
  */
+/*
+ * Стороны для строки «СТОРОНА»: только те, что свободны под запрос
+ * (есть хотя бы один свободный месяц доступности из базы).
+ */
+function sidesLabel(blocks) {
+  const all = blocks.map(side => side.parent).filter(Boolean)
+
+  const free = blocks
+    .filter(side =>
+      side.items.some(row => MONTHS.some(month => isFree(row, month.full)))
+    )
+    .map(side => side.parent)
+    .filter(Boolean)
+
+  return (free.length ? free : all).join(' · ')
+}
+
 function groupPoints(items) {
   const surfaces = (items || []).map(surfaceOf)
 
@@ -499,7 +607,6 @@ function groupPoints(items) {
       key: `${point.key}-${index}`,
       parent: side.parent,
       kind: side.kind,
-      size: String(first.size || '').trim(),
       items: side.items
     }))
 
@@ -507,11 +614,8 @@ function groupPoints(items) {
       key: point.key,
       primary: first,
       type: String(first.type || 'Конструкция').trim(),
-      size: String(first.size || '').trim(),
-      sides: blocks
-        .map(side => side.parent)
-        .filter(Boolean)
-        .join(' · '),
+      // Стороны: только свободные под запрос (есть свободный месяц).
+      sides: sidesLabel(blocks),
       address: String(first.address || first.name || 'Адрес не указан').trim(),
       city: String(first.city || '').trim(),
       price: first.price,
@@ -548,7 +652,7 @@ function resultBlocks(message) {
   return blocks
 }
 
-/* --- портфель по стороне (как в каталоге) --- */
+/* --- портфель --- */
 
 function isBlockActive(side) {
   return side.items.some(item => {
@@ -558,14 +662,35 @@ function isBlockActive(side) {
   })
 }
 
-function onBlockToggle(side) {
-  const ids = side.items.map(item => Number(item.id))
+/* «Портфель» — общий для всех сторон конструкции. */
+function pointIds(point) {
+  return point.blocks.flatMap(side => side.items.map(item => Number(item.id)))
+}
 
-  if (isBlockActive(side)) {
+function isPointActive(point) {
+  const ids = pointIds(point)
+
+  return ids.some(id => isInPortfolio(id) || isSelectionMode(id))
+}
+
+function onPointToggle(point) {
+  const ids = pointIds(point)
+
+  if (isPointActive(point)) {
+    // Активна — сбрасываем все поверхности конструкции.
     ids.forEach(id => removeSurface(id))
-  } else {
-    ids.forEach(id => toggleSelectionMode(id))
+    return
   }
+
+  // Неактивна — включаем режим выбора месяцев (как в каталоге):
+  // по первой поверхности каждой стороны.
+  point.blocks.forEach(side => {
+    const first = side.items[0]
+
+    if (first) {
+      toggleSelectionMode(Number(first.id))
+    }
+  })
 }
 
 function onRowMonthClick(side, row, month) {
@@ -578,34 +703,81 @@ function onRowMonthClick(side, row, month) {
 
 /* --- доступность конкретной поверхности (row — уже формат каталога) --- */
 
-function rowState(row, monthFull) {
-  return getAvailabilityState(row, monthFull)
-}
-
 function rowLocked(row, monthFull) {
   return !isFree(row, monthFull)
 }
 
-function rowStatusLabel(row, monthFull) {
-  return getMonthStatusLabel(row, monthFull)
+/* --- чипы месяцев в стиле портфеля --- */
+
+/* Подсказка при наведении: месяц, цена и возможность выбора. */
+function monthTitle(full, price, state, selected) {
+  if (selected) {
+    return `${full}: выбран${price != null ? ` · ${formatPrice(price)} ₽` : ''} — нажмите, чтобы убрать`
+  }
+
+  if (state !== 'free') {
+    return `${full}: ${state === 'reserve' ? 'в резерве' : 'занято'} — выбрать нельзя`
+  }
+
+  return price != null
+    ? `${full}: ${formatPrice(price)} ₽ — нажмите, чтобы добавить`
+    : `${full}: свободен — нажмите, чтобы добавить (цена не указана)`
 }
 
-function monthPrice(row, monthFull) {
-  return row.month_prices[monthFull]
+/* Одна строка на сторону: цена — первая непустая среди поверхностей. */
+function sideMonthPrice(side, monthFull) {
+  for (const row of side?.items || []) {
+    const price = row.month_prices?.[monthFull]
+
+    if (price != null) {
+      return price
+    }
+  }
+
+  return null
 }
 
-/* --- свёрнутый режим «по сторонам» (available_mode = 'sides') --- */
+function sideMonthChips(side) {
+  const active = isBlockActive(side)
+
+  return MONTHS.map(month => {
+    const state = isSideFree(side, month.full) ? 'free' : 'busy'
+    const selected = isSideMonthSelected(side, month.full)
+    const price = sideMonthPrice(side, month.full)
+
+    return {
+      full: month.full,
+      short: month.short,
+      state,
+      selected,
+      canPick: active && (selected || state === 'free'),
+      title: monthTitle(month.full, price, state, selected)
+    }
+  })
+}
+
+/* Строка поверхности: своя доступность и цена. */
+function rowMonthChips(side, row) {
+  const active = isBlockActive(side)
+
+  return MONTHS.map(month => {
+    const state = getAvailabilityState(row, month.full)
+    const selected = isMonthSelected(row.id, month.full)
+    const price = row.month_prices?.[month.full] ?? null
+
+    return {
+      full: month.full,
+      short: month.short,
+      state,
+      selected,
+      canPick: active && (selected || state === 'free'),
+      title: monthTitle(month.full, price, state, selected)
+    }
+  })
+}
 
 function isSideFree(side, monthFull) {
   return (side?.items || []).some(row => isFree(row, monthFull))
-}
-
-function sideState(side, monthFull) {
-  return isSideFree(side, monthFull) ? 'free' : 'busy'
-}
-
-function sideStateLabel(side, monthFull) {
-  return isSideFree(side, monthFull) ? 'Свободно' : 'Продано'
 }
 
 function isSideMonthSelected(side, monthFull) {
@@ -646,6 +818,23 @@ function loadLabel(row) {
   color: var(--albion-accent);
   font-size: 15px;
 }
+/* Подсказка-заглушка в шапке чата. */
+.chat-title-hint {
+  color: #71808c;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+}
+/* Кнопка разворота — прижата вправо. */
+.chat-expand {
+  margin-left: auto;
+  color: #8b98a3;
+}
+.chat-expand:hover {
+  color: var(--albion-accent);
+}
 .chat-title-link {
   margin-left: auto;
   font-size: 10px;
@@ -666,52 +855,17 @@ function loadLabel(row) {
   font-size: 11px;
   font-weight: 900;
 }
-/* Сетка модулей: число рядов задаётся переключателем «Рядов». */
+/* Сетка модулей сессии; число столбцов задаётся переключателем на странице. */
 .chat-session {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
-  grid-auto-rows: 320px;
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+  grid-auto-rows: auto;
   gap: 14px;
   align-content: start;
-  max-height: calc(var(--rows, 2) * 334px);
+  max-height: 70vh;
   overflow: auto;
   padding-right: 4px;
   margin-right: -4px;
-}
-.chat-rows {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.chat-rows-label {
-  color: #8b98a3;
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.chat-rows-btn {
-  min-width: 24px;
-  height: 22px;
-  padding: 0 6px;
-  border: 1px solid #dce2e6;
-  border-radius: 6px;
-  background: #fff;
-  color: #52606a;
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: 0.15s ease;
-}
-.chat-rows-btn:hover {
-  border-color: var(--albion-accent);
-  color: var(--albion-accent);
-}
-.chat-rows-btn.is-active {
-  border-color: var(--albion-accent);
-  background: #fdeceb;
-  color: var(--albion-accent);
 }
 /* Модуль = один вопрос и его ответы: независимый блок сессии. */
 .chat-module {
@@ -759,6 +913,35 @@ function loadLabel(row) {
   background: #17212b;
   color: #fff;
 }
+.chat-message-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: 100%;
+}
+.chat-message-user .chat-message-row {
+  flex-direction: row-reverse;
+}
+.chat-copy {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #8b98a3;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: 0.15s ease;
+}
+.chat-copy:hover {
+  opacity: 1;
+  color: var(--albion-accent);
+}
 .chat-options,
 .chat-input-actions {
   display: flex;
@@ -800,7 +983,7 @@ function loadLabel(row) {
 .chat-result-sides {
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 8px;
   min-width: 0;
 }
@@ -809,6 +992,8 @@ function loadLabel(row) {
   flex-direction: column;
   gap: 3px;
   min-width: 0;
+  /* Узкий текст с переносами — место отдаётся блоку месяцев. */
+  max-width: 320px;
 }
 .chat-result-line {
   line-height: 1.35;
@@ -825,11 +1010,6 @@ function loadLabel(row) {
   font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.01em;
-}
-.chat-result-size {
-  color: #8b98a3;
-  font-size: 12px;
-  font-weight: 700;
 }
 /* АДРЕС */
 .chat-result-address {
@@ -872,6 +1052,19 @@ function loadLabel(row) {
   background: transparent;
   cursor: default;
 }
+.chat-result-photo-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+/* Цена под фотографией. */
+.chat-result-photo-price {
+  color: #17212b;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
 .chat-result-photo img {
   display: block;
   width: 100%;
@@ -887,37 +1080,20 @@ function loadLabel(row) {
   margin-top: 8px;
   border-top: 1px solid #edf0f2;
 }
-.chat-side-head {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
 .chat-side-label {
+  flex: 0 0 auto;
+  /* Общая колонка букв: A/B/C встают на одну вертикаль. */
+  min-width: 16px;
   color: #17212b;
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.04em;
 }
-.chat-side-size {
-  color: #8b98a3;
-  font-size: 10px;
-  font-weight: 700;
-}
 .chat-side-row {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 8px;
-}
-.chat-side-row-label {
-  flex: 0 0 auto;
-  min-width: 40px;
-  margin-right: auto;
-  color: #17212b;
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: 0.04em;
 }
 .chat-side-load {
   color: #8b98a3;
@@ -943,28 +1119,28 @@ function loadLabel(row) {
   font-weight: 900;
   letter-spacing: 0.04em;
   white-space: nowrap;
-  cursor: default;
+  cursor: pointer;
   transition: 0.15s ease;
 }
-.chat-month.free {
+/* Палитра статусов — как в портфеле и на карточках карты. */
+.chat-month.state-free {
   background: #dff3e4;
   color: #16803a;
 }
-.chat-month.reserve {
+.chat-month.state-reserve {
   background: #fff0d2;
   color: #b96b00;
 }
-.chat-month.busy {
+.chat-month.state-busy {
   background: #f9dede;
   color: #c62828;
 }
-.chat-side.is-pf-mode .chat-month:not(.is-locked) {
-  cursor: pointer;
-}
-.chat-side.is-pf-mode .chat-month:not(.is-locked):hover {
+.chat-month.state-free:not(:disabled):hover {
   filter: brightness(0.95);
 }
-.chat-side.is-pf-mode .chat-month.is-locked {
+/* В режиме выбора месяцы без статуса «свободно» недоступны. */
+.chat-month.is-disabled,
+.chat-month:disabled {
   opacity: 0.8;
   cursor: not-allowed;
 }
@@ -975,10 +1151,11 @@ function loadLabel(row) {
 .chat-month.is-selected:hover {
   filter: brightness(0.94);
 }
-.chat-month-price {
-  font-weight: 700;
-}
 .chat-pf-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   padding: 6px 11px;
   border: 1px solid #dce2e6;
   border-radius: 8px;
@@ -1012,16 +1189,57 @@ function loadLabel(row) {
   justify-content: space-between;
   margin-top: 7px;
 }
+/* ============================================================
+ * Варианты окна: стилизуются независимо.
+ *   .chat-panel--compact — маленькое окно в шапке;
+ *   .chat-panel--page    — большое окно на странице /chat.
+ * Общие правила выше применяются к обоим вариантам; здесь — отличия.
+ * ============================================================ */
+
+/* Маленькое окно: ограничено высотой выпадающего меню, одна колонка. */
+.chat-panel--compact .chat-session {
+  grid-template-columns: minmax(0, 1fr);
+  max-height: 50vh;
+}
+.chat-panel--compact .chat-module .chat-results {
+  max-height: 220px;
+}
+/* «Портфель» — под блоком месяцев, во всю ширину стороны. */
+.chat-panel--compact .chat-pf-toggle {
+  align-self: stretch;
+  width: 100%;
+}
+
+/* Большое окно: на всю ширину страницы, число столбцов — из переключателя. */
+.chat-panel--page .chat-session {
+  grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr));
+  max-height: 70vh;
+}
+/* Список результатов внутри модуля — со скроллом, чтобы модуль не разрастался. */
+.chat-panel--page .chat-module .chat-results {
+  max-height: 420px;
+}
+/* Развёрнутый чат: список тянется вниз до конца страницы. */
+.chat-panel--page.is-expanded .chat-session {
+  max-height: calc(100vh - var(--albion-header-h, 78px) - 300px);
+}
+.chat-panel--page.is-expanded .chat-module .chat-results {
+  max-height: calc(100vh - var(--albion-header-h, 78px) - 460px);
+}
+
 @media (max-width: 760px) {
   .chat-result {
     grid-template-columns: 22px minmax(0, 1fr);
   }
-  .chat-result-photo,
+  .chat-result-photo-col,
   .chat-result-info,
   .chat-result-sides {
     grid-column: 2;
   }
   .chat-result-sides {
+    align-items: stretch;
+  }
+  .chat-result-photo-col {
     align-items: stretch;
   }
   .chat-result-photo {

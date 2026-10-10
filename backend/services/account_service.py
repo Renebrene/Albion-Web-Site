@@ -487,3 +487,96 @@ def save_portfolio(account_id: int, payload: dict) -> dict:
     saved = row[0] if row is not None else None
 
     return saved if isinstance(saved, dict) else {}
+
+
+# ----------------------------------------------------------- чаты умного чата
+
+
+def get_chats(account_id: int) -> dict:
+    """Сохранённые чаты аккаунта: payload целиком или {}."""
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT payload
+            FROM account_chats
+            WHERE account_id = %s
+            LIMIT 1
+            """,
+            (account_id,),
+        ).fetchone()
+
+    if row is None:
+        return {}
+
+    payload = row[0]
+
+    return payload if isinstance(payload, dict) else {}
+
+
+def save_chats(account_id: int, payload: dict) -> dict:
+    """Сохраняет чаты аккаунта (UPSERT по account_id)."""
+    if not isinstance(payload, dict):
+        payload = {}
+
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            INSERT INTO account_chats (account_id, payload)
+            VALUES (%s, %s)
+            ON CONFLICT (account_id) DO UPDATE
+            SET payload = EXCLUDED.payload,
+                updated_at = NOW()
+            RETURNING payload
+            """,
+            (account_id, Json(payload)),
+        ).fetchone()
+
+    saved = row[0] if row is not None else None
+
+    return saved if isinstance(saved, dict) else {}
+
+
+def _updated_at(table: str, account_id: int) -> str | None:
+    """Дата последнего сохранения строки аккаунта (ISO) либо None."""
+    with get_connection() as conn:
+        row = conn.execute(
+            f"SELECT updated_at FROM {table} WHERE account_id = %s LIMIT 1",
+            (account_id,),
+        ).fetchone()
+
+    if row is None or row[0] is None:
+        return None
+
+    return row[0].isoformat()
+
+
+def get_portfolio_updated_at(account_id: int) -> str | None:
+    return _updated_at("account_portfolios", account_id)
+
+
+def get_chats_updated_at(account_id: int) -> str | None:
+    return _updated_at("account_chats", account_id)
+
+
+def clear_portfolio(account_id: int) -> None:
+    """Очищает сохранённый портфель аккаунта (только список ЛК).
+
+    Содержание конструкций хранится в основной базе и не удаляется.
+    """
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM account_portfolios WHERE account_id = %s",
+            (account_id,),
+        )
+
+
+def clear_chats(account_id: int) -> None:
+    """Очищает сохранённые чаты аккаунта (только список ЛК).
+
+    Текстовая история вопросов и ответов остаётся в журнале чата.
+    """
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM account_chats WHERE account_id = %s",
+            (account_id,),
+        )

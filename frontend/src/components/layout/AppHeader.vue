@@ -112,13 +112,15 @@
     </div>
 
     <!-- УМНЫЙ ЧАТ — открывает окно вниз, размером как «Портфель».
-         Логику/наполнение/поведение опишем позже. -->
+         Чаты общие с большим окном (страница /chat): список и данные
+         синхронизированы, оформление — компактное. -->
     <div
       class="smart-chat"
       role="button"
       tabindex="0"
       aria-label="Умный чат"
       :aria-expanded="chatOpen"
+      @click="openWorkspace()"
       @keydown.enter.prevent="chatOpen = !chatOpen"
       @keydown.space.prevent="chatOpen = !chatOpen"
     >
@@ -136,10 +138,34 @@
           <div class="smart-chat-head">
             <span class="smart-chat-head-icon">✦</span>
             <span class="smart-chat-head-title">УМНЫЙ ЧАТ</span>
+
+            <ChatSaveButton compact class="smart-chat-save" />
           </div>
 
           <div class="smart-chat-body">
-            <SmartChatPanel page-link @close="chatOpen = false" />
+            <SmartChatPanel
+              v-for="(chat, index) in chats"
+              :key="chat.key"
+              variant="compact"
+              :chat-key="chat.key"
+              :chat-number="chat.number"
+              :initial-draft="chat.draft"
+              :page-link="index === 0"
+              @close="chatOpen = false"
+            />
+
+            <!-- После очистки чатов список пуст — даём создать новый. -->
+            <div v-if="!chats.length" class="smart-chat-empty">
+              <span>Чаты очищены. История осталась в журнале.</span>
+              <q-btn
+                flat
+                dense
+                no-caps
+                color="primary"
+                label="Новый чат"
+                @click="addChat()"
+              />
+            </div>
           </div>
         </div>
       </q-menu>
@@ -289,8 +315,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import PortfolioPanel from '../portfolio/PortfolioPanel.vue'
+import ChatSaveButton from '../chat/ChatSaveButton.vue'
 import SmartChatPanel from '../chat/SmartChatPanel.vue'
 import { useAccount } from '../../composables/useAccount'
+import { useChatWorkspace } from '../../composables/useChatWorkspace'
 import { usePortfolio } from '../../composables/usePortfolio'
 
 const route = useRoute()
@@ -298,6 +326,9 @@ const router = useRouter()
 
 /* Состояние личного кабинета: вход/выход прямо из шапки */
 const { account, isAuthenticated, logout, loadMe } = useAccount()
+
+/* Чаты общие с большим окном: в маленьком окне показываем тот же список. */
+const { chats, addChat, openWorkspace } = useChatWorkspace()
 
 /* Портфель: счётчик для бейджа и синхронизация с ЛК */
 const { count, mergeFromAccount } = usePortfolio()
@@ -350,6 +381,11 @@ const portfolioOpen = ref(false)
 
 /* Окно «Умного чата» (выпадает вниз, как портфель). */
 const chatOpen = ref(false)
+
+/* При открытии окна поднимаем чаты и создаём первый, если их ещё нет. */
+watch(chatOpen, open => {
+  if (open) openWorkspace()
+})
 
 /* Мобильное выпадающее меню */
 const mobileOpen = ref(false)
@@ -788,6 +824,11 @@ onMounted(async () => {
   font-size: 14px;
 }
 
+/* Кнопка «Сохранить» в шапке окна — прижата вправо. */
+.smart-chat-save {
+  margin-left: auto;
+}
+
 .smart-chat-body {
   flex: 1 1 auto;
   min-height: 0;
@@ -796,6 +837,20 @@ onMounted(async () => {
 
   color: #64748b;
   font-size: 14px;
+}
+
+/* Пустое состояние маленького окна после очистки чатов. */
+.smart-chat-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+
+  padding: 32px 12px;
+
+  color: #8b98a3;
+  font-size: 13px;
+  text-align: center;
 }
 
 /* ---------------------------------------------------------

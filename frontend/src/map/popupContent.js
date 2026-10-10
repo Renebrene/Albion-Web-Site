@@ -17,6 +17,7 @@ import {
 import { usePortfolio } from '../composables/usePortfolio'
 import { photoLabel, sanitizeFileName } from '../composables/usePhotoViewer'
 import { availableMode } from '../config/availableMode'
+import { showDynCount } from '../config/dynCount'
 
 /*
  * Портфель-стор — только чтение начального состояния кнопок и месяцев
@@ -320,7 +321,7 @@ function photoBlock(item) {
   `
 }
 
-function featuresBlock(item, isDynamic) {
+function featuresBlock(item, isDynamic, surfaceCount = 0) {
   const light = String(item?.light || '').trim().toLowerCase()
   const hasLight = [
     'да',
@@ -330,6 +331,13 @@ function featuresBlock(item, isDynamic) {
   ].includes(light)
 
   const dyn = Boolean(isDynamic)
+
+  /* Кол-во поверхностей стороны — как «динамика (5)» в списке.
+     Показываем только у динамики (не у видеоэкрана: он сюда не попадает)
+     и только если это разрешено настройкой show_dyn_count. */
+  const count = showDynCount.value && Number(surfaceCount) > 0
+    ? `<span class="dyn-count">(${escapeHtml(String(surfaceCount))})</span>`
+    : ''
 
   return `
     <div class="popup-features">
@@ -345,7 +353,7 @@ function featuresBlock(item, isDynamic) {
         <span class="feature-dyn">
           <span class="dyn-word ${dyn ? '' : 'is-active'}">статика</span>
           <span class="dyn-sep">/</span>
-          <span class="dyn-word ${dyn ? 'is-active' : ''}">динамика</span>
+          <span class="dyn-word ${dyn ? 'is-active' : ''}">динамика</span>${count}
         </span>
       </div>
     </div>
@@ -415,6 +423,7 @@ function dynamicRowsBlock(group) {
     <div class="popup-dynamic-rows">
       ${group.items.map(item => `
         <div class="popup-dynamic-row">
+          <span class="popup-dynamic-side">${escapeHtml(sideLabel(item))}</span>
           ${MONTHS.map(month => monthCell(item, month)).join('')}
         </div>
       `).join('')}
@@ -433,7 +442,7 @@ function dynamicBlock(group) {
         ${priceBlock(first)}
       </div>
       ${typeBlock(first)}
-      ${featuresBlock(first, true)}
+      ${featuresBlock(first, true, group.items.length)}
       ${photoBlock(first)}
       ${dynamicRowsBlock(group)}
       ${portfolioBlock(first)}

@@ -68,6 +68,12 @@ class RequisitesPayload(BaseModel):
     contact: str = Field(default="", max_length=300)
 
 
+class ChatsPayload(BaseModel):
+    # Чаты умного чата: список {number, key, messages}. Структуру описывает
+    # фронтенд, бэкенд хранит её как есть (только текстовая история).
+    chats: list[Any] = []
+
+
 class PortfolioPayload(BaseModel):
     # Портфель — список позиций (поверхности + выбранные месяцы).
     # Структуру описывает фронтенд (usePortfolio), бэкенд хранит её как есть.
@@ -198,6 +204,41 @@ def account_save_requisites(
     }
 
 
+@router.get("/chats")
+def account_get_chats(user: dict = Depends(require_account)):
+    """Сохранённые чаты аккаунта: { "chats": [...], "updated_at": ... }."""
+    payload = svc.get_chats(user["id"])
+
+    return {
+        "success": True,
+        "chats": payload.get("chats", []),
+        "updated_at": svc.get_chats_updated_at(user["id"]),
+    }
+
+
+@router.put("/chats")
+def account_save_chats(
+    payload: ChatsPayload,
+    user: dict = Depends(require_account),
+):
+    """Сохраняет чаты аккаунта (только текстовая история)."""
+    saved = svc.save_chats(user["id"], {"chats": payload.chats})
+
+    return {
+        "success": True,
+        "chats": saved.get("chats", []),
+        "updated_at": svc.get_chats_updated_at(user["id"]),
+    }
+
+
+@router.delete("/chats")
+def account_clear_chats(user: dict = Depends(require_account)):
+    """Очищает сохранённые чаты ЛК (журнал чата не затрагивается)."""
+    svc.clear_chats(user["id"])
+
+    return {"success": True, "chats": []}
+
+
 @router.get("/requests")
 def account_requests(user: dict = Depends(require_account)):
     return {
@@ -235,6 +276,7 @@ def account_get_portfolio(user: dict = Depends(require_account)):
     return {
         "title": payload.get("title") or "",
         "items": payload.get("items", []),
+        "updated_at": svc.get_portfolio_updated_at(user["id"]),
     }
 
 
@@ -261,4 +303,13 @@ def account_save_portfolio(
     return {
         "title": saved.get("title") or "",
         "items": saved.get("items", []),
+        "updated_at": svc.get_portfolio_updated_at(user["id"]),
     }
+
+
+@router.delete("/portfolio")
+def account_clear_portfolio(user: dict = Depends(require_account)):
+    """Очищает сохранённый портфель ЛК (данные конструкций не удаляются)."""
+    svc.clear_portfolio(user["id"])
+
+    return {"success": True, "items": []}

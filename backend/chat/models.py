@@ -21,6 +21,8 @@ class ChatMessageRequest(BaseModel):
     request_id: UUID | None = None
     message: str = Field(min_length=1, max_length=2000)
     context: ChatContext | None = None
+    # Идентификатор чатика в интерфейсе (для журнала и группировки).
+    chat_key: str | None = Field(default=None, max_length=64)
 
 
 class ChatSessionResponse(BaseModel):

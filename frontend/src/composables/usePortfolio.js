@@ -70,6 +70,9 @@ const title = ref('')
  */
 const accountTitle = ref('')
 
+// Дата последнего сохранения портфеля в ЛК (ISO-строка) — для фильтра по дате.
+const accountPortfolioUpdatedAt = ref('')
+
 // surfaceId (в виде строки) -> true, если включён режим выбора месяцев.
 const selectionMode = reactive({})
 
@@ -638,6 +641,7 @@ async function fetchAccountPortfolio() {
     const serverTitle = normalizeTitle(data && data.title)
 
     accountTitle.value = serverTitle
+    accountPortfolioUpdatedAt.value = (data && data.updated_at) || ''
 
     if (serverTitle && !title.value) {
       title.value = serverTitle
@@ -648,6 +652,33 @@ async function fetchAccountPortfolio() {
     return list.map(normalizeItem).filter(Boolean)
   } catch {
     return []
+  }
+}
+
+/*
+ * Очищает сохранённый в ЛК портфель (только список ЛК).
+ * Текущий рабочий портфель в памяти не трогаем.
+ */
+async function clearAccountPortfolio() {
+  const token = getToken()
+
+  if (!token) {
+    return false
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/account/portfolio`, {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${token}` }
+    })
+
+    if (response.ok) {
+      accountPortfolioUpdatedAt.value = ''
+    }
+
+    return response.ok
+  } catch {
+    return false
   }
 }
 
@@ -848,6 +879,8 @@ export function usePortfolio() {
     loadFromAccount,
     saveToAccount,
     mergeFromAccount,
-    fetchAccountPortfolio
+    fetchAccountPortfolio,
+    accountPortfolioUpdatedAt,
+    clearAccountPortfolio
   }
 }

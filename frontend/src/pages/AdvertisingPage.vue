@@ -3,6 +3,7 @@
     <div class="app">
       <FiltersSidebar
         v-if="workspaceMode !== 'point'"
+        :mode="workspaceMode"
         v-model:selected-months="selectedMonths"
         v-model:month-logic="monthLogic"
         v-model:selected-types="selectedTypes"
@@ -212,7 +213,7 @@
 
               <h1>
                 {{ displayedConstructions.length }}
-                конструкций
+                {{ sidesPhrase(displayedConstructions.length) }}
               </h1>
             </div>
 
@@ -255,14 +256,6 @@
                   class="construction-card"
                 >
                   <div class="card-content">
-                    <div class="card-address-main">
-                      {{ point.address }}
-                    </div>
-
-                    <div class="card-place">
-                      {{ point.city }}
-                    </div>
-
                     <div class="card-blocks">
                       <div
                         v-for="(block, blockIndex) in point.blocks"
@@ -278,10 +271,6 @@
                             <strong>
                               {{ blockType(block) }}
                             </strong>
-
-                            <span v-if="blockSize(block)" class="card-size">
-                              {{ blockSize(block) }}
-                            </span>
                           </div>
 
                           <div
@@ -327,8 +316,19 @@
                           </div>
                         </div>
 
-                        <div v-if="blockSide(block)" class="card-side-line">
-                          СТОРОНА <b>{{ blockSide(block) }}</b>
+                        <!-- Пустая строка над городом: формат сверху -->
+                        <div class="card-head">
+                          <div class="card-place">
+                            {{ point.city }}
+                          </div>
+
+                          <div class="card-address-main">
+                            {{ point.address }}
+                          </div>
+
+                          <div v-if="blockSide(block)" class="card-side-line">
+                            СТОРОНА <b>{{ blockSide(block) }}</b>
+                          </div>
                         </div>
 
                         <div class="card-photo card-photo--block">
@@ -431,6 +431,12 @@
                               :key="sideLabel(row)"
                               class="card-dynamic-row"
                             >
+                              <!-- Подпись поверхности (A(1), A(2)…) — как было
+                                   до появления режима «по сторонам». -->
+                              <span class="card-dynamic-side">
+                                {{ sideLabel(row) }}
+                              </span>
+
                               <div class="card-months card-months--inline">
                                 <div
                                   v-for="month in MONTHS"
@@ -556,9 +562,12 @@
                               >
 
                               <!-- Кол-во поверхностей стороны (для динамики,
-                                   кроме видеоэкрана). -->
+                                   кроме видеоэкрана; гасится настройкой
+                                   «Показывать количество динамических сторон»). -->
                               <span
-                                v-if="block.kind === 'dynamic'"
+                                v-if="
+                                  block.kind === 'dynamic' && showDynCount
+                                "
                                 class="dyn-count"
                                 >({{ block.items.length }})</span
                               >
@@ -637,6 +646,7 @@ import {
   groupByPoint
 } from '../utils/constructionGroups'
 import { availableMode } from '../config/availableMode'
+import { showDynCount } from '../config/dynCount'
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -726,6 +736,23 @@ function hasLight(item) {
       .trim()
       .toLowerCase()
   )
+}
+
+/* «35 рекламных сторон», «1 рекламная сторона», «2 рекламные стороны». */
+function sidesPhrase(count) {
+  const n = Math.abs(Number(count) || 0)
+  const mod10 = n % 10
+  const mod100 = n % 100
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return 'рекламная сторона'
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+    return 'рекламные стороны'
+  }
+
+  return 'рекламных сторон'
 }
 
 /* ------------------------------------------------- фото (адаптивные) */
@@ -2241,7 +2268,7 @@ onBeforeUnmount(() => {
 }
 
 .card-price-inline .price-value {
-  color: #17212b;
+  color: var(--albion-accent, #e12a1f);
 
   font-size: 20px;
   line-height: 1;
@@ -2260,7 +2287,7 @@ onBeforeUnmount(() => {
 }
 
 .card-price-inline .price-currency {
-  color: #17212b;
+  color: var(--albion-accent, #e12a1f);
 
   font-size: 13px;
   line-height: 1;
@@ -2359,18 +2386,29 @@ onBeforeUnmount(() => {
   line-height: 1.3;
 }
 
+/* Сторона — серая плашка, как бейдж в попапе карты. */
 .card-side-line {
-  margin-top: 2px;
+  align-self: flex-start;
 
-  color: #8a959c;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  margin-top: 6px;
+  padding: 3px 8px;
+
+  border-radius: 6px;
+  background: #e6e9ec;
+
+  color: #6b7680;
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 800;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .card-side-line b {
-  color: #52606a;
+  color: #3d3f43;
   font-weight: 900;
 }
 
@@ -2410,6 +2448,11 @@ onBeforeUnmount(() => {
 
 .card-block .card-side-line {
   margin-top: 6px;
+}
+
+/* Город/адрес/сторона идут под форматом; над городом — «пустая строка». */
+.card-block .card-head {
+  margin-top: 16px;
 }
 
 .card-photo--block {
@@ -3130,15 +3173,18 @@ onBeforeUnmount(() => {
    поэтому стили — глобальные (не scoped).
    ========================================================= */
 
-/* Вне режима выбора месяцы некликабельны; в режиме — активны. */
+/* Месяцы всегда принимают наведение: иначе браузер не показывает
+   всплывающую подсказку со статусом месяца (native title), как на
+   карточках списка. Клик вне режима выбора всё равно игнорируется
+   обработчиком (нужен класс .pf-mode у секции), поэтому pointer-events
+   можно держать включённым постоянно. */
 .popup .popup-months,
 .popup .popup-month {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-.popup-side-card.pf-mode .popup-months,
+/* Курсор-рука — только там, где месяц реально кликабелен. */
 .popup-side-card.pf-mode .popup-month {
-  pointer-events: auto;
   cursor: pointer;
 }
 

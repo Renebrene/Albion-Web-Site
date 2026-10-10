@@ -99,7 +99,10 @@ def export_portfolio(
     payload: PortfolioExportPayload,
     format: str = Query(
         default="xlsx",
-        description="Формат файла: xlsx, docx или pdf",
+        description=(
+            "Формат файла: xls, xlsx, doc, docx, pdf, odt, ods, rtf, "
+            "csv, txt, md, json"
+        ),
     ),
     with_photos: str | None = Query(
         default=None,
@@ -121,7 +124,7 @@ def export_portfolio(
             status_code=400,
             detail=(
                 f"Неподдерживаемый формат: {format!r}. "
-                "Допустимо: xlsx, docx, pdf."
+                "Допустимо: " + ", ".join(svc.SUPPORTED_FORMATS) + "."
             ),
         )
 

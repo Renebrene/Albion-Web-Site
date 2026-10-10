@@ -5,7 +5,7 @@
       <div class="page-head">
         <div class="eyebrow">ALBION</div>
         <h1>Личный кабинет</h1>
-        <p>Ваши заявки и доступ к сервисам компании</p>
+        <p>Сохранённые портфели и чаты, доступ к сервисам компании</p>
       </div>
 
       <!-- ============================================================
@@ -51,151 +51,190 @@
           <div v-if="error" class="message message-error">{{ error }}</div>
         </Transition>
 
-        <section v-if="!isAdmin" class="requests-card">
-          <div class="section-head">
-            <div class="section-title">Ваши заявки</div>
-
-            <q-btn
-              outline
-              no-caps
-              dense
-              class="refresh-btn"
-              label="Обновить"
-              :loading="loading"
-              @click="handleRefresh"
-            />
-          </div>
-
-          <div v-if="loading && !requests.length" class="loading-row">
-            <q-spinner size="26px" />
-          </div>
-
-          <div v-else-if="!requests.length" class="empty-text">
-            У вас пока нет заявок
-          </div>
-
-          <ul v-else class="request-list">
-            <li
-              v-for="(item, index) in requests"
-              :key="item.id ?? index"
-              class="request-item"
-            >
-              <div class="request-body">
-                <div class="request-title">{{ requestTitle(item) }}</div>
-                <div v-if="requestDescription(item)" class="request-desc">
-                  {{ requestDescription(item) }}
-                </div>
-              </div>
-
-              <div class="request-meta">
-                <span v-if="item.status" class="request-status">
-                  {{ item.status }}
-                </span>
-                <span v-if="requestDate(item)" class="request-date">
-                  {{ requestDate(item) }}
-                </span>
-              </div>
-            </li>
-          </ul>
-        </section>
-
         <!-- ============================================================
-             ПОРТФЕЛЬ, СОХРАНЁННЫЙ В ЛИЧНОМ КАБИНЕТЕ
+             СОХРАНЁННОЕ: ПОРТФЕЛИ И ЧАТЫ С ФИЛЬТРОМ
         ============================================================ -->
-        <section v-if="!isAdmin" class="requests-card">
+        <section v-if="!isAdmin" class="requests-card saved-card">
           <div class="section-head">
             <div class="section-title">
-              Портфель
+              Сохранённое
               <span v-if="accountTitle" class="section-subtitle">
                 «{{ accountTitle }}»
               </span>
             </div>
 
-            <q-btn
-              v-if="savedPortfolio.length"
-              outline
-              no-caps
-              dense
-              class="refresh-btn"
-              label="Обновить"
-              :loading="portfolioLoading"
-              @click="loadSavedPortfolio"
-            />
+            <div class="saved-actions">
+              <q-btn
+                v-if="savedPortfolio.length"
+                outline
+                no-caps
+                dense
+                class="refresh-btn"
+                label="Очистить портфель"
+                @click="askClear('portfolio')"
+              />
+              <q-btn
+                v-if="savedChats.length"
+                outline
+                no-caps
+                dense
+                class="refresh-btn"
+                label="Очистить чаты"
+                @click="askClear('chats')"
+              />
+              <q-btn
+                outline
+                no-caps
+                dense
+                class="refresh-btn"
+                icon="refresh"
+                :loading="savedLoading"
+                label="Обновить"
+                @click="loadSaved"
+              />
+            </div>
           </div>
 
-          <div v-if="portfolioLoading && !savedPortfolio.length" class="loading-row">
+          <!-- Фильтр: тип сохранённого и диапазон дат. -->
+          <div class="saved-filters">
+            <div class="filter-chips">
+              <button
+                v-for="option in kindOptions"
+                :key="option.value"
+                type="button"
+                class="filter-chip"
+                :class="{ 'is-active': kind === option.value }"
+                @click="kind = option.value"
+              >
+                {{ option.label }}
+              </button>
+            </div>
+
+            <div class="filter-dates">
+              <q-input
+                v-model="dateFrom"
+                type="date"
+                outlined
+                dense
+                label="С даты"
+              />
+              <q-input
+                v-model="dateTo"
+                type="date"
+                outlined
+                dense
+                label="По дату"
+              />
+              <q-btn
+                v-if="dateFrom || dateTo"
+                flat
+                dense
+                no-caps
+                label="Сбросить"
+                @click="resetDates"
+              />
+            </div>
+          </div>
+
+          <div v-if="savedLoading" class="loading-row">
             <q-spinner size="26px" />
           </div>
 
-          <div v-else-if="!savedPortfolio.length" class="empty-text">
-            Портфель пуст — соберите его на карте или в списке и нажмите
-            «Сохранить».
+          <div v-else-if="!filteredItems.length" class="empty-text">
+            Ничего не найдено — соберите портфель или чат и нажмите «Сохранить».
           </div>
 
-          <template v-else>
-            <ul class="portfolio-list">
-              <li
-                v-for="(item, index) in savedPortfolio"
-                :key="item.surfaceId"
-                class="portfolio-item"
-              >
-                <div class="portfolio-item-num">{{ index + 1 }}</div>
+          <ul v-else class="saved-list">
+            <li
+              v-for="item in filteredItems"
+              :key="item.key"
+              class="saved-item"
+            >
+              <span class="saved-kind" :class="`is-${item.kind}`">
+                {{ item.kind === 'portfolio' ? 'Портфель' : 'Чат' }}
+              </span>
 
-                <div class="portfolio-item-body">
-                  <div class="portfolio-item-title">
-                    {{ item.type || 'Формат не указан' }}
-                  </div>
+              <div class="saved-body">
+                <div class="saved-title">{{ item.title }}</div>
 
-                  <div class="portfolio-item-address">
-                    {{ savedAddress(item) }}
-                  </div>
+                <div v-if="item.kind === 'portfolio'" class="saved-desc">
+                  Позиций: <b>{{ item.count }}</b> · Итого:
+                  <b>{{ formatPortfolioPrice(item.sum) }} ₽</b>
+                </div>
 
-                  <div v-if="savedMonths(item).length" class="portfolio-item-months">
-                    <span
-                      v-for="month in savedMonths(item)"
-                      :key="month"
-                      class="portfolio-item-month"
+                <div v-else class="saved-desc">
+                  Сообщений: <b>{{ item.count }}</b>
+                  <span v-if="item.preview"> · {{ item.preview }}</span>
+                </div>
+
+                <div class="saved-date">{{ formatSavedDate(item.date) }}</div>
+
+                <details v-if="item.kind === 'portfolio'" class="saved-details">
+                  <summary>Состав портфеля</summary>
+
+                  <ul class="portfolio-list">
+                    <li
+                      v-for="(position, index) in item.portfolio"
+                      :key="position.surfaceId"
+                      class="portfolio-item"
                     >
-                      {{ month }}
-                    </span>
-                  </div>
-                </div>
+                      <div class="portfolio-item-num">{{ index + 1 }}</div>
 
-                <div class="portfolio-item-sum">
-                  {{ formatPortfolioPrice(savedSum(item)) }} ₽
-                </div>
-              </li>
-            </ul>
+                      <div class="portfolio-item-body">
+                        <div class="portfolio-item-title">
+                          {{ position.type || 'Формат не указан' }}
+                        </div>
 
-            <div class="portfolio-total">
-              <span>Позиций: <b>{{ savedPortfolio.length }}</b></span>
-              <span>Итого: <b>{{ formatPortfolioPrice(savedTotal) }} ₽</b></span>
-            </div>
+                        <div class="portfolio-item-address">
+                          {{ savedAddress(position) }}
+                        </div>
 
-            <div v-if="portfolioMessage" class="portfolio-note">
-              {{ portfolioMessage }}
-            </div>
+                        <div
+                          v-if="savedMonths(position).length"
+                          class="portfolio-item-months"
+                        >
+                          <span
+                            v-for="month in savedMonths(position)"
+                            :key="month"
+                            class="portfolio-item-month"
+                          >
+                            {{ month }}
+                          </span>
+                        </div>
+                      </div>
 
-            <div class="portfolio-actions">
-              <q-btn
-                unelevated
-                no-caps
-                dense
-                color="primary"
-                label="Загрузить в портфель"
-                :loading="portfolioRestoring"
-                @click="restorePortfolio"
-              />
+                      <div class="portfolio-item-sum">
+                        {{ formatPortfolioPrice(savedSum(position)) }} ₽
+                      </div>
+                    </li>
+                  </ul>
+                </details>
+              </div>
 
-              <q-btn
-                flat
-                no-caps
-                dense
-                label="Открыть портфель"
-                @click="router.push('/portfolio')"
-              />
-            </div>
-          </template>
+              <div v-if="item.kind === 'portfolio'" class="saved-item-actions">
+                <q-btn
+                  unelevated
+                  no-caps
+                  dense
+                  color="primary"
+                  label="В портфель"
+                  :loading="portfolioRestoring"
+                  @click="restorePortfolio"
+                />
+                <q-btn
+                  flat
+                  no-caps
+                  dense
+                  label="Открыть"
+                  @click="router.push('/portfolio')"
+                />
+              </div>
+            </li>
+          </ul>
+
+          <div v-if="portfolioMessage" class="portfolio-note">
+            {{ portfolioMessage }}
+          </div>
         </section>
 
         <!-- ============================================================
@@ -317,6 +356,31 @@
             </div>
           </form>
         </section>
+
+        <!-- Подтверждение очистки сохранённого списка. -->
+        <q-dialog v-model="confirmOpen" persistent>
+          <q-card class="confirm-card">
+            <q-card-section>
+              <div class="confirm-title">{{ confirmText }}</div>
+              <div class="confirm-note">
+                Очищается только сохранённый список. Содержание остаётся в
+                журнале и базе данных.
+              </div>
+            </q-card-section>
+
+            <q-card-actions align="right">
+              <q-btn flat no-caps label="Отмена" @click="confirmOpen = false" />
+              <q-btn
+                unelevated
+                no-caps
+                color="primary"
+                label="Очистить"
+                :loading="clearing"
+                @click="doClear"
+              />
+            </q-card-actions>
+          </q-card>
+        </q-dialog>
       </template>
 
       <!-- ============================================================
@@ -547,12 +611,12 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useAccount } from '@/composables/useAccount'
+import { useChatWorkspace } from '@/composables/useChatWorkspace'
 import { usePortfolio } from '@/composables/usePortfolio'
 import { MONTHS } from '@/utils/constructionGroups'
 
 const {
   account,
-  requests,
   requisites,
   isAuthenticated,
   loading,
@@ -566,20 +630,89 @@ const {
   clearError
 } = useAccount()
 
+const { fetchSavedChats, clearChats } = useChatWorkspace()
+
 const router = useRouter()
 
 /*
  * Сохранённый в личном кабинете портфель — только для показа.
  * Текущий (несохранённый) портфель живёт в usePortfolio().
  */
-const { fetchAccountPortfolio, mergeFromAccount, accountTitle } = usePortfolio()
+const {
+  fetchAccountPortfolio,
+  mergeFromAccount,
+  accountTitle,
+  accountPortfolioUpdatedAt,
+  clearAccountPortfolio
+} = usePortfolio()
 
 const savedPortfolio = ref([])
-const portfolioLoading = ref(false)
+const savedChats = ref([])
+const chatsUpdatedAt = ref('')
+const savedLoading = ref(false)
 const portfolioRestoring = ref(false)
 const portfolioMessage = ref('')
 
 const PORTFOLIO_PRICE = new Intl.NumberFormat('ru-RU')
+
+/* ------------------------- фильтр сохранённого ------------------------- */
+
+const kind = ref('all')
+const kindOptions = [
+  { value: 'all', label: 'Все вместе' },
+  { value: 'portfolio', label: 'Портфели' },
+  { value: 'chat', label: 'Чаты' }
+]
+
+const dateFrom = ref('')
+const dateTo = ref('')
+
+function resetDates() {
+  dateFrom.value = ''
+  dateTo.value = ''
+}
+
+function dateMs(value) {
+  if (!value) return 0
+
+  const date = new Date(value)
+
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime()
+}
+
+function startOfDay(iso) {
+  const [year, month, day] = String(iso).split('-').map(Number)
+
+  return new Date(year, month - 1, day, 0, 0, 0, 0).getTime()
+}
+
+function endOfDay(iso) {
+  const [year, month, day] = String(iso).split('-').map(Number)
+
+  return new Date(year, month - 1, day, 23, 59, 59, 999).getTime()
+}
+
+function formatSavedDate(value) {
+  if (!value) return 'Дата не указана'
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) return String(value)
+
+  return date.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+function shorten(text) {
+  const value = String(text ?? '').trim()
+
+  return value.length > 60 ? `${value.slice(0, 60)}…` : value
+}
 
 /* Полное имя месяца -> короткая подпись («Октябрь» -> «ОКТ»). */
 function monthShort(full) {
@@ -618,19 +751,89 @@ const savedTotal = computed(() =>
   savedPortfolio.value.reduce((sum, item) => sum + savedSum(item), 0)
 )
 
-async function loadSavedPortfolio() {
+/* Единый список сохранённого: портфель (одна запись) + чаты. */
+const savedItems = computed(() => {
+  const list = []
+
+  if (savedPortfolio.value.length) {
+    list.push({
+      key: 'portfolio',
+      kind: 'portfolio',
+      title: accountTitle.value || 'Портфель',
+      date: accountPortfolioUpdatedAt.value,
+      portfolio: savedPortfolio.value,
+      count: savedPortfolio.value.length,
+      sum: savedTotal.value
+    })
+  }
+
+  savedChats.value.forEach((chat, index) => {
+    const messages = Array.isArray(chat.messages) ? chat.messages : []
+    const questions = messages.filter(message => message.role === 'user')
+    const lastQuestion = questions.length
+      ? shorten(questions[questions.length - 1].text)
+      : ''
+
+    list.push({
+      key: chat.key || `chat-${index}`,
+      kind: 'chat',
+      title: `Чат №${chat.number ?? index + 1}`,
+      date: chatsUpdatedAt.value,
+      chat,
+      count: messages.length,
+      preview: lastQuestion
+    })
+  })
+
+  return list.sort((a, b) => dateMs(b.date) - dateMs(a.date))
+})
+
+const filteredItems = computed(() =>
+  savedItems.value.filter(item => {
+    if (kind.value !== 'all' && item.kind !== kind.value) {
+      return false
+    }
+
+    if (!dateFrom.value && !dateTo.value) {
+      return true
+    }
+
+    const ms = dateMs(item.date)
+
+    if (!ms) return false
+
+    if (dateFrom.value && ms < startOfDay(dateFrom.value)) return false
+
+    if (dateTo.value && ms > endOfDay(dateTo.value)) return false
+
+    return true
+  })
+)
+
+/* ------------------------- загрузка и очистка ------------------------- */
+
+async function loadSaved() {
   if (!isAuthenticated.value) {
     savedPortfolio.value = []
+    savedChats.value = []
+    chatsUpdatedAt.value = ''
 
     return
   }
 
-  portfolioLoading.value = true
+  savedLoading.value = true
 
   try {
-    savedPortfolio.value = await fetchAccountPortfolio()
+    const [portfolio, chats] = await Promise.all([
+      fetchAccountPortfolio(),
+      fetchSavedChats()
+    ])
+
+    savedPortfolio.value = portfolio
+    savedChats.value = chats.chats
+    chatsUpdatedAt.value = chats.updated_at
   } finally {
-    portfolioLoading.value = false
+    savedLoading.value = false
   }
 }
 
@@ -646,6 +849,39 @@ async function restorePortfolio() {
       'Портфель загружен — откройте его кнопкой «Портфель» в шапке.'
   } finally {
     portfolioRestoring.value = false
+  }
+}
+
+const confirmOpen = ref(false)
+const clearing = ref(false)
+const clearTarget = ref('portfolio')
+
+const confirmText = computed(() =>
+  clearTarget.value === 'chats'
+    ? 'Очистить сохранённые чаты?'
+    : 'Очистить сохранённый портфель?'
+)
+
+function askClear(target) {
+  clearTarget.value = target
+  confirmOpen.value = true
+}
+
+async function doClear() {
+  clearing.value = true
+
+  try {
+    if (clearTarget.value === 'chats') {
+      await clearChats()
+      savedChats.value = []
+      chatsUpdatedAt.value = ''
+    } else if (await clearAccountPortfolio()) {
+      savedPortfolio.value = []
+    }
+
+    confirmOpen.value = false
+  } finally {
+    clearing.value = false
   }
 }
 
@@ -745,7 +981,7 @@ const recoverForm = ref({ login: '', secret_phrase: '', new_password: '' })
 
 /* Текст выводится дословно и хранится одной строкой. */
 const REGISTER_NOTE =
-  'Придумайте себе логин и пароль – можно русскими буквами. Они нужны только чтобы запомнить ваши заявки, к которым вы можете вернуться позже, никакие персональные данные не указываются и не хранятся.'
+  'Придумайте себе логин и пароль – можно русскими буквами. Они нужны только чтобы сохранять ваши портфели и чаты, к которым вы можете вернуться позже, никакие персональные данные не указываются и не хранятся.'
 
 const avatarLetter = computed(() =>
   String(account.value?.login || '?')
@@ -766,7 +1002,7 @@ const roleLabel = computed(() => {
 
 onMounted(async () => {
   await loadMe()
-  await loadSavedPortfolio()
+  await loadSaved()
 })
 
 function switchMode(next) {
@@ -818,7 +1054,7 @@ async function submitLogin() {
       return
     }
 
-    await loadSavedPortfolio()
+    await loadSaved()
   } catch {
     /* текст ошибки уже в error */
   }
@@ -874,7 +1110,7 @@ async function submitRegister() {
       password: registerForm.value.password,
       secret_phrase: registerForm.value.secret_phrase
     })
-    await loadSavedPortfolio()
+    await loadSaved()
   } catch {
     /* текст ошибки уже в error */
   }
@@ -912,10 +1148,6 @@ async function submitRecover() {
 
 /* ---------------- ВЫХОД ---------------- */
 
-async function handleRefresh() {
-  await loadMe()
-}
-
 async function handleLogout() {
   await logout()
   mode.value = 'login'
@@ -925,35 +1157,9 @@ async function handleLogout() {
   requisitesForm.value = emptyRequisites()
   requisitesErrors.value = {}
   requisitesMessage.value = ''
-}
-
-/* ---------------- ЗАЯВКИ ---------------- */
-
-function requestTitle(item) {
-  return (
-    item.title ||
-    item.subject ||
-    item.name ||
-    (item.id ? `Заявка №${item.id}` : 'Заявка')
-  )
-}
-
-function requestDescription(item) {
-  return item.description || item.text || item.message || ''
-}
-
-function requestDate(item) {
-  const raw = item.created_at || item.date || item.createdAt
-  if (!raw) return ''
-
-  const date = new Date(raw)
-  if (Number.isNaN(date.getTime())) return String(raw)
-
-  return date.toLocaleDateString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric'
-  })
+  savedPortfolio.value = []
+  savedChats.value = []
+  chatsUpdatedAt.value = ''
 }
 </script>
 
@@ -1206,7 +1412,7 @@ function requestDate(item) {
   text-decoration: underline;
 }
 
-/* ---------------- Заявки ---------------- */
+/* ---------------- Секции ---------------- */
 
 .section-head {
   display: flex;
@@ -1251,64 +1457,159 @@ function requestDate(item) {
   font-size: 14px;
 }
 
-.request-list {
+/* ---------------- Сохранённое: фильтр ---------------- */
+
+.saved-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.saved-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #eceef1;
+}
+
+.filter-chips {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 10px;
+  background: #f1f3f4;
+}
+
+.filter-chip {
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #66727c;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.filter-chip:hover {
+  color: #17212b;
+}
+
+.filter-chip.is-active {
+  background: #17212b;
+  color: #fff;
+}
+
+.filter-dates {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.filter-dates :deep(.q-field) {
+  width: 150px;
+}
+
+/* ---------------- Сохранённое: список ---------------- */
+
+.saved-list {
   list-style: none;
   margin: 0;
   padding: 0;
 }
 
-.request-item {
+.saved-item {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
+
   padding: 14px 16px;
+  margin-bottom: 10px;
+
   border: 1px solid #e4e6ea;
   border-radius: 12px;
-  margin-bottom: 10px;
 }
 
-.request-body {
+.saved-kind {
+  flex: 0 0 auto;
+
+  padding: 3px 9px;
+  border-radius: 8px;
+
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.saved-kind.is-portfolio {
+  background: #e8f0fe;
+  color: #1a56b8;
+}
+
+.saved-kind.is-chat {
+  background: #fdeceb;
+  color: var(--albion-accent);
+}
+
+.saved-body {
+  flex: 1 1 auto;
   min-width: 0;
 }
 
-.request-title {
+.saved-title {
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
-.request-desc {
+.saved-desc {
   margin-top: 3px;
   color: #71808c;
   font-size: 13px;
   line-height: 1.4;
 }
 
-.request-meta {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-  text-align: right;
-}
-
-.request-status {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 8px;
-  background: #eef1f5;
-  color: #37474f;
-  font-size: 11px;
-  font-weight: 800;
-}
-
-.request-date {
+.saved-date {
+  margin-top: 4px;
   color: #8b8b8b;
   font-size: 11px;
 }
 
-/* --- Портфель в личном кабинете --- */
+.saved-details {
+  margin-top: 10px;
+}
+
+.saved-details summary {
+  color: var(--albion-accent);
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.saved-details .portfolio-list {
+  margin-top: 10px;
+}
+
+.saved-item-actions {
+  flex: 0 0 auto;
+
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ---------------- Портфель в ЛК ---------------- */
 
 .portfolio-list {
   list-style: none;
@@ -1372,7 +1673,7 @@ function requestDate(item) {
 
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: .3px;
+  letter-spacing: 0.3px;
 }
 
 .portfolio-item-sum {
@@ -1381,19 +1682,6 @@ function requestDate(item) {
   font-size: 15px;
   font-weight: 800;
   white-space: nowrap;
-}
-
-.portfolio-total {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-
-  padding: 10px 2px 2px;
-  margin-top: 4px;
-
-  border-top: 1px solid #eceef1;
-
-  font-size: 14px;
 }
 
 .portfolio-note {
@@ -1407,12 +1695,24 @@ function requestDate(item) {
   font-size: 13px;
 }
 
-.portfolio-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+/* ---------------- Подтверждение ---------------- */
 
-  margin-top: 12px;
+.confirm-card {
+  min-width: 320px;
+  max-width: 420px;
+  border-radius: 14px;
+}
+
+.confirm-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.confirm-note {
+  margin-top: 8px;
+  color: #71808c;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 /* --- Реквизиты --- */
@@ -1473,14 +1773,22 @@ function requestDate(item) {
     font-size: 26px;
   }
 
-  .request-item {
+  .saved-item {
     flex-direction: column;
     gap: 8px;
   }
 
-  .request-meta {
-    align-items: flex-start;
-    text-align: left;
+  .saved-item-actions {
+    flex-direction: row;
+  }
+
+  .saved-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filter-dates {
+    flex-wrap: wrap;
   }
 
   .requisites-grid {

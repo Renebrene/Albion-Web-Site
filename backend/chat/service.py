@@ -26,6 +26,7 @@ from backend.chat.models import (
 )
 from backend.chat.store import ChatSession, ChatStore, chat_store
 from backend.search.bridge import AlbionSearchBridge
+from backend.services.chat_log_service import log_turn
 
 
 class ChatService:
@@ -470,6 +471,19 @@ class ChatService:
                 payload.request_id,
                 response.model_dump(mode="json"),
             )
+
+        # Текстовый журнал «вопрос → ответ» для дальнейшего изучения.
+        # Ошибка записи не должна ломать ответ пользователю.
+        try:
+            log_turn(
+                session_id=session.id,
+                chat_key=payload.chat_key,
+                question=payload.message,
+                answer=response.answer,
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
         return response
 
     def reset(self, session_id: UUID) -> bool:

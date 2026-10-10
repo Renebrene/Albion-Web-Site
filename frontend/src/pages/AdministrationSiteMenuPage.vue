@@ -63,6 +63,12 @@
         </div>
       </div>
 
+      <p class="section-hint">
+        Ссылку можно выбрать из медиатеки или загрузить документ —
+        текстовый и табличный: txt, md, csv, rtf, doc, docx, odt, xls,
+        xlsx, ods, pdf.
+      </p>
+
       <div class="menu-panel">
         <div
           v-for="(item, index) in footerItems"
@@ -73,8 +79,14 @@
 
           <q-input v-model="item.label" dense outlined label="Название" />
           <q-input v-model="item.url" dense outlined label="Адрес" class="url-input" />
-          <q-btn flat dense no-caps icon="perm_media" label="Из медиатеки"
-                 class="media-btn" @click="openPicker(item)" />
+          <div class="media-actions">
+            <q-btn flat dense no-caps icon="perm_media" label="Медиа"
+                   class="media-btn" @click="openPicker(item)" />
+            <q-btn flat dense no-caps icon="upload_file" label="Документ"
+                   class="media-btn"
+                   :loading="item.__uploading === true"
+                   @click="triggerUpload(item)" />
+          </div>
           <q-toggle v-model="item.is_active" label="" class="row-toggle" />
 
           <div class="row-actions">
@@ -98,6 +110,15 @@
       <q-btn unelevated no-caps color="primary" label="Сохранить"
              :loading="saving" @click="save" />
     </div>
+
+    <!-- Скрытый input для загрузки документов в подвал -->
+    <input
+      ref="fileInput"
+      type="file"
+      class="hidden-file"
+      :accept="DOC_ACCEPT"
+      @change="onFileChange"
+    >
 
     <MediaPicker v-model="pickerOpen" @select="onMediaPicked" />
   </q-page>
@@ -124,6 +145,100 @@ function onMediaPicked(media) {
     pickerTarget.value.url = media.url
   }
   pickerOpen.value = false
+}
+
+/*
+ * Загрузка документа для ссылки подвала. Файл уходит в медиатеку
+ * (/api/admin/media, документы сохраняются как есть), а в ссылку
+ * подставляется его адрес /storage/...
+ */
+const DOC_ACCEPT =
+  '.txt,.md,.csv,.rtf,.doc,.docx,.odt,.xls,.xlsx,.ods,.pdf'
+const ALLOWED_DOC_EXTENSIONS = DOC_ACCEPT.split(',')
+
+const fileInput = ref(null)
+const uploadTarget = ref(null)
+
+/* id раздела медиатеки «Документы» — ищем по имени, а не хардкодим. */
+const docCategoryId = ref(null)
+
+async function loadDocumentCategory() {
+  try {
+    const data = await request('/api/admin/media/categories')
+    const found = (data.categories || []).find(item => item.name === 'Документы')
+    docCategoryId.value = found ? found.id : null
+  } catch {
+    docCategoryId.value = null
+  }
+}
+
+function triggerUpload(item) {
+  uploadTarget.value = item
+
+  if (fileInput.value) {
+    // Сбрасываем значение: иначе повторный выбор того же файла не сработает.
+    fileInput.value.value = ''
+    fileInput.value.click()
+  }
+}
+
+async function onFileChange(event) {
+  const file = event.target.files && event.target.files[0]
+  const item = uploadTarget.value
+  uploadTarget.value = null
+
+  if (!file || !item) return
+
+  const extension = `.${(file.name.split('.').pop() || '').toLowerCase()}`
+
+  if (!ALLOWED_DOC_EXTENSIONS.includes(extension)) {
+    error.value =
+      `Формат «${extension}» не поддерживается. Разрешены: ${DOC_ACCEPT}`
+    return
+  }
+
+  item.__uploading = true
+  error.value = ''
+  saved.value = false
+
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    form.append('original_name', file.name)
+
+    // Документы из подвала складываем в раздел медиатеки «Документы».
+    if (docCategoryId.value) {
+      form.append('category_id', String(docCategoryId.value))
+    }
+
+    const response = await fetch('/api/admin/media', {
+      method: 'POST',
+      headers: authHeaders(),
+      body: form
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      throw new Error((data && data.detail) || 'Не удалось загрузить документ')
+    }
+
+    const media = data && data.media
+
+    if (!media || !media.storage_path) {
+      throw new Error('Сервер не вернул файл')
+    }
+
+    item.url = `/storage/${media.storage_path}`
+
+    if (!item.label) {
+      item.label = file.name.replace(/\.[^.]+$/, '')
+    }
+  } catch (exc) {
+    error.value = String(exc.message || exc)
+  } finally {
+    item.__uploading = false
+  }
 }
 
 function authHeaders() {
@@ -237,7 +352,10 @@ async function save() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadDocumentCategory()
+})
 </script>
 
 <style scoped>
@@ -330,6 +448,22 @@ onMounted(load)
   font-size: 12px;
 }
 
+.media-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.hidden-file {
+  display: none;
+}
+
+.section-hint {
+  margin: 0 0 14px;
+  color: #777;
+  font-size: 13px;
+}
+
 .row-handle {
   color: #c0c6cb;
   text-align: center;
@@ -381,7 +515,7 @@ onMounted(load)
     grid-row: 2;
   }
 
-  .media-btn {
+  .media-actions {
     grid-column: 2 / -1;
     grid-row: 3;
     justify-self: start;

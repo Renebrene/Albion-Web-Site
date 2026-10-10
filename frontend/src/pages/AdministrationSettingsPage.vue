@@ -75,6 +75,7 @@
               map-options
               outlined
               dense
+              @update:model-value="value => onFieldChange(field.key, value)"
             />
 
             <!-- Цвет -->
@@ -97,7 +98,9 @@
             <q-toggle
               v-else-if="field.type === 'toggle'"
               :model-value="values[field.key] === 'true'"
-              @update:model-value="value => values[field.key] = value ? 'true' : 'false'"
+              @update:model-value="
+                value => onFieldChange(field.key, value ? 'true' : 'false')
+              "
             />
           </div>
         </div>
@@ -213,6 +216,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { applyAppearanceSettings } from '../boot/settings'
+import { setAvailableMode } from '../config/availableMode'
+import { setShowDynCount } from '../config/dynCount'
 
 const router = useRouter()
 
@@ -259,10 +265,11 @@ const schema = ref([])
  */
 const GROUP_TITLES = {
   map: 'Карта',
+  sides: 'Отображение сторон',
   appearance: 'Параметры внешнего вида'
 }
 
-const GROUP_ORDER = ['map', 'appearance']
+const GROUP_ORDER = ['map', 'sides', 'appearance']
 
 const fieldGroups = computed(() => {
   const groups = new Map()
@@ -347,12 +354,52 @@ async function save() {
       body: JSON.stringify({ settings: values.value })
     })
     applyData(data)
+
+    // Применяем новые значения сразу — без перезагрузки страницы
+    // (в т.ч. режим доступности `available_mode` в списке/попапах/чате).
+    applyAppearanceSettings(data.current)
+
     notify('Настройки сохранены.')
   } catch (exc) {
     error.value = String(exc)
     notify(String(exc), 'error')
   } finally {
     saving.value = false
+  }
+}
+
+/*
+ * Поля, которые применяются СРАЗУ при изменении (без кнопки «Сохранить»):
+ * отображение сторон и показ количества динамики. Значение тут же уходит
+ * на сервер (точечно, только этот ключ), поэтому обновление видно и на
+ * публичных страницах, и в других вкладках после перезагрузки.
+ */
+const LIVE_KEYS = new Set(['available_mode', 'show_dyn_count'])
+
+async function onFieldChange(key, value) {
+  values.value[key] = value
+
+  if (!LIVE_KEYS.has(key)) {
+    return
+  }
+
+  // Мгновенно применяем на текущей странице (список/попапы/чат реактивны).
+  if (key === 'available_mode') {
+    setAvailableMode(value)
+  } else if (key === 'show_dyn_count') {
+    setShowDynCount(value)
+  }
+
+  try {
+    await request('/api/admin/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      // Точечно: сохраняем только изменённый ключ, не затирая прочие правки.
+      body: JSON.stringify({ settings: { [key]: value } })
+    })
+    notify('Применено.')
+  } catch (exc) {
+    notify(String(exc), 'error')
   }
 }
 

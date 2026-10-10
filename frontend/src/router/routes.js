@@ -97,6 +97,13 @@ const routes = [
         }
       },
       {
+        path: 'chat-log',
+        component: () => import('@/pages/AdministrationChatLogPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
         path: 'base',
         component: () => import('@/pages/AdministrationBasePage.vue'),
         meta: {

@@ -9,7 +9,7 @@
 
         <div class="panel-heading">
           <div class="panel-kicker">
-            ПОИСК ПО ТОЧКЕ И АДРЕСУ
+            Поиск по точке и адресу
           </div>
         </div>
       </div>
@@ -539,16 +539,17 @@ function toggleType(value) {
   font-size: 19px;
 }
 
+/* Как заголовок «Интерактивная карта» в сайдбаре, но меньшим кеглем. */
 .panel-kicker {
   margin-bottom: 3px;
 
-  color: var(--albion-accent);
+  color: #17212b;
 
-  font-size: 9px;
-  font-weight: 900;
+  font-size: 16px;
+  font-weight: 800;
 
-  letter-spacing: 1.3px;
-  line-height: 1.3;
+  letter-spacing: -.3px;
+  line-height: 1.1;
 }
 
 .panel-title h3 {

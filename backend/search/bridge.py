@@ -112,10 +112,13 @@ class AlbionSearchBridge:
         if not ids:
             return {}
 
+        # Fetch availability for ALL months of the year, not only the queried
+        # one: otherwise the card would show "free" for months it never
+        # loaded, i.e. incorrect occupancy for the other months.
         return self.repository.get_availabilities_for_surfaces(
             surface_ids=ids,
             year=query.year,
-            months=query.get_months() or None,
+            months=None,
         )
 
     @staticmethod

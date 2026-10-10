@@ -293,15 +293,27 @@ export function portfolioText(sourceItems, options) {
 
 // ---------------------------------------------------------------- скачивание
 
+/* Все форматы выгрузки (см. backend/services/portfolio_export.py). */
+const EXPORT_FORMATS = [
+  'xls',
+  'xlsx',
+  'doc',
+  'docx',
+  'pdf',
+  'odt',
+  'ods',
+  'rtf',
+  'csv',
+  'txt',
+  'md',
+  'json'
+]
+
 /* Расширение файла по формату экспорта. */
 function extensionFor(format) {
   const value = String(format || '').toLowerCase()
 
-  if (['xlsx', 'docx', 'pdf'].includes(value)) {
-    return value
-  }
-
-  return 'bin'
+  return EXPORT_FORMATS.includes(value) ? value : 'bin'
 }
 
 /*
