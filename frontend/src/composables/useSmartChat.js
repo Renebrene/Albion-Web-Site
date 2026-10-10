@@ -50,9 +50,10 @@ async function send(message, context = {}) {
   try {
     const response = await sendChatMessage({
       session_id: sessionId.value,
-      request_id: typeof crypto?.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : undefined,
+      request_id:
+        typeof crypto?.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : undefined,
       message: text,
       context
     })
@@ -65,6 +66,7 @@ async function send(message, context = {}) {
       pending: response.pending,
       clarification: response.clarification,
       results: response.results,
+      suggestions: response.suggestions,
       actions: response.actions,
       warnings: response.warnings
     })

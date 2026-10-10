@@ -1,4 +1,5 @@
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -139,8 +140,13 @@ from backend.services.home_service import create_feedback, get_home
 
 @app.get("/api/home")
 def home_content():
-    """Слайды главной страницы (вертикальные + карточки верхнего слайда)."""
-    return get_home()
+    """Слайды главной страницы (вертикальные + карточки верхнего слайда).
+
+    Статистика направлений (форматы/конструкции) считается из базы на каждый
+    запрос, поэтому кэш браузера/прокси запрещаем — после обновления базы
+    конструкций цифры сразу актуальны.
+    """
+    return JSONResponse(content=get_home(), headers={"Cache-Control": "no-store"})
 
 
 @app.post("/api/feedback")
@@ -265,18 +271,29 @@ from backend.services.data_service import get_constructions_stats
 
 @app.get("/api/constructions/stats")
 def constructions_stats():
-    """Сводка: конструкции всего, по форматам, стороны, поверхности."""
-    return get_constructions_stats()
+    """Сводка по сети: конструкции / стороны / поверхности / форматы.
+
+    Считается из базы по формуле на каждый запрос (нигде не хранится),
+    поэтому после обновления/восстановления базы конструкций значения
+    сразу актуальны. Кэш запрещаем.
+    """
+    return JSONResponse(
+        content=get_constructions_stats(),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/api/admin/constructions/stats")
 def admin_constructions_stats(auth=Depends(require_admin)):
-    return {
-        "success": True,
-        **get_base_stats(),
-        "update_state": get_last_run_state(),
-        "last_restore": get_last_restore(),
-    }
+    return JSONResponse(
+        content={
+            "success": True,
+            **get_base_stats(),
+            "update_state": get_last_run_state(),
+            "last_restore": get_last_restore(),
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 

@@ -390,43 +390,71 @@
                           </div>
                         </div>
 
-                        <!-- Динамика: строки A(1)/A(2)… с месяцами -->
+                        <!-- Динамика: строки A(1)/A(2)… либо свёрнуто в сторону A -->
                         <div
                           v-if="block.kind === 'dynamic'"
                           class="card-dynamic-rows"
                         >
+                          <!-- Режим «по сторонам»: одна строка на сторону;
+                               месяц свободен, если свободна хоть одна
+                               поверхность, иначе — продано. -->
                           <div
-                            v-for="row in block.items"
-                            :key="sideLabel(row)"
+                            v-if="availableMode === 'sides'"
                             class="card-dynamic-row"
                           >
-                            <span class="card-dynamic-side">
-                              {{ sideLabel(row) }}
-                            </span>
-
                             <div class="card-months card-months--inline">
                               <div
                                 v-for="month in MONTHS"
                                 :key="month.full"
                                 class="card-month"
                                 :class="[
-                                  getCardMonthState(row, month.full),
+                                  sideMonthState(block, month.full),
                                   {
                                     'is-selected':
-                                      surfaceIdOf(row) !== null &&
-                                      isMonthSelected(row.id, month.full),
+                                      isSideMonthSelected(block, month.full),
                                     'is-locked':
                                       isBlockActive(block) &&
-                                      isMonthLocked(row, month.full)
+                                      !isSideFree(block, month.full)
                                   }
                                 ]"
-                                :title="getMonthStatusLabel(row, month.full)"
-                                @click="onCardMonthClick(block, row, month)"
+                                :title="sideMonthLabel(block, month.full)"
+                                @click="onSideMonthClick(block, month)"
                               >
                                 {{ month.short }}
                               </div>
                             </div>
                           </div>
+
+                          <template v-else>
+                            <div
+                              v-for="row in block.items"
+                              :key="sideLabel(row)"
+                              class="card-dynamic-row"
+                            >
+                              <div class="card-months card-months--inline">
+                                <div
+                                  v-for="month in MONTHS"
+                                  :key="month.full"
+                                  class="card-month"
+                                  :class="[
+                                    getCardMonthState(row, month.full),
+                                    {
+                                      'is-selected':
+                                        surfaceIdOf(row) !== null &&
+                                        isMonthSelected(row.id, month.full),
+                                      'is-locked':
+                                        isBlockActive(block) &&
+                                        isMonthLocked(row, month.full)
+                                    }
+                                  ]"
+                                  :title="getMonthStatusLabel(row, month.full)"
+                                  @click="onCardMonthClick(block, row, month)"
+                                >
+                                  {{ month.short }}
+                                </div>
+                              </div>
+                            </div>
+                          </template>
                         </div>
 
                         <!-- Статика и видеоэкран: одна строка месяцев -->
@@ -526,6 +554,14 @@
                                 }"
                                 >динамика</span
                               >
+
+                              <!-- Кол-во поверхностей стороны (для динамики,
+                                   кроме видеоэкрана). -->
+                              <span
+                                v-if="block.kind === 'dynamic'"
+                                class="dyn-count"
+                                >({{ block.items.length }})</span
+                              >
                             </span>
                           </span>
                         </div>
@@ -600,6 +636,7 @@ import {
   groupSides,
   groupByPoint
 } from '../utils/constructionGroups'
+import { availableMode } from '../config/availableMode'
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -627,6 +664,36 @@ function promoPriceOf(item) {
 
 function getCardMonthState(item, month) {
   return getAvailabilityState(item, month)
+}
+
+/* --- Свёрнутый режим «по сторонам» (available_mode = 'sides') --- */
+
+/* Месяц стороны свободен, если свободна хоть одна её поверхность. */
+function isSideFree(block, month) {
+  return (block?.items || []).some(
+    item => getAvailabilityState(item, month) === 'free'
+  )
+}
+
+function sideMonthState(block, month) {
+  return isSideFree(block, month) ? 'free' : 'busy'
+}
+
+function sideMonthLabel(block, month) {
+  return isSideFree(block, month) ? 'Свободно' : 'Продано'
+}
+
+function isSideMonthSelected(block, month) {
+  return (block?.items || []).some(
+    item => surfaceIdOf(item) !== null && isMonthSelected(item.id, month)
+  )
+}
+
+/* Клик по месяцу свёрнутой стороны применяется ко всем её поверхностям. */
+function onSideMonthClick(block, month) {
+  for (const item of block?.items || []) {
+    onCardMonthClick(block, item, month)
+  }
 }
 
 /* Первая (ведущая) сторона блока — как и в попапе карты. */

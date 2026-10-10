@@ -11,6 +11,7 @@
 
 import { setMapEngine } from '../config/mapConfig'
 import { mapDotColors, setMapDotColors, setMapColorMode } from '../config/mapColors'
+import { setAvailableMode } from '../config/availableMode'
 import { applySiteFonts } from '../config/fontLoader'
 
 const SYSTEM_FONT_STACK =
@@ -82,6 +83,9 @@ async function loadAndApply() {
 
   /* Логика цвета точек: 'three' | 'two' (см. config/mapColors.js). */
   setMapColorMode(settings.map_color_mode)
+
+  /* Доступность в списке: 'surfaces' | 'sides' (см. config/availableMode.js). */
+  setAvailableMode(settings.available_mode)
 
   /*
    * Цвета точек на карте (см. config/mapColors.js). Применяем и в JS

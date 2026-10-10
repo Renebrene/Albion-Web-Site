@@ -365,29 +365,35 @@ def invalidate_data_cache() -> None:
 # «…(в Александровку)» и «…(в город)» (по одной стороне в каждой), а
 # двусторонний щит на разделительной — строками «…(в центр)» / «…(из центра)».
 # Поэтому физическую конструкцию считаем по адресу без хвостовой скобки.
-# Исключение: если в скобке указана самостоятельная позиция (км/поз./№/
-# «конструкция N»/начало-середина-конец), строки остаются разными объектами.
+# Исключения (строки остаются разными объектами):
+#   · в скобке — самостоятельная позиция (км/поз./№/«конструкция N»/начало-середина-конец);
+#   · видеоэкран: по одному адресу у него две стороны — но это ДВА отдельных
+#     экрана, поэтому такие строки не склеиваем (ключ — полный адрес).
 _PHYSICAL_KEY = (
-    r"CASE WHEN address ~* "
+    "CASE WHEN EXISTS (SELECT 1 FROM surfaces vs "
+    "WHERE vs.construction_id = c.id AND vs.is_active AND vs.type = 'Видеоэкран') "
+    "THEN c.address "
+    "WHEN c.address ~* "
     r"'\([^)]*(поз|позиц|км|№|конструкц|начал|середин|конец)[^)]*\)\s*$' "
-    r"THEN address "
-    r"ELSE regexp_replace(address, '\s*\([^)]*\)\s*$', '') END"
+    "THEN c.address "
+    r"ELSE regexp_replace(c.address, '\s*\([^)]*\)\s*$', '') END"
 )
 # Сторона физической конструкции: у поверхности side вида «A1(1)» сторона — «A1».
 _PARENT_SIDE = r"regexp_replace(s.side, '\(.*\)$', '')"
 
 _CTE_PHYSICAL = (
-    "WITH cc AS (SELECT id, city_id, " + _PHYSICAL_KEY + " AS pkey "
-    "FROM constructions WHERE is_active) "
+    "WITH cc AS (SELECT c.id, c.city_id, " + _PHYSICAL_KEY + " AS pkey "
+    "FROM constructions c WHERE c.is_active) "
 )
 
 
 def get_constructions_stats() -> dict:
     """Сводка по рекламной сети: конструкции, стороны, поверхности, форматы.
 
-    все числа — по физическим конструкциям, а не по строкам-адресам
-    (см. ``_PHYSICAL_KEY``). Формат конструкции — преобладающий тип её
-    поверхностей, поэтому сумма по форматам совпадает с числом конструкций.
+    конструкции/стороны — по физическим объектам (см. ``_PHYSICAL_KEY``);
+    поверхности — все строки-поверхности. Разбивка ``formats`` — число
+    ПОВЕРХНОСТЕЙ по формату, поэтому её сумма совпадает с ``surfaces`` и
+    со списком на странице «Возможности».
     """
     with get_connection() as conn:
         total = conn.execute(
@@ -406,15 +412,8 @@ def get_constructions_stats() -> dict:
         ).fetchone()[0]
 
         rows = conn.execute(
-            _CTE_PHYSICAL
-            + ", st AS (SELECT c.city_id, c.pkey, "
-            "COALESCE(NULLIF(s.type, ''), '—') AS tp, COUNT(*) AS n "
-            "FROM surfaces s JOIN cc c ON c.id = s.construction_id "
-            "WHERE s.is_active GROUP BY 1, 2, 3), "
-            "rk AS (SELECT tp, ROW_NUMBER() OVER ("
-            "PARTITION BY city_id, pkey ORDER BY n DESC, tp) AS rn FROM st) "
-            "SELECT tp, COUNT(*) AS c FROM rk WHERE rn = 1 "
-            "GROUP BY tp ORDER BY c DESC"
+            "SELECT COALESCE(NULLIF(type, ''), '—') AS tp, COUNT(*) AS c "
+            "FROM surfaces WHERE is_active GROUP BY tp ORDER BY c DESC"
         ).fetchall()
 
     return {
@@ -428,29 +427,31 @@ def get_constructions_stats() -> dict:
 def get_geo_location_stats() -> dict:
     """Статистика по городам/районам для geo-слайда главной.
 
-    Возвращает словарь ``{имя_города_lower: {"constructions": N, "formats": [...]}}``
-    — число физических конструкций (см. ``_PHYSICAL_KEY``) и разбивка по форматам.
+    Возвращает словарь ``{имя_города_lower: {"constructions": N, "formats": [...]}}``:
+    ``constructions`` — число физических конструкций (см. ``_PHYSICAL_KEY``),
+    ``formats`` — число ПОВЕРХНОСТЕЙ по формату (как в списке «Возможности»).
     """
     with get_connection() as conn:
-        rows = conn.execute(
-            "WITH cc AS (SELECT id, city_id, " + _PHYSICAL_KEY + " AS pkey "
-            "FROM constructions WHERE is_active), "
-            "st AS (SELECT c.city_id, c.pkey, "
-            "COALESCE(NULLIF(s.type, ''), '—') AS tp, COUNT(*) AS n "
-            "FROM surfaces s JOIN cc c ON c.id = s.construction_id "
-            "WHERE s.is_active GROUP BY 1, 2, 3), "
-            "rk AS (SELECT city_id, pkey, tp, ROW_NUMBER() OVER ("
-            "PARTITION BY city_id, pkey ORDER BY n DESC, tp) AS rn FROM st) "
-            "SELECT ci.name, tp, COUNT(*) FROM ("
-            "SELECT city_id, tp FROM rk WHERE rn = 1) o "
-            "JOIN cities ci ON ci.id = o.city_id GROUP BY ci.name, tp"
+        obj_rows = conn.execute(
+            _CTE_PHYSICAL
+            + "SELECT ci.name, COUNT(DISTINCT cc.pkey) "
+            "FROM cc JOIN cities ci ON ci.id = cc.city_id GROUP BY ci.name"
+        ).fetchall()
+        fmt_rows = conn.execute(
+            "SELECT ci.name, COALESCE(NULLIF(s.type, ''), '—') AS tp, COUNT(*) "
+            "FROM surfaces s JOIN constructions c ON c.id = s.construction_id "
+            "JOIN cities ci ON ci.id = c.city_id "
+            "WHERE s.is_active AND c.is_active GROUP BY 1, 2"
         ).fetchall()
 
     result: dict[str, dict] = {}
-    for name, tp, count in rows:
+    for name, count in obj_rows:
+        result[str(name or "").strip().lower()] = {
+            "constructions": count, "formats": []
+        }
+    for name, tp, count in fmt_rows:
         key = str(name or "").strip().lower()
         item = result.setdefault(key, {"constructions": 0, "formats": []})
-        item["constructions"] += count
         item["formats"].append({"name": tp, "count": count})
 
     for item in result.values():

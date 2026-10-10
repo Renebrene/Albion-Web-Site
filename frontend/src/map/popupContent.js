@@ -16,6 +16,7 @@ import {
 } from '../utils/constructionGroups'
 import { usePortfolio } from '../composables/usePortfolio'
 import { photoLabel, sanitizeFileName } from '../composables/usePhotoViewer'
+import { availableMode } from '../config/availableMode'
 
 /*
  * Портфель-стор — только чтение начального состояния кнопок и месяцев
@@ -205,7 +206,7 @@ function sideBlock(item) {
 
   return `
     <span class="popup-side-badge" title="Сторона">
-      ${escapeHtml(side)}
+      Сторона ${escapeHtml(side)}
     </span>
   `
 }
@@ -375,21 +376,45 @@ function sideCard(item) {
         ${priceBlock(item)}
       </div>
       ${typeBlock(item)}
+      ${featuresBlock(item, false)}
       ${photoBlock(item)}
       ${monthBlock(item)}
-      ${featuresBlock(item, false)}
       ${portfolioBlock(item)}
     </section>
   `
 }
 
-/* Динамическая сторона: фото первой поверхности + строки A(1)/A(2)/A(3) */
+/* Динамическая сторона: фото первой поверхности + строки месяцев.
+ * Букву стороны (A(1), A(2)…) перед месяцами не пишем.
+ * В режиме «по сторонам» — одна строка: месяц свободен, если свободна
+ * хоть одна поверхность, иначе продано (резерв не показываем). */
+function sideAggMonthCell(group, month) {
+  const anyFree = (group.items || []).some(item => isFree(item, month.full))
+  const state = anyFree ? 'free' : 'busy'
+  const title = anyFree ? 'Свободно' : 'Продано'
+
+  return `
+    <div class="popup-month ${state}" title="${escapeHtml(title)}">
+      ${escapeHtml(month.short)}
+    </div>
+  `
+}
+
 function dynamicRowsBlock(group) {
+  if (availableMode.value === 'sides') {
+    return `
+      <div class="popup-dynamic-rows">
+        <div class="popup-dynamic-row">
+          ${MONTHS.map(month => sideAggMonthCell(group, month)).join('')}
+        </div>
+      </div>
+    `
+  }
+
   return `
     <div class="popup-dynamic-rows">
       ${group.items.map(item => `
         <div class="popup-dynamic-row">
-          <span class="popup-dynamic-side">${escapeHtml(sideLabel(item))}</span>
           ${MONTHS.map(month => monthCell(item, month)).join('')}
         </div>
       `).join('')}
@@ -408,9 +433,9 @@ function dynamicBlock(group) {
         ${priceBlock(first)}
       </div>
       ${typeBlock(first)}
+      ${featuresBlock(first, true)}
       ${photoBlock(first)}
       ${dynamicRowsBlock(group)}
-      ${featuresBlock(first, true)}
       ${portfolioBlock(first)}
     </section>
   `
@@ -427,9 +452,9 @@ function videoBlock(item) {
         ${priceBlock(item)}
       </div>
       ${typeBlock(item)}
+      ${featuresBlock(item, true)}
       ${photoBlock(item)}
       ${videoMonthBlock(item)}
-      ${featuresBlock(item, true)}
       ${portfolioBlock(item)}
     </section>
   `

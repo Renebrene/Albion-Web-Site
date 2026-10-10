@@ -1,9 +1,12 @@
 <template>
   <q-page class="smart-chat-page">
     <main class="smart-chat-content">
-      <div class="kicker">ALBION AI</div>
-      <h1>Умный чат</h1>
-      <p class="intro">Задайте вопрос о рекламных конструкциях.</p>
+      <div class="chat-heading">
+        <span class="kicker">ALBION AI</span>
+        <h1>Умный чат</h1>
+        <span class="intro">Задайте вопрос о рекламных конструкциях.</span>
+      </div>
+
       <SmartChatPanel :initial-draft="draft" />
     </main>
   </q-page>
@@ -35,9 +38,16 @@ const draft = computed(() => {
   background: #f3f5f6;
 }
 .smart-chat-content {
-  width: min(920px, 92%);
-  margin: 0 auto;
-  padding: 72px 0;
+  /* Рабочее поле — от края до края страницы. */
+  width: 100%;
+  margin: 0;
+  padding: 28px clamp(16px, 3vw, 48px) 48px;
+}
+.chat-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 .kicker {
   color: var(--albion-accent);
@@ -46,15 +56,17 @@ const draft = computed(() => {
   letter-spacing: 2px;
 }
 h1 {
-  margin: 8px 0;
+  margin: 0;
   color: #17212b;
-  font-size: 42px;
+  font-size: clamp(22px, 2.6vw, 30px);
+  line-height: 1;
 }
 .intro {
   color: #71808c;
+  font-size: 14px;
 }
 .smart-chat-content :deep(.chat-panel) {
-  margin-top: 28px;
+  margin-top: 16px;
   padding: 20px;
   border-radius: 16px;
   background: #fff;

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.resources
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -20,6 +21,7 @@ from backend.chat.models import (
     ChatMessageResponse,
     ChatQuery,
     ChatResults,
+    ChatSuggestion,
     ClarificationOption,
 )
 from backend.chat.store import ChatSession, ChatStore, chat_store
@@ -56,9 +58,14 @@ class ChatService:
     def _session(self, session_id: UUID | None) -> ChatSession:
         if session_id is None:
             return self.store.create()
+
         session = self.store.get(session_id)
+
+        # A restarted/expired session must not break the conversation:
+        # transparently start a new one so the new question still works.
         if session is None:
-            raise LookupError("Сессия чата не найдена или истекла")
+            return self.store.create()
+
         return session
 
     @staticmethod
@@ -257,6 +264,7 @@ class ChatService:
         pending: bool = False,
         clarification: ChatClarification | None = None,
         items: list[dict[str, Any]] | None = None,
+        suggestions: list[ChatSuggestion] | None = None,
         warnings: list[str] | None = None,
     ) -> ChatMessageResponse:
         items = items or []
@@ -269,9 +277,108 @@ class ChatService:
             query=ChatQuery.from_query(query) if query else None,
             clarification=clarification,
             results=ChatResults(count=len(items), items=items),
+            suggestions=suggestions or [],
             actions=ChatActions(**actions_for(items)),
             warnings=warnings or [],
         )
+
+    def _suggestions(
+        self,
+        query: SearchQuery,
+        items: list[dict[str, Any]],
+    ) -> list[ChatSuggestion]:
+        """When nothing matched, propose relaxed alternatives.
+
+        Example: «пиллар на Привокзальной» -> other pillars anywhere and
+        other construction types on Привокзальная.
+        """
+        if items:
+            return []
+
+        result: list[ChatSuggestion] = []
+        seen: set[int] = set()
+
+        # Suggested alternatives must stay inside the requested city.
+        # The broad location match also hits route names («Ростов-Таганрог»),
+        # so filter strictly by the city field here.
+        city_key = (
+            str(query.city or "").strip().casefold().replace("ё", "е") or None
+        )
+
+        def relaxed(**changes: Any) -> list[dict[str, Any]]:
+            # No limit here: the city filter must run before we take the
+            # first few items, otherwise the limit cuts them off.
+            try:
+                variant = replace(query, limit=None, **changes)
+            except ValueError:
+                return []
+            found = self.bridge.search_rich(variant)
+
+            if city_key:
+                found = [
+                    item
+                    for item in found
+                    if str(item.get("city") or "")
+                    .strip()
+                    .casefold()
+                    .replace("ё", "е")
+                    == city_key
+                ]
+
+            fresh = [
+                item
+                for item in found
+                if int(item.get("id") or 0) not in seen
+            ]
+            return fresh[:5]
+
+        if query.address and query.media_type:
+            similar = relaxed(address=None)
+            if similar:
+                seen.update(int(item["id"]) for item in similar)
+                result.append(
+                    ChatSuggestion(
+                        type="similar_type",
+                        title=f"Другие варианты: {query.media_type}",
+                        items=similar,
+                    )
+                )
+
+            same_address = relaxed(media_type=None)
+            if same_address:
+                seen.update(int(item["id"]) for item in same_address)
+                result.append(
+                    ChatSuggestion(
+                        type="same_address",
+                        title=f"Другие конструкции: {query.address.capitalize()}",
+                        items=same_address,
+                    )
+                )
+        elif query.address:
+            similar = relaxed(address=None)
+            if similar:
+                result.append(
+                    ChatSuggestion(
+                        type="similar",
+                        title="Похожие варианты",
+                        items=similar,
+                    )
+                )
+        elif query.media_type:
+            other_types = relaxed(media_type=None)
+            if other_types:
+                city_suffix = (
+                    f" в городе {query.city}" if query.city else ""
+                )
+                result.append(
+                    ChatSuggestion(
+                        type="other_types",
+                        title=f"Другие типы конструкций{city_suffix}",
+                        items=other_types,
+                    )
+                )
+
+        return result
 
     def message(self, payload: ChatMessageRequest) -> ChatMessageResponse:
         session = self._session(payload.session_id)
@@ -336,12 +443,22 @@ class ChatService:
                     "Для поиска свободных конструкций укажите месяц или период"
                 )
             items = self.bridge.search_rich(query)
+            suggestions = self._suggestions(query, items)
+
+            answer = format_answer(query, items)
+            if not items and suggestions:
+                answer = (
+                    "По заданным условиям ничего не найдено. "
+                    "Ниже — похожие варианты."
+                )
+
             response = self._response(
                 session,
                 query=query,
-                answer=format_answer(query, items),
+                answer=answer,
                 source=source,
                 items=items,
+                suggestions=suggestions,
                 warnings=warnings,
             )
             session.pending = None

@@ -646,6 +646,74 @@ class QueryParser:
 
             return implicit_candidates[0][4]
 
+        # Улица без номера дома: «на Привокзальной», «проспект Стачки».
+        return self._find_street_only(text)
+
+    def _find_street_only(self, text: str) -> str | None:
+        """Улица без номера дома.
+
+        Нужна для запросов вида «пиллар на Привокзальной», где номер
+        дома не указан: адресный фильтр должен всё равно сузить выдачу.
+        """
+        candidates: list[str] = []
+
+        # Явный маркер улицы + название: «ул. Ленина», «проспект Стачки».
+        marker = (
+            r"(?:ул\.|улиц\w*|проспект\w*|пр-?кт\w*|пр-?т\w*|переул\w*|"
+            r"пер\.|шоссе|бульвар\w*|б-р|площад\w*|пл\.|проезд\w*|"
+            r"набережн\w*|аллея)"
+        )
+
+        for match in re.finditer(
+            marker + r"\s+([а-яё][а-яё-]{2,})",
+            text,
+            re.IGNORECASE,
+        ):
+            candidates.append(match.group(1))
+
+        # Предлог + название улицы-прилагательного: «на Привокзальной».
+        for match in re.finditer(
+            r"\b(?:на|по|около|возле|у)\s+"
+            r"([а-яё-]{4,}(?:ой|ая|ий|ую|ом|ым|ых|ская|ской|ское|ого|ому))",
+            text,
+            re.IGNORECASE,
+        ):
+            candidates.append(match.group(1))
+
+        for candidate in candidates:
+            normalized = self._normalize(candidate)
+
+            if not normalized:
+                continue
+
+            # Служебные слова запроса улицей не являются.
+            if re.search(
+                r"загруж|дешев|стоимост|цен|наимен|наименее|сторон",
+                normalized,
+            ):
+                continue
+
+            # Улица не может совпадать с типом, городом или стоп-словом.
+            if (
+                self.dictionary.find_type(normalized)
+                or self.dictionary.find_city(normalized)
+                or self.dictionary.find_keyword(normalized)
+            ):
+                continue
+
+            if any(
+                stop_word in normalized
+                for stop_word in self.ADDRESS_STOP_WORDS
+            ):
+                continue
+
+            parsed = self.address_parser.parse(candidate)
+
+            if not parsed.all_street_roots:
+                continue
+
+            return candidate
+
         return None
 
     def _expand_month_range(

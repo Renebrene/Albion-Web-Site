@@ -214,19 +214,33 @@ class AlbionSearchBridge:
         }
 
     @staticmethod
+    def _alphabetical(value: Any) -> str:
+        """Case-insensitive, whitespace-collapsed key for tie ordering."""
+        return " ".join(
+            str(value or "").casefold().replace("ё", "е").split()
+        )
+
+    @classmethod
     def _sort_and_limit(
+        cls,
         items: list[dict[str, Any]],
         query: SearchQuery,
     ) -> list[dict[str, Any]]:
+        # Equal percentage/price items must fall back to alphabetical order.
+        def tail(item: dict[str, Any]):
+            return (
+                cls._alphabetical(item.get("city")),
+                cls._alphabetical(item.get("address")),
+                cls._alphabetical(item.get("side")),
+                item.get("id") or 0,
+            )
+
         if query.sort_by == "price_asc":
             items.sort(
                 key=lambda item: (
                     item["price"] is None,
                     item["price"] if item["price"] is not None else 0,
-                    item.get("city") or "",
-                    item.get("address") or "",
-                    item.get("side") or "",
-                    item.get("id") or 0,
+                    *tail(item),
                 )
             )
         elif query.sort_by == "load_asc":
@@ -236,10 +250,7 @@ class AlbionSearchBridge:
                     item["load_percent"]
                     if item["load_percent"] is not None
                     else 101,
-                    item.get("city") or "",
-                    item.get("address") or "",
-                    item.get("side") or "",
-                    item.get("id") or 0,
+                    *tail(item),
                 )
             )
 

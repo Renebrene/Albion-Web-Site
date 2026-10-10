@@ -149,6 +149,18 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "group": "map",
         "default": "#e6a51c",
     },
+    # Отображение доступности в списке «Возможности».
+    {
+        "key": "available_mode",
+        "label": "Доступность в списке: по поверхностям или свёрнуто по сторонам",
+        "type": "select",
+        "group": "appearance",
+        "options": [
+            {"label": "По поверхностям (как сейчас)", "value": "surfaces"},
+            {"label": "Свернуть A1…A5 в одну сторону A", "value": "sides"},
+        ],
+        "default": "surfaces",
+    },
 ]
 
 # Список ключей в порядке формы (для фронта)

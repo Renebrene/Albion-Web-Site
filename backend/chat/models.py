@@ -83,6 +83,12 @@ class ChatResults(BaseModel):
     items: list[dict[str, Any]] = Field(default_factory=list)
 
 
+class ChatSuggestion(BaseModel):
+    type: str
+    title: str
+    items: list[dict[str, Any]] = Field(default_factory=list)
+
+
 class ChatActions(BaseModel):
     map: dict[str, Any] = Field(default_factory=dict)
     list: dict[str, Any] = Field(default_factory=dict)
@@ -100,6 +106,7 @@ class ChatMessageResponse(BaseModel):
     query: ChatQuery | None = None
     clarification: ChatClarification | None = None
     results: ChatResults = Field(default_factory=lambda: ChatResults(count=0))
+    suggestions: list[ChatSuggestion] = Field(default_factory=list)
     actions: ChatActions = Field(default_factory=ChatActions)
     warnings: list[str] = Field(default_factory=list)
 

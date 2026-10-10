@@ -135,6 +135,85 @@ def test_show_verb_with_number_sets_limit():
     assert query.limit == 5
     assert query.address is None
 
+
+class SuggestBridge:
+    """Empty on strict address+type, non-empty on relaxed variants."""
+
+    def search_rich(self, query):
+        if query.address and query.media_type:
+            return []
+        if query.media_type:
+            return [
+                {
+                    "id": 1,
+                    "type": query.media_type,
+                    "media_type": query.media_type,
+                    "city": "Ростов",
+                    "address": "Сельмаш пр-кт 9",
+                    "price": 13000,
+                    "monthly_prices": {},
+                    "monthly_statuses": {},
+                }
+            ]
+        return [
+            {
+                "id": 2,
+                "type": "Щит",
+                "media_type": "Щит",
+                "city": "Ростов",
+                "address": "Привокзальная пл. 1",
+                "price": 40000,
+                "monthly_prices": {},
+                "monthly_statuses": {},
+            }
+        ]
+
+
+def test_missing_match_returns_suggestions():
+    service = ChatService(bridge=SuggestBridge())
+    response = service.message(
+        ChatMessageRequest(message="пиллар на Привокзальной")
+    )
+
+    assert response.results.count == 0
+    assert len(response.suggestions) == 2
+    assert response.suggestions[0].type == "similar_type"
+    assert response.suggestions[1].type == "same_address"
+    assert "не найдено" in response.answer.lower()
+
+
+def test_unknown_session_starts_new_one():
+    from uuid import uuid4
+
+    service = ChatService(bridge=fake_bridge())
+    response = service.message(
+        ChatMessageRequest(
+            session_id=uuid4(),
+            message="Покажи щиты",
+        )
+    )
+
+    # No error: a stale session transparently becomes a brand new session.
+    assert response.session_id is not None
+    assert response.results.count == 1
+
+
+def test_load_sort_ties_are_alphabetical_and_limited_after_sort():
+    items = [
+        {"id": 1, "load_percent": 4, "price": 100, "city": "Ростов", "address": "Ясная 1", "side": "A"},
+        {"id": 2, "load_percent": 4, "price": 100, "city": "Ростов", "address": "Айвазовского 2", "side": "A"},
+        {"id": 3, "load_percent": 8, "price": 100, "city": "Ростов", "address": "Батуринская 3", "side": "A"},
+        {"id": 4, "load_percent": 4, "price": 100, "city": "Ростов", "address": "Айвазовского 2", "side": "Б"},
+        {"id": 5, "load_percent": None, "price": 100, "city": "Ростов", "address": "Азовская 5", "side": "A"},
+    ]
+    query = SearchRequest(sort_by="load_asc", limit=3).to_search_query()
+
+    result = AlbionSearchBridge._sort_and_limit(list(items), query)
+
+    assert [item["id"] for item in result] == [2, 4, 1]
+    # NULL load and the higher percentage are pushed to the tail.
+    assert result[-1]["load_percent"] == 4
+
     try:
         SearchRequest(availability="FREE")
     except Exception as exc:

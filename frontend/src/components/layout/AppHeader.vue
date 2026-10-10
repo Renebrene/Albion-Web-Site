@@ -1,45 +1,26 @@
 <template>
   <header class="header">
-
     <!-- ЛОГОТИП -->
-    <RouterLink
-      to="/"
-      class="brand"
-      aria-label="Albion — главная страница"
-    >
-      <img
-        src="/logo.png"
-        alt="Albion"
-        class="logo"
-      >
+    <RouterLink to="/" class="brand" aria-label="Albion — главная страница">
+      <img src="/logo.png" alt="Albion" class="logo" />
     </RouterLink>
 
     <!-- АДРЕС / EMAIL -->
     <div class="header-contact">
-      <div class="address">
-        Ростов-на-Дону · ул. Социалистическая, 73
-      </div>
+      <div class="address"> Ростов-на-Дону · ул. Социалистическая, 73 </div>
 
       <div class="emails">
-        <a href="mailto:reclama@albion.su">
-          reclama@albion.su
-        </a>
+        <a href="mailto:reclama@albion.su"> reclama@albion.su </a>
 
         <span>·</span>
 
-        <a href="mailto:albion3@albion.su">
-          albion3@albion.su
-        </a>
+        <a href="mailto:albion3@albion.su"> albion3@albion.su </a>
       </div>
     </div>
 
     <!-- НАВИГАЦИЯ (из CMS, фолбэк на дефолт) -->
     <nav class="header-nav">
-      <RouterLink
-        v-for="item in navItems"
-        :key="item.key"
-        :to="item.url"
-      >
+      <RouterLink v-for="item in navItems" :key="item.key" :to="item.url">
         {{ item.label }}
       </RouterLink>
 
@@ -90,10 +71,7 @@
     </nav>
 
     <!-- ТЕЛЕФОН -->
-    <a
-      href="tel:+78633203020"
-      class="phone"
-    >
+    <a href="tel:+78633203020" class="phone">
       <span class="phone-icon">
         <svg
           viewBox="0 0 24 24"
@@ -112,20 +90,12 @@
         </svg>
       </span>
 
-      <span>
-        8 (863) 320-30-20
-      </span>
+      <span> 8 (863) 320-30-20 </span>
     </a>
 
     <!-- СОЦСЕТИ -->
     <div class="socials">
-
-      <a
-        href="#"
-        class="social vk"
-        title="ВКонтакте"
-        aria-label="ВКонтакте"
-      >
+      <a href="#" class="social vk" title="ВКонтакте" aria-label="ВКонтакте">
         VK
       </a>
 
@@ -138,15 +108,7 @@
         OK
       </a>
 
-      <a
-        href="#"
-        class="social max"
-        title="Макс"
-        aria-label="Макс"
-      >
-        Макс
-      </a>
-
+      <a href="#" class="social max" title="Макс" aria-label="Макс"> Макс </a>
     </div>
 
     <!-- УМНЫЙ ЧАТ — открывает окно вниз, размером как «Портфель».
@@ -177,29 +139,14 @@
           </div>
 
           <div class="smart-chat-body">
-            <SmartChatPanel />
-            <q-btn
-              flat
-              dense
-              no-caps
-              label="Открыть на странице"
-              class="smart-chat-page-link"
-              to="/chat"
-              @click="chatOpen = false"
-            />
+            <SmartChatPanel page-link @close="chatOpen = false" />
           </div>
         </div>
       </q-menu>
     </div>
 
     <!-- АВТОРИЗАЦИЯ -->
-    <q-btn
-      flat
-      round
-      dense
-      class="auth-button"
-      aria-label="Авторизация"
-    >
+    <q-btn flat round dense class="auth-button" aria-label="Авторизация">
       <q-icon name="person_outline" size="22px" />
 
       <q-menu
@@ -251,12 +198,7 @@
             <q-item-section>РЕГИСТРАЦИЯ</q-item-section>
           </q-item>
 
-          <q-item
-            clickable
-            v-close-popup
-            class="auth-item"
-            to="/account"
-          >
+          <q-item clickable v-close-popup class="auth-item" to="/account">
             <q-item-section>ПОРТФЕЛЬ</q-item-section>
           </q-item>
 
@@ -290,7 +232,6 @@
     <!-- ВЫПАДАЮЩЕЕ МЕНЮ (мобильная версия) -->
     <Transition name="mobile-menu">
       <div v-if="mobileOpen" class="mobile-panel">
-
         <nav class="mobile-nav">
           <RouterLink
             v-for="item in navItems"
@@ -311,19 +252,13 @@
           >
             <span>ПОРТФЕЛЬ</span>
 
-            <span
-              v-if="count"
-              class="mobile-portfolio-badge"
-            >
+            <span v-if="count" class="mobile-portfolio-badge">
               {{ count }}
             </span>
           </button>
 
           <div v-if="mobilePortfolioOpen" class="mobile-portfolio-panel">
-            <PortfolioPanel
-              variant="dropdown"
-              @navigate="closeMobileMenu"
-            />
+            <PortfolioPanel variant="dropdown" @navigate="closeMobileMenu" />
           </div>
         </nav>
 
@@ -344,10 +279,8 @@
             albion3@albion.su
           </a>
         </div>
-
       </div>
     </Transition>
-
   </header>
 </template>
 
@@ -586,13 +519,13 @@ onMounted(async () => {
   font-size: 12px;
   font-weight: 900;
 
-  letter-spacing: .25px;
+  letter-spacing: 0.25px;
 
   text-decoration: none;
 
   transition:
-    color .15s ease,
-    transform .15s ease;
+    color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .header-nav a:hover {
@@ -638,12 +571,12 @@ onMounted(async () => {
   font-size: 12px;
   font-weight: 900;
 
-  letter-spacing: .25px;
+  letter-spacing: 0.25px;
   line-height: 1.2;
 
   transition:
-    color .15s ease,
-    transform .15s ease;
+    color 0.15s ease,
+    transform 0.15s ease;
 }
 
 .header-nav .nav-portfolio .q-btn__content {
@@ -705,11 +638,11 @@ onMounted(async () => {
   font-size: 18px;
   font-weight: 900;
 
-  letter-spacing: .1px;
+  letter-spacing: 0.1px;
 
   text-decoration: none;
 
-  transition: color .15s ease;
+  transition: color 0.15s ease;
 }
 
 .phone:hover {
@@ -763,7 +696,7 @@ onMounted(async () => {
 
   text-decoration: none;
 
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 .social:hover {
@@ -810,7 +743,7 @@ onMounted(async () => {
 
   cursor: pointer;
 
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 .smart-chat:hover {
@@ -848,7 +781,7 @@ onMounted(async () => {
 
   font-size: 12px;
   font-weight: 900;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .smart-chat-head-icon {
@@ -1007,7 +940,7 @@ onMounted(async () => {
 
     cursor: pointer;
 
-    transition: background .15s ease;
+    transition: background 0.15s ease;
   }
 
   .burger:hover {
@@ -1025,9 +958,9 @@ onMounted(async () => {
     background: #17212b;
 
     transition:
-      transform .25s ease,
-      opacity .2s ease,
-      background .15s ease;
+      transform 0.25s ease,
+      opacity 0.2s ease,
+      background 0.15s ease;
   }
 
   .burger:hover span {
@@ -1071,7 +1004,7 @@ onMounted(async () => {
 
     border-bottom: 1px solid #e5e9ec;
 
-    box-shadow: 0 16px 30px rgba(25, 35, 45, .14);
+    box-shadow: 0 16px 30px rgba(25, 35, 45, 0.14);
   }
 
   .mobile-nav {
@@ -1089,11 +1022,11 @@ onMounted(async () => {
     font-size: 14px;
     font-weight: 900;
 
-    letter-spacing: .3px;
+    letter-spacing: 0.3px;
 
     text-decoration: none;
 
-    transition: color .15s ease;
+    transition: color 0.15s ease;
   }
 
   .mobile-nav-link:hover,
@@ -1181,7 +1114,7 @@ onMounted(async () => {
 
     text-decoration: none;
 
-    transition: color .15s ease;
+    transition: color 0.15s ease;
   }
 
   .mobile-contact-link:hover {
@@ -1216,8 +1149,8 @@ onMounted(async () => {
 .mobile-menu-enter-active,
 .mobile-menu-leave-active {
   transition:
-    opacity .22s ease,
-    transform .22s ease;
+    opacity 0.22s ease,
+    transform 0.22s ease;
 }
 
 .mobile-menu-enter-from,
@@ -1242,7 +1175,7 @@ onMounted(async () => {
 /* Меню авторизации рендерится в портале — нужны глобальные стили */
 .auth-menu {
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(25, 35, 45, .15);
+  box-shadow: 0 10px 30px rgba(25, 35, 45, 0.15);
   overflow: hidden;
 }
 
@@ -1253,7 +1186,7 @@ onMounted(async () => {
 .auth-menu .auth-item {
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   color: #17212b;
 }
 
@@ -1283,14 +1216,14 @@ onMounted(async () => {
   color: #71808c;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 /* Меню портфеля рендерится в портале — нужны глобальные стили */
 .portfolio-menu {
   border-radius: 14px;
-  box-shadow: 0 18px 40px rgba(25, 35, 45, .18);
+  box-shadow: 0 18px 40px rgba(25, 35, 45, 0.18);
   overflow: hidden;
 
   /* Снимаем умолчательный max-height q-menu (65vh): высотой управляет
