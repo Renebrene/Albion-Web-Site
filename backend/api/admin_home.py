@@ -7,13 +7,17 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from backend.services.auth_api import require_admin
 from backend.services.home_service import (
+    create_button,
     create_item,
     create_slide,
+    delete_button,
     delete_feedback,
     delete_item,
     delete_slide,
+    get_item,
     list_feedback,
     list_slides,
+    update_button,
     update_item,
     update_slide,
 )
@@ -125,6 +129,73 @@ def item_update(
 def item_delete(item_id: int, auth=Depends(require_admin)):
     if not delete_item(item_id):
         raise HTTPException(status_code=404, detail="Карточка не найдена")
+
+    return {
+        "success": True,
+        "slides": list_slides(),
+    }
+
+
+# ---------------------------------------------------------------- кнопки
+
+
+@router.post("/slides/{slide_id}/buttons")
+def slide_button_create(
+    slide_id: int,
+    payload: dict,
+    auth=Depends(require_admin),
+):
+    button = create_button(slide_id, payload or {})
+
+    return {
+        "success": True,
+        "button": button,
+        "slides": list_slides(),
+    }
+
+
+@router.post("/items/{item_id}/buttons")
+def item_button_create(
+    item_id: int,
+    payload: dict,
+    auth=Depends(require_admin),
+):
+    item = get_item(item_id)
+
+    if item is None:
+        raise HTTPException(status_code=404, detail="Карточка не найдена")
+
+    button = create_button(item["slide_id"], payload or {}, item_id=item_id)
+
+    return {
+        "success": True,
+        "button": button,
+        "slides": list_slides(),
+    }
+
+
+@router.patch("/buttons/{button_id}")
+def button_update(
+    button_id: int,
+    payload: dict,
+    auth=Depends(require_admin),
+):
+    button = update_button(button_id, payload or {})
+
+    if button is None:
+        raise HTTPException(status_code=404, detail="Кнопка не найдена")
+
+    return {
+        "success": True,
+        "button": button,
+        "slides": list_slides(),
+    }
+
+
+@router.delete("/buttons/{button_id}")
+def button_delete(button_id: int, auth=Depends(require_admin)):
+    if not delete_button(button_id):
+        raise HTTPException(status_code=404, detail="Кнопка не найдена")
 
     return {
         "success": True,

@@ -32,6 +32,35 @@ _ITEM_FIELDS = (
     "extra",
 )
 
+# Поля кнопки (home_slide_buttons): подпись, ссылка, вид ('primary'|'ghost').
+_BUTTON_FIELDS = ("label", "url", "variant")
+
+BUTTON_VARIANTS = ("primary", "ghost")
+
+
+def _button_dict(row) -> dict:
+    (
+        button_id,
+        slide_id,
+        item_id,
+        sort_order,
+        label,
+        url,
+        variant,
+        is_active,
+    ) = row
+
+    return {
+        "id": button_id,
+        "slide_id": slide_id,
+        "item_id": item_id,
+        "sort_order": sort_order,
+        "label": label or "",
+        "url": url or "",
+        "variant": variant or "primary",
+        "is_active": is_active,
+    }
+
 
 def _slide_dict(row) -> dict:
     (
@@ -58,6 +87,7 @@ def _slide_dict(row) -> dict:
         "button_url": button_url or "",
         "image": image_path or "",
         "is_active": is_active,
+        "buttons": [],
         "items": [],
     }
 
@@ -95,6 +125,7 @@ def _item_dict(row) -> dict:
         "image": image_path or "",
         "extra": extra or "",
         "is_active": is_active,
+        "buttons": [],
     }
 
 
@@ -137,6 +168,40 @@ def _fetch_slides(conn, *, only_active: bool) -> list[dict]:
 
         if slide is not None:
             slide["items"].append(item)
+
+    # Кнопки: item_id IS NULL → кнопка слайда, иначе — карточки hero.
+    button_where = "AND is_active = TRUE" if only_active else ""
+
+    button_rows = conn.execute(
+        f"""
+        SELECT id, slide_id, item_id, sort_order, label, url, variant, is_active
+        FROM home_slide_buttons
+        WHERE slide_id = ANY(%s) {button_where}
+        ORDER BY sort_order, id
+        """,
+        (list(by_id.keys()),),
+    ).fetchall()
+
+    items_by_id = {
+        item["id"]: item
+        for slide in slides
+        for item in slide["items"]
+    }
+
+    for row in button_rows:
+        button = _button_dict(row)
+        slide = by_id.get(button["slide_id"])
+
+        if slide is None:
+            continue
+
+        if button["item_id"] is None:
+            slide["buttons"].append(button)
+        else:
+            item = items_by_id.get(button["item_id"])
+
+            if item is not None:
+                item["buttons"].append(button)
 
     return slides
 
@@ -366,6 +431,108 @@ def delete_item(item_id: int) -> bool:
         with conn.transaction():
             cur = conn.execute(
                 "DELETE FROM home_slide_items WHERE id = %s", (int(item_id),)
+            )
+
+    return cur.rowcount > 0
+
+
+# ---------------------------------------------------------------- кнопки
+
+
+def _next_button_order(conn, slide_id: int, item_id) -> int:
+    if item_id is None:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM home_slide_buttons "
+            "WHERE slide_id = %s AND item_id IS NULL",
+            (slide_id,),
+        ).fetchone()
+    else:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), -1) + 1 FROM home_slide_buttons "
+            "WHERE item_id = %s",
+            (item_id,),
+        ).fetchone()
+
+    return int(row[0]) if row else 0
+
+
+def get_button(button_id: int) -> Optional[dict]:
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT id, slide_id, item_id, sort_order, label, url, variant, is_active
+            FROM home_slide_buttons WHERE id = %s
+            """,
+            (int(button_id),),
+        ).fetchone()
+
+    return _button_dict(row) if row else None
+
+
+def create_button(slide_id: int, data: dict, item_id=None) -> Optional[dict]:
+    label = str(data.get("label") or "").strip()
+    url = str(data.get("url") or "").strip()
+    variant = str(data.get("variant") or "primary").strip()
+
+    if variant not in BUTTON_VARIANTS:
+        variant = "primary"
+
+    with get_connection() as conn:
+        with conn.transaction():
+            order = _next_button_order(conn, int(slide_id), item_id)
+
+            row = conn.execute(
+                """
+                INSERT INTO home_slide_buttons
+                    (slide_id, item_id, sort_order, label, url, variant)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (int(slide_id), item_id, order, label, url, variant),
+            ).fetchone()
+
+    return get_button(row[0])
+
+
+def update_button(button_id: int, data: dict) -> Optional[dict]:
+    sets = []
+    params: list = []
+
+    for field in _BUTTON_FIELDS:
+        if field in data:
+            value = str(data.get(field) or "")
+
+            if field == "variant" and value not in BUTTON_VARIANTS:
+                value = "primary"
+
+            sets.append(f"{field} = %s")
+            params.append(value)
+
+    if "is_active" in data:
+        sets.append("is_active = %s")
+        params.append(bool(data.get("is_active")))
+
+    if not sets:
+        return get_button(button_id)
+
+    sets.append("updated_at = NOW()")
+    params.append(int(button_id))
+
+    with get_connection() as conn:
+        with conn.transaction():
+            conn.execute(
+                f"UPDATE home_slide_buttons SET {', '.join(sets)} WHERE id = %s",
+                tuple(params),
+            )
+
+    return get_button(button_id)
+
+
+def delete_button(button_id: int) -> bool:
+    with get_connection() as conn:
+        with conn.transaction():
+            cur = conn.execute(
+                "DELETE FROM home_slide_buttons WHERE id = %s", (int(button_id),)
             )
 
     return cur.rowcount > 0

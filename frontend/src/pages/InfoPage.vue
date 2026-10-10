@@ -258,33 +258,47 @@ onMounted(load)
 
 <style scoped>
 .info-page {
-  /* Общая высота панелей: список слева и карточка справа совпадают. */
-  --info-panel-h: 600px;
+  /* Общая высота панелей: список слева и карточка справа совпадают.
+     Считается от доступного места (экран минус шапка/подвал и «шапка»
+     страницы), поэтому закладка «Города и районы» влезает без прокрутки. */
+  --info-panel-h: clamp(
+    280px,
+    calc(
+      100dvh - var(--albion-header-h, 78px) - var(--albion-footer-h, 46px) -
+        220px
+    ),
+    620px
+  );
+
+  /* Гасим min-height от Quasar q-page (он проставляет её инлайном) — иначе
+     страница всегда выше экрана и появляется прокрутка. */
+  min-height: auto !important;
+
   background: #f3f5f6;
 }
 
 .info-shell {
   width: min(1720px, 96%);
   margin: 0 auto;
-  padding: 54px 0 80px;
+  padding: 34px 0 44px;
 }
 
 .info-head {
   text-align: center;
-  margin-bottom: 34px;
+  margin-bottom: 22px;
 }
 
 .info-kicker {
   color: var(--albion-accent);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 900;
-  letter-spacing: 2px;
+  letter-spacing: 1.6px;
 }
 
 .info-head h1 {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: #17212b;
-  font-size: 38px;
+  font-size: 30px;
   line-height: 1.05;
   font-weight: 900;
 }
@@ -295,18 +309,18 @@ onMounted(load)
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 6px 34px;
+  gap: 6px 26px;
   border-bottom: 1px solid #dfe4e7;
-  margin-bottom: 34px;
+  margin-bottom: 22px;
 }
 
 .info-tab {
   position: relative;
-  padding: 0 2px 16px;
+  padding: 0 2px 12px;
   border: 0;
   background: transparent;
   color: #7b8790;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -387,12 +401,12 @@ onMounted(load)
 }
 
 .geo-item {
-  padding: 14px 16px;
+  padding: 11px 14px;
   border: 0;
   border-bottom: 1px solid #e7ecee;
   background: transparent;
   color: #17212b;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   text-align: left;
   cursor: pointer;
@@ -403,12 +417,12 @@ onMounted(load)
 }
 
 .geo-item:hover {
-  padding-left: 22px;
+  padding-left: 18px;
   background: #f4f6f7;
 }
 
 .geo-item.is-active {
-  padding-left: 22px;
+  padding-left: 18px;
   background: #fff;
   color: var(--albion-accent);
   box-shadow: inset 3px 0 0 var(--albion-accent);
@@ -439,14 +453,14 @@ onMounted(load)
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 440px;
+  min-height: 360px;
   background: #0e1519 center/cover no-repeat;
 }
 
 .geo-card-nophoto {
-  padding: 20px;
+  padding: 18px;
   color: rgba(255, 255, 255, 0.6);
-  font-size: 14px;
+  font-size: 13px;
   text-align: center;
 }
 
@@ -454,14 +468,14 @@ onMounted(load)
   display: flex;
   flex-direction: column;
   min-height: 0;
-  padding: 34px 38px 28px;
+  padding: 26px 30px 22px;
 }
 
 .geo-card-title {
   flex: 0 0 auto;
-  margin: 0 0 14px;
+  margin: 0 0 10px;
   color: #fff;
-  font-size: clamp(24px, 2.4vw, 34px);
+  font-size: clamp(20px, 2vw, 28px);
   line-height: 1.08;
   font-weight: 900;
 }
@@ -473,8 +487,8 @@ onMounted(load)
   min-height: 0;
   overflow-y: auto;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 13.5px;
+  line-height: 1.6;
   white-space: pre-line;
 }
 
@@ -492,8 +506,8 @@ onMounted(load)
 
 .geo-card-stats {
   flex: 0 0 auto;
-  margin-top: 16px;
-  padding: 12px 14px;
+  margin-top: 12px;
+  padding: 10px 12px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.05);
@@ -506,26 +520,26 @@ onMounted(load)
 }
 
 .geo-card-stats-total b {
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 900;
   line-height: 1;
 }
 
 .geo-card-stats-total span {
   color: rgba(255, 255, 255, 0.6);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .geo-card-formats {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 14px;
-  margin-top: 8px;
+  gap: 5px 12px;
+  margin-top: 6px;
 }
 
 .geo-card-format {
   color: rgba(255, 255, 255, 0.8);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .geo-card-format b {
@@ -535,12 +549,12 @@ onMounted(load)
 .geo-card-mapbtn {
   flex: 0 0 auto;
   align-self: flex-start;
-  margin-top: 16px;
-  padding: 11px 18px;
+  margin-top: 12px;
+  padding: 9px 16px;
   border-radius: 999px;
   background: var(--albion-accent, #ff4d3d);
   color: #fff;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   text-decoration: none;
   transition: filter 0.15s ease;
@@ -552,11 +566,11 @@ onMounted(load)
 
 .geo-card-credit {
   flex: 0 0 auto;
-  margin-top: 16px;
-  padding-top: 16px;
+  margin-top: 12px;
+  padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
   color: rgba(255, 255, 255, 0.5);
-  font-size: 10.5px;
+  font-size: 10px;
   line-height: 1.5;
   overflow-wrap: anywhere;
 }

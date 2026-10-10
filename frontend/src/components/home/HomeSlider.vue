@@ -50,22 +50,24 @@
                     <p v-if="item.text" class="hero-a-text">{{ item.text }}</p>
 
                     <div class="hero-a-actions">
-                      <a
-                        v-if="item.button_label && item.button_url"
-                        class="slide-btn"
-                        :href="item.button_url"
-                      >{{ item.button_label }}</a>
-                      <button
-                        v-if="item.button2_label && (!item.button2_url || item.button2_url.startsWith('#'))"
-                        type="button"
-                        class="slide-btn slide-btn--ghost"
-                        @click="gotoFormSlide"
-                      >{{ item.button2_label }}</button>
-                      <a
-                        v-else-if="item.button2_label && item.button2_url"
-                        class="slide-btn slide-btn--ghost"
-                        :href="item.button2_url"
-                      >{{ item.button2_label }}</a>
+                      <template
+                        v-for="btn in itemButtons(item)"
+                        :key="btn.key"
+                      >
+                        <button
+                          v-if="isFormButton(btn)"
+                          type="button"
+                          class="slide-btn"
+                          :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
+                          @click="gotoFormSlide"
+                        >{{ btn.label }}</button>
+                        <a
+                          v-else
+                          class="slide-btn"
+                          :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
+                          :href="btn.url"
+                        >{{ btn.label }}</a>
+                      </template>
                     </div>
 
                     <div
@@ -273,15 +275,24 @@
                 </div>
 
                 <div class="geo-buttons">
-                  <a class="slide-btn" href="/vozmozhnosti">
-                    Перейти на интерактивную карту
-                  </a>
-                  <a
-                    class="slide-btn slide-btn--ghost"
-                    href="/informaciya?tab=%D0%B3%D0%BE%D1%80%D0%BE%D0%B4%D0%B0%20%D0%B8%20%D1%80%D0%B0%D0%B9%D0%BE%D0%BD%D1%8B"
+                  <template
+                    v-for="btn in slideButtons(slide, GEO_FALLBACK_BUTTONS)"
+                    :key="btn.key"
                   >
-                    Смотреть описание городов и районов
-                  </a>
+                    <button
+                      v-if="isFormButton(btn)"
+                      type="button"
+                      class="slide-btn"
+                      :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
+                      @click="gotoFormSlide"
+                    >{{ btn.label }}</button>
+                    <a
+                      v-else
+                      class="slide-btn"
+                      :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
+                      :href="btn.url"
+                    >{{ btn.label }}</a>
+                  </template>
                 </div>
               </section>
             </div>
@@ -406,7 +417,26 @@
               </a>
             </div>
 
-            <a class="slide-btn" href="/novosti">Все новости</a>
+            <div class="news-actions">
+              <template
+                v-for="btn in slideButtons(slide, NEWS_FALLBACK_BUTTONS)"
+                :key="btn.key"
+              >
+                <button
+                  v-if="isFormButton(btn)"
+                  type="button"
+                  class="slide-btn"
+                  :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
+                  @click="gotoFormSlide"
+                >{{ btn.label }}</button>
+                <a
+                  v-else
+                  class="slide-btn"
+                  :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
+                  :href="btn.url"
+                >{{ btn.label }}</a>
+              </template>
+            </div>
           </template>
 
           <!-- ============ ФОРМА ОБРАТНОЙ СВЯЗИ ============ -->
@@ -458,11 +488,26 @@
             <h1 class="slide-title">{{ slide.title }}</h1>
             <p class="slide-text">{{ slide.text }}</p>
 
-            <a
-              v-if="slide.button_label && slide.button_url"
-              class="slide-btn"
-              :href="slide.button_url"
-            >{{ slide.button_label }}</a>
+            <div class="text-actions">
+              <template
+                v-for="btn in textSlideButtons(slide)"
+                :key="btn.key"
+              >
+                <button
+                  v-if="isFormButton(btn)"
+                  type="button"
+                  class="slide-btn"
+                  :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
+                  @click="gotoFormSlide"
+                >{{ btn.label }}</button>
+                <a
+                  v-else
+                  class="slide-btn"
+                  :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
+                  :href="btn.url"
+                >{{ btn.label }}</a>
+              </template>
+            </div>
           </template>
         </div>
       </article>
@@ -526,6 +571,102 @@ function heroItems(slide) {
     button2_url: '/napravleniya',
     image: (slide && slide.image) || ''
   }]
+}
+
+// ---------------------------------------------------------------- кнопки слайдов
+
+/*
+ * Кнопки приходят из home_slide_buttons (slide.buttons / item.buttons):
+ * { label, url, variant: 'primary' | 'ghost' }. Если список пуст — берём
+ * legacy-поля (button_label/button2_label и т.п.), чтобы старый контент
+ * продолжал работать.
+ */
+const GEO_FALLBACK_BUTTONS = [
+  {
+    label: 'Перейти на интерактивную карту',
+    url: '/vozmozhnosti',
+    variant: 'primary'
+  },
+  {
+    label: 'Смотреть описание городов и районов',
+    url: '/informaciya?tab=города и районы',
+    variant: 'ghost'
+  }
+]
+
+const NEWS_FALLBACK_BUTTONS = [
+  { label: 'Все новости', url: '/novosti', variant: 'ghost' }
+]
+
+/* Список кнопок с ключом для v-for; пустые подписи отбрасываем. */
+function withKeys(list) {
+  return (Array.isArray(list) ? list : [])
+    .filter(btn => btn && String(btn.label || '').trim())
+    .map((btn, i) => ({
+      key: btn.id !== null && btn.id !== undefined ? `b${btn.id}` : `k${i}`,
+      label: String(btn.label).trim(),
+      url: String(btn.url || ''),
+      variant: btn.variant === 'ghost' ? 'ghost' : 'primary'
+    }))
+}
+
+/* Кнопки слайда: свои из базы либо запасные (legacy/зашитые). */
+function slideButtons(slide, fallback = []) {
+  const own = withKeys(slide && slide.buttons)
+
+  return own.length ? own : withKeys(fallback)
+}
+
+/* Кнопки текстового слайда: свои либо legacy-кнопка слайда. */
+function textSlideButtons(slide) {
+  const fallback =
+    slide && slide.button_label
+      ? [
+          {
+            label: slide.button_label,
+            url: slide.button_url || '',
+            variant: 'primary'
+          }
+        ]
+      : []
+
+  return slideButtons(slide, fallback)
+}
+
+/* Кнопки карточки hero: свои либо legacy button/button2. */
+function itemButtons(item) {
+  const own = withKeys(item && item.buttons)
+
+  if (own.length) {
+    return own
+  }
+
+  const fallback = []
+
+  if (item && item.button_label) {
+    fallback.push({
+      label: item.button_label,
+      url: item.button_url || '',
+      variant: 'primary'
+    })
+  }
+
+  if (item && item.button2_label) {
+    fallback.push({
+      label: item.button2_label,
+      url: item.button2_url || '#',
+      variant: 'ghost'
+    })
+  }
+
+  return withKeys(fallback)
+}
+
+/* Кнопка-действие (переход к форме): пустая ссылка или якорь (#form). */
+function isFormButton(btn) {
+  const url = String((btn && btn.url) || '').trim()
+
+  return !url || url.startsWith('#')
 }
 
 const heroCount = computed(() => {
@@ -1079,6 +1220,21 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* Обёртки списка кнопок у новостного и текстового слайдов. */
+.news-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.text-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 20px;
 }
 
 .hero-a-stats {

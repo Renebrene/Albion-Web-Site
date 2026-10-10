@@ -144,6 +144,54 @@
         />
       </div>
 
+      <!-- Кнопки слайда (у верхнего hero кнопки задаются у карточек) -->
+      <div v-if="!slide.is_hero" class="buttons-block">
+        <div class="items-title">
+          Кнопки
+          <q-btn
+            flat dense no-caps icon="add"
+            label="Добавить кнопку"
+            @click="addSlideButton(slide)"
+          />
+        </div>
+
+        <div v-for="btn in slide.buttons" :key="btn.id" class="button-row">
+          <q-input
+            v-model="btn.label"
+            dense outlined
+            placeholder="Текст кнопки"
+            class="btn-label"
+          />
+          <q-input
+            v-model="btn.url"
+            dense outlined
+            placeholder="/vozmozhnosti или #form"
+            class="btn-url"
+          />
+          <q-select
+            v-model="btn.variant"
+            :options="BUTTON_VARIANTS"
+            emit-value map-options dense outlined
+            class="btn-variant"
+          />
+          <q-btn
+            outline dense no-caps
+            label="Сохранить"
+            :loading="savingKey === `btn-${btn.id}`"
+            @click="saveButton(btn)"
+          />
+          <q-btn
+            color="negative" flat dense no-caps
+            label="Удалить"
+            @click="removeButton(btn)"
+          />
+        </div>
+
+        <div v-if="!(slide.buttons && slide.buttons.length)" class="hint">
+          Кнопок нет — показывается стандартная кнопка слайда.
+        </div>
+      </div>
+
       <!-- Карточки верхнего слайда -->
       <div v-if="slide.is_hero" class="items-block">
         <div class="items-title">
@@ -250,6 +298,54 @@
               :loading="savingKey === `item-${item.id}`"
               @click="saveItem(item)"
             />
+          </div>
+
+          <!-- Кнопки карточки hero -->
+          <div class="buttons-block">
+            <div class="items-title">
+              Кнопки карточки
+              <q-btn
+                flat dense no-caps icon="add"
+                label="Добавить кнопку"
+                @click="addItemButton(item)"
+              />
+            </div>
+
+            <div v-for="btn in item.buttons" :key="btn.id" class="button-row">
+              <q-input
+                v-model="btn.label"
+                dense outlined
+                placeholder="Текст кнопки"
+                class="btn-label"
+              />
+              <q-input
+                v-model="btn.url"
+                dense outlined
+                placeholder="/vozmozhnosti или #form"
+                class="btn-url"
+              />
+              <q-select
+                v-model="btn.variant"
+                :options="BUTTON_VARIANTS"
+                emit-value map-options dense outlined
+                class="btn-variant"
+              />
+              <q-btn
+                outline dense no-caps
+                label="Сохранить"
+                :loading="savingKey === `btn-${btn.id}`"
+                @click="saveButton(btn)"
+              />
+              <q-btn
+                color="negative" flat dense no-caps
+                label="Удалить"
+                @click="removeButton(btn)"
+              />
+            </div>
+
+            <div v-if="!(item.buttons && item.buttons.length)" class="hint">
+              Кнопок нет — показываются старые поля «Кнопка 1/2».
+            </div>
           </div>
         </div>
       </div>
@@ -766,6 +862,85 @@ async function removeItem(slide, item) {
   }
 }
 
+// ---------------------------------------------------------------- кнопки
+
+/* Варианты оформления кнопки. */
+const BUTTON_VARIANTS = [
+  { label: 'Основная (красная)', value: 'primary' },
+  { label: 'Прозрачная', value: 'ghost' }
+]
+
+async function addSlideButton(slide) {
+  error.value = ''
+
+  try {
+    const data = await request(
+      `/api/admin/home/slides/${slide.id}/buttons`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'Новая кнопка', url: '', variant: 'primary' })
+      }
+    )
+    slides.value = data.slides || []
+  } catch (exc) {
+    error.value = String(exc)
+  }
+}
+
+async function addItemButton(item) {
+  error.value = ''
+
+  try {
+    const data = await request(
+      `/api/admin/home/items/${item.id}/buttons`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: 'Новая кнопка', url: '', variant: 'primary' })
+      }
+    )
+    slides.value = data.slides || []
+  } catch (exc) {
+    error.value = String(exc)
+  }
+}
+
+async function saveButton(btn) {
+  savingKey.value = `btn-${btn.id}`
+  error.value = ''
+
+  try {
+    const data = await request(`/api/admin/home/buttons/${btn.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: btn.label,
+        url: btn.url,
+        variant: btn.variant
+      })
+    })
+    slides.value = data.slides || []
+  } catch (exc) {
+    error.value = String(exc)
+  } finally {
+    savingKey.value = null
+  }
+}
+
+async function removeButton(btn) {
+  if (!window.confirm('Удалить кнопку?')) return
+
+  try {
+    const data = await request(`/api/admin/home/buttons/${btn.id}`, {
+      method: 'DELETE'
+    })
+    slides.value = data.slides || []
+  } catch (exc) {
+    error.value = String(exc)
+  }
+}
+
 /* Загрузка фото -> медиа-хранилище, получаем /storage/<path>. */
 function uploadFor(target, field) {
   const input = document.createElement('input')
@@ -933,6 +1108,25 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   font-weight: 600;
   margin-bottom: 12px;
 }
+
+/* Редактор дополнительных кнопок слайда/карточки. */
+.buttons-block {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.button-row .btn-label { flex: 1 1 180px; min-width: 160px; }
+.button-row .btn-url { flex: 1 1 240px; min-width: 200px; }
+.button-row .btn-variant { flex: 0 0 190px; }
 
 .item-card {
   border: 1px solid #eef2f6;
