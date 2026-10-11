@@ -14,13 +14,16 @@
       </a>
     </nav>
 
-    <div class="footer-brand"> 2027@АЛЬБИОН </div>
+    <div class="footer-brand"> {{ currentYear }} © АЛЬБИОН </div>
   </footer>
 </template>
 
 <script setup>
 import { onMounted, ref } from 'vue'
 import { safeCmsUrl } from '../../utils/safeCmsUrl'
+
+/* Текущий год — вместо жёстко прошитого значения. */
+const currentYear = new Date().getFullYear()
 
 const DEFAULT_FOOTER = [
   { key: 'privacy', label: 'Политика конфиденциальности', url: '#' },
