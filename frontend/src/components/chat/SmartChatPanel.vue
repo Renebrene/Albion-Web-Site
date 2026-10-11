@@ -495,7 +495,7 @@ function openMediaViewer(item) {
 
   openPhoto({
     images,
-    photoTitle: item.address || item.type || 'Конструкция'
+    title: item.address || item.type || 'Конструкция'
   })
 }
 
