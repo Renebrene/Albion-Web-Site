@@ -11,7 +11,12 @@
         <div class="section-label">Свободные месяцы</div>
 
         <div class="logic-wrap">
-          <span class="logic-help">
+          <span
+            class="logic-help"
+            tabindex="0"
+            role="button"
+            aria-label="Пояснение: И — одновременно все свободные месяцы, ИЛИ — свободен хотя бы один месяц из запрошенных"
+          >
             ?
             <span class="logic-tooltip">
               И – одновременно все свободные месяцы, ИЛИ – свободен хотя бы один
