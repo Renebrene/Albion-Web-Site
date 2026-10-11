@@ -320,7 +320,12 @@
               class="geo-modal-backdrop"
               @click.self="geoExpanded = null"
             >
-              <article class="geo-modal" role="dialog" aria-modal="true">
+              <article
+                class="geo-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="geo-modal-title"
+              >
                 <button
                   type="button"
                   class="geo-modal-close"
@@ -364,7 +369,7 @@
                 </div>
 
                 <div class="geo-modal-body">
-                  <h2 class="geo-modal-title">{{
+                  <h2 id="geo-modal-title" class="geo-modal-title">{{
                     geoExpanded.location.label
                   }}</h2>
 
@@ -783,6 +788,31 @@ const formError = ref('')
 const geoListPaused = ref(false)
 const geoExpanded = ref(null)
 const geoAttractionIndex = ref(0)
+
+/* Модалка geo: при открытии переносим фокус на кнопку закрытия, при
+   закрытии возвращаем его на элемент, который открыл модалку. */
+let lastGeoFocus = null
+
+watch(
+  geoExpanded,
+  (value, previous) => {
+    if (value && !previous) {
+      lastGeoFocus =
+        typeof document !== 'undefined' ? document.activeElement : null
+
+      const closeBtn = rootRef.value?.querySelector?.('.geo-modal-close')
+      closeBtn?.focus?.()
+    } else if (!value && previous) {
+      if (lastGeoFocus && typeof lastGeoFocus.focus === 'function') {
+        lastGeoFocus.focus()
+      }
+
+      lastGeoFocus = null
+    }
+  },
+  // post: колбэк после обновления DOM — кнопка закрытия уже отрисована.
+  { flush: 'post' }
+)
 
 const currentGeo = computed(
   () =>
