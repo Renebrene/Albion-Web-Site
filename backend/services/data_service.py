@@ -392,10 +392,25 @@ def get_data():
 # invalidate_data_cache() после успешного импорта.
 DATA_CACHE_TTL = float(os.environ.get("ALBION_DATA_CACHE_TTL", "30"))
 
+# Кэш живёт в памяти КАЖДОГО процесса uvicorn, поэтому сброса в одном
+# воркере мало: остальные до DATA_CACHE_TTL отдавали бы старое тело.
+# Файл-метка в tmp хранит «версию» данных; каждый воркер на каждом запросе
+# дешёво сверяет её и перечитывает данные при расхождении.
+_CACHE_STAMP_PATH = PROJECT_DIR / "tmp" / ".data_cache_stamp"
+
+
+def _read_cache_stamp() -> str:
+    try:
+        return _CACHE_STAMP_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
 _data_cache = {
     "ts": 0.0,
     "body": None,
     "etag": None,
+    "stamp": None,
 }
 
 
@@ -403,9 +418,11 @@ def get_data_json() -> "tuple[bytes, str]":
     """Сериализованный /api/constructions: (тело, ETag)."""
     now = time.monotonic()
     cached = _data_cache
+    stamp = _read_cache_stamp()
 
     if (
         cached["body"] is not None
+        and cached["stamp"] == stamp
         and (now - cached["ts"]) < DATA_CACHE_TTL
     ):
         return cached["body"], cached["etag"]
@@ -421,15 +438,27 @@ def get_data_json() -> "tuple[bytes, str]":
     _data_cache["ts"] = now
     _data_cache["body"] = body
     _data_cache["etag"] = etag
+    _data_cache["stamp"] = stamp
 
     return body, etag
 
 
 def invalidate_data_cache() -> None:
-    """Сбросить кэш /api/constructions (вызывается после импорта)."""
+    """Сбросить кэш /api/constructions (вызывается после импорта/правок).
+
+    Обновляет файл-метку, чтобы данные перечитали ВСЕ воркеры, а не только
+    тот, что обработал запрос на изменение.
+    """
     _data_cache["ts"] = 0.0
     _data_cache["body"] = None
     _data_cache["etag"] = None
+    _data_cache["stamp"] = None
+
+    try:
+        _CACHE_STAMP_PATH.parent.mkdir(parents=True, exist_ok=True)
+        _CACHE_STAMP_PATH.write_text(str(time.time_ns()), encoding="utf-8")
+    except OSError:
+        pass
 
 
 # Нормализованный ключ физической конструкции.
