@@ -13,7 +13,7 @@
           outline
           no-caps
           icon="photo_library"
-          label="Добавить из медиатеки"
+          label="Медиатека"
           :disable="uploading"
           @click="pickerOpen = true"
         />
@@ -25,7 +25,7 @@
           :for="fileInputId"
         >
           <q-icon name="upload" class="q-mr-xs" />
-          {{ uploading ? 'Загрузка…' : 'Загрузить файлы' }}
+          {{ uploading ? 'Загрузка…' : 'Загрузить' }}
         </label>
 
         <input
@@ -140,6 +140,7 @@
 <script setup>
 import { computed, ref } from 'vue'
 
+import { uploadAdminMedia } from '../../services/adminMedia'
 import MediaPicker from './MediaPicker.vue'
 
 const props = defineProps({
@@ -272,11 +273,6 @@ function onFilesPicked(event) {
   uploadFiles(files)
 }
 
-function authHeaders() {
-  const token = sessionStorage.getItem('albion_admin_token')
-  return { Authorization: `Bearer ${token}` }
-}
-
 async function uploadFiles(files) {
   const list = files.filter(file => file instanceof File)
   if (!list.length) return
@@ -287,40 +283,17 @@ async function uploadFiles(files) {
 
   try {
     for (const file of list) {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('original_name', file.name)
-
       try {
-        const response = await fetch('/api/admin/media', {
-          method: 'POST',
-          headers: authHeaders(),
-          body: formData
-        })
+        const media = await uploadAdminMedia(file)
 
-        if (response.status === 401) {
-          sessionStorage.removeItem('albion_admin_token')
-          emit('notify', 'Сессия истекла. Войдите заново.', 'error')
-          break
-        }
-
-        const data = await response.json().catch(() => null)
-
-        if (!response.ok) {
-          errors += 1
-          emit(
-            'notify',
-            data?.detail || `Не удалось загрузить «${file.name}»`,
-            'error'
-          )
-          continue
-        }
-
-        const normalized = normalize(data?.media)
-        if (normalized) additions.push(normalized)
+        if (media) additions.push(media)
       } catch (exc) {
         errors += 1
-        emit('notify', `Не удалось загрузить «${file.name}»`, 'error')
+        emit(
+          'notify',
+          String(exc?.message || `Не удалось загрузить «${file.name}»`),
+          'error'
+        )
       }
     }
   } finally {

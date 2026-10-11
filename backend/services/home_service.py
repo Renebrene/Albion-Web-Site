@@ -10,6 +10,10 @@ from typing import Optional
 
 from backend.services.data_service import get_connection
 from backend.services.cms_url import clean_cms_url
+from backend.services.media_paths import (
+    fetch_active_import_key,
+    resolve_import_url,
+)
 
 
 _SLIDE_FIELDS = (
@@ -63,7 +67,7 @@ def _button_dict(row) -> dict:
     }
 
 
-def _slide_dict(row) -> dict:
+def _slide_dict(row, active_key: str | None = None) -> dict:
     (
         slide_id,
         sort_order,
@@ -86,14 +90,14 @@ def _slide_dict(row) -> dict:
         "text": text or "",
         "button_label": button_label or "",
         "button_url": button_url or "",
-        "image": image_path or "",
+        "image": resolve_import_url(image_path, active_key),
         "is_active": is_active,
         "buttons": [],
         "items": [],
     }
 
 
-def _item_dict(row) -> dict:
+def _item_dict(row, active_key: str | None = None) -> dict:
     (
         item_id,
         slide_id,
@@ -123,7 +127,7 @@ def _item_dict(row) -> dict:
         "button_url": button_url or "",
         "button2_label": button2_label or "",
         "button2_url": button2_url or "",
-        "image": image_path or "",
+        "image": resolve_import_url(image_path, active_key),
         "extra": extra or "",
         "is_active": is_active,
         "buttons": [],
@@ -132,6 +136,10 @@ def _item_dict(row) -> dict:
 
 def _fetch_slides(conn, *, only_active: bool) -> list[dict]:
     where = "WHERE is_active = TRUE" if only_active else ""
+
+    # Ключ активного импорта — чтобы переписать устаревшие пути к фото
+    # (после импорта папка меняется, сохранённый путь отдаёт 404).
+    active_key = fetch_active_import_key(conn)
 
     rows = conn.execute(
         f"""
@@ -143,7 +151,7 @@ def _fetch_slides(conn, *, only_active: bool) -> list[dict]:
         """
     ).fetchall()
 
-    slides = [_slide_dict(row) for row in rows]
+    slides = [_slide_dict(row, active_key) for row in rows]
     by_id = {slide["id"]: slide for slide in slides}
 
     if not by_id:
@@ -164,7 +172,7 @@ def _fetch_slides(conn, *, only_active: bool) -> list[dict]:
     ).fetchall()
 
     for row in items:
-        item = _item_dict(row)
+        item = _item_dict(row, active_key)
         slide = by_id.get(item["slide_id"])
 
         if slide is not None:

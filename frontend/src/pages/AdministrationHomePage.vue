@@ -146,13 +146,10 @@
         </div>
 
         <div class="photo-actions">
-          <q-btn
-            outline
+          <MediaSourceButtons
             dense
-            no-caps
-            label="Загрузить фото"
-            :loading="uploadingKey === `slide-${slide.id}`"
-            @click="uploadFor(slide, 'image')"
+            @pick="p => (slide.image = p.url)"
+            @notify="onMediaNotify"
           />
           <q-btn
             v-if="slide.image"
@@ -354,13 +351,10 @@
             </div>
 
             <div class="photo-actions">
-              <q-btn
-                outline
+              <MediaSourceButtons
                 dense
-                no-caps
-                label="Загрузить фото"
-                :loading="uploadingKey === `item-${item.id}`"
-                @click="uploadFor(item, 'image')"
+                @pick="p => (item.image = p.url)"
+                @notify="onMediaNotify"
               />
               <q-btn
                 v-if="item.image"
@@ -682,6 +676,8 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import MediaSourceButtons from '../components/admin/MediaSourceButtons.vue'
+
 const router = useRouter()
 
 function authHeaders() {
@@ -716,7 +712,11 @@ const slides = ref([])
 const loading = ref(false)
 const error = ref('')
 const savingKey = ref(null)
-const uploadingKey = ref(null)
+
+/* Сообщения от полей выбора медиа: ошибки — в баннер, успех — тихо. */
+function onMediaNotify(message, type = 'success') {
+  error.value = type === 'error' ? message : ''
+}
 
 const feedback = ref([])
 const geo = ref({
@@ -1165,43 +1165,6 @@ async function removeButton(btn) {
   } catch (exc) {
     error.value = String(exc)
   }
-}
-
-/* Загрузка фото -> медиа-хранилище, получаем /storage/<path>. */
-function uploadFor(target, field) {
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-
-  input.onchange = async () => {
-    const file = input.files && input.files[0]
-    if (!file) return
-
-    const key = `${'slide_id' in target ? 'item' : 'slide'}-${target.id}`
-    uploadingKey.value = key
-    error.value = ''
-
-    try {
-      const body = new FormData()
-      body.append('file', file)
-      body.append('original_name', file.name)
-
-      const data = await request('/api/admin/media', { method: 'POST', body })
-      const storagePath = data?.media?.storage_path
-
-      if (!storagePath) {
-        throw new Error('Не удалось загрузить фото')
-      }
-
-      target[field] = `/storage/${storagePath}`
-    } catch (exc) {
-      error.value = String(exc)
-    } finally {
-      uploadingKey.value = null
-    }
-  }
-
-  input.click()
 }
 
 onMounted(() => {

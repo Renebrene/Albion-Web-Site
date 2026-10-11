@@ -52,6 +52,21 @@ STATUS_MAP = {
     "LOAD": "Доступность",
 }
 
+# Основные поля, которые можно временно переопределить (раздел «Конструкции»).
+_OVERRIDABLE_FIELDS = frozenset(
+    {
+        "city",
+        "address",
+        "district",
+        "side",
+        "type",
+        "size",
+        "material",
+        "light",
+        "number",
+    }
+)
+
 
 def get_connection():
     return psycopg.connect(
@@ -133,6 +148,7 @@ def get_data():
     sql = """
         SELECT
             s.id,
+            s.surface_hash,
             c.address,
             c.district,
             ci.name AS city,
@@ -195,6 +211,15 @@ def get_data():
 
     records = {}
 
+    # Переопределения фото конструкций (медиатека конструкций), активного импорта.
+    from backend.services.construction_overrides import (
+        get_fields_map,
+        get_overrides_map,
+    )
+
+    overrides = get_overrides_map()
+    field_overrides = get_fields_map()
+
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(sql)
@@ -202,6 +227,7 @@ def get_data():
             for row in cur.fetchall():
                 (
                     surface_id,
+                    surface_hash,
                     address,
                     district,
                     city,
@@ -231,6 +257,7 @@ def get_data():
                 if surface_id not in records:
                     records[surface_id] = {
                         "id": surface_id,
+                        "surface_hash": _text(surface_hash),
                         "address": _text(address),
                         "city": _text(city),
                         "district": _text(district),
@@ -238,6 +265,7 @@ def get_data():
                         "lng": longitude,
                         "map": _text(map_url),
                         "months": {},
+                        "month_prices": {},
                         "name": _text(name),
                         "number": _text(external_number),
                         # Абсолютный путь от корня сайта: /storage/... —
@@ -284,6 +312,45 @@ def get_data():
                         "type": _text(media_type),
                     }
 
+                    # Переопределение фото/карты из медиатеки конструкций
+                    # (действует, пока активен тот же импорт).
+                    photo_override = overrides.get((surface_hash, "photo"))
+
+                    if photo_override:
+                        item = records[surface_id]
+                        item["photo"] = (
+                            photo_override.get("card")
+                            or photo_override.get("large")
+                            or item["photo"]
+                        )
+                        item["photo_thumb"] = (
+                            photo_override.get("thumb") or item["photo_thumb"]
+                        )
+                        item["photo_large"] = (
+                            photo_override.get("large") or item["photo_large"]
+                        )
+
+                    map_override = overrides.get((surface_hash, "map"))
+
+                    if map_override:
+                        item = records[surface_id]
+                        item["map_large"] = (
+                            map_override.get("large") or item["map_large"]
+                        )
+
+                    # Временное переопределение основных полей (адрес, город,
+                    # район, тип, размер, сторона, свет, материал, номер).
+                    field_override = field_overrides.get(surface_hash)
+
+                    if field_override:
+                        item = records[surface_id]
+
+                        for key, value in field_override.items():
+                            if key in _OVERRIDABLE_FIELDS:
+                                item[key] = _text(value)
+
+                        item["overridden"] = sorted(field_override.keys())
+
                 if month is not None and month in MONTHS:
                     month_name = MONTHS[month]
                     records[surface_id]["months"][month_name] = _text(
@@ -298,12 +365,9 @@ def get_data():
 
     result = []
 
+    # Месяцы НЕ достраиваем до фиксированного списка: в ответе только те,
+    # что реально есть в новой базе (выгрузка может содержать 3, а не 5).
     for item in records.values():
-        for month_name in MONTHS.values():
-            item["months"].setdefault(month_name, "")
-            item["statuses"].setdefault(month_name, "Свободно")
-            item.setdefault("month_prices", {}).setdefault(month_name, "")
-
         result.append(item)
 
     return result

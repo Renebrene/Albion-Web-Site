@@ -212,10 +212,19 @@
                   <button
                     type="button"
                     class="tile-icon-choice tile-icon-choice--media"
-                    title="Загрузить из медиатеки"
+                    title="Медиатека"
                     @click="openMediaPicker(item)"
                   >
                     <q-icon name="add_photo_alternate" size="18px" />
+                  </button>
+
+                  <button
+                    type="button"
+                    class="tile-icon-choice tile-icon-choice--media"
+                    title="Загрузить"
+                    @click="triggerIconUpload(item)"
+                  >
+                    <q-icon name="upload" size="18px" />
                   </button>
                 </div>
               </div>
@@ -235,6 +244,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import MediaPicker from '../components/admin/MediaPicker.vue'
+import { uploadAdminMedia } from '../services/adminMedia'
 
 const router = useRouter()
 
@@ -602,6 +612,28 @@ function onMediaIconPicked(payload) {
   }
 
   mediaTargetPath.value = ''
+}
+
+/* Загрузка иконки с компьютера: файл уходит в медиатеку, ставим его URL. */
+function triggerIconUpload(item) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+
+  input.onchange = async () => {
+    const file = input.files && input.files[0]
+    if (!file) return
+
+    try {
+      const media = await uploadAdminMedia(file)
+      item.icon = media.url
+      error.value = ''
+    } catch (exc) {
+      error.value = String(exc.message || exc)
+    }
+  }
+
+  input.click()
 }
 
 // ----------------------------------------------------- перетаскивание

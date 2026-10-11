@@ -128,6 +128,10 @@ from backend.api.admin_chat_log import router as admin_chat_log_router
 
 app.include_router(admin_chat_log_router)
 
+from backend.api.admin_construction_media import router as admin_construction_media_router
+
+app.include_router(admin_construction_media_router)
+
 app.include_router(chat_router)
 
 from backend.api.info import (

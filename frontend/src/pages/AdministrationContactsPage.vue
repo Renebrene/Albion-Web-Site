@@ -380,8 +380,18 @@
                   flat
                   no-caps
                   color="primary"
-                  label="Загрузить из медиа"
+                  icon="photo_library"
+                  label="Медиатека"
                   @click="openPicker('office')"
+                />
+                <q-btn
+                  flat
+                  no-caps
+                  color="primary"
+                  icon="upload"
+                  label="Загрузить"
+                  :loading="uploadingMedia"
+                  @click="uploadMediaFile('office')"
                 />
               </div>
               <div class="media-hint">
@@ -449,8 +459,18 @@
                   flat
                   no-caps
                   color="primary"
-                  label="Загрузить из медиа"
+                  icon="photo_library"
+                  label="Медиатека"
                   @click="openPicker('employee')"
+                />
+                <q-btn
+                  flat
+                  no-caps
+                  color="primary"
+                  icon="upload"
+                  label="Загрузить"
+                  :loading="uploadingMedia"
+                  @click="uploadMediaFile('employee')"
                 />
               </div>
               <div class="media-hint">
@@ -516,6 +536,8 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+
+import { uploadAdminMedia } from '../services/adminMedia'
 
 const router = useRouter()
 
@@ -1003,6 +1025,38 @@ function selectMedia(item) {
   editing.value.media_id = item.id
   editing.value.media_url = mediaUrl(item)
   pickerOpen.value = false
+}
+
+/* Загрузка изображения с компьютера в медиатеку (в нужный раздел). */
+const uploadingMedia = ref(false)
+
+function uploadMediaFile(target) {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/*'
+
+  input.onchange = async () => {
+    const file = input.files && input.files[0]
+    if (!file) return
+
+    uploadingMedia.value = true
+    error.value = ''
+
+    try {
+      const categoryName = PICKER_CATEGORY[target] || 'Сотрудники'
+      const categoryId = await ensureCategory(categoryName)
+      const media = await uploadAdminMedia(file, { categoryId })
+
+      editing.value.media_id = media.id
+      editing.value.media_url = mediaUrl(media)
+    } catch (exc) {
+      error.value = String(exc.message || exc)
+    } finally {
+      uploadingMedia.value = false
+    }
+  }
+
+  input.click()
 }
 
 onMounted(loadData)

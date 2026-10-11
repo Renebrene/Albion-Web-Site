@@ -135,6 +135,13 @@
 
           <q-space />
 
+          <q-checkbox
+            v-model="showOnlyChanged"
+            dense
+            label="Показать изменённые"
+            class="changed-filter"
+          />
+
           <div class="construction-count">
             Выбрано {{ visibleConstructions.length }} конструкций
           </div>
@@ -348,12 +355,19 @@
                 outline
                 no-caps
                 icon="photo_library"
-                label="Выбрать из медиатеки"
-                @click="openMediaPicker"
+                label="Медиатека"
+                :disable="!editingItem.surface_hash || overriding"
+                @click="pickerOpen = true"
               />
 
-              <label class="upload-file-btn" for="construction-photo-input">
-                Загрузить с ПК
+              <label
+                class="upload-file-btn"
+                :class="{
+                  'is-disabled': !editingItem.surface_hash || overriding
+                }"
+                for="construction-photo-input"
+              >
+                {{ overriding ? 'Загрузка…' : 'Загрузить' }}
               </label>
 
               <q-btn
@@ -371,8 +385,15 @@
                 type="file"
                 accept="image/*"
                 class="file-input-hidden"
-                @change="handlePhotoUpload"
+                :disabled="!editingItem.surface_hash || overriding"
+                @change="onPhotoFilePicked"
               />
+            </div>
+
+            <div class="photo-note">
+              Медиатека конструкций — каталог превью. Замена фото сохраняется во
+              временный каталог и действует на всём сайте до следующего
+              обновления базы.
             </div>
           </div>
 
@@ -385,48 +406,75 @@
               v-model="editingItem.city"
               dense
               outlined
-              label="Город"
               :options="cityOptions(editingItem.city)"
-            />
+            >
+              <template #label>
+                Город
+                <span v-if="fieldChanged('city')" class="field-star">*</span>
+              </template>
+            </q-select>
 
-            <q-input
-              v-model="editingItem.address"
-              dense
-              outlined
-              label="Адрес"
-            />
+            <q-input v-model="editingItem.address" dense outlined>
+              <template #label>
+                Адрес
+                <span v-if="fieldChanged('address')" class="field-star">*</span>
+              </template>
+            </q-input>
 
             <q-select
               v-model="editingItem.side"
               dense
               outlined
-              label="Сторона"
               :options="sideOptions"
-            />
+            >
+              <template #label>
+                Сторона
+                <span v-if="fieldChanged('side')" class="field-star">*</span>
+              </template>
+            </q-select>
 
             <q-select
               v-model="editingItem.type"
               dense
               outlined
-              label="Тип конструкции"
               :options="typeOptions"
-            />
+            >
+              <template #label>
+                Тип конструкции
+                <span v-if="fieldChanged('type')" class="field-star">*</span>
+              </template>
+            </q-select>
 
-            <q-input v-model="editingItem.size" dense outlined label="Размер" />
+            <q-input v-model="editingItem.size" dense outlined>
+              <template #label>
+                Размер
+                <span v-if="fieldChanged('size')" class="field-star">*</span>
+              </template>
+            </q-input>
 
             <q-select
               v-model="editingItem.material"
               dense
               outlined
-              label="Материал"
               :options="materialOptions"
-            />
+            >
+              <template #label>
+                Материал
+                <span v-if="fieldChanged('material')" class="field-star">*</span>
+              </template>
+            </q-select>
 
             <div class="edit-checkbox">
               <q-checkbox
                 v-model="editingItem.lightEnabled"
                 label="Освещение"
               />
+              <span
+                v-if="fieldChanged('light')"
+                class="field-star"
+                title="Изменено"
+                >*</span
+              >
             </div>
           </div>
 
@@ -482,7 +530,19 @@
             >
               <q-input v-model="field.name" dense outlined label="Название" />
 
-              <q-input v-model="field.value" dense outlined label="Значение" />
+              <q-input v-model="field.value" dense outlined label="Значение">
+                <template #label>
+                  Значение
+                  <span
+                    v-if="
+                      (field.name === 'Номер' && fieldChanged('number')) ||
+                      (field.name === 'Район' && fieldChanged('district'))
+                    "
+                    class="field-star"
+                    >*</span
+                  >
+                </template>
+              </q-input>
             </div>
           </div>
         </q-card-section>
@@ -497,11 +557,15 @@
             no-caps
             color="primary"
             label="Сохранить"
+            :loading="savingEdit"
             @click="saveEdit"
           />
         </q-card-actions>
       </q-card>
     </q-dialog>
+
+    <!-- Каталог превью конструкций (медиатека конструкций). -->
+    <ConstructionMediaPicker v-model="pickerOpen" @select="onPreviewPicked" />
   </q-page>
 </template>
 
@@ -509,6 +573,11 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
+import ConstructionMediaPicker from '../components/admin/ConstructionMediaPicker.vue'
+import {
+  setConstructionFieldOverride,
+  setConstructionPhotoOverride
+} from '../services/constructionMedia'
 import { isDynamicSide } from '../utils/constructionGroups'
 
 /* Подсветка включена, если в источнике «Да» */
@@ -612,6 +681,9 @@ function formatPrice(value) {
 
 const editDialog = ref(false)
 const editingItem = ref(null)
+/* Снимок исходных значений — для звёздочек у изменённых полей. */
+const originalItem = ref(null)
+const savingEdit = ref(false)
 
 /* Object URL превью загруженного фото — отзываем при замене/закрытии, иначе
    Blob удерживается в памяти. */
@@ -696,6 +768,8 @@ const baseStatus = computed(() => {
 const searchQuery = ref('')
 const locationFilter = ref([])
 const formatFilter = ref([])
+/* Фильтр «Показать изменённые»: только конструкции с переопределениями. */
+const showOnlyChanged = ref(false)
 
 function formatDate(value) {
   if (!value) return '—'
@@ -780,6 +854,8 @@ function mapConstruction(item) {
 
   return {
     id: item.id,
+    surface_hash: item.surface_hash || '',
+    overridden: Array.isArray(item.overridden) ? item.overridden : [],
     city: item.city || '',
     address: item.address || '',
     side: item.side || '',
@@ -890,6 +966,11 @@ const filterFormatOptions = computed(() =>
 
 const visibleConstructions = computed(() =>
   displayConstructions.value.filter(item => {
+    // Фильтр «Показать изменённые» — оставляем только конструкции с правками.
+    if (showOnlyChanged.value && !item.overridden?.length) {
+      return false
+    }
+
     const query = searchQuery.value.trim().toLowerCase()
 
     if (query) {
@@ -957,19 +1038,6 @@ function cityOptions(currentCity) {
   return [currentCity, ...cities.filter(city => city !== currentCity)]
 }
 
-function handlePhotoUpload(event) {
-  const file = event.target.files?.[0]
-
-  if (!file || !editingItem.value) return
-
-  releaseObjectUrl(editingItem.value.photo)
-
-  const url = URL.createObjectURL(file)
-  objectUrls.add(url)
-  editingItem.value.photo = url
-  event.target.value = ''
-}
-
 /* Убрать фото из редактора и освободить object URL. */
 function clearEditingPhoto() {
   if (!editingItem.value) return
@@ -978,8 +1046,117 @@ function clearEditingPhoto() {
   editingItem.value.photo = ''
 }
 
-function openMediaPicker() {
-  console.log('Медиатека конструкций')
+/* ------------------------------------------------- медиатека конструкций */
+
+const pickerOpen = ref(false)
+const overriding = ref(false)
+
+function onPhotoFilePicked(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+
+  if (file) applyPhotoOverride({ file })
+}
+
+function onPreviewPicked(payload) {
+  if (payload?.url) applyPhotoOverride({ sourceUrl: payload.url })
+}
+
+/*
+ * Переопределяет фото конструкции: новая картинка сохраняется во временный
+ * каталог превью и подхватывается на всём сайте до следующего обновления базы.
+ */
+async function applyPhotoOverride({ file, sourceUrl }) {
+  const target = editingItem.value
+
+  if (!target) return
+
+  if (!target.surface_hash) {
+    constructionsError.value =
+      'У этой конструкции нет surface_hash — переопределение недоступно.'
+    return
+  }
+
+  overriding.value = true
+  constructionsError.value = ''
+
+  try {
+    const result = await setConstructionPhotoOverride({
+      surface_hash: target.surface_hash,
+      media_type: 'photo',
+      file,
+      sourceUrl
+    })
+
+    if (result?.photo) {
+      target.photo = result.photo
+    }
+  } catch (exc) {
+    constructionsError.value = String(exc?.message || exc)
+  } finally {
+    overriding.value = false
+  }
+}
+
+/* ---------- временное изменение основных полей конструкции ---------- */
+
+const FIELD_LABELS = {
+  city: 'Город',
+  address: 'Адрес',
+  side: 'Сторона',
+  type: 'Тип',
+  size: 'Размер',
+  material: 'Материал',
+  light: 'Освещение',
+  number: 'Номер',
+  district: 'Район'
+}
+
+function extraValue(item, name) {
+  const found = (item?.extra || []).find(field => field.name === name)
+
+  return found ? String(found.value ?? '') : ''
+}
+
+/* Геттеры значений формы по ключам переопределяемых полей. */
+const FIELD_GETTERS = {
+  city: item => String(item?.city ?? ''),
+  address: item => String(item?.address ?? ''),
+  side: item => String(item?.side ?? ''),
+  type: item => String(item?.type ?? ''),
+  size: item => String(item?.size ?? ''),
+  material: item => String(item?.material ?? ''),
+  light: item => (item?.lightEnabled ? 'Да' : 'Нет'),
+  number: item => extraValue(item, 'Номер'),
+  district: item => extraValue(item, 'Район')
+}
+
+/* Изменено ли поле относительно исходного значения. */
+function fieldChanged(key) {
+  if (!editingItem.value || !originalItem.value) return false
+
+  const get = FIELD_GETTERS[key]
+
+  return get(editingItem.value) !== get(originalItem.value)
+}
+
+const changedFields = computed(() =>
+  Object.keys(FIELD_GETTERS).filter(fieldChanged)
+)
+
+function fieldLabel(key) {
+  return FIELD_LABELS[key] || key
+}
+
+/* Собирает переопределённые поля из формы. */
+function collectOverrideFields() {
+  const fields = {}
+
+  for (const key of changedFields.value) {
+    fields[key] = FIELD_GETTERS[key](editingItem.value)
+  }
+
+  return fields
 }
 
 const statusOptions = [
@@ -995,7 +1172,13 @@ function cloneConstruction(item) {
 
 function openEdit(item) {
   releaseObjectUrl(editingItem.value?.photo)
-  editingItem.value = cloneConstruction(item)
+
+  const copy = cloneConstruction(item)
+
+  copy.lightEnabled = String(copy.light || '').trim().toLowerCase() === 'да'
+
+  editingItem.value = copy
+  originalItem.value = cloneConstruction(copy)
   editDialog.value = true
 }
 
@@ -1019,20 +1202,44 @@ function applyPriceToAll() {
   })
 }
 
-function saveEdit() {
-  if (!editingItem.value) return
+/*
+ * Сохраняет изменения основных полей как временное переопределение: значения
+ * применяются на всём сайте (карта, список, чат) до следующего импорта.
+ */
+async function saveEdit() {
+  const target = editingItem.value
 
-  editingItem.value.light = editingItem.value.lightEnabled ? 'Да' : 'Нет'
+  if (!target) return
 
-  const index = testConstructions.findIndex(
-    item => item.id === editingItem.value.id
-  )
+  const fields = collectOverrideFields()
 
-  if (index !== -1) {
-    testConstructions[index] = cloneConstruction(editingItem.value)
+  if (!Object.keys(fields).length) {
+    editDialog.value = false
+    return
   }
 
-  editDialog.value = false
+  if (!target.surface_hash) {
+    constructionsError.value =
+      'У этой конструкции нет surface_hash — изменения недоступны.'
+    return
+  }
+
+  savingEdit.value = true
+  constructionsError.value = ''
+
+  try {
+    await setConstructionFieldOverride({
+      surface_hash: target.surface_hash,
+      fields
+    })
+
+    editDialog.value = false
+    await loadConstructions()
+  } catch (exc) {
+    constructionsError.value = String(exc?.message || exc)
+  } finally {
+    savingEdit.value = false
+  }
 }
 
 onBeforeUnmount(() => {
@@ -1285,30 +1492,32 @@ onBeforeUnmount(() => {
   padding-top: 2px;
 }
 
-/* Кнопка-лейбл: нативный триггер выбора файла (минуя JS click(),
-   который в Chrome на Linux вызывает затемнение/зависание). */
+/* Кнопка-лейбл: нативный триггер выбора файла (минуя JS click()). */
 .upload-file-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 12px;
-  min-height: 32px;
-  border: 1px solid #9cc4e0;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--q-primary);
   border-radius: 6px;
-  background: transparent;
-  color: #1a73e8;
+  color: var(--q-primary);
+  font-size: 13px;
   font-weight: 600;
-  font-size: 14px;
   cursor: pointer;
   user-select: none;
 }
 
 .upload-file-btn:hover {
-  background: rgba(26, 115, 232, 0.08);
+  background: rgba(0, 0, 0, 0.03);
 }
 
-/* Скрытый (но кликабельный через label[for]) файловый инпут.
-   НЕ display:none — иначе нативный выбор файла не открывается. */
+.upload-file-btn.is-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Скрытый (но кликабельный через label[for]) файловый инпут. */
 .file-input-hidden {
   position: absolute;
   left: -9999px;
@@ -1317,6 +1526,15 @@ onBeforeUnmount(() => {
   height: 1px;
   opacity: 0;
   overflow: hidden;
+}
+
+/* Пометка о временном действии переопределения фото. */
+.photo-note {
+  margin-top: 10px;
+  max-width: 560px;
+  color: #8a5a00;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .edit-main-section {

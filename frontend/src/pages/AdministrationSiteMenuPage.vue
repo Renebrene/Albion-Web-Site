@@ -51,14 +51,10 @@
             label="Адрес"
             class="url-input"
           />
-          <q-btn
-            flat
+          <MediaSourceButtons
             dense
-            no-caps
-            icon="perm_media"
-            label="Из медиатеки"
-            class="media-btn"
-            @click="openPicker(item)"
+            @pick="p => (item.url = p.url)"
+            @notify="onMediaNotify"
           />
           <q-toggle v-model="item.is_active" label="" class="row-toggle" />
 
@@ -134,8 +130,8 @@
               flat
               dense
               no-caps
-              icon="perm_media"
-              label="Медиа"
+              icon="photo_library"
+              label="Медиатека"
               class="media-btn"
               @click="openPicker(item)"
             />
@@ -144,7 +140,7 @@
               dense
               no-caps
               icon="upload_file"
-              label="Документ"
+              label="Загрузить"
               class="media-btn"
               :loading="item.__uploading === true"
               @click="triggerUpload(item)"
@@ -213,11 +209,17 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import MediaPicker from '../components/admin/MediaPicker.vue'
+import MediaSourceButtons from '../components/admin/MediaSourceButtons.vue'
 
 const router = useRouter()
 
 const pickerOpen = ref(false)
 const pickerTarget = ref(null)
+
+/* Сообщения от полей выбора медиа: ошибки — в баннер, успех — тихо. */
+function onMediaNotify(message, type = 'success') {
+  error.value = type === 'error' ? message : ''
+}
 
 function openPicker(item) {
   pickerTarget.value = item

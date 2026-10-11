@@ -4,6 +4,10 @@ from __future__ import annotations
 from urllib.parse import quote
 
 from backend.services.data_service import get_connection, get_geo_location_stats
+from backend.services.media_paths import (
+    fetch_active_import_key,
+    resolve_import_url,
+)
 
 
 def _safe_source(value: str) -> str:
@@ -67,12 +71,13 @@ def _photos(conn, attraction_ids: list[int], *, active_only: bool) -> dict[int, 
         (attraction_ids,),
     ).fetchall()
     result: dict[int, list[dict]] = {}
+    active_key = fetch_active_import_key(conn)
     for row in rows:
         path = row[3] or _media_url(row[10])
         item = {
             'id': row[0],
             'media_id': row[2],
-            'url': _media_url(path),
+            'url': resolve_import_url(path, active_key),
             'alt': row[4] or '',
             'source_name': row[5] or '',
             'source_url': _safe_source(row[6]),
