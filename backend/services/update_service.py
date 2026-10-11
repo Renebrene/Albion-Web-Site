@@ -13,7 +13,11 @@ import tempfile
 import threading
 from pathlib import Path
 
-from backend.services.data_service import get_base_stats, invalidate_data_cache
+from backend.services.data_service import (
+    get_base_stats,
+    get_connection,
+    invalidate_data_cache,
+)
 from typing import Optional
 
 from backend.services.data_service import (
@@ -128,6 +132,15 @@ STEP_MARKERS = {
 
 _LOCK = threading.Lock()
 _PROCESS: Optional[subprocess.Popen] = None
+
+# Advisory-lock, чтобы обновление не запустилось дважды из разных воркеров
+# uvicorn: in-process _LOCK защищает только внутри одного процесса.
+# Идентификатор не пересекается с авто-бекапом сайта (815223001).
+_UPDATE_LOCK_ID = 815_223_002
+
+# Соединение, удерживающее advisory-lock на время прогона. Advisory-lock
+# сессионный, поэтому соединение держим открытым, пока идёт обновление.
+_LOCK_CONN = None
 
 # Пользователь запросил остановку — чтобы монитор пометил прогон как
 # «остановлен», а не «ошибка».
@@ -500,6 +513,56 @@ def _is_running() -> bool:
     return _PROCESS is not None and _PROCESS.poll() is None
 
 
+def _acquire_update_lock() -> bool:
+    """Взять advisory-lock обновления (межпроцессная защита).
+
+    Возвращает True, если этот процесс получил блокировку. Соединение
+    держим открытым (в _LOCK_CONN) до конца прогона: при закрытии
+    соединения advisory-lock снимается сам.
+    """
+    global _LOCK_CONN
+
+    if _LOCK_CONN is not None:
+        return True
+
+    conn = get_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT pg_try_advisory_lock(%s)", (_UPDATE_LOCK_ID,))
+            locked = cur.fetchone()[0]
+    except Exception:
+        conn.close()
+        raise
+
+    if not locked:
+        conn.close()
+        return False
+
+    _LOCK_CONN = conn
+    return True
+
+
+def _release_update_lock() -> None:
+    global _LOCK_CONN
+
+    if _LOCK_CONN is None:
+        return
+
+    try:
+        with _LOCK_CONN.cursor() as cur:
+            cur.execute("SELECT pg_advisory_unlock(%s)", (_UPDATE_LOCK_ID,))
+    except Exception:
+        pass
+
+    try:
+        _LOCK_CONN.close()
+    except Exception:
+        pass
+
+    _LOCK_CONN = None
+
+
 def start_update(
     *,
     dry_run: bool = False,
@@ -529,70 +592,83 @@ def start_update(
                 f"найдено {len(sources)}"
             )
 
-        status = _empty_status()
-        status["state"] = "running"
-        status["dry_run"] = dry_run
-        status["started_at"] = _now()
-        status["input_file"] = sources[0].name
+        # Межпроцессная защита: in-process _LOCK защищает только внутри
+        # одного воркера, поэтому берём advisory-lock в БД. Не получилось —
+        # обновление уже идёт в другом процессе.
+        if not _acquire_update_lock():
+            raise RuntimeError(
+                "Обновление уже выполняется (другой процесс)"
+            )
 
-        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        LOG_FILE.write_text("", encoding="utf-8")
-        _write_status(status)
+        try:
+            status = _empty_status()
+            status["state"] = "running"
+            status["dry_run"] = dry_run
+            status["started_at"] = _now()
+            status["input_file"] = sources[0].name
 
-        command = [
-            sys.executable,
-            "-m",
-            "backend.importer.import_pipeline",
-        ]
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            LOG_FILE.write_text("", encoding="utf-8")
+            _write_status(status)
 
-        if not dry_run:
-            command.append("--commit")
+            command = [
+                sys.executable,
+                "-m",
+                "backend.importer.import_pipeline",
+            ]
 
-        env = os.environ.copy()
+            if not dry_run:
+                command.append("--commit")
 
-        # Без буферизации stdout подпроцесса — иначе прогресс
-        # приходит только по завершении (блочная буферизация файла).
-        env["PYTHONUNBUFFERED"] = "1"
+            env = os.environ.copy()
 
-        for line in (
-            (PROJECT_DIR / ".env")
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if (PROJECT_DIR / ".env").exists()
-            else []
-        ):
-            line = line.strip()
+            # Без буферизации stdout подпроцесса — иначе прогресс
+            # приходит только по завершении (блочная буферизация файла).
+            env["PYTHONUNBUFFERED"] = "1"
 
-            if not line or line.startswith("#"):
-                continue
+            for line in (
+                (PROJECT_DIR / ".env")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if (PROJECT_DIR / ".env").exists()
+                else []
+            ):
+                line = line.strip()
 
-            if "=" not in line:
-                continue
+                if not line or line.startswith("#"):
+                    continue
 
-            key, value = line.split("=", 1)
-            key = key.strip()
-            value = value.strip().strip("'\"")
+                if "=" not in line:
+                    continue
 
-            env.setdefault(key, value)
+                key, value = line.split("=", 1)
+                key = key.strip()
+                value = value.strip().strip("'\"")
 
-        log_handle = LOG_FILE.open("a", encoding="utf-8")
+                env.setdefault(key, value)
 
-        _PROCESS = subprocess.Popen(
-            command,
-            cwd=PROJECT_DIR,
-            env=env,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            # Своя сессия/группа процессов — чтобы «Остановить» убил и
-            # пайплайн, и запущенные им стадии-подпроцессы.
-            start_new_session=True,
-        )
+            log_handle = LOG_FILE.open("a", encoding="utf-8")
 
-        threading.Thread(
-            target=_monitor,
-            args=(_PROCESS, dry_run, log_handle),
-            daemon=True,
-        ).start()
+            _PROCESS = subprocess.Popen(
+                command,
+                cwd=PROJECT_DIR,
+                env=env,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                # Своя сессия/группа процессов — чтобы «Остановить» убил и
+                # пайплайн, и запущенные им стадии-подпроцессы.
+                start_new_session=True,
+            )
+
+            threading.Thread(
+                target=_monitor,
+                args=(_PROCESS, dry_run, log_handle),
+                daemon=True,
+            ).start()
+        except Exception:
+            # Не удалось запустить — освобождаем блокировку.
+            _release_update_lock()
+            raise
 
     return {
         "success": True,
@@ -910,6 +986,9 @@ def _finish(
         log_handle.close()
     except Exception:
         pass
+
+    # Прогон завершён — снимаем межпроцессную блокировку.
+    _release_update_lock()
 
 
 # ---------------------------------------------------------------- чтение
