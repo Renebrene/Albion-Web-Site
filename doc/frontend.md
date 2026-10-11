@@ -53,8 +53,8 @@
   «Главная страница», «Настройки», «Меню и подвал», «Бекап сайта», «Контакты»,
   «Новости», «Информация», «О компании», «Пользователи», «Журнал действий»,
   «Журнал умного чата», «Статистика», вход.
-- Осиротевшие (вне роутера): `IndexPage`, `SecondPage`, `PlaceholderPage`,
-  `AdministrationPlaceholderPage` — не используются.
+- Осиротевшие страницы (`IndexPage`, `SecondPage`, `PlaceholderPage`,
+  `AdministrationPlaceholderPage`) удалены как неиспользуемые.
 
 ## Boot-файлы (`src/boot/`)
 
@@ -111,6 +111,5 @@
 - Env-префиксы Quasar: клиенту отдаются `QCLI_*` (+ добавленный `VITE_*`); `VITE_*`
   вшивается в бандл — после правки `.env.local` нужна пересборка.
 - Прокси `/api` и `/storage` требует поднятого бэкенда на `:8000`.
-- В дереве много `*.bak`/`*.save` (`AdvertisingPage.vue.*`, `MapView.vue.bak`,
-  `useMap.js.bak`, `PointSearchPanel.vue.bak`, `routes.js.save`) — вне графа импортов,
-  но мусорят; стоит вычистить.
+- Резервные копии `*.bak`/`*.save`/`*.before-*` не хранятся в репозитории
+  (игнорируются `.gitignore`).
