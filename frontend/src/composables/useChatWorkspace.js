@@ -22,6 +22,19 @@ const saveError = ref('')
 
 const { isAuthenticated, loadMe } = useAccount()
 
+/*
+ * id конструкций из последнего результата чата.
+ *
+ * Нужны странице рекламных возможностей: по ссылке /vozmozhnosti?chat=1 она
+ * показывает на карте/в списке ровно эти результаты (см. AdvertisingPage).
+ * Синглтон, как и остальное состояние рабочего пространства.
+ */
+const resultIds = ref([])
+
+function setResultIds(ids) {
+  resultIds.value = Array.isArray(ids) ? ids.slice() : []
+}
+
 /* Новый чат: свой ключ и порядковый номер (номер не теряется при сохранении). */
 function addChat(draft = '') {
   sequence += 1
@@ -283,6 +296,8 @@ export function useChatWorkspace() {
     toggleClear,
     clearArmed,
     clearSeconds,
+    resultIds,
+    setResultIds,
     isAuthenticated,
     saving,
     savedAt,

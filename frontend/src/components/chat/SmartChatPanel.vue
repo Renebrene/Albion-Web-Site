@@ -273,6 +273,27 @@
               </article>
             </div>
           </template>
+
+          <div v-if="hasOpenActions(message)" class="chat-open-actions">
+            <q-btn
+              v-if="message.actions.map?.available"
+              flat
+              dense
+              no-caps
+              icon="map"
+              label="Показать на карте"
+              @click="openChatResults(message, 'map')"
+            />
+            <q-btn
+              v-if="message.actions.list?.available"
+              flat
+              dense
+              no-caps
+              icon="list"
+              label="Показать списком"
+              @click="openChatResults(message, 'list')"
+            />
+          </div>
         </template>
       </article>
     </div>
@@ -312,7 +333,9 @@
 
 <script setup>
 import { computed, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
+import { useChatWorkspace } from '../../composables/useChatWorkspace'
 import { usePhotoViewer } from '../../composables/usePhotoViewer'
 import { usePortfolio } from '../../composables/usePortfolio'
 import { useSmartChat } from '../../composables/useSmartChat'
@@ -382,6 +405,34 @@ const { messages, loading, lastResponse, send, reset } = useSmartChat(
   props.chatKey
 )
 const { openPhoto } = usePhotoViewer()
+const router = useRouter()
+const { setResultIds } = useChatWorkspace()
+
+/*
+ * «Показать на карте / списком» — открывает результаты ответа на странице
+ * рекламных возможностей (/vozmozhnosti?chat=1), где они фильтруются по id
+ * из useChatWorkspace.resultIds.
+ */
+function hasOpenActions(message) {
+  return Boolean(
+    message?.actions &&
+    (message.actions.map?.available || message.actions.list?.available)
+  )
+}
+
+function openChatResults(message, mode) {
+  const fromActions = message?.actions?.map?.item_ids
+
+  const fromResults = (message?.results?.items || [])
+    .map(item => item?.id)
+    .filter(id => id !== undefined && id !== null)
+
+  setResultIds(
+    Array.isArray(fromActions) && fromActions.length ? fromActions : fromResults
+  )
+
+  router.push({ path: '/vozmozhnosti', query: { chat: '1', mode } })
+}
 const {
   isInPortfolio,
   isMonthSelected,
@@ -947,6 +998,13 @@ function loadLabel(row) {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+/* «Показать на карте / списком» под результатами ответа. */
+.chat-open-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px 0 2px;
 }
 .chat-results {
   max-height: 340px;
