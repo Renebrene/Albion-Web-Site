@@ -125,9 +125,10 @@ archive/constructions/_previous/        archive/_safety/        archive/site/<ke
   поэтому второй запуск из другого воркера получает «Обновление уже выполняется».
   (Ранее защита была только in-process, и при нескольких воркерах два обновления
   могли пойти одновременно.) Есть у авто-бекапа сайта и у импорта.
-- **`media_import_registry`:** DDL в репозитории отсутствует (таблица используется
-  в `CONSTRUCTIONS_TABLES` и repair-миграции, но нигде не создаётся) — при
-  развёртывании «с нуля» её придётся создать отдельно.
+- **`media_import_registry`:** создаётся миграцией
+  `backend/migrations/migrate_media_import_registry.py` (`CREATE TABLE/SEQUENCE
+  IF NOT EXISTS`) — на существующей БД это no-op, при развёртывании «с нуля»
+  таблица появляется.
 - **Год кампании** берётся из `ALBION_IMPORT_YEAR`, иначе — текущий год
   (`import_year()` в `json_to_postgres.py`). Раньше был жёстко зашит `2026`
   в JSON и в строках `surface_availability`.
