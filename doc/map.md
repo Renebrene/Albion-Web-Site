@@ -1,0 +1,105 @@
+# Интерактивная карта
+
+Карта рекламных конструкций: два взаимозаменяемых движка (Leaflet/OSM и Yandex Maps),
+общая разметка попапов и логика доступности. Код — `frontend/src/map/`,
+`frontend/src/config/`, `frontend/src/pages/AdvertisingPage.vue`.
+
+## Выбор движка
+
+- Конфиг `config/mapConfig.js`: `DEFAULT_MAP_ENGINE = 'osm'`, реактивный `mapEngine`,
+  `setMapEngine()`. Значение приходит из настроек (`map_engine`) через
+  `boot/settings.js`.
+- `MapView.vue` при монтировании: если `mapEngine === 'yandex'` — грузит Яндекс-движок;
+  при **любой** ошибке (нет ключа, таймаут, ошибка `createMap`) — **тихий откат на
+  Leaflet**. Модули движков грузятся динамически; CSS Leaflet — только для Leaflet.
+- Оба движка реализуют один публичный API (`useMap` / `useYandexMap`), поэтому
+  `MapView` к движку не привязан.
+
+## Leaflet-движок (`useMap.js`)
+
+- Карта: центр `[47.2357, 39.7015]`, зум 10, тайлы OSM (maxZoom 19), `preferCanvas`,
+  `ResizeObserver → invalidateSize`.
+- Кластеризация: `markerClusterGroup` (`maxClusterRadius 60`, `disableClusteringAtZoom 15`,
+  `spiderfyOnMaxZoom`, `zoomToBoundsOnClick`).
+- **Группировка по точке**: `constructionKey` = координата с округлением 5 знаков
+  (без координат — `noc|city|address`); адрес/номер в ключ не входят. Дедупликация
+  сторон по `side+type`.
+- **Цвет маркера**: счётчики free/reserve/busy по сторонам × выбранным месяцам.
+  Режим `two`: зелёный при наличии свободной, иначе красный. Режим `three`:
+  всё свободно → free, всё занято → busy, иначе mixed.
+- **Дифф-обновление маркеров** (`markerByKey`): новые добавляются, существующие
+  переиспользуются (координаты/иконка/попап меняются только при изменении),
+  исчезнувшие удаляются — без «мигания».
+- **Регион**: `/rostov-region.geojson` → маска (мировой прямоугольник с «дыркой»
+  области, `fillRule: evenodd`) + граница области.
+- Поиск/радиус: маркер-мишень и красная окружность; `setMapCenter` (`flyTo`),
+  `focusToItems`/`fitToConstructions`.
+
+## Yandex-движок (`useYandexMap.js` + `yandexLoader.js`)
+
+- **API 2.1**, ключ из `VITE_YANDEX_MAPS_KEY`; таймаут загрузки 15 с; без ключа —
+  немедленный отказ (→ откат на Leaflet). Загрузчик синглтон, чистит «зависший» скрипт.
+- Кластерer: `disableClusteringAtZoom 15`, `gridSize 60`; иконка точки — SVG data-URI
+  (16×16), `balloonContentBody` — тот же `popupContent`.
+- **Нет диффа**: `renderMarkers` делает `clusterer.removeAll()` и пересоздаёт маркеры —
+  при смене фильтра возможны пересборка/«мигание» (в отличие от Leaflet).
+- Маска региона строится по **текущему виду** (внешнее кольцо с жёсткими пределами) —
+  движок 2.1 отбрасывает слишком крупные контуры.
+- Ширины балуна уже, чем у Leaflet, из-за лимита высоты контента (~400 px).
+
+## Попап (`popupContent.js`)
+
+- Разметка: `commonHeader` (адрес + город/район) → `popup-sides` из **видимых групп**.
+- **Группы** (`utils/constructionGroups.js`): группировка по формату + родительской
+  стороне; `kind`: `video` / `dynamic` / `static`. Число блоков по семейству
+  (`familyOf`): пиллар — 3, прочие — 2.
+- **Раскладка** `popupLayout` — по числу видимых групп: `single` / `double` / `triple`
+  (единый источник и для разметки, и для ширины обёртки у обоих движков).
+- **Кэш разметки**: ключ `signatureOf` = layout + флаги `availableMode`/`showDynCount` +
+  по каждой видимой поверхности её id, активность и 5 бит выбранных месяцев.
+  Ключ **не** включает цену/фото/статус, поэтому при загрузке нового набора обязателен
+  `clearPopupContentCache()` (вызывается в `AdvertisingPage` после загрузки данных).
+- Портфель в секции: кнопка `data-pf-toggle="{id}"`, месяцы `data-pf-month="{id}|{месяц}"`
+  (только для свободных), классы `pf-mode` / `is-active` / `is-selected` / `is-locked`.
+
+## Доступность и настройки
+
+- `utils/availability.js`: `getAvailabilityState` → `free` / `reserve` / `busy`
+  (пусто → free; `резерв/утверж` → reserve; `продан/занят/100%` → busy).
+  `getMonthStatusLabel`: «Свободно» / «Звоните для уточнения статуса» / «Продано».
+- `config/mapColors.js` — цвета `free/busy/mixed` (hex, с валидацией) и режим `three`/`two`.
+- `config/availableMode.js` — `surfaces` (строка на поверхность) или `sides`
+  (одна агрегированная строка стороны) — влияет на список и попап.
+- `config/dynCount.js` — показывать ли счётчик `(N)` у динамических сторон.
+- Применяет всё `boot/settings.js`.
+
+## Взаимодействие с портфелем и фото
+
+Разметку попапа строит `popupContent.js` статичной строкой, поэтому обработчики
+**делегированы на `document`** в `AdvertisingPage.vue`:
+
+- `[data-pf-toggle]` — включить режим выбора / убрать из портфеля.
+- `[data-pf-month]` — добавить/снять месяц (работает только в секции с `pf-mode`).
+- `[data-photo]` — клик/Enter/Space открывает общий `usePhotoViewer` (фото + карта-схема).
+
+В списке — своя кнопка `.card-pf-toggle` и кликабельные месяцы; фото карточки
+открывается в том же окне.
+
+## Грабли
+
+- **CSP**: `frontend/index.html` разрешает домены Яндекса, OSM и Google Fonts;
+  новые внешние хосты добавлять и здесь, и в `deploy/nginx.conf.example`.
+- **Ключ**: пустой `VITE_YANDEX_MAPS_KEY` → тихий откат на Leaflet. Значение
+  вшивается в сборку (префикс `VITE_` через `build.env.clientPrefix`) — после смены
+  ключа нужна пересборка.
+- **Дифф только у Leaflet**: Яндекс перерисовывает маркеры полностью.
+- **Маска Яндекса** — кастомная (по виду), не как у Leaflet; при изменении не ломать
+  пределы кольца.
+- **Кэш попапа** не учитывает цену/фото/статус → обязателен сброс при новом наборе данных.
+- **Видеоэкраны группируются по-разному**: Leaflet (`constructionKey`) сливает две
+  стороны адреса в одну точку, Яндекс (`groupByPoint`) делает каждый экран отдельной
+  точкой — поведение движков расходится.
+- **Поиск по адресу — заглушка**: `executeAddressSearch` только логирует; работает лишь
+  поиск по координатам (геокодер «подключим позже»).
+- Неиспользуемое: `markerIcon.js` (кроме `escapeHtml`), `getVisibleConstructions`,
+  `fitToConstructions`; рядом лежат `*.bak` (`useMap.js.bak`, `MapView.vue.bak`).
