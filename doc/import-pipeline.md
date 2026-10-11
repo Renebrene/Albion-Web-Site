@@ -73,13 +73,15 @@ surface_hash, availability, медиа-файлы, ≤1 active). Режим dry-
 - Корни: `archive/constructions/` (данные XLS), `archive/_safety/` (страховочные копии).
 - `restore_archive(import_key, dry_run)`: dry-run — только план (какие таблицы в
   дампе); реально — safety-дамп текущей БД, `DROP TABLE … CASCADE` только для таблиц
-  конструкций, затем `pg_restore` дампа **целиком** (не `-t`, иначе теряются
-  DEFAULT/PK/constraints), копирование медиа, контрольные счётчики.
+  конструкций, затем `pg_restore -t <таблица>` **только по таблицам конструкций**
+  (без фильтра полный дамп перезаписал бы данные сайта), копирование медиа,
+  контрольные счётчики.
+- После `pg_restore -t` схему «дотягивают»: `repair_schema()`
+  (`backend/services/constructions_schema.py`) возвращает DEFAULT/PK/UNIQUE/FK/CHECK
+  и индексы, которые `-t` не переносит. Тот же модуль использует миграция
+  `migrate_repair_constructions_schema.py` (идемпотентно).
 - Идемпотентность: `archive_source` падает, если `source.xlsx` уже есть; медиа не
   перезаписывается.
-- Ремонт схемы после неполных восстановлений —
-  `backend/migrations/migrate_repair_constructions_schema.py` (возвращает
-  DEFAULT/PK/UNIQUE/FK/CHECK/индексы; идемпотентен).
 
 ## Запуск и контроль (`update_service.py`)
 

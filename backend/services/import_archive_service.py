@@ -247,14 +247,18 @@ def restore_archive(import_key: str, dry_run: bool = False) -> dict:
                 + " CASCADE"
             )
 
-    # Важно: НЕ фильтруем через `-t <таблица>`. Колоночные DEFAULT и
-    # CONSTRAINT (PK/UNIQUE/FK) — это отдельные записи дампа с именами
-    # вида «DEFAULT public construction_imports id» или
-    # «CONSTRAINT public construction_imports …_pkey», и фильтр
-    # `-t construction_imports` их пропускал → таблицы восстанавливались
-    # без default'ов и ключей. Дамп и так содержит только объекты
-    # конструкций, поэтому восстанавливаем его целиком.
+    # Восстанавливаем ТОЛЬКО таблицы конструкций. Архив может быть ПОЛНЫМ
+    # дампом базы — без фильтра `-t` мы бы перезаписали данные сайта
+    # (новости, настройки, пользователи, медиа). `-t` берёт таблицу и её
+    # данные, но пропускает отдельные записи DEFAULT/CONSTRAINT — их
+    # дотягивает repair_schema() после восстановления.
     restore_args = ["pg_restore", "--no-owner"]
+
+    for table in tables:
+        restore_args += ["-t", table]
+
+    for table in tables:
+        restore_args += ["-t", f"{table}_id_seq"]
 
     restore_proc = subprocess.run(
         [*restore_args, *db_args, str(dump_file)],
@@ -283,6 +287,21 @@ def restore_archive(import_key: str, dry_run: bool = False) -> dict:
                     or (restore_proc.stderr or "").strip()[:500]
                 )
             )
+
+    # Дотягиваем схему конструкций: `pg_restore -t` не переносит отдельные
+    # записи DEFAULT/CONSTRAINT (PK/UNIQUE/FK) и индексы.
+    try:
+        from backend.services.constructions_schema import repair_schema
+
+        with get_connection() as conn:
+            repair_schema(conn)
+
+        add_step(
+            "схема конструкций",
+            "выровнена (DEFAULT/PK/UNIQUE/FK/индексы)",
+        )
+    except Exception as exc:
+        add_step("схема конструкций", f"ошибка выравнивания: {exc}")
 
     add_step("PostgreSQL (конструкции)", "восстановлено из архива", dump_file)
 
