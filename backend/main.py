@@ -1,3 +1,7 @@
+import os
+import time
+from collections import defaultdict, deque
+
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -174,13 +178,70 @@ STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
 app.mount("/storage", StaticFiles(directory=STORAGE_ROOT), name="storage")
 
 
+# CORS: один и тот же origin с фронтенда (через туннель/прокси) в CORS не
+# нуждается. Список origin берём из ALBION_ALLOWED_ORIGINS (через запятую);
+# без переменной разрешаем только локальную разработку. Wildcard с
+# credentials небезопасен и здесь больше не используется.
+_allowed_origins_env = os.getenv("ALBION_ALLOWED_ORIGINS", "").strip()
+
+if _allowed_origins_env:
+    ALLOWED_ORIGINS = [
+        origin.strip()
+        for origin in _allowed_origins_env.split(",")
+        if origin.strip()
+    ]
+else:
+    ALLOWED_ORIGINS = [
+        "http://localhost:9000",
+        "http://127.0.0.1:9000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Простой in-memory лимит запросов для чувствительных эндпоинтов.
+# В пределах одного worker достаточно против простейшего брутфорса на этапе
+# разработки/туннеля; на VDS это выносится на nginx/Traefik.
+_RATE_RULES = {
+    "/api/admin/login": (10, 60),
+    "/api/account/login": (10, 60),
+    "/api/account/recover": (5, 300),
+    "/api/feedback": (20, 60),
+}
+_rate_buckets: dict[tuple[str, str], deque] = defaultdict(deque)
+
+
+@app.middleware("http")
+async def _rate_limit(request: Request, call_next):
+    rule = _RATE_RULES.get(request.url.path)
+
+    if rule:
+        limit, window = rule
+        ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        bucket = _rate_buckets[(ip, request.url.path)]
+
+        while bucket and now - bucket[0] > window:
+            bucket.popleft()
+
+        if len(bucket) >= limit:
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Слишком много запросов. Попробуйте позже."},
+                headers={"Retry-After": str(window)},
+            )
+
+        bucket.append(now)
+
+    return await call_next(request)
 
 
 # Сжатие ответов API.
