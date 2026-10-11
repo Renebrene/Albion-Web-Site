@@ -305,32 +305,34 @@
                 </div>
               </div>
 
-              <div
-                v-if="item.extra.some(field => field.name || field.value)"
-                class="extra-fields"
-              >
-                <div class="extra-title">ДОПОЛНИТЕЛЬНЫЕ ДАННЫЕ</div>
-
+              <div class="card-footer">
                 <div
-                  v-for="(field, index) in item.extra"
-                  :key="index"
-                  v-show="field.name || field.value"
-                  class="extra-field"
+                  v-if="item.extra.some(field => field.name || field.value)"
+                  class="extra-fields"
                 >
-                  <span>{{ field.name }}</span>
-                  <strong>{{ field.value }}</strong>
-                </div>
-              </div>
+                  <div class="extra-title">ДОПОЛНИТЕЛЬНЫЕ ДАННЫЕ</div>
 
-              <q-btn
-                unelevated
-                no-caps
-                color="primary"
-                label="Редактировать"
-                icon="edit"
-                class="edit-button"
-                @click="openEdit(item)"
-              />
+                  <div
+                    v-for="(field, index) in item.extra"
+                    :key="index"
+                    v-show="field.name || field.value"
+                    class="extra-field"
+                  >
+                    <span>{{ field.name }}</span>
+                    <strong>{{ field.value }}</strong>
+                  </div>
+                </div>
+
+                <q-btn
+                  unelevated
+                  no-caps
+                  color="primary"
+                  label="Редактировать"
+                  icon="edit"
+                  class="edit-button"
+                  @click="openEdit(item)"
+                />
+              </div>
             </q-card-section>
           </q-card>
         </div>
@@ -2146,6 +2148,19 @@ onBeforeUnmount(() => {
 .construction-card-content {
   padding: 18px;
   text-align: left;
+
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * Низ карточки (доп. данные + кнопка) прижат к нижнему краю: у карточек с
+ * меньшим числом строк он всё равно стоит на одной высоте с соседями.
+ */
+.card-footer {
+  display: flex;
+  flex-direction: column;
+  margin-top: auto;
 }
 
 .construction-topline {
