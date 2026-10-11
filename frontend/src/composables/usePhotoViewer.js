@@ -286,11 +286,10 @@ function openFromElement(element) {
 
 let handlerAttached = false
 
-function onDocumentClick(event) {
-  const target = event.target
-
+/* Открыть окно по ближайшему [data-photo], если у него есть url/карта. */
+function openPhotoFromTarget(target) {
   if (!target || typeof target.closest !== 'function') {
-    return
+    return false
   }
 
   const el = target.closest('[data-photo]')
@@ -299,20 +298,47 @@ function onDocumentClick(event) {
     !el ||
     (!el.getAttribute('data-photo-url') && !el.getAttribute('data-photo-map'))
   ) {
+    return false
+  }
+
+  openFromElement(el)
+  return true
+}
+
+function onDocumentClick(event) {
+  if (openPhotoFromTarget(event.target)) {
+    event.preventDefault()
+  }
+}
+
+/*
+ * Клавиатура: элемент фото — div с role="button" и tabindex, поэтому
+ * Enter/Space должны работать так же, как клик. В полях ввода не мешаем.
+ */
+function onDocumentKeydown(event) {
+  if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') {
     return
   }
 
-  event.preventDefault()
-  openFromElement(el)
+  const tag = event.target && event.target.tagName
+
+  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+    return
+  }
+
+  if (openPhotoFromTarget(event.target)) {
+    event.preventDefault()
+  }
 }
 
-/* Навешиваем обработчик один раз (лениво, на клиенте). */
+/* Навешиваем обработчики один раз (лениво, на клиенте). */
 function attachHandler() {
   if (handlerAttached || typeof document === 'undefined') {
     return
   }
 
   document.addEventListener('click', onDocumentClick)
+  document.addEventListener('keydown', onDocumentKeydown)
   handlerAttached = true
 }
 
