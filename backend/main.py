@@ -22,6 +22,9 @@ from backend.services.contacts_service import get_contacts
 from backend.services.news_service import get_news, get_news_item
 from backend.services.page_service import get_page
 from backend.services.media_service import (
+    MAX_DOCUMENT_FILE_SIZE,
+    MAX_INPUT_FILE_SIZE,
+    VIDEO_MAX_INPUT_FILE_SIZE,
     MediaValidationError,
     create_media_category,
     delete_media,
@@ -33,6 +36,12 @@ from backend.services.media_service import (
     save_image,
     save_video,
     update_media,
+)
+
+from backend.services.upload_limits import (
+    MAX_REQUEST_BYTES,
+    UploadTooLargeError,
+    read_upload_limited,
 )
 
 from backend.search.api import SearchRequest, SearchResponse, execute_search
@@ -244,6 +253,28 @@ async def _rate_limit(request: Request, call_next):
     return await call_next(request)
 
 
+# Отсекаем слишком большие тела запросов ДО разбора multipart: иначе файл
+# успевает попасть во временное хранилище Starlette. Промежуточный слой
+# (nginx) на VDS тоже должен ограничивать client_max_body_size.
+@app.middleware("http")
+async def _limit_request_size(request: Request, call_next):
+    length = request.headers.get("content-length")
+
+    if length is not None:
+        try:
+            size = int(length)
+        except ValueError:
+            size = 0
+
+        if size > MAX_REQUEST_BYTES:
+            return JSONResponse(
+                status_code=413,
+                content={"detail": "Тело запроса слишком большое"},
+            )
+
+    return await call_next(request)
+
+
 # Сжатие ответов API.
 #
 # GET /api/constructions отдаёт ~1.75 МБ JSON без Content-Encoding; gzip
@@ -431,8 +462,20 @@ async def admin_upload_media(
     auth=Depends(require_admin),
 ):
 
-    file_bytes = await file.read()
     resolved_name = original_name or file.filename or "upload"
+
+    # Лимит по типу файла; читаем порциями, не загружая весь файл в память.
+    if is_document_name(resolved_name):
+        cap = MAX_DOCUMENT_FILE_SIZE
+    elif file.content_type and file.content_type.startswith("video/"):
+        cap = VIDEO_MAX_INPUT_FILE_SIZE
+    else:
+        cap = MAX_INPUT_FILE_SIZE
+
+    try:
+        file_bytes = read_upload_limited(file, cap)
+    except UploadTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
 
     try:
         if is_document_name(resolved_name):

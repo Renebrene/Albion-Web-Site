@@ -9,6 +9,10 @@ from fastapi import (
 from fastapi.responses import PlainTextResponse
 
 from backend.services.auth_api import require_admin
+from backend.services.upload_limits import (
+    UploadTooLargeError,
+    read_upload_limited,
+)
 from backend.services.import_archive_service import (
     list_archives,
     restore_archive,
@@ -175,7 +179,11 @@ async def upload(
     Предыдущий файл переезжает в .previous и в архив
     после успешного обновления базы.
     """
-    content = await file.read()
+    try:
+        # XLS-выгрузка конструкций: читаем порциями, не более 50 МБ.
+        content = read_upload_limited(file, 50 * 1024 * 1024)
+    except UploadTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
 
     try:
         result = save_uploaded_file(
