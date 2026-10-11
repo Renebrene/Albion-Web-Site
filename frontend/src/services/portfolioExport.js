@@ -430,7 +430,21 @@ async function requestPortfolioFile(format, items, payload) {
     throw new Error(`Не удалось сформировать файл (${response.status})`)
   }
 
-  return response.blob()
+  return {
+    blob: await response.blob(),
+    filename: responseFilename(response)
+  }
+}
+
+/*
+ * Имя файла из заголовка Content-Disposition (сервер отдаёт его с датой).
+ * Пусто — если заголовок недоступен; тогда вызывающий подставляет своё имя.
+ */
+function responseFilename(response) {
+  const header = response.headers.get('Content-Disposition') || ''
+  const match = header.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i)
+
+  return match ? match[1].trim() : ''
 }
 
 export async function downloadPortfolio(format, sourceItems, options) {
@@ -443,7 +457,7 @@ export async function downloadPortfolio(format, sourceItems, options) {
     ? sourceItems
     : resolveItems(sourceItems)
 
-  const blob = await requestPortfolioFile(value, items, {
+  const { blob, filename } = await requestPortfolioFile(value, items, {
     title: resolveTitle(opts.title),
     withPhotos,
     withMaps,
@@ -451,7 +465,7 @@ export async function downloadPortfolio(format, sourceItems, options) {
     requisites: resolveRequisites(opts)
   })
 
-  triggerDownload(blob, `albion-portfolio.${value}`)
+  triggerDownload(blob, filename || `albion-portfolio.${value}`)
 }
 
 // ---------------------------------------------------------------- печать
@@ -839,7 +853,7 @@ export async function printPortfolio(sourceItems, options) {
   const win = window.open('', '_blank')
 
   try {
-    const blob = await requestPortfolioFile('pdf', items, {
+    const { blob } = await requestPortfolioFile('pdf', items, {
       title,
       withPhotos,
       withMaps,

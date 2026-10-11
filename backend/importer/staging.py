@@ -11,6 +11,7 @@ from typing import Any
 
 from .json_to_postgres import (
     clean,
+    import_year,
     normalize,
     normalize_status,
     parse_coordinate_pair,
@@ -458,10 +459,11 @@ def populate(
                     load_percent,
                     price
                 )
-                VALUES (?, 2026, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     surface_id,
+                    import_year(),
                     month_number,
                     raw_value or None,
                     status,

@@ -126,7 +126,9 @@ archive/constructions/_previous/        archive/_safety/        archive/site/<ke
 - **`media_import_registry`:** DDL в репозитории отсутствует (таблица используется
   в `CONSTRUCTIONS_TABLES` и repair-миграции, но нигде не создаётся) — при
   развёртывании «с нуля» её придётся создать отдельно.
-- **Год захардкожен `2026`** в двух местах (`staging.py`, `constructions_excel_to_json.py`).
+- **Год кампании** берётся из `ALBION_IMPORT_YEAR`, иначе — текущий год
+  (`import_year()` в `json_to_postgres.py`). Раньше был жёстко зашит `2026`
+  в JSON и в строках `surface_availability`.
 - **LibreOffice** нужен для конвертации сырых выгрузок 1С; при отсутствии бинарника
   файл сохраняется как есть.
 - Формулы `=HYPERLINK`: Excel обязан читаться со `data_only=False`.

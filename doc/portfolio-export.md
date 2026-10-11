@@ -77,9 +77,9 @@
 
 ## Грабли и детали
 
-- **Имя файла расходится:** сервер формирует `albion-portfolio-YYYYMMDD.<ext>`, но
-  фронт сохраняет как `albion-portfolio.<ext>` (без даты), игнорируя
-  `Content-Disposition`.
+- **Имя файла:** клиент берёт его из `Content-Disposition` сервера
+  (`albion-portfolio-YYYYMMDD.<ext>`); если заголовок недоступен — откат на
+  `albion-portfolio.<ext>`.
 - **LibreOffice-фолбэк — только для PDF.** Отсутствие `soffice` ломает
   doc/odt/rtf/xls/ods (отдаётся `400`, не `500`).
 - **Фото в письме:** `emailPortfolio` передаёт `withMaps`, но не `withPhotos` —

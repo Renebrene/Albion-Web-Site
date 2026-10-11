@@ -10,6 +10,23 @@ import psycopg
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 JSON_FILE = PROJECT_DIR / "tmp" / "constructions_import.json"
+
+
+def import_year() -> int:
+    """Год кампании для импорта.
+
+    Берётся из окружения (ALBION_IMPORT_YEAR), иначе — текущий год.
+    Раньше год был жёстко зашит (2026) в JSON и в availability-строках.
+    """
+    raw = os.getenv("ALBION_IMPORT_YEAR", "").strip()
+
+    if raw:
+        try:
+            return int(raw)
+        except ValueError:
+            pass
+
+    return datetime.now().year
 ENV_FILE = PROJECT_DIR / ".env"
 
 

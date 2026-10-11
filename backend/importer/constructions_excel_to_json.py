@@ -8,6 +8,8 @@ from typing import Any
 
 from openpyxl import load_workbook
 
+from .json_to_postgres import import_year
+
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 INPUT_DIR = PROJECT_DIR / "input"
 TMP_DIR = PROJECT_DIR / "tmp"
@@ -382,7 +384,7 @@ def convert() -> Path:
             "filename": source.name,
             "format": source.suffix.lower().lstrip("."),
             "header_row": header_row,
-            "year": 2026,
+            "year": import_year(),
         },
         "count": len(records),
         "months": MONTHS,
