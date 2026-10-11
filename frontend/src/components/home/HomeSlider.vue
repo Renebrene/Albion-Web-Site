@@ -606,7 +606,10 @@ const news = ref([])
 const about = ref(null)
 const netStats = ref(null)
 
-const AUTOPLAY_MS = 6000
+/* Автопрокрутка ТОЛЬКО горизонтальной карусели первого (hero) слайда.
+   Вертикальные главные слайды сами не листаются — переключаются вручную.
+   Интервал ~8с, по кругу (см. restartHeroAutoplay). */
+const AUTOPLAY_MS = 8000
 const heroIndex = ref(0)
 let heroTimer = null
 let homeSliderMounted = false
