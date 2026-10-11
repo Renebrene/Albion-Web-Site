@@ -98,7 +98,9 @@ surface_hash, availability, медиа-файлы, ≤1 active). Режим dry-
 
 ## Админ-эндпоинты (`/api/admin/base`, под `require_admin`)
 
-`GET /archives`, `GET /restore-info`, `POST /archives/{key}/restore` (query `dry_run`),
+`GET /archives`, `POST /archives` (создать архив текущей базы — дамп + медиа,
+кнопка в админке «Обновление базы»), `GET /restore-info`,
+`POST /archives/{key}/restore` (query `dry_run`),
 `POST /upload`, `POST /update` (query `dry_run`), `POST /update/stop`,
 `GET /update/status`, `GET /update/log`, `GET /update/logs`, `GET /update/logs/{name}`.
 Бекапы сайта: `GET /site-backups`, `POST /site-backups`, `POST /site-backups/{name}/restore`.

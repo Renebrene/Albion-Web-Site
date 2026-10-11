@@ -17,6 +17,7 @@ from backend.services.import_archive_service import (
     list_archives,
     restore_archive,
 )
+from backend.importer.import_pipeline import create_current_archive
 from backend.services.site_backup_service import (
     create_backup,
     list_backups,
@@ -48,6 +49,29 @@ def archives(
 ):
     return {
         "success": True,
+        "archives": list_archives(),
+    }
+
+
+@router.post("/archives")
+def archive_create(
+    reason: str = Query("manual"),
+    auth=Depends(require_admin),
+):
+    """Создать архив текущей базы конструкций (дамп + медиа с превью)."""
+    try:
+        created = create_current_archive(reason)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Не удалось создать архив: {exc}",
+        ) from exc
+
+    return {
+        "success": True,
+        "archive": created,
         "archives": list_archives(),
     }
 

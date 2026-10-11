@@ -291,12 +291,25 @@
       <div class="archives-toolbar">
         <q-btn
           color="primary"
+          outline
+          no-caps
+          icon="archive"
+          label="Создать архив текущей базы"
+          :loading="creating"
+          :disable="creating || loading"
+          @click="createArchive"
+        />
+
+        <q-btn
+          color="primary"
           no-caps
           label="Обновить список архивов"
           :loading="loading"
           @click="loadArchives"
         />
       </div>
+
+      <div v-if="notice" class="archives-notice">{{ notice }}</div>
 
       <div v-for="item in archives" :key="item.import_key" class="archive-card">
         <div class="archive-row">
@@ -475,6 +488,8 @@ async function request(path, options = {}) {
 }
 
 const archives = ref([])
+const creating = ref(false)
+const notice = ref('')
 const loading = ref(false)
 const error = ref('')
 
@@ -748,6 +763,24 @@ async function loadArchives() {
     error.value = String(exc)
   } finally {
     loading.value = false
+  }
+}
+
+/* Создать архив текущей базы (дамп + медиа с превью). */
+async function createArchive() {
+  creating.value = true
+  error.value = ''
+  notice.value = ''
+
+  try {
+    const data = await request('/api/admin/base/archives', { method: 'POST' })
+
+    archives.value = data.archives || archives.value
+    notice.value = `Архив создан: ${data.archive?.import_key || ''}`
+  } catch (exc) {
+    error.value = String(exc)
+  } finally {
+    creating.value = false
   }
 }
 
@@ -1070,8 +1103,16 @@ onBeforeUnmount(() => {
 
 .archives-toolbar {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 12px;
+}
+
+.archives-notice {
+  margin-bottom: 12px;
+  color: #1f7a44;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .archive-card {

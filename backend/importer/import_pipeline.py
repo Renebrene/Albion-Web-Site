@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -210,6 +211,71 @@ def archive_import_media(import_key: str) -> Path | None:
     shutil.copytree(source, destination)
 
     return destination
+
+
+def active_import_key() -> str | None:
+    """Ключ текущего активного импорта конструкций (или None)."""
+    from backend.services.data_service import get_connection
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT import_key FROM construction_imports "
+                "WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+            )
+            row = cur.fetchone()
+
+    return row[0] if row else None
+
+
+def create_current_archive(reason: str = "manual") -> dict:
+    """Создать архив ТЕКУЩЕЙ базы конструкций: дамп + медиа (превью) + source.
+
+    Ручной снимок активного импорта, без запуска импорта. Ключ архива —
+    ``<reason>-YYYYMMDD-HHMMSS`` (отдельно от ключей импорта).
+    """
+    active_key = active_import_key()
+
+    if not active_key:
+        raise RuntimeError("Нет активного импорта конструкций")
+
+    safe_reason = re.sub(r"[^a-zA-Z0-9_-]", "", reason or "")[:32] or "manual"
+
+    key = f"{safe_reason}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    destination = ARCHIVE_DIR / key
+
+    if destination.exists():
+        raise RuntimeError(f"Архив {key} уже существует")
+
+    destination.mkdir(parents=True, exist_ok=True)
+
+    # 1. source.xlsx — берём из архива активного импорта, если он там есть.
+    source_xlsx = ARCHIVE_DIR / active_key / "source.xlsx"
+
+    if source_xlsx.exists():
+        shutil.copy2(source_xlsx, destination / "source.xlsx")
+
+    # 2. Дамп текущей БД по таблицам конструкций.
+    selectors: list[str] = []
+
+    for name in (*CONSTRUCTIONS_TABLES, *CONSTRUCTIONS_SEQUENCES):
+        selectors += ["-t", name]
+
+    _pg_dump(destination / "database.dump", selectors)
+
+    # 3. Медиа активного импорта (с превью large/card/thumb).
+    media_src = (
+        PROJECT_DIR
+        / "storage"
+        / "constructions"
+        / "imports"
+        / active_key
+    )
+
+    if media_src.exists():
+        shutil.copytree(media_src, destination / "media")
+
+    return {"import_key": key, "active_import_key": active_key}
 
 
 def cleanup_import_temp(import_key: str) -> None:
