@@ -184,6 +184,11 @@ def get_value(
     return clean(raw)
 
 
+def month_columns(columns: dict[str, int]) -> list[str]:
+    """Месяцы, реально присутствующие колонками в выгрузке (в порядке MONTHS)."""
+    return [month for month in MONTHS if month in columns]
+
+
 def parse_coordinates(
     value: str,
 ) -> tuple[float | None, float | None]:
@@ -262,6 +267,7 @@ def is_empty_surface(item: dict[str, Any]) -> bool:
 def build_surface(
     row: tuple[Any, ...],
     columns: dict[str, int],
+    month_names: list[str],
 ) -> dict[str, Any]:
 
     city = (
@@ -280,12 +286,12 @@ def build_surface(
 
     months = {
         month: get_value(row, columns, month)
-        for month in MONTHS
+        for month in month_names
     }
 
     statuses = {
         month: normalize_status(months[month])
-        for month in MONTHS
+        for month in month_names
     }
 
     district = get_value(row, columns, "Район") or city
@@ -370,13 +376,25 @@ def convert() -> Path:
         ):
             print(f"  {col_no}: {name}")
 
+        # Месяцы берём ТОЛЬКО те, что реально есть колонками в выгрузке
+        # (а не фиксированный список) — иначе отсутствующие месяцы
+        # попадали в базу как «Свободно».
+        month_names = month_columns(columns)
+
+        if not month_names:
+            raise RuntimeError(
+                "В заголовках не найдено ни одной колонки месяца"
+            )
+
+        print(f"Месяцы в выгрузке: {', '.join(month_names)}")
+
         records = []
 
         for row in ws.iter_rows(
             min_row=header_row + 1,
             values_only=True,
         ):
-            item = build_surface(row, columns)
+            item = build_surface(row, columns, month_names)
 
             if is_empty_surface(item):
                 continue
@@ -398,7 +416,7 @@ def convert() -> Path:
             "year": import_year(),
         },
         "count": len(records),
-        "months": MONTHS,
+        "months": month_names,
         "surfaces": records,
     }
 
