@@ -190,16 +190,27 @@ def parse_coordinates(
     if not value:
         return None, None
 
-    text = value.replace(";", ",").strip()
-    parts = [x.strip() for x in text.split(",")]
+    text = str(value).strip().replace(";", ",").strip()
 
-    if len(parts) != 2:
+    if "," not in text:
         return None, None
 
-    try:
-        lat = float(parts[0].replace(" ", ""))
-        lng = float(parts[1].replace(" ", ""))
-    except ValueError:
+    # Первая запятая — разделитель широты и долготы. Оставшиеся запятые
+    # могут быть десятичными (например, "47.2117, 39,7363").
+    lat_part, lng_part = text.split(",", 1)
+
+    def _to_float(part: str) -> float | None:
+        part = part.strip().replace(" ", "").replace(",", ".")
+
+        try:
+            return float(part)
+        except ValueError:
+            return None
+
+    lat = _to_float(lat_part)
+    lng = _to_float(lng_part)
+
+    if lat is None or lng is None:
         return None, None
 
     if not (-90 <= lat <= 90 and -180 <= lng <= 180):
