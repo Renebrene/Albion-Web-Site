@@ -279,6 +279,10 @@
                 <span v-if="item.material">Материал: {{ item.material }}</span>
               </div>
 
+              <!-- Распорка: свободная высота уходит сюда, поэтому блоки
+                   от «ЦЕНА ПО МЕСЯЦАМ» и ниже выровнены по низу карточки. -->
+              <div class="card-spacer" aria-hidden="true"></div>
+
               <div class="months-title"> ЦЕНА ПО МЕСЯЦАМ </div>
 
               <div
@@ -2156,11 +2160,17 @@ onBeforeUnmount(() => {
 /*
  * Низ карточки (доп. данные + кнопка) прижат к нижнему краю: у карточек с
  * меньшим числом строк он всё равно стоит на одной высоте с соседями.
+ * Свободную высоту забирает .card-spacer (перед «ЦЕНА ПО МЕСЯЦАМ»), поэтому
+ * блоки от цены по месяцам и ниже выровнены по низу карточки.
  */
+.card-spacer {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .card-footer {
   display: flex;
   flex-direction: column;
-  margin-top: auto;
 }
 
 .construction-topline {
