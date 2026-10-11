@@ -424,11 +424,11 @@
           <div class="edit-main-grid">
             <q-select
               v-model="editingItem.city"
+              label="Город"
               dense
               outlined
               :options="cityOptions(editingItem.city)"
             >
-              <template #label>Город</template>
               <template #append>
                 <span
                   v-if="showStar('city')"
@@ -439,8 +439,7 @@
               </template>
             </q-select>
 
-            <q-input v-model="editingItem.address" dense outlined>
-              <template #label>Адрес</template>
+            <q-input v-model="editingItem.address" label="Адрес" dense outlined>
               <template #append>
                 <span
                   v-if="showStar('address')"
@@ -453,11 +452,11 @@
 
             <q-select
               v-model="editingItem.side"
+              label="Сторона"
               dense
               outlined
               :options="sideOptions"
             >
-              <template #label>Сторона</template>
               <template #append>
                 <span
                   v-if="showStar('side')"
@@ -470,11 +469,11 @@
 
             <q-select
               v-model="editingItem.type"
+              label="Тип конструкции"
               dense
               outlined
               :options="typeOptions"
             >
-              <template #label>Тип конструкции</template>
               <template #append>
                 <span
                   v-if="showStar('type')"
@@ -485,8 +484,7 @@
               </template>
             </q-select>
 
-            <q-input v-model="editingItem.size" dense outlined>
-              <template #label>Размер</template>
+            <q-input v-model="editingItem.size" label="Размер" dense outlined>
               <template #append>
                 <span
                   v-if="showStar('size')"
@@ -499,11 +497,11 @@
 
             <q-select
               v-model="editingItem.material"
+              label="Материал"
               dense
               outlined
               :options="materialOptions"
             >
-              <template #label>Материал</template>
               <template #append>
                 <span
                   v-if="showStar('material')"
@@ -581,8 +579,7 @@
             >
               <q-input v-model="field.name" dense outlined label="Название" />
 
-              <q-input v-model="field.value" dense outlined>
-                <template #label>Значение</template>
+              <q-input v-model="field.value" label="Значение" dense outlined>
                 <template #append>
                   <span
                     v-if="
@@ -1719,25 +1716,6 @@ onBeforeUnmount(() => {
   margin-top: 0;
 }
 
-.extra-section-title {
-  margin-top: 28px;
-}
-
-.extra-edit-grid {
-  display: grid;
-  gap: 10px;
-}
-
-.extra-edit-row {
-  display: grid;
-  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1.2fr);
-  gap: 10px;
-}
-
-.edit-dialog-actions {
-  padding: 14px 18px;
-}
-
 @media (max-width: 800px) {
   .edit-dialog {
     width: calc(100vw - 20px);
@@ -1824,19 +1802,23 @@ onBeforeUnmount(() => {
   margin-top: 12px;
 }
 
+/*
+ * «Дополнительные данные» повторяют сетку «Основных данных»: те же две
+ * равные колонки и тот же gap, чтобы столбцы совпадали по вертикали.
+ */
 .extra-section-title {
-  margin-top: 26px;
+  margin-top: 28px;
 }
 
 .extra-edit-grid {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .extra-edit-row {
   display: grid;
-  grid-template-columns: 0.8fr 1.2fr;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .edit-dialog-actions {
