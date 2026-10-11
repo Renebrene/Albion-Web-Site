@@ -32,6 +32,21 @@
 (`try_files … /index.html`), прокси `/api` и `/storage`, кэш ассетов и
 CSP-заголовок для боевого домена.
 
+## Тесты
+
+```bash
+pip install -r requirements-dev.txt
+pytest backend/tests          # интеграционные: API, auth, БД, миграции, upload, export
+```
+
+Тестам нужна PostgreSQL: без неё соответствующие кейсы помечаются `skip`.
+
+Браузерный смоук (нужны Chrome и запущенный фронтенд):
+
+```bash
+uv run --with websockets python deploy/browser-smoke.py --base http://localhost:9000
+```
+
 ## Планировщик авто-бекапа и multiworker
 
 Backend при старте поднимает фоновый поток авто-бекапа сайта
