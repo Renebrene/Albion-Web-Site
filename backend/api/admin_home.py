@@ -51,7 +51,10 @@ def slides(auth=Depends(require_admin)):
 
 @router.post("/slides")
 def slide_create(payload: dict, auth=Depends(require_admin)):
-    slide = create_slide(payload or {})
+    try:
+        slide = create_slide(payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {
         "success": True,
@@ -66,7 +69,10 @@ def slide_update(
     payload: dict,
     auth=Depends(require_admin),
 ):
-    slide = update_slide(slide_id, payload or {})
+    try:
+        slide = update_slide(slide_id, payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if slide is None:
         raise HTTPException(status_code=404, detail="Слайд не найден")
@@ -95,7 +101,10 @@ def item_create(
     payload: dict,
     auth=Depends(require_admin),
 ):
-    item = create_item(slide_id, payload or {})
+    try:
+        item = create_item(slide_id, payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if item is None:
         raise HTTPException(status_code=404, detail="Слайд не найден")
@@ -113,7 +122,10 @@ def item_update(
     payload: dict,
     auth=Depends(require_admin),
 ):
-    item = update_item(item_id, payload or {})
+    try:
+        item = update_item(item_id, payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if item is None:
         raise HTTPException(status_code=404, detail="Карточка не найдена")
@@ -145,7 +157,10 @@ def slide_button_create(
     payload: dict,
     auth=Depends(require_admin),
 ):
-    button = create_button(slide_id, payload or {})
+    try:
+        button = create_button(slide_id, payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {
         "success": True,
@@ -165,7 +180,10 @@ def item_button_create(
     if item is None:
         raise HTTPException(status_code=404, detail="Карточка не найдена")
 
-    button = create_button(item["slide_id"], payload or {}, item_id=item_id)
+    try:
+        button = create_button(item["slide_id"], payload or {}, item_id=item_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {
         "success": True,
@@ -180,7 +198,10 @@ def button_update(
     payload: dict,
     auth=Depends(require_admin),
 ):
-    button = update_button(button_id, payload or {})
+    try:
+        button = update_button(button_id, payload or {})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     if button is None:
         raise HTTPException(status_code=404, detail="Кнопка не найдена")

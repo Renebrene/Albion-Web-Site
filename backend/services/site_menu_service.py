@@ -4,6 +4,7 @@ from __future__ import annotations
 from typing import Any
 
 from backend.services.data_service import get_connection
+from backend.services.cms_url import clean_cms_url
 
 
 SECTIONS = ("main", "footer")
@@ -86,7 +87,12 @@ def update_menu_items(
 
                 for index, item in enumerate(items):
                     label = _clean(item.get("label"))
-                    url = _clean(item.get("url"))
+                    try:
+                        url = clean_cms_url(item.get("url"))
+                    except ValueError as exc:
+                        raise ValueError(
+                            f"Пункт меню «{section}»: {exc}"
+                        ) from exc
 
                     if not label:
                         raise ValueError(

@@ -367,9 +367,9 @@
                   </div>
 
                   <a
-                    v-if="geoExpanded.location.map_href || geoExpanded.location.href"
+                    v-if="safeCmsUrl(geoExpanded.location.map_href || geoExpanded.location.href)"
                     class="geo-modal-mapbtn"
-                    :href="geoExpanded.location.map_href || geoExpanded.location.href"
+                    :href="safeCmsUrl(geoExpanded.location.map_href || geoExpanded.location.href)"
                   >Перейти на интерактивную карту</a>
 
                   <div
@@ -383,8 +383,8 @@
                       · фото: {{ geoExpanded.location.cover.source_name }}
                     </span>
                     <a
-                      v-if="geoExpanded.location.cover.source_url"
-                      :href="geoExpanded.location.cover.source_url"
+                      v-if="safeCmsUrl(geoExpanded.location.cover.source_url)"
+                      :href="safeCmsUrl(geoExpanded.location.cover.source_url)"
                       target="_blank"
                       rel="noopener noreferrer"
                     >источник</a>
@@ -538,6 +538,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { safeCmsUrl } from '../../utils/safeCmsUrl'
 
 const rootRef = ref(null)
 const slides = ref([])
@@ -603,12 +604,17 @@ const NEWS_FALLBACK_BUTTONS = [
 function withKeys(list) {
   return (Array.isArray(list) ? list : [])
     .filter(btn => btn && String(btn.label || '').trim())
-    .map((btn, i) => ({
-      key: btn.id !== null && btn.id !== undefined ? `b${btn.id}` : `k${i}`,
-      label: String(btn.label).trim(),
-      url: String(btn.url || ''),
-      variant: btn.variant === 'ghost' ? 'ghost' : 'primary'
-    }))
+    .map((btn, i) => {
+      const rawUrl = String(btn.url || '').trim()
+      return {
+        key: btn.id !== null && btn.id !== undefined ? `b${btn.id}` : `k${i}`,
+        label: String(btn.label).trim(),
+        url: safeCmsUrl(rawUrl),
+        invalidUrl: Boolean(rawUrl) && !safeCmsUrl(rawUrl),
+        variant: btn.variant === 'ghost' ? 'ghost' : 'primary'
+      }
+    })
+    .filter(btn => !btn.invalidUrl)
 }
 
 /* Кнопки слайда: свои из базы либо запасные (legacy/зашитые). */

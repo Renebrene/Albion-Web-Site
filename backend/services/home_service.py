@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Optional
 
 from backend.services.data_service import get_connection
+from backend.services.cms_url import clean_cms_url
 
 
 _SLIDE_FIELDS = (
@@ -248,6 +249,7 @@ def _next_item_order(conn, slide_id: int) -> int:
 
 def create_slide(data: dict) -> dict:
     values = {field: str(data.get(field) or "") for field in _SLIDE_FIELDS}
+    values["button_url"] = clean_cms_url(values["button_url"])
     is_hero = bool(data.get("is_hero"))
     kind = str(data.get("kind") or ("hero" if is_hero else "text"))
 
@@ -304,8 +306,11 @@ def update_slide(slide_id: int, data: dict) -> Optional[dict]:
 
     for field in _SLIDE_FIELDS:
         if field in data:
+            value = str(data.get(field) or "")
+            if field == "button_url":
+                value = clean_cms_url(value)
             sets.append(f"{field} = %s")
-            params.append(str(data.get(field) or ""))
+            params.append(value)
 
     with get_connection() as conn:
         with conn.transaction():
@@ -350,6 +355,8 @@ def delete_slide(slide_id: int) -> bool:
 
 def create_item(slide_id: int, data: dict) -> Optional[dict]:
     values = {field: str(data.get(field) or "") for field in _ITEM_FIELDS}
+    values["button_url"] = clean_cms_url(values["button_url"])
+    values["button2_url"] = clean_cms_url(values["button2_url"])
 
     with get_connection() as conn:
         with conn.transaction():
@@ -404,8 +411,11 @@ def update_item(item_id: int, data: dict) -> Optional[dict]:
 
     for field in _ITEM_FIELDS:
         if field in data:
+            value = str(data.get(field) or "")
+            if field in {"button_url", "button2_url"}:
+                value = clean_cms_url(value)
             sets.append(f"{field} = %s")
-            params.append(str(data.get(field) or ""))
+            params.append(value)
 
     if "is_active" in data:
         sets.append("is_active = %s")
@@ -471,7 +481,7 @@ def get_button(button_id: int) -> Optional[dict]:
 
 def create_button(slide_id: int, data: dict, item_id=None) -> Optional[dict]:
     label = str(data.get("label") or "").strip()
-    url = str(data.get("url") or "").strip()
+    url = clean_cms_url(data.get("url"))
     variant = str(data.get("variant") or "primary").strip()
 
     if variant not in BUTTON_VARIANTS:
@@ -502,7 +512,9 @@ def update_button(button_id: int, data: dict) -> Optional[dict]:
         if field in data:
             value = str(data.get(field) or "")
 
-            if field == "variant" and value not in BUTTON_VARIANTS:
+            if field == "url":
+                value = clean_cms_url(value)
+            elif field == "variant" and value not in BUTTON_VARIANTS:
                 value = "primary"
 
             sets.append(f"{field} = %s")

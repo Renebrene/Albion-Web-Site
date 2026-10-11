@@ -20,9 +20,14 @@
 
     <!-- НАВИГАЦИЯ (из CMS, фолбэк на дефолт) -->
     <nav class="header-nav">
-      <RouterLink v-for="item in navItems" :key="item.key" :to="item.url">
-        {{ item.label }}
-      </RouterLink>
+      <template v-for="item in navItems" :key="item.key">
+        <a v-if="isExternalCmsUrl(item.safeUrl)" :href="item.safeUrl">
+          {{ item.label }}
+        </a>
+        <RouterLink v-else :to="item.safeUrl">
+          {{ item.label }}
+        </RouterLink>
+      </template>
 
       <!-- ПОРТФЕЛЬ — всегда последний пункт, после «Контактов».
            Клик не переходит по маршруту, а открывает панель вниз. -->
@@ -259,14 +264,20 @@
     <Transition name="mobile-menu">
       <div v-if="mobileOpen" class="mobile-panel">
         <nav class="mobile-nav">
-          <RouterLink
-            v-for="item in navItems"
-            :key="item.key"
-            :to="item.url"
-            class="mobile-nav-link"
-          >
-            {{ item.label }}
-          </RouterLink>
+          <template v-for="item in navItems" :key="item.key">
+            <a
+              v-if="isExternalCmsUrl(item.safeUrl)"
+              :href="item.safeUrl"
+              class="mobile-nav-link"
+            >{{ item.label }}</a>
+            <RouterLink
+              v-else
+              :to="item.safeUrl"
+              class="mobile-nav-link"
+            >
+              {{ item.label }}
+            </RouterLink>
+          </template>
 
           <!-- ПОРТФЕЛЬ — последний пункт, раскрывает панель на месте -->
           <button
@@ -320,6 +331,7 @@ import SmartChatPanel from '../chat/SmartChatPanel.vue'
 import { useAccount } from '../../composables/useAccount'
 import { useChatWorkspace } from '../../composables/useChatWorkspace'
 import { usePortfolio } from '../../composables/usePortfolio'
+import { safeCmsUrl } from '../../utils/safeCmsUrl'
 
 const route = useRoute()
 const router = useRouter()
@@ -373,8 +385,14 @@ function isPortfolioUrl(url) {
 }
 
 const navItems = computed(() =>
-  menuItems.value.filter(item => !isPortfolioUrl(item.url))
+  menuItems.value
+    .map(item => ({ ...item, safeUrl: safeCmsUrl(item.url) }))
+    .filter(item => item.safeUrl && !isPortfolioUrl(item.safeUrl))
 )
+
+function isExternalCmsUrl(url) {
+  return /^(https?:|mailto:|tel:)/i.test(String(url || ''))
+}
 
 /* Выпадающая панель портфеля в шапке (десктоп/планшет) */
 const portfolioOpen = ref(false)

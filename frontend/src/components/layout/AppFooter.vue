@@ -4,7 +4,9 @@
       <a
         v-for="item in footerItems"
         :key="item.key"
-        :href="item.url"
+        :href="safeCmsUrl(item.url) || undefined"
+        :aria-disabled="!safeCmsUrl(item.url)"
+        :tabindex="safeCmsUrl(item.url) ? 0 : -1"
         class="footer-link"
         title="Раздел в разработке"
       >
@@ -20,6 +22,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { safeCmsUrl } from '../../utils/safeCmsUrl'
 
 const DEFAULT_FOOTER = [
   { key: 'privacy', label: 'Политика конфиденциальности', url: '#' },
