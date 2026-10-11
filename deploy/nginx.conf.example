@@ -1,0 +1,78 @@
+# Пример конфигурации nginx для Albion на VDS.
+#
+# Замените:
+#   albion.example.ru      — реальный домен;
+#   /srv/albion/frontend/dist/spa — путь к собранному SPA (quasar build → dist/spa);
+#   media.albion.example.ru — хост медиа (если /storage выносится на отдельный
+#                             домен; иначе достаточно same-origin и img-src 'self').
+#
+# Ключевое для SPA в режиме history (vueRouterMode: 'history'):
+# прямые ссылки вида /portfolio должны отдавать index.html, а не 404 —
+# это и есть try_files ... /index.html.
+
+server {
+    listen 80;
+    server_name albion.example.ru;
+
+    # Всегда HTTPS на реальном домене.
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name albion.example.ru;
+
+    ssl_certificate     /etc/letsencrypt/live/albion.example.ru/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/albion.example.ru/privkey.pem;
+
+    root /srv/albion/frontend/dist/spa;
+    index index.html;
+
+    client_max_body_size 130m;   # согласовано с MAX_REQUEST_BYTES в backend
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+
+    # SPA: сначала реальный файл, иначе index.html (history-fallback).
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # Хешированные ассеты Quasar неизменны — кэшируем надолго.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # index.html кэшировать нельзя — иначе обновления не доедут.
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    # API → uvicorn (localhost).
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # Медиа из хранилища → backend (StaticFiles /storage).
+    location /storage/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        expires 30d;
+        add_header Cache-Control "public";
+    }
+
+    # CSP на уровне сервера — надёжнее meta-тега из index.html (заголовок
+    # нельзя обойти вставкой контента). Список должен совпадать с meta-CSP
+    # в frontend/index.html; при выносе медиа на отдельный хост добавьте его
+    # в img-src и connect-src, например https://media.albion.example.ru.
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' https://api-maps.yandex.ru https://yandex.ru https://*.yandex.ru https://*.yandex.net https://yastatic.net https://*.yastatic.net; style-src 'self' 'unsafe-inline' https://*.yandex.ru https://*.yandex.net https://yastatic.net https://*.yastatic.net https://fonts.googleapis.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://placehold.co https://yandex.ru https://*.yandex.ru https://*.yandex.net https://yastatic.net https://*.yastatic.net; connect-src 'self' https://*.tile.openstreetmap.org https://api-maps.yandex.ru https://*.yandex.ru https://*.yandex.net https://yastatic.net https://*.yastatic.net; font-src 'self' data: https://*.yandex.ru https://*.yandex.net https://yastatic.net https://*.yastatic.net https://fonts.gstatic.com; worker-src 'self' blob:;" always;
+}

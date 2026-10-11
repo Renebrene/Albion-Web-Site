@@ -637,3 +637,35 @@ def admin_me(auth=Depends(require_admin)):
 def admin_logout(auth=Depends(require_admin)):
     return logout_admin(auth)
 
+
+# ---------------------------------------------------------------------------
+# SPA (history-режим).
+#
+# На VDS статику обычно раздаёт nginx (см. deploy/nginx.conf.example). Но если
+# backend запускается без обратного прокси, он может отдать собранный фронтенд
+# сам — при ALBION_SERVE_SPA=1. Тогда неизвестные пути (например, /portfolio)
+# возвращают index.html, и прямые ссылки работают без 404.
+#
+# Все API-роуты и /storage объявлены выше, поэтому имеют приоритет: этот
+# catch-all срабатывает только для путей, не совпавших с ними.
+if os.getenv("ALBION_SERVE_SPA", "").strip() == "1":
+    from fastapi.responses import FileResponse
+
+    _spa_dir = PROJECT_DIR / "frontend" / "dist" / "spa"
+    _spa_index = _spa_dir / "index.html"
+
+    if _spa_index.exists():
+
+        @app.get("/{full_path:path}", include_in_schema=False)
+        def spa_fallback(full_path: str):
+            # API и хранилище не перехватываем — их обрабатывают роуты выше.
+            if full_path.startswith(("api/", "storage/")):
+                raise HTTPException(status_code=404, detail="Not found")
+
+            candidate = _spa_dir / full_path
+
+            if full_path and candidate.is_file():
+                return FileResponse(candidate)
+
+            return FileResponse(_spa_index)
+
