@@ -12,6 +12,8 @@
           'is-active': slideIndex === index,
           'slide--hero': slide.kind === 'hero'
         }"
+        :aria-hidden="slideIndex === index ? null : 'true'"
+        :inert="slideIndex === index ? null : true"
       >
         <div class="slide-bg" :style="slideBgStyle(slide, slideIndex)">
           <div class="slide-veil"></div>
