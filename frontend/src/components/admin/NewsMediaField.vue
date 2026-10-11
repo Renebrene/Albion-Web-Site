@@ -3,7 +3,9 @@
     <div class="nmf-toolbar">
       <div class="nmf-summary">
         <span class="nmf-count">Медиа: {{ items.length }}</span>
-        <span v-if="items.length" class="nmf-hint">Порядок = порядок карусели</span>
+        <span v-if="items.length" class="nmf-hint"
+          >Порядок = порядок карусели</span
+        >
       </div>
 
       <div class="nmf-toolbar-actions">
@@ -35,12 +37,13 @@
           class="nmf-file-input"
           :disabled="uploading"
           @change="onFilesPicked"
-        >
+        />
       </div>
     </div>
 
     <div v-if="!items.length" class="nmf-empty">
-      Файлов пока нет. Добавьте фото, видео или GIF из медиатеки либо загрузите новые.
+      Файлов пока нет. Добавьте фото, видео или GIF из медиатеки либо загрузите
+      новые.
     </div>
 
     <div v-else class="nmf-grid">
@@ -64,11 +67,13 @@
             :alt="item.original_name || ''"
             loading="lazy"
             decoding="async"
-          >
+          />
           <div v-else class="nmf-thumb-empty">Нет превью</div>
 
           <span class="nmf-type">{{ typeLabel(item) }}</span>
-          <span v-if="item.id === coverId" class="nmf-cover-badge">Обложка</span>
+          <span v-if="item.id === coverId" class="nmf-cover-badge"
+            >Обложка</span
+          >
         </div>
 
         <div class="nmf-name" :title="item.original_name">
@@ -128,11 +133,7 @@
       </div>
     </div>
 
-    <MediaPicker
-      v-model="pickerOpen"
-      multiple
-      @select-many="onSelectMany"
-    />
+    <MediaPicker v-model="pickerOpen" multiple @select-many="onSelectMany" />
   </div>
 </template>
 
@@ -154,7 +155,9 @@ const pickerOpen = ref(false)
 const uploading = ref(false)
 
 /* Источник правды — prop от родителя; компонент только эмитит изменения. */
-const items = computed(() => (Array.isArray(props.modelValue) ? props.modelValue : []))
+const items = computed(() =>
+  Array.isArray(props.modelValue) ? props.modelValue : []
+)
 
 /* ---------- нормализация / helpers ---------- */
 
@@ -197,7 +200,9 @@ function posterUrl(item) {
 
 function thumbUrl(item) {
   if (item?.preview_path && isVideo(item)) return storageUrl(item.preview_path)
-  const thumb = (item?.variants || []).find((variant) => variant.variant === 'thumb')
+  const thumb = (item?.variants || []).find(
+    variant => variant.variant === 'thumb'
+  )
   return storageUrl(thumb?.storage_path || item?.storage_path)
 }
 
@@ -237,11 +242,12 @@ function setCover(id) {
 }
 
 function onSelectMany(ids, chosen) {
-  const list = Array.isArray(chosen) && chosen.length
-    ? chosen
-    : (Array.isArray(ids) ? ids : []).map((id) => ({ id }))
+  const list =
+    Array.isArray(chosen) && chosen.length
+      ? chosen
+      : (Array.isArray(ids) ? ids : []).map(id => ({ id }))
 
-  const existing = new Set(items.value.map((item) => item.id))
+  const existing = new Set(items.value.map(item => item.id))
   const additions = []
   for (const raw of list) {
     const item = normalize(raw)
@@ -272,7 +278,7 @@ function authHeaders() {
 }
 
 async function uploadFiles(files) {
-  const list = files.filter((file) => file instanceof File)
+  const list = files.filter(file => file instanceof File)
   if (!list.length) return
 
   uploading.value = true
@@ -302,7 +308,11 @@ async function uploadFiles(files) {
 
         if (!response.ok) {
           errors += 1
-          emit('notify', data?.detail || `Не удалось загрузить «${file.name}»`, 'error')
+          emit(
+            'notify',
+            data?.detail || `Не удалось загрузить «${file.name}»`,
+            'error'
+          )
           continue
         }
 
@@ -318,8 +328,8 @@ async function uploadFiles(files) {
   }
 
   if (additions.length) {
-    const existing = new Set(items.value.map((item) => item.id))
-    const fresh = additions.filter((item) => !existing.has(item.id))
+    const existing = new Set(items.value.map(item => item.id))
+    const fresh = additions.filter(item => !existing.has(item.id))
     const next = [...items.value, ...fresh]
     let nextCover = props.coverId
     if (nextCover == null) nextCover = firstId(next)

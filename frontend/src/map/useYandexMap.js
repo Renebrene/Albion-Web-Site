@@ -29,13 +29,7 @@ const FLY_DURATION = 400
 const MAX_RING_LNG = 140
 const MAX_RING_LAT = 100
 
-const ALL_MONTHS = [
-  'Август',
-  'Сентябрь',
-  'Октябрь',
-  'Ноябрь',
-  'Декабрь'
-]
+const ALL_MONTHS = ['Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
 let ymaps = null
 let map = null
@@ -72,10 +66,7 @@ function normalizeItems(items) {
         const lat = Number(item?.lat)
         const lng = Number(item?.lng)
 
-        return (
-          Number.isFinite(lat) &&
-          Number.isFinite(lng)
-        )
+        return Number.isFinite(lat) && Number.isFinite(lng)
       })
     : []
 }
@@ -110,10 +101,7 @@ function uniqueSides(items) {
         .trim()
         .toUpperCase()
 
-      return (
-        existingSide === side &&
-        existingType === type
-      )
+      return existingSide === side && existingType === type
     })
 
     if (!exists) {
@@ -136,8 +124,7 @@ function uniqueSides(items) {
  */
 function markerColor(items) {
   const months =
-    Array.isArray(selectedMonths) &&
-    selectedMonths.length
+    Array.isArray(selectedMonths) && selectedMonths.length
       ? selectedMonths
       : ALL_MONTHS
 
@@ -171,9 +158,7 @@ function markerColor(items) {
    * Оранжевый в этом режиме не используется.
    */
   if (mapColorMode.value === 'two') {
-    return freeCount > 0
-      ? mapDotColors.value.free
-      : mapDotColors.value.busy
+    return freeCount > 0 ? mapDotColors.value.free : mapDotColors.value.busy
   }
 
   if (busyCount === 0 && reserveCount === 0) {
@@ -205,10 +190,7 @@ function dotIconHref(color) {
     'stroke="#ffffff" stroke-width="2" filter="url(#s)"/>' +
     '</svg>'
 
-  return (
-    'data:image/svg+xml;charset=utf-8,' +
-    encodeURIComponent(svg)
-  )
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
 }
 
 /* =========================================================
@@ -237,11 +219,7 @@ function createMap(element) {
     return map
   }
 
-  if (
-    typeof window === 'undefined' ||
-    !window.ymaps ||
-    !window.ymaps.Map
-  ) {
+  if (typeof window === 'undefined' || !window.ymaps || !window.ymaps.Map) {
     throw new Error(
       'Yandex Maps API не загружен. Дождитесь loadYandexMaps() перед createMap().'
     )
@@ -306,10 +284,7 @@ function createPlacemark(group) {
   const lat = Number(first.lat)
   const lng = Number(first.lng)
 
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng)
-  ) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return null
   }
 
@@ -331,10 +306,7 @@ function createPlacemark(group) {
        */
       balloonContentBody: popupContent(items),
 
-      hintContent:
-        first.address ||
-        first.name ||
-        'Рекламная конструкция'
+      hintContent: first.address || first.name || 'Рекламная конструкция'
     },
     {
       /*
@@ -418,13 +390,9 @@ function scheduleRender() {
    ========================================================= */
 
 function setConstructions(items, months = []) {
-  constructions = Array.isArray(items)
-    ? items
-    : []
+  constructions = Array.isArray(items) ? items : []
 
-  selectedMonths = Array.isArray(months)
-    ? months
-    : []
+  selectedMonths = Array.isArray(months) ? months : []
 
   /*
    * В отличие от Leaflet, перерисовка маркеров не сдвигает
@@ -434,10 +402,7 @@ function setConstructions(items, months = []) {
 }
 
 function setCenterChangeHandler(handler) {
-  centerChangeHandler =
-    typeof handler === 'function'
-      ? handler
-      : null
+  centerChangeHandler = typeof handler === 'function' ? handler : null
 
   if (map && centerChangeHandler) {
     const center = map.getCenter()
@@ -477,14 +442,9 @@ function getCoordinatesAtScreenPoint(clientX, clientY) {
    * API 2.1: convertScreenToGlobalPixel([x, y]).
    * Фоллбэк — пересчёт от глобального пиксельного центра.
    */
-  if (
-    typeof map.convertScreenToGlobalPixel ===
-    'function'
-  ) {
+  if (typeof map.convertScreenToGlobalPixel === 'function') {
     globalPoint = map.convertScreenToGlobalPixel([x, y])
-  } else if (
-    typeof map.convertScreenToGlobal === 'function'
-  ) {
+  } else if (typeof map.convertScreenToGlobal === 'function') {
     globalPoint = map.convertScreenToGlobal([x, y])
   } else {
     const center = map.getGlobalPixelCenter()
@@ -505,10 +465,7 @@ function getCoordinatesAtScreenPoint(clientX, clientY) {
     return null
   }
 
-  const geoPoint = projection.fromGlobalPixels(
-    globalPoint,
-    zoom
-  )
+  const geoPoint = projection.fromGlobalPixels(globalPoint, zoom)
 
   return {
     lat: geoPoint[0],
@@ -543,10 +500,7 @@ function setSearchPoint(lat, lng) {
   const latitude = Number(lat)
   const longitude = Number(lng)
 
-  if (
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude)
-  ) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return
   }
 
@@ -566,9 +520,7 @@ function setSearchPoint(lat, lng) {
 
     map.geoObjects.add(searchPointPlacemark)
   } else {
-    searchPointPlacemark.geometry.setCoordinates(
-      position
-    )
+    searchPointPlacemark.geometry.setCoordinates(position)
   }
 }
 
@@ -610,7 +562,7 @@ function setSearchRadius(lat, lng, radius) {
       {},
       {
         fillColor: '#e12a1f',
-        fillOpacity: 0.10,
+        fillOpacity: 0.1,
         strokeColor: '#e12a1f',
         strokeOpacity: 0.85,
         strokeWidth: 2,
@@ -620,9 +572,7 @@ function setSearchRadius(lat, lng, radius) {
 
     map.geoObjects.add(searchRadiusCircle)
   } else {
-    searchRadiusCircle.geometry.setCoordinates(
-      geometry
-    )
+    searchRadiusCircle.geometry.setCoordinates(geometry)
   }
 }
 
@@ -646,10 +596,7 @@ function setMapCenter(lat, lng, zoom = 14) {
   const latitude = Number(lat)
   const longitude = Number(lng)
 
-  if (
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude)
-  ) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return
   }
 
@@ -675,19 +622,11 @@ function getVisibleConstructions() {
     const lat = Number(item?.lat)
     const lng = Number(item?.lng)
 
-    if (
-      !Number.isFinite(lat) ||
-      !Number.isFinite(lng)
-    ) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return false
     }
 
-    return (
-      lat >= minLat &&
-      lat <= maxLat &&
-      lng >= minLng &&
-      lng <= maxLng
-    )
+    return lat >= minLat && lat <= maxLat && lng >= minLng && lng <= maxLng
   })
 }
 
@@ -772,10 +711,7 @@ function refreshMaskGeometry() {
   try {
     maskPolygon.geometry.setCoordinates([ring, ...regionRings])
   } catch (error) {
-    console.warn(
-      'Albion Map (Yandex): не удалось обновить маску',
-      error
-    )
+    console.warn('Albion Map (Yandex): не удалось обновить маску', error)
   }
 }
 
@@ -822,9 +758,7 @@ function geojsonOuterRings(geojson) {
     }
   }
 
-  return rings.map(ring =>
-    ring.map(([lng, lat]) => [lat, lng])
-  )
+  return rings.map(ring => ring.map(([lng, lat]) => [lat, lng]))
 }
 
 function removeRegionLayers() {
@@ -916,14 +850,9 @@ async function loadRegion() {
 
     map.geoObjects.add(regionOutline)
 
-    console.log(
-      'Albion Map (Yandex): Ростовская область и маска загружены'
-    )
+    console.log('Albion Map (Yandex): Ростовская область и маска загружены')
   } catch (error) {
-    console.error(
-      'Albion Map (Yandex): ошибка загрузки GeoJSON',
-      error
-    )
+    console.error('Albion Map (Yandex): ошибка загрузки GeoJSON', error)
   }
 }
 
@@ -958,20 +887,11 @@ function destroyMap() {
   }
 
   if (map) {
-    map.events.remove(
-      'boundschange',
-      handleBoundsChange
-    )
+    map.events.remove('boundschange', handleBoundsChange)
 
-    map.events.remove(
-      'boundschange',
-      scheduleMaskRefresh
-    )
+    map.events.remove('boundschange', scheduleMaskRefresh)
 
-    map.events.remove(
-      'actionend',
-      handleBoundsChange
-    )
+    map.events.remove('actionend', handleBoundsChange)
   }
 
   if (maskRefreshFrame) {
@@ -1054,10 +974,7 @@ function fitToConstructions(items = constructions) {
     return
   }
 
-  const points = normalized.map(item => [
-    Number(item.lat),
-    Number(item.lng)
-  ])
+  const points = normalized.map(item => [Number(item.lat), Number(item.lng)])
 
   flyToPoints(points, {
     margin: 30,
@@ -1074,9 +991,7 @@ function focusToItems(items, predicate) {
 
   const matched = source.filter(item => {
     try {
-      return typeof predicate === 'function'
-        ? predicate(item)
-        : true
+      return typeof predicate === 'function' ? predicate(item) : true
     } catch {
       return false
     }
@@ -1088,10 +1003,7 @@ function focusToItems(items, predicate) {
     return
   }
 
-  const points = normalized.map(item => [
-    Number(item.lat),
-    Number(item.lng)
-  ])
+  const points = normalized.map(item => [Number(item.lat), Number(item.lng)])
 
   flyToPoints(points, {
     margin: 60,

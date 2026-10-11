@@ -76,17 +76,10 @@
       <section class="section-card">
         <div class="section-title">
           Публикации
-          <q-btn
-            color="primary"
-            no-caps
-            label="+ Новость"
-            @click="newNews"
-          />
+          <q-btn color="primary" no-caps label="+ Новость" @click="newNews" />
         </div>
 
-        <div v-if="!news.length" class="empty-text">
-          Новостей пока нет.
-        </div>
+        <div v-if="!news.length" class="empty-text"> Новостей пока нет. </div>
 
         <div v-else-if="!visibleNews.length" class="filter-empty">
           В категории «{{ selectedCategoryName }}» публикаций нет.
@@ -96,17 +89,14 @@
         </div>
 
         <div v-if="selectedCategoryId !== null" class="filter-note">
-          Фильтр: «{{ selectedCategoryName }}» — {{ visibleNews.length }} из {{ news.length }}
+          Фильтр: «{{ selectedCategoryName }}» — {{ visibleNews.length }} из
+          {{ news.length }}
           <button type="button" class="link-btn" @click="clearCategoryFilter">
             Сбросить
           </button>
         </div>
 
-        <article
-          v-for="item in visibleNews"
-          :key="item.id"
-          class="mini-card"
-        >
+        <article v-for="item in visibleNews" :key="item.id" class="mini-card">
           <div class="mini-card-info">
             <div class="mini-card-title">
               {{ item.title }}
@@ -126,7 +116,9 @@
                 <button
                   type="button"
                   class="category-badge"
-                  :class="{ 'is-active': item.category.id === selectedCategoryId }"
+                  :class="{
+                    'is-active': item.category.id === selectedCategoryId
+                  }"
                   title="Показать только эту категорию"
                   @click="toggleCategory(item.category)"
                 >
@@ -195,7 +187,12 @@
           <div class="form-grid">
             <div class="field">
               <label>Дата публикации</label>
-              <q-input v-model="editing.published_at" type="date" outlined dense />
+              <q-input
+                v-model="editing.published_at"
+                type="date"
+                outlined
+                dense
+              />
             </div>
 
             <div class="field toggles">
@@ -289,7 +286,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -389,7 +386,7 @@ function emptyNews() {
 
 function mapNewsMedia(item) {
   const raw = Array.isArray(item?.media) ? item.media : []
-  return raw.map((media) => ({
+  return raw.map(media => ({
     id: media.id,
     original_name: media.original_name || '',
     storage_path: media.storage_path || '',
@@ -401,7 +398,7 @@ function mapNewsMedia(item) {
 
 function coverIdOf(item) {
   const raw = Array.isArray(item?.media) ? item.media : []
-  const cover = raw.find((media) => media.is_cover)
+  const cover = raw.find(media => media.is_cover)
   if (cover) return cover.id
   return raw.length ? raw[0].id : null
 }
@@ -499,8 +496,10 @@ async function saveNews() {
 
   saving.value = true
   try {
-    const mediaList = Array.isArray(editing.value.media) ? editing.value.media : []
-    const mediaIds = mediaList.map((media) => media.id)
+    const mediaList = Array.isArray(editing.value.media)
+      ? editing.value.media
+      : []
+    const mediaIds = mediaList.map(media => media.id)
     let coverMediaId = editing.value.cover_id
     if (coverMediaId == null || !mediaIds.includes(coverMediaId)) {
       coverMediaId = mediaIds.length ? mediaIds[0] : null
@@ -675,7 +674,7 @@ onMounted(loadData)
   border: 1px solid transparent;
   font-family: inherit;
   cursor: pointer;
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 .chip:hover {
@@ -689,7 +688,7 @@ onMounted(loadData)
 }
 
 .chip.is-active .chip-slug {
-  color: rgba(255, 255, 255, .75);
+  color: rgba(255, 255, 255, 0.75);
 }
 
 /* Строка «Фильтр: … N из M» и пустой результат фильтра. */
@@ -736,10 +735,10 @@ onMounted(loadData)
   font-family: inherit;
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: .2px;
+  letter-spacing: 0.2px;
 
   cursor: pointer;
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 .category-badge:hover {

@@ -1,7 +1,6 @@
 <template>
   <section class="search-section">
     <div class="search-shell">
-
       <div class="search-heading">
         <div class="eyebrow">
           {{ content.eyebrow }}
@@ -24,12 +23,9 @@
           type="search"
           :placeholder="content.placeholder"
           autocomplete="off"
-        >
+        />
 
-        <button
-          type="submit"
-          :disabled="!searchQuery.trim()"
-        >
+        <button type="submit" :disabled="!searchQuery.trim()">
           {{ content.button.label }}
           <span>→</span>
         </button>
@@ -46,7 +42,6 @@
           {{ example }}
         </button>
       </div>
-
     </div>
   </section>
 </template>
@@ -65,11 +60,7 @@ const content = ref({
   title: 'Найдите рекламную конструкцию',
   text: 'Введите адрес, город или номер конструкции — система покажет доступные рекламные возможности.',
   placeholder: 'Адрес, город или номер конструкции',
-  examples: [
-    'Ростов-на-Дону',
-    'Таганрог',
-    '339 Стрелковой Дивизии'
-  ],
+  examples: ['Ростов-на-Дону', 'Таганрог', '339 Стрелковой Дивизии'],
   button: {
     label: 'Найти'
   }
@@ -87,7 +78,7 @@ onMounted(async () => {
         ...cms,
         button: {
           ...content.value.button,
-          ...(cms.button || {})
+          ...cms.button
         }
       }
     }
@@ -146,7 +137,7 @@ function searchExample(example) {
   margin: 0 0 18px;
   color: #17212b;
   font-size: clamp(40px, 5vw, 68px);
-  line-height: .98;
+  line-height: 0.98;
   letter-spacing: -2.5px;
   font-weight: 900;
 }
@@ -167,7 +158,7 @@ function searchExample(example) {
   background: #fff;
   border: 1px solid #dfe4e7;
   border-radius: 16px;
-  box-shadow: 0 15px 45px rgba(25, 35, 45, .08);
+  box-shadow: 0 15px 45px rgba(25, 35, 45, 0.08);
 }
 
 .search-icon {
@@ -205,10 +196,12 @@ function searchExample(example) {
   color: #fff;
   font-size: 10px;
   font-weight: 850;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: opacity .18s ease, transform .18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
 }
 
 .search-box button span {
@@ -221,7 +214,7 @@ function searchExample(example) {
 }
 
 .search-box button:disabled {
-  opacity: .45;
+  opacity: 0.45;
   cursor: default;
 }
 
@@ -243,7 +236,9 @@ function searchExample(example) {
   color: #53616a;
   font: inherit;
   cursor: pointer;
-  transition: background .18s ease, border-color .18s ease;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease;
 }
 
 .search-hint button:hover {

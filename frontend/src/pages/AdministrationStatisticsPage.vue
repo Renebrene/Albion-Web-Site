@@ -107,9 +107,7 @@
           <div class="kpi-value">
             {{ Math.round((summary?.period?.bot_share ?? 0) * 100) }}%
           </div>
-          <div class="kpi-note">
-            {{ summary?.period?.bots ?? 0 }} визитов
-          </div>
+          <div class="kpi-note"> {{ summary?.period?.bots ?? 0 }} визитов </div>
         </div>
       </section>
 
@@ -277,7 +275,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -334,7 +332,11 @@ function daysAgo(days) {
 }
 
 const presets = [
-  { label: 'Сегодня', from: () => isoDate(new Date()), to: () => isoDate(new Date()) },
+  {
+    label: 'Сегодня',
+    from: () => isoDate(new Date()),
+    to: () => isoDate(new Date())
+  },
   { label: '7 дней', from: () => daysAgo(6), to: () => isoDate(new Date()) },
   { label: '30 дней', from: () => daysAgo(29), to: () => isoDate(new Date()) },
   { label: 'Всё время', from: () => '', to: () => '' }
@@ -394,7 +396,9 @@ async function loadVisits() {
     params.set('limit', String(PAGE_SIZE))
     params.set('offset', String((page.value - 1) * PAGE_SIZE))
 
-    const data = await request(`/api/admin/statistics/visits?${params.toString()}`)
+    const data = await request(
+      `/api/admin/statistics/visits?${params.toString()}`
+    )
 
     visits.value = data.items || []
     visitsTotal.value = data.total || 0
@@ -413,24 +417,65 @@ function reload() {
 
 // ------------------------------------------------ представление
 
-const totalPages = computed(
-  () => Math.max(1, Math.ceil(visitsTotal.value / PAGE_SIZE))
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(visitsTotal.value / PAGE_SIZE))
 )
 
 const RU_COUNTRIES = {
-  RU: 'Россия', UA: 'Украина', BY: 'Беларусь', KZ: 'Казахстан',
-  US: 'США', DE: 'Германия', FR: 'Франция', GB: 'Великобритания',
-  CN: 'Китай', TR: 'Турция', IN: 'Индия', JP: 'Япония', KR: 'Южная Корея',
-  IT: 'Италия', ES: 'Испания', PL: 'Польша', NL: 'Нидерланды',
-  BR: 'Бразилия', CA: 'Канада', AU: 'Австралия', SE: 'Швеция',
-  CH: 'Швейцария', CZ: 'Чехия', AT: 'Австрия', BE: 'Бельгия',
-  FI: 'Финляндия', NO: 'Норвегия', DK: 'Дания', GR: 'Греция',
-  PT: 'Португалия', RO: 'Румыния', BG: 'Болгария', RS: 'Сербия',
-  MD: 'Молдова', AM: 'Армения', AZ: 'Азербайджан', GE: 'Грузия',
-  UZ: 'Узбекистан', KG: 'Киргизия', TJ: 'Таджикистан', TM: 'Туркмения',
-  IL: 'Израиль', AE: 'ОАЭ', EG: 'Египет', TH: 'Таиланд', VN: 'Вьетнам',
-  ID: 'Индонезия', SG: 'Сингапур', IE: 'Ирландия', HU: 'Венгрия',
-  SK: 'Словакия', LT: 'Литва', LV: 'Латвия', EE: 'Эстония'
+  RU: 'Россия',
+  UA: 'Украина',
+  BY: 'Беларусь',
+  KZ: 'Казахстан',
+  US: 'США',
+  DE: 'Германия',
+  FR: 'Франция',
+  GB: 'Великобритания',
+  CN: 'Китай',
+  TR: 'Турция',
+  IN: 'Индия',
+  JP: 'Япония',
+  KR: 'Южная Корея',
+  IT: 'Италия',
+  ES: 'Испания',
+  PL: 'Польша',
+  NL: 'Нидерланды',
+  BR: 'Бразилия',
+  CA: 'Канада',
+  AU: 'Австралия',
+  SE: 'Швеция',
+  CH: 'Швейцария',
+  CZ: 'Чехия',
+  AT: 'Австрия',
+  BE: 'Бельгия',
+  FI: 'Финляндия',
+  NO: 'Норвегия',
+  DK: 'Дания',
+  GR: 'Греция',
+  PT: 'Португалия',
+  RO: 'Румыния',
+  BG: 'Болгария',
+  RS: 'Сербия',
+  MD: 'Молдова',
+  AM: 'Армения',
+  AZ: 'Азербайджан',
+  GE: 'Грузия',
+  UZ: 'Узбекистан',
+  KG: 'Киргизия',
+  TJ: 'Таджикистан',
+  TM: 'Туркмения',
+  IL: 'Израиль',
+  AE: 'ОАЭ',
+  EG: 'Египет',
+  TH: 'Таиланд',
+  VN: 'Вьетнам',
+  ID: 'Индонезия',
+  SG: 'Сингапур',
+  IE: 'Ирландия',
+  HU: 'Венгрия',
+  SK: 'Словакия',
+  LT: 'Литва',
+  LV: 'Латвия',
+  EE: 'Эстония'
 }
 
 /* Флаг из ISO-кода: региональные индикаторы. */

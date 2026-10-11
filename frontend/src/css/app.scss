@@ -7,8 +7,12 @@
    ========================================================= */
 
 :root {
-  --albion-font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
-  --albion-font-heading: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
+  --albion-font-family:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif;
+  --albion-font-heading:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
+    Arial, 'Noto Sans', sans-serif;
   --albion-font-size: 16px;
   --albion-heading-weight: 800;
   --albion-accent: #e12a1f;
@@ -48,7 +52,7 @@ h6 {
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
   border: 3px solid #fff;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, .28);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
   display: grid;
   place-items: center;
 }
@@ -102,7 +106,7 @@ h6 {
   color: var(--albion-accent) !important;
 
   font-size: 30px;
-  line-height: .95;
+  line-height: 0.95;
 
   font-weight: 950;
   letter-spacing: -1.2px;
@@ -125,7 +129,7 @@ h6 {
 
   font-weight: 700;
 
-  opacity: .8;
+  opacity: 0.8;
 }
 
 /* Тип + размер */
@@ -442,7 +446,7 @@ h6 {
 .popup-price-value {
   color: var(--albion-accent) !important;
   font-size: 26px;
-  line-height: .95;
+  line-height: 0.95;
   font-weight: 950;
   letter-spacing: -1px;
 }
@@ -457,7 +461,7 @@ h6 {
   color: var(--albion-accent) !important;
   font-size: 10px;
   font-weight: 700;
-  opacity: .8;
+  opacity: 0.8;
 }
 
 /* Акционная цена: основная бледная и зачёркнутая */
@@ -604,7 +608,6 @@ h6 {
   margin: 0 !important;
 }
 
-
 /* Двойной popup */
 
 .albion-popup-double .leaflet-popup-content-wrapper {
@@ -620,7 +623,6 @@ h6 {
   margin: 0 !important;
 }
 
-
 /* Сам контейнер двух сторон */
 
 .albion-popup-double .popup-double {
@@ -628,7 +630,6 @@ h6 {
   max-width: none !important;
   box-sizing: border-box;
 }
-
 
 /* Две стороны строго рядом */
 
@@ -639,13 +640,11 @@ h6 {
   gap: 14px !important;
 }
 
-
 /* Три стороны (пиллар) — строго в один ряд */
 
 .albion-popup-double .popup-triple .popup-sides {
   grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
 }
-
 
 /* Чтобы содержимое карточек не раздвигало popup */
 
@@ -655,11 +654,9 @@ h6 {
   box-sizing: border-box;
 }
 
-
 /* На небольшом экране */
 
 @media (max-width: 800px) {
-
   .albion-popup-double .leaflet-popup-content-wrapper {
     width: 340px !important;
     max-width: calc(100vw - 40px) !important;
@@ -818,7 +815,7 @@ h6 {
   font-size: 20px;
   line-height: 1;
   font-weight: 900;
-  letter-spacing: -.5px;
+  letter-spacing: -0.5px;
 }
 
 .popup-price-currency {
@@ -831,7 +828,7 @@ h6 {
   color: var(--albion-accent) !important;
   font-size: 8px;
   font-weight: 700;
-  opacity: .75;
+  opacity: 0.75;
 }
 
 .popup-type {
@@ -903,7 +900,9 @@ h6 {
 
   cursor: pointer;
 
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .media-switch__btn.is-active {
@@ -942,7 +941,7 @@ h6 {
   font-size: 8px;
   line-height: 1;
   font-weight: 850;
-  letter-spacing: .1px;
+  letter-spacing: 0.1px;
 }
 
 .popup-month.free {
@@ -1029,7 +1028,7 @@ h6 {
 
 .feature-picto.lightbulb.off {
   filter: grayscale(1);
-  opacity: .45;
+  opacity: 0.45;
 }
 
 .feature-picto.lightbulb.on {
@@ -1190,7 +1189,7 @@ h6 {
   line-height: 1.15;
 
   text-transform: uppercase;
-  letter-spacing: .1px;
+  letter-spacing: 0.1px;
 }
 
 .card-type strong {
@@ -1225,7 +1224,7 @@ h6 {
   line-height: 1;
 
   font-weight: 900;
-  letter-spacing: -.5px;
+  letter-spacing: -0.5px;
 }
 
 .card-price-inline .price-currency {
@@ -1308,7 +1307,7 @@ h6 {
   line-height: 1;
 
   font-weight: 850;
-  letter-spacing: .1px;
+  letter-spacing: 0.1px;
 }
 
 .card-month.free {
@@ -1334,7 +1333,6 @@ h6 {
 /* мобильная версия */
 
 @media (max-width: 600px) {
-
   .card-topline {
     align-items: flex-start;
   }

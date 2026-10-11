@@ -42,7 +42,7 @@
             :alt="blockMedia('hero')[0].alt || 'О компании'"
             loading="lazy"
             decoding="async"
-          >
+          />
 
           <div
             v-else-if="about.images?.hero"
@@ -61,11 +61,7 @@
 
       <!-- STATS -->
       <section class="about-stats">
-        <div
-          v-for="stat in about.stats"
-          :key="stat.label"
-          class="about-stat"
-        >
+        <div v-for="stat in about.stats" :key="stat.label" class="about-stat">
           <strong>{{ stat.value }}</strong>
           <span>{{ stat.label }}</span>
         </div>
@@ -73,7 +69,6 @@
 
       <!-- CONTENT -->
       <section class="about-grid">
-
         <!-- NETWORK -->
         <article class="about-card about-network">
           <div class="about-card-label">01 · СЕТЬ</div>
@@ -83,10 +78,7 @@
           <div class="about-subtitle">Города присутствия</div>
 
           <div class="about-tags">
-            <span
-              v-for="city in about.network?.cities || []"
-              :key="city"
-            >
+            <span v-for="city in about.network?.cities || []" :key="city">
               {{ city }}
             </span>
           </div>
@@ -96,10 +88,7 @@
           </div>
 
           <ul class="about-list">
-            <li
-              v-for="highway in about.network?.highways || []"
-              :key="highway"
-            >
+            <li v-for="highway in about.network?.highways || []" :key="highway">
               {{ highway }}
             </li>
           </ul>
@@ -117,7 +106,7 @@
             :alt="blockMedia('network')[0].alt || 'Сеть'"
             loading="lazy"
             decoding="async"
-          >
+          />
         </article>
 
         <!-- ACTIVITIES -->
@@ -150,7 +139,7 @@
             :alt="blockMedia('activities')[0].alt || 'Направления'"
             loading="lazy"
             decoding="async"
-          >
+          />
         </article>
 
         <!-- PRODUCTION -->
@@ -188,9 +177,8 @@
             :alt="blockMedia('production')[0].alt || 'Производство'"
             loading="lazy"
             decoding="async"
-          >
+          />
         </article>
-
       </section>
     </template>
   </q-page>
@@ -341,13 +329,7 @@ onMounted(loadAbout)
 }
 
 .about-image-placeholder {
-  background:
-    linear-gradient(
-      135deg,
-      #242424 0%,
-      #34312e 45%,
-      #8c5a3c 100%
-    );
+  background: linear-gradient(135deg, #242424 0%, #34312e 45%, #8c5a3c 100%);
 
   display: flex;
   flex-direction: column;

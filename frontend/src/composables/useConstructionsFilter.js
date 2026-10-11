@@ -162,9 +162,10 @@ export function useConstructionsFilter(constructions) {
        * Все остальные группы фильтров работают через И.
        */
       if (selectedMonths.value.length) {
-        const monthsMatch = monthLogic.value === 'AND'
-          ? selectedMonths.value.every(month => isFree(item, month))
-          : selectedMonths.value.some(month => isFree(item, month))
+        const monthsMatch =
+          monthLogic.value === 'AND'
+            ? selectedMonths.value.every(month => isFree(item, month))
+            : selectedMonths.value.some(month => isFree(item, month))
 
         if (!monthsMatch) {
           return false

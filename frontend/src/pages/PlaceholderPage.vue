@@ -1,22 +1,14 @@
 <template>
   <q-page class="placeholder-page">
-
     <main class="placeholder-content">
-
-      <div class="placeholder-kicker">
-        ALBION
-      </div>
+      <div class="placeholder-kicker"> ALBION </div>
 
       <h1>
         {{ title }}
       </h1>
 
-      <p>
-        Раздел находится в разработке.
-      </p>
-
+      <p> Раздел находится в разработке. </p>
     </main>
-
   </q-page>
 </template>
 

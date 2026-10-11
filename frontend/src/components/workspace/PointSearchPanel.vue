@@ -1,16 +1,11 @@
 <template>
-  <aside
-    v-if="active"
-    class="point-search-panel"
-  >
+  <aside v-if="active" class="point-search-panel">
     <div class="panel-header">
       <div class="panel-title">
         <div class="point-icon">⌖</div>
 
         <div class="panel-heading">
-          <div class="panel-kicker">
-            Поиск по точке и адресу
-          </div>
+          <div class="panel-kicker"> Поиск по точке и адресу </div>
         </div>
       </div>
     </div>
@@ -18,16 +13,14 @@
     <!-- СВОБОДНЫЕ МЕСЯЦЫ -->
     <section class="panel-section first-section">
       <div class="section-title-row month-title-row">
-        <div class="section-label">
-          Свободные месяцы
-        </div>
+        <div class="section-label"> Свободные месяцы </div>
 
         <div class="logic-wrap">
           <span class="logic-help">
             ?
             <span class="logic-tooltip">
-              И – одновременно все свободные месяцы, ИЛИ – свободен хотя бы
-              один месяц из запрошенных
+              И – одновременно все свободные месяцы, ИЛИ – свободен хотя бы один
+              месяц из запрошенных
             </span>
           </span>
 
@@ -67,9 +60,7 @@
 
     <!-- ФОРМАТ -->
     <section class="panel-section">
-      <div class="section-label">
-        Формат
-      </div>
+      <div class="section-label"> Формат </div>
 
       <div class="chips">
         <button
@@ -95,7 +86,7 @@
           autocomplete="off"
           @input="onInput"
           @keydown.enter="onSearch"
-        >
+        />
 
         <div class="search-mode">
           <button
@@ -140,9 +131,7 @@
         {{ constructionLabel }}
       </div>
 
-      <div class="count-caption">
-        найдено в выбранном районе
-      </div>
+      <div class="count-caption"> найдено в выбранном районе </div>
 
       <button
         type="button"
@@ -154,10 +143,7 @@
     </div>
 
     <!-- СПИСОК НАЙДЕННОГО (по форматам) -->
-    <div
-      v-if="groupedResults.length"
-      class="found-list"
-    >
+    <div v-if="groupedResults.length" class="found-list">
       <div
         v-for="group in groupedResults"
         :key="group.type"
@@ -176,26 +162,22 @@
             <span class="found-address-text">— {{ entry.address }}</span>
 
             <!-- Портфель: доступен, только если у элемента есть id -->
-            <span
-              v-if="surfaceIdOf(entry.item) !== null"
-              class="found-pf"
-            >
+            <span v-if="surfaceIdOf(entry.item) !== null" class="found-pf">
               <button
                 type="button"
                 class="found-pf-toggle"
                 :class="{ 'is-active': isSurfaceActive(entry.item) }"
-                :title="isSurfaceActive(entry.item)
-                  ? 'Убрать из портфеля'
-                  : 'Добавить в портфель'"
+                :title="
+                  isSurfaceActive(entry.item)
+                    ? 'Убрать из портфеля'
+                    : 'Добавить в портфель'
+                "
                 @click="toggleFoundPfMode(entry.item)"
               >
                 <q-icon name="inventory_2" size="14px" />
               </button>
 
-              <span
-                v-if="isSurfaceActive(entry.item)"
-                class="found-pf-months"
-              >
+              <span v-if="isSurfaceActive(entry.item)" class="found-pf-months">
                 <button
                   v-for="month in MONTHS"
                   :key="month.full"
@@ -217,12 +199,7 @@
       </div>
     </div>
 
-    <div
-      v-else
-      class="found-empty"
-    >
-      Ничего не найдено
-    </div>
+    <div v-else class="found-empty"> Ничего не найдено </div>
   </aside>
 </template>
 
@@ -341,10 +318,7 @@ const constructionLabel = computed(() => {
   if (
     value % 10 >= 2 &&
     value % 10 <= 4 &&
-    (
-      value % 100 < 10 ||
-      value % 100 >= 20
-    )
+    (value % 100 < 10 || value % 100 >= 20)
   ) {
     return 'конструкции'
   }
@@ -450,10 +424,7 @@ const groupedResults = computed(() => {
     }
 
     // Храним ссылку на элемент — она нужна контролу портфеля.
-    if (
-      address &&
-      !group.addresses.some(entry => entry.address === address)
-    ) {
+    if (address && !group.addresses.some(entry => entry.address === address)) {
       group.addresses.push({ address, item })
     }
   }
@@ -548,7 +519,7 @@ function toggleType(value) {
   font-size: 16px;
   font-weight: 800;
 
-  letter-spacing: -.3px;
+  letter-spacing: -0.3px;
   line-height: 1.1;
 }
 
@@ -655,8 +626,8 @@ function toggleType(value) {
   pointer-events: none;
 
   transition:
-    opacity .15s ease,
-    visibility .15s ease;
+    opacity 0.15s ease,
+    visibility 0.15s ease;
 
   z-index: 30;
 }
@@ -691,7 +662,7 @@ function toggleType(value) {
 .logic-switch button.active {
   background: #fff;
   color: #17212b;
-  box-shadow: 0 1px 4px rgba(20, 30, 40, .10);
+  box-shadow: 0 1px 4px rgba(20, 30, 40, 0.1);
 }
 
 .chips {
@@ -709,7 +680,7 @@ function toggleType(value) {
   cursor: pointer;
   font-size: 10px;
   font-weight: 700;
-  transition: .12s ease;
+  transition: 0.12s ease;
 }
 
 .chip:hover {
@@ -796,7 +767,7 @@ function toggleType(value) {
 .search-mode button.active {
   background: #fff;
   color: #17212b;
-  box-shadow: 0 1px 4px rgba(20, 30, 40, .12);
+  box-shadow: 0 1px 4px rgba(20, 30, 40, 0.12);
 }
 
 /* Иконка поиска — справа */
@@ -820,7 +791,7 @@ function toggleType(value) {
 
   cursor: pointer;
 
-  transition: background .18s ease;
+  transition: background 0.18s ease;
 }
 
 .search-icon:hover {
@@ -967,7 +938,7 @@ function toggleType(value) {
 
   cursor: pointer;
 
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 .found-pf-toggle:hover {
@@ -1004,9 +975,9 @@ function toggleType(value) {
 
   font-size: 8px;
   font-weight: 800;
-  letter-spacing: .2px;
+  letter-spacing: 0.2px;
 
-  transition: .12s ease;
+  transition: 0.12s ease;
 }
 
 .found-pf-month:hover:not(.is-locked) {
@@ -1022,7 +993,7 @@ function toggleType(value) {
 /* Занятый/резервный месяц выбрать нельзя. */
 .found-pf-month.is-locked {
   cursor: not-allowed;
-  opacity: .5;
+  opacity: 0.5;
 }
 
 .found-empty {

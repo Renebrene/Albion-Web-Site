@@ -27,7 +27,7 @@ const loaded = new Map()
  * подстановки произвольных символов в href (значение приходит из
  * редактируемых настроек).
  */
-const SAFE_FAMILY = /^[A-Za-z0-9][A-Za-z0-9 \-]*$/
+const SAFE_FAMILY = /^[A-Za-z0-9][A-Za-z0-9 -]*$/
 
 /*
  * Явные веса для известных семейств: Google Fonts отвечает 400
@@ -82,10 +82,7 @@ export function loadSiteFont(family) {
   }
 
   if (!SAFE_FAMILY.test(name)) {
-    console.warn(
-      'Albion fonts: некорректное имя шрифта, пропуск:',
-      name
-    )
+    console.warn('Albion fonts: некорректное имя шрифта, пропуск:', name)
     return Promise.resolve(null)
   }
 

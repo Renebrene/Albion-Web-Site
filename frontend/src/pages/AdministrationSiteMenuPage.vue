@@ -8,8 +8,13 @@
       </div>
 
       <div class="header-actions">
-        <q-btn flat no-caps icon="arrow_back" label="Назад"
-               @click="router.push('/administration/dashboard')" />
+        <q-btn
+          flat
+          no-caps
+          icon="arrow_back"
+          label="Назад"
+          @click="router.push('/administration/dashboard')"
+        />
       </div>
     </div>
 
@@ -20,7 +25,13 @@
       <div class="section-head">
         <div class="section-title">Верхнее меню</div>
         <div class="inline-actions">
-          <q-btn flat no-caps icon="add" label="Пункт" @click="addItem('main')" />
+          <q-btn
+            flat
+            no-caps
+            icon="add"
+            label="Пункт"
+            @click="addItem('main')"
+          />
         </div>
       </div>
 
@@ -33,25 +44,53 @@
           <div class="row-handle">⠿</div>
 
           <q-input v-model="item.label" dense outlined label="Название" />
-          <q-input v-model="item.url" dense outlined label="Адрес" class="url-input" />
-          <q-btn flat dense no-caps icon="perm_media" label="Из медиатеки"
-                 class="media-btn" @click="openPicker(item)" />
+          <q-input
+            v-model="item.url"
+            dense
+            outlined
+            label="Адрес"
+            class="url-input"
+          />
+          <q-btn
+            flat
+            dense
+            no-caps
+            icon="perm_media"
+            label="Из медиатеки"
+            class="media-btn"
+            @click="openPicker(item)"
+          />
           <q-toggle v-model="item.is_active" label="" class="row-toggle" />
 
           <div class="row-actions">
-            <q-btn flat dense no-caps icon="arrow_upward"
-                   :disable="index === 0" @click="moveItem(mainItems, index, -1)" />
-            <q-btn flat dense no-caps icon="arrow_downward"
-                   :disable="index === mainItems.length - 1"
-                   @click="moveItem(mainItems, index, 1)" />
-            <q-btn flat dense no-caps icon="delete" color="negative"
-                   @click="mainItems.splice(index, 1)" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_upward"
+              :disable="index === 0"
+              @click="moveItem(mainItems, index, -1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_downward"
+              :disable="index === mainItems.length - 1"
+              @click="moveItem(mainItems, index, 1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="delete"
+              color="negative"
+              @click="mainItems.splice(index, 1)"
+            />
           </div>
         </div>
 
-        <div v-if="!mainItems.length" class="empty-text">
-          Пунктов нет.
-        </div>
+        <div v-if="!mainItems.length" class="empty-text"> Пунктов нет. </div>
       </div>
     </section>
 
@@ -59,14 +98,19 @@
       <div class="section-head">
         <div class="section-title">Подвал</div>
         <div class="inline-actions">
-          <q-btn flat no-caps icon="add" label="Ссылка" @click="addItem('footer')" />
+          <q-btn
+            flat
+            no-caps
+            icon="add"
+            label="Ссылка"
+            @click="addItem('footer')"
+          />
         </div>
       </div>
 
       <p class="section-hint">
-        Ссылку можно выбрать из медиатеки или загрузить документ —
-        текстовый и табличный: txt, md, csv, rtf, doc, docx, odt, xls,
-        xlsx, ods, pdf.
+        Ссылку можно выбрать из медиатеки или загрузить документ — текстовый и
+        табличный: txt, md, csv, rtf, doc, docx, odt, xls, xlsx, ods, pdf.
       </p>
 
       <div class="menu-panel">
@@ -78,37 +122,77 @@
           <div class="row-handle">⠿</div>
 
           <q-input v-model="item.label" dense outlined label="Название" />
-          <q-input v-model="item.url" dense outlined label="Адрес" class="url-input" />
+          <q-input
+            v-model="item.url"
+            dense
+            outlined
+            label="Адрес"
+            class="url-input"
+          />
           <div class="media-actions">
-            <q-btn flat dense no-caps icon="perm_media" label="Медиа"
-                   class="media-btn" @click="openPicker(item)" />
-            <q-btn flat dense no-caps icon="upload_file" label="Документ"
-                   class="media-btn"
-                   :loading="item.__uploading === true"
-                   @click="triggerUpload(item)" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="perm_media"
+              label="Медиа"
+              class="media-btn"
+              @click="openPicker(item)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="upload_file"
+              label="Документ"
+              class="media-btn"
+              :loading="item.__uploading === true"
+              @click="triggerUpload(item)"
+            />
           </div>
           <q-toggle v-model="item.is_active" label="" class="row-toggle" />
 
           <div class="row-actions">
-            <q-btn flat dense no-caps icon="arrow_upward"
-                   :disable="index === 0" @click="moveItem(footerItems, index, -1)" />
-            <q-btn flat dense no-caps icon="arrow_downward"
-                   :disable="index === footerItems.length - 1"
-                   @click="moveItem(footerItems, index, 1)" />
-            <q-btn flat dense no-caps icon="delete" color="negative"
-                   @click="footerItems.splice(index, 1)" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_upward"
+              :disable="index === 0"
+              @click="moveItem(footerItems, index, -1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_downward"
+              :disable="index === footerItems.length - 1"
+              @click="moveItem(footerItems, index, 1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="delete"
+              color="negative"
+              @click="footerItems.splice(index, 1)"
+            />
           </div>
         </div>
 
-        <div v-if="!footerItems.length" class="empty-text">
-          Ссылок нет.
-        </div>
+        <div v-if="!footerItems.length" class="empty-text"> Ссылок нет. </div>
       </div>
     </section>
 
     <div class="save-row">
-      <q-btn unelevated no-caps color="primary" label="Сохранить"
-             :loading="saving" @click="save" />
+      <q-btn
+        unelevated
+        no-caps
+        color="primary"
+        label="Сохранить"
+        :loading="saving"
+        @click="save"
+      />
     </div>
 
     <!-- Скрытый input для загрузки документов в подвал -->
@@ -118,7 +202,7 @@
       class="hidden-file"
       :accept="DOC_ACCEPT"
       @change="onFileChange"
-    >
+    />
 
     <MediaPicker v-model="pickerOpen" @select="onMediaPicked" />
   </q-page>
@@ -152,8 +236,7 @@ function onMediaPicked(media) {
  * (/api/admin/media, документы сохраняются как есть), а в ссылку
  * подставляется его адрес /storage/...
  */
-const DOC_ACCEPT =
-  '.txt,.md,.csv,.rtf,.doc,.docx,.odt,.xls,.xlsx,.ods,.pdf'
+const DOC_ACCEPT = '.txt,.md,.csv,.rtf,.doc,.docx,.odt,.xls,.xlsx,.ods,.pdf'
 const ALLOWED_DOC_EXTENSIONS = DOC_ACCEPT.split(',')
 
 const fileInput = ref(null)
@@ -165,7 +248,9 @@ const docCategoryId = ref(null)
 async function loadDocumentCategory() {
   try {
     const data = await request('/api/admin/media/categories')
-    const found = (data.categories || []).find(item => item.name === 'Документы')
+    const found = (data.categories || []).find(
+      item => item.name === 'Документы'
+    )
     docCategoryId.value = found ? found.id : null
   } catch {
     docCategoryId.value = null
@@ -192,8 +277,7 @@ async function onFileChange(event) {
   const extension = `.${(file.name.split('.').pop() || '').toLowerCase()}`
 
   if (!ALLOWED_DOC_EXTENSIONS.includes(extension)) {
-    error.value =
-      `Формат «${extension}» не поддерживается. Разрешены: ${DOC_ACCEPT}`
+    error.value = `Формат «${extension}» не поддерживается. Разрешены: ${DOC_ACCEPT}`
     return
   }
 
@@ -250,7 +334,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -343,7 +427,9 @@ async function save() {
       })
     })
     saved.value = true
-    setTimeout(() => { saved.value = false }, 2500)
+    setTimeout(() => {
+      saved.value = false
+    }, 2500)
     await load()
   } catch (exc) {
     error.value = String(exc)
@@ -439,7 +525,10 @@ onMounted(() => {
 
 .menu-row {
   display: grid;
-  grid-template-columns: 20px minmax(160px, 1fr) minmax(150px, 1fr) auto 40px auto;
+  grid-template-columns: 20px minmax(160px, 1fr) minmax(
+      150px,
+      1fr
+    ) auto 40px auto;
   align-items: center;
   gap: 10px;
 }

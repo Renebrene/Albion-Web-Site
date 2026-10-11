@@ -1,7 +1,6 @@
 <template>
   <q-page class="portfolio-page">
     <div class="portfolio-wrap">
-
       <!-- ЗАГОЛОВОК СТРАНИЦЫ -->
       <div class="page-head">
         <div class="eyebrow">ALBION</div>
@@ -11,7 +10,6 @@
 
       <!-- Панель портфеля (та же, что в шапке) -->
       <PortfolioPanel variant="page" />
-
     </div>
   </q-page>
 </template>

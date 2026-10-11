@@ -53,9 +53,15 @@
             <b>{{ baseStats.last_restore.import_key }}</b>
             <template v-if="baseStats.last_restore.base_date">
               — от
-              {{ (baseStats.last_restore.base_date || '').split('-').reverse().join('.') }}
+              {{
+                (baseStats.last_restore.base_date || '')
+                  .split('-')
+                  .reverse()
+                  .join('.')
+              }}
             </template>
-            · восстановление {{ formatDate(baseStats.last_restore.restored_at) }}
+            · восстановление
+            {{ formatDate(baseStats.last_restore.restored_at) }}
           </div>
         </q-card-section>
       </q-card>
@@ -66,9 +72,7 @@
 
           <div class="stat-value">{{ baseStats.constructions || '—' }}</div>
 
-          <div class="card-meta">
-            конструкций в базе
-          </div>
+          <div class="card-meta"> конструкций в базе </div>
         </q-card-section>
       </q-card>
 
@@ -78,9 +82,7 @@
 
           <div class="stat-value">{{ baseStats.previews || '—' }}</div>
 
-          <div class="card-meta">
-            фотографий конструкций (скачано)
-          </div>
+          <div class="card-meta"> фотографий конструкций (скачано) </div>
         </q-card-section>
       </q-card>
     </div>
@@ -137,7 +139,7 @@
             Выбрано {{ visibleConstructions.length }} конструкций
           </div>
 
-    <div class="catalog-toolbar-actions">
+          <div class="catalog-toolbar-actions">
             <q-btn-toggle
               v-model="viewMode"
               unelevated
@@ -162,9 +164,11 @@
         <div
           class="construction-grid"
           :class="`construction-grid--${viewMode}`"
-          :style="viewMode === 'compact'
-            ? { '--construction-compact-columns': compactColumns }
-            : undefined"
+          :style="
+            viewMode === 'compact'
+              ? { '--construction-compact-columns': compactColumns }
+              : undefined
+          "
         >
           <q-card
             v-for="item in visibleConstructions"
@@ -179,10 +183,8 @@
                 :src="cardImage(item)"
                 :alt="item.address"
                 loading="lazy"
-              >
-              <div v-else class="photo-placeholder">
-                ALBION
-              </div>
+              />
+              <div v-else class="photo-placeholder"> ALBION </div>
 
               <!-- Переключатель: фото ↔ карта -->
               <div
@@ -216,9 +218,7 @@
                   <span>{{ item.size }}</span>
                 </div>
 
-                <div class="construction-id">
-                  #{{ item.id }}
-                </div>
+                <div class="construction-id"> #{{ item.id }} </div>
               </div>
 
               <div class="construction-city">
@@ -237,7 +237,8 @@
                   <span
                     class="feature-picto lightbulb"
                     :class="isLightOn(item) ? 'on' : 'off'"
-                  >💡</span>
+                    >💡</span
+                  >
                   <span class="feature-label">подсветка</span>
                 </span>
 
@@ -246,23 +247,23 @@
                     <span
                       class="dyn-word"
                       :class="{ 'is-active': !isDynamic(item) }"
-                    >статика</span>
+                      >статика</span
+                    >
 
                     <span class="dyn-sep">/</span>
 
                     <span
                       class="dyn-word"
                       :class="{ 'is-active': isDynamic(item) }"
-                    >динамика</span>
+                      >динамика</span
+                    >
                   </span>
                 </span>
 
                 <span v-if="item.material">Материал: {{ item.material }}</span>
               </div>
 
-              <div class="months-title">
-                ЦЕНА ПО МЕСЯЦАМ
-              </div>
+              <div class="months-title"> ЦЕНА ПО МЕСЯЦАМ </div>
 
               <div
                 class="months-grid"
@@ -328,13 +329,7 @@
             </div>
           </div>
 
-          <q-btn
-            flat
-            round
-            dense
-            icon="close"
-            @click="editDialog = false"
-          />
+          <q-btn flat round dense icon="close" @click="editDialog = false" />
         </q-card-section>
 
         <q-separator />
@@ -344,14 +339,8 @@
 
           <div class="edit-photo">
             <div class="edit-photo-preview">
-              <img
-                v-if="editingItem.photo"
-                :src="editingItem.photo"
-                alt=""
-              >
-              <div v-else class="edit-photo-placeholder">
-                ALBION
-              </div>
+              <img v-if="editingItem.photo" :src="editingItem.photo" alt="" />
+              <div v-else class="edit-photo-placeholder"> ALBION </div>
             </div>
 
             <div class="edit-photo-actions">
@@ -363,10 +352,7 @@
                 @click="openMediaPicker"
               />
 
-              <label
-                class="upload-file-btn"
-                for="construction-photo-input"
-              >
+              <label class="upload-file-btn" for="construction-photo-input">
                 Загрузить с ПК
               </label>
 
@@ -386,7 +372,7 @@
                 accept="image/*"
                 class="file-input-hidden"
                 @change="handlePhotoUpload"
-              >
+              />
             </div>
           </div>
 
@@ -426,12 +412,7 @@
               :options="typeOptions"
             />
 
-            <q-input
-              v-model="editingItem.size"
-              dense
-              outlined
-              label="Размер"
-            />
+            <q-input v-model="editingItem.size" dense outlined label="Размер" />
 
             <q-select
               v-model="editingItem.material"
@@ -454,11 +435,7 @@
           </div>
 
           <div class="edit-months">
-            <div
-              v-for="month in months"
-              :key="month.key"
-              class="edit-month"
-            >
+            <div v-for="month in months" :key="month.key" class="edit-month">
               <div class="edit-month-name">
                 {{ month.short }}
               </div>
@@ -503,19 +480,9 @@
               :key="index"
               class="extra-edit-row"
             >
-              <q-input
-                v-model="field.name"
-                dense
-                outlined
-                label="Название"
-              />
+              <q-input v-model="field.name" dense outlined label="Название" />
 
-              <q-input
-                v-model="field.value"
-                dense
-                outlined
-                label="Значение"
-              />
+              <q-input v-model="field.value" dense outlined label="Значение" />
             </div>
           </div>
         </q-card-section>
@@ -523,12 +490,7 @@
         <q-separator />
 
         <q-card-actions align="right" class="edit-dialog-actions">
-          <q-btn
-            flat
-            no-caps
-            label="Отмена"
-            @click="editDialog = false"
-          />
+          <q-btn flat no-caps label="Отмена" @click="editDialog = false" />
 
           <q-btn
             unelevated
@@ -551,7 +513,9 @@ import { isDynamicSide } from '../utils/constructionGroups'
 
 /* Подсветка включена, если в источнике «Да» */
 function isLightOn(item) {
-  const light = String(item?.light || '').trim().toLowerCase()
+  const light = String(item?.light || '')
+    .trim()
+    .toLowerCase()
   return ['да', 'yes', 'true', '1'].includes(light)
 }
 
@@ -641,7 +605,6 @@ const testConstructions = [
   }
 ]
 
-
 function formatPrice(value) {
   if (!value) return '—'
   return new Intl.NumberFormat('ru-RU').format(value)
@@ -663,7 +626,7 @@ const compactColumnOptions = [
 
 const displayConstructions = ref([])
 const loadingConstructions = ref(false)
-const constructionsError = ref("")
+const constructionsError = ref('')
 
 const baseStats = ref({
   last_update: null,
@@ -727,8 +690,10 @@ function formatDate(value) {
 
   const pad = n => String(n).padStart(2, '0')
 
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.` +
+  return (
+    `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.` +
     `${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  )
 }
 
 async function loadBaseStats() {
@@ -754,27 +719,25 @@ async function loadBaseStats() {
 }
 
 const monthMap = {
-  Август: "august",
-  Сентябрь: "september",
-  Октябрь: "october",
-  Ноябрь: "november",
-  Декабрь: "december"
+  Август: 'august',
+  Сентябрь: 'september',
+  Октябрь: 'october',
+  Ноябрь: 'november',
+  Декабрь: 'december'
 }
 
 const statusMap = {
-  "Свободно": "free",
-  "В резерве": "reserved",
-  "На утверждении": "pending",
-  "Занято": "busy",
-  "Доступность": "free"
+  Свободно: 'free',
+  'В резерве': 'reserved',
+  'На утверждении': 'pending',
+  Занято: 'busy',
+  Доступность: 'free'
 }
 
 function parsePrice(value) {
-  if (value === null || value === undefined || value === "") return 0
+  if (value === null || value === undefined || value === '') return 0
 
-  const normalized = String(value)
-    .replace(/\s/g, "")
-    .replace(",", ".")
+  const normalized = String(value).replace(/\s/g, '').replace(',', '.')
 
   const number = Number(normalized)
   return Number.isFinite(number) ? number : 0
@@ -788,44 +751,40 @@ function mapConstruction(item) {
       key => monthMap[key] === month.key
     )
 
-    const monthName = apiMonth || ""
-    const rawStatus = item.statuses?.[monthName] || "Свободно"
-    const rawPrice = item.month_prices?.[monthName] || item.price || ""
+    const monthName = apiMonth || ''
+    const rawStatus = item.statuses?.[monthName] || 'Свободно'
+    const rawPrice = item.month_prices?.[monthName] || item.price || ''
 
     mappedMonths[month.key] = {
       price: parsePrice(rawPrice),
-      status: statusMap[rawStatus] || "free",
+      status: statusMap[rawStatus] || 'free',
       statusLabel: rawStatus.toLowerCase()
     }
   })
 
   return {
     id: item.id,
-    city: item.city || "",
-    address: item.address || "",
-    side: item.side || "",
-    type: item.type || "",
-    size: item.size || "",
-    light: item.light || "",
-    material: item.material || "",
-    photo: item.photo || "",
+    city: item.city || '',
+    address: item.address || '',
+    side: item.side || '',
+    type: item.type || '',
+    size: item.size || '',
+    light: item.light || '',
+    material: item.material || '',
+    photo: item.photo || '',
     lat: item.lat,
     lng: item.lng,
-    map: item.map || "",
+    map: item.map || '',
     mapLarge:
-      item.map_large ||
-      item.map_card ||
-      item.map_thumb ||
-      item.map ||
-      "",
-    name: item.name || "",
-    number: item.number || "",
-    district: item.district || "",
+      item.map_large || item.map_card || item.map_thumb || item.map || '',
+    name: item.name || '',
+    number: item.number || '',
+    district: item.district || '',
     months: mappedMonths,
     extra: [
-      { name: "Номер", value: item.number || "" },
-      { name: "Район", value: item.district || "" },
-      { name: "", value: "" }
+      { name: 'Номер', value: item.number || '' },
+      { name: 'Район', value: item.district || '' },
+      { name: '', value: '' }
     ]
   }
 }
@@ -834,15 +793,15 @@ function mapConstruction(item) {
 const cardMedia = ref({})
 
 function mediaMode(id) {
-  return cardMedia.value[id] || "photo"
+  return cardMedia.value[id] || 'photo'
 }
 
 function cardImage(item) {
-  if (mediaMode(item.id) === "map" && item.mapLarge) {
+  if (mediaMode(item.id) === 'map' && item.mapLarge) {
     return item.mapLarge
   }
 
-  return item.photo || item.mapLarge || ""
+  return item.photo || item.mapLarge || ''
 }
 
 function setCardMedia(item, mode) {
@@ -854,10 +813,10 @@ function setCardMedia(item, mode) {
 
 async function loadConstructions() {
   loadingConstructions.value = true
-  constructionsError.value = ""
+  constructionsError.value = ''
 
   try {
-    const response = await fetch("/api/constructions")
+    const response = await fetch('/api/constructions')
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
@@ -866,13 +825,13 @@ async function loadConstructions() {
     const data = await response.json()
 
     if (!Array.isArray(data)) {
-      throw new Error("Некорректный формат данных")
+      throw new Error('Некорректный формат данных')
     }
 
     displayConstructions.value = data.map(mapConstruction)
   } catch (error) {
-    console.error("Ошибка загрузки конструкций:", error)
-    constructionsError.value = "Не удалось загрузить конструкции"
+    console.error('Ошибка загрузки конструкций:', error)
+    constructionsError.value = 'Не удалось загрузить конструкции'
     displayConstructions.value = []
   } finally {
     loadingConstructions.value = false
@@ -924,16 +883,13 @@ const visibleConstructions = computed(() =>
     }
 
     if (
-      locationFilter.value.length
-      && !locationFilter.value.includes(item.city)
+      locationFilter.value.length &&
+      !locationFilter.value.includes(item.city)
     ) {
       return false
     }
 
-    if (
-      formatFilter.value.length
-      && !formatFilter.value.includes(item.type)
-    ) {
+    if (formatFilter.value.length && !formatFilter.value.includes(item.type)) {
       return false
     }
 
@@ -979,19 +935,10 @@ const typeOptions = [
   'ДРУГОЕ'
 ]
 
-const materialOptions = [
-  'Металл',
-  'Алюминий',
-  'Композит',
-  'Пластик',
-  'Другое'
-]
+const materialOptions = ['Металл', 'Алюминий', 'Композит', 'Пластик', 'Другое']
 
 function cityOptions(currentCity) {
-  return [
-    currentCity,
-    ...cities.filter(city => city !== currentCity)
-  ]
+  return [currentCity, ...cities.filter(city => city !== currentCity)]
 }
 
 function handlePhotoUpload(event) {
@@ -1027,9 +974,7 @@ function updateStatusLabel(monthKey) {
   const month = editingItem.value?.months?.[monthKey]
   if (!month) return
 
-  const option = statusOptions.find(
-    item => item.value === month.status
-  )
+  const option = statusOptions.find(item => item.value === month.status)
 
   month.statusLabel = option?.label?.toLowerCase() || ''
 }
@@ -1048,9 +993,7 @@ function applyPriceToAll() {
 function saveEdit() {
   if (!editingItem.value) return
 
-  editingItem.value.light = editingItem.value.lightEnabled
-    ? 'Да'
-    : 'Нет'
+  editingItem.value.light = editingItem.value.lightEnabled ? 'Да' : 'Нет'
 
   const index = testConstructions.findIndex(
     item => item.id === editingItem.value.id
@@ -1289,16 +1232,15 @@ function saveEdit() {
   font-size: 20px;
   font-weight: 800;
   letter-spacing: 0.12em;
-  background:
-    linear-gradient(
-      135deg,
-      #eeeeee 25%,
-      #e6e6e6 25%,
-      #e6e6e6 50%,
-      #eeeeee 50%,
-      #eeeeee 75%,
-      #e6e6e6 75%
-    );
+  background: linear-gradient(
+    135deg,
+    #eeeeee 25%,
+    #e6e6e6 25%,
+    #e6e6e6 50%,
+    #eeeeee 50%,
+    #eeeeee 75%,
+    #e6e6e6 75%
+  );
   background-size: 28px 28px;
 }
 
@@ -1329,7 +1271,7 @@ function saveEdit() {
 }
 
 .upload-file-btn:hover {
-  background: rgba(26, 115, 232, .08);
+  background: rgba(26, 115, 232, 0.08);
 }
 
 /* Скрытый (но кликабельный через label[for]) файловый инпут.
@@ -1789,8 +1731,15 @@ function saveEdit() {
   font-size: 22px;
   font-weight: 800;
   letter-spacing: 0.12em;
-  background:
-    linear-gradient(135deg, #eeeeee 25%, #e6e6e6 25%, #e6e6e6 50%, #eeeeee 50%, #eeeeee 75%, #e6e6e6 75%);
+  background: linear-gradient(
+    135deg,
+    #eeeeee 25%,
+    #e6e6e6 25%,
+    #e6e6e6 50%,
+    #eeeeee 50%,
+    #eeeeee 75%,
+    #e6e6e6 75%
+  );
   background-size: 28px 28px;
 }
 

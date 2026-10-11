@@ -511,11 +511,9 @@ function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
 
       /* Крупные варианты — для печати в 7.5 см; фолбэк на обычные. */
       const photoUrl =
-        withPhotos &&
-        (item.photo_large || item.photo_thumb || item.photo || '')
+        withPhotos && (item.photo_large || item.photo_thumb || item.photo || '')
       const mapUrl =
-        withMaps &&
-        (item.map_large || item.map_card || item.map_thumb || '')
+        withMaps && (item.map_large || item.map_card || item.map_thumb || '')
 
       /* Фото шире карты (9 см против 7.5), высота у обоих одна. */
       const images = [
@@ -862,7 +860,7 @@ export async function printPortfolio(sourceItems, options) {
       window.setTimeout(() => {
         try {
           win.print()
-        } catch (error) {
+        } catch {
           /* просмотрщик PDF сам предложит печать */
         }
       }, 1000)
@@ -883,11 +881,11 @@ export async function printPortfolio(sourceItems, options) {
       title,
       requisites
     )
-  } catch (error) {
+  } catch {
     if (win) {
       try {
         win.close()
-      } catch (closeError) {
+      } catch {
         /* окно уже закрыто */
       }
     }

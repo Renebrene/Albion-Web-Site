@@ -31,7 +31,7 @@
           :src="url"
           :alt="title || 'Фото конструкции'"
           class="photo-viewer__image"
-        >
+        />
 
         <!-- Переключатель: стрелки и точки — как в карусели новостей -->
         <template v-if="images.length > 1">
@@ -82,11 +82,7 @@
           {{ downloading ? 'Скачиваем…' : 'Скачать' }}
         </button>
 
-        <button
-          type="button"
-          class="photo-viewer__btn"
-          @click="closePhoto"
-        >
+        <button type="button" class="photo-viewer__btn" @click="closePhoto">
           Закрыть
         </button>
       </div>
@@ -194,7 +190,7 @@ async function handleDownload() {
 
   padding: 16px 18px 18px;
 
-  background: rgba(10, 14, 18, .94);
+  background: rgba(10, 14, 18, 0.94);
   color: #fff;
 }
 
@@ -229,7 +225,7 @@ async function handleDownload() {
 
   padding: 0;
 
-  border: 1px solid rgba(255, 255, 255, .28);
+  border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 50%;
 
   background: transparent;
@@ -289,7 +285,7 @@ async function handleDownload() {
   border: 0;
   border-radius: 50%;
 
-  background: rgba(255, 255, 255, .92);
+  background: rgba(255, 255, 255, 0.92);
   color: #17212b;
 
   font-size: 32px;
@@ -297,7 +293,7 @@ async function handleDownload() {
 
   cursor: pointer;
 
-  box-shadow: 0 4px 15px rgba(0, 0, 0, .28);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.28);
 }
 
 .photo-viewer__arrow:hover {
@@ -322,7 +318,7 @@ async function handleDownload() {
 
   border-radius: 7px;
 
-  background: rgba(20, 30, 40, .68);
+  background: rgba(20, 30, 40, 0.68);
   color: #fff;
 
   font-size: 11px;
@@ -351,7 +347,7 @@ async function handleDownload() {
   border: 0;
   border-radius: 50%;
 
-  background: rgba(255, 255, 255, .55);
+  background: rgba(255, 255, 255, 0.55);
 
   cursor: pointer;
 }
@@ -381,7 +377,7 @@ async function handleDownload() {
 
   padding: 9px 18px;
 
-  border: 1px solid rgba(255, 255, 255, .3);
+  border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 9px;
 
   background: transparent;
@@ -404,7 +400,7 @@ async function handleDownload() {
 }
 
 .photo-viewer__btn--accent:disabled {
-  opacity: .6;
+  opacity: 0.6;
   cursor: default;
 }
 </style>

@@ -20,7 +20,7 @@
               v-if="employee.photo"
               :src="employee.photo"
               :alt="employee.name || employee.position"
-            >
+            />
             <span v-else-if="employee.name">
               {{ initials(employee.name) }}
             </span>
@@ -47,7 +47,9 @@
 
               <div v-if="employee.personalPhone" class="contact-row">
                 <span class="contact-label">Личный</span>
-                <a :href="`tel:${employee.personalPhone.replace(/[^+0-9]/g, '')}`">
+                <a
+                  :href="`tel:${employee.personalPhone.replace(/[^+0-9]/g, '')}`"
+                >
                   {{ employee.personalPhone }}
                 </a>
               </div>
@@ -103,7 +105,7 @@ function initials(name) {
 h2 {
   margin: 0;
   font-size: clamp(15px, 2vw, 21px);
-  letter-spacing: -.01em;
+  letter-spacing: -0.01em;
 }
 
 .employees {
@@ -119,7 +121,7 @@ h2 {
   border-radius: 14px;
   border: 1px solid #ecedf0;
   background: white;
-  box-shadow: 0 5px 20px rgba(23, 33, 43, .04);
+  box-shadow: 0 5px 20px rgba(23, 33, 43, 0.04);
 }
 
 .photo {

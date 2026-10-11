@@ -10,7 +10,11 @@
 // оставляя значения по умолчанию, объявленные в :root.
 
 import { setMapEngine } from '../config/mapConfig'
-import { mapDotColors, setMapDotColors, setMapColorMode } from '../config/mapColors'
+import {
+  mapDotColors,
+  setMapDotColors,
+  setMapColorMode
+} from '../config/mapColors'
 import { setAvailableMode } from '../config/availableMode'
 import { setShowDynCount } from '../config/dynCount'
 import { applySiteFonts } from '../config/fontLoader'
@@ -48,7 +52,7 @@ async function loadAndApply() {
     }
 
     settings = await response.json()
-  } catch (exc) {
+  } catch {
     /* оставляем дефолты из :root */
     return null
   }

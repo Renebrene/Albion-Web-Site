@@ -17,10 +17,7 @@
         </p>
       </div>
 
-      <div
-        v-if="items.length"
-        class="advantages-grid"
-      >
+      <div v-if="items.length" class="advantages-grid">
         <article
           v-for="(item, index) in items"
           :key="item.title || index"
@@ -89,7 +86,7 @@ onMounted(async () => {
         ...cms,
         button: {
           ...content.value.button,
-          ...(cms.button || {})
+          ...cms.button
         }
       }
     }

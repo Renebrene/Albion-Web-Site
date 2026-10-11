@@ -1,10 +1,7 @@
 <template>
   <article
     class="news-card"
-    :class="[
-      `news-card-${size}`,
-      { 'has-slider': mediaItems.length > 1 }
-    ]"
+    :class="[`news-card-${size}`, { 'has-slider': mediaItems.length > 1 }]"
     @click="openNews"
   >
     <div
@@ -31,18 +28,10 @@
           :alt="activeMedia.alt || news.title"
           loading="lazy"
           decoding="async"
-        >
+        />
 
-        <div
-          v-if="mediaItems.length > 1"
-          class="news-slider"
-          @click.stop
-        >
-          <button
-            type="button"
-            class="slider-arrow"
-            @click="prevSlide"
-          >
+        <div v-if="mediaItems.length > 1" class="news-slider" @click.stop>
+          <button type="button" class="slider-arrow" @click="prevSlide">
             ‹
           </button>
 
@@ -57,26 +46,17 @@
             />
           </div>
 
-          <button
-            type="button"
-            class="slider-arrow"
-            @click="nextSlide"
-          >
+          <button type="button" class="slider-arrow" @click="nextSlide">
             ›
           </button>
         </div>
 
-        <div
-          v-if="mediaItems.length > 1"
-          class="photo-count"
-        >
+        <div v-if="mediaItems.length > 1" class="photo-count">
           {{ currentSlide + 1 }} / {{ mediaItems.length }}
         </div>
       </template>
 
-      <div v-else class="news-no-photo">
-        ALBION
-      </div>
+      <div v-else class="news-no-photo"> ALBION </div>
     </div>
 
     <div class="news-card-content">
@@ -102,10 +82,7 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  normalizeMedia,
-  coverIndex
-} from './NewsMediaCarousel.vue'
+import { normalizeMedia, coverIndex } from './NewsMediaCarousel.vue'
 
 const props = defineProps({
   news: {
@@ -123,8 +100,8 @@ const currentSlide = ref(0)
 
 // Медиа приводим к единому виду и стартуем с обложки.
 // Обложка карточки — вариант `card`, затем `thumb`, затем оригинал.
-const mediaItems = computed(
-  () => normalizeMedia(props.news.media, ['card', 'thumb'])
+const mediaItems = computed(() =>
+  normalizeMedia(props.news.media, ['card', 'thumb'])
 )
 const activeMedia = computed(() => mediaItems.value[currentSlide.value] || {})
 
@@ -170,16 +147,14 @@ function nextSlide() {
   const count = mediaItems.value.length
   if (!count) return
 
-  currentSlide.value =
-    (currentSlide.value + 1) % count
+  currentSlide.value = (currentSlide.value + 1) % count
 }
 
 function prevSlide() {
   const count = mediaItems.value.length
   if (!count) return
 
-  currentSlide.value =
-    (currentSlide.value - 1 + count) % count
+  currentSlide.value = (currentSlide.value - 1 + count) % count
 }
 
 function openNews() {
@@ -199,17 +174,17 @@ function openNews() {
   background: #fff;
 
   /* Лёгкая тень по умолчанию — карточка отделяется от фона */
-  box-shadow: 0 1px 3px rgba(20, 30, 40, .06);
+  box-shadow: 0 1px 3px rgba(20, 30, 40, 0.06);
 
   cursor: pointer;
   transition:
-    transform .22s ease,
-    box-shadow .22s ease;
+    transform 0.22s ease,
+    box-shadow 0.22s ease;
 }
 
 .news-card:hover {
   transform: translateY(-3px);
-  box-shadow: 0 12px 32px rgba(20, 30, 40, .10);
+  box-shadow: 0 12px 32px rgba(20, 30, 40, 0.1);
 }
 
 /*
@@ -254,7 +229,7 @@ function openNews() {
      с пропорцией фото, поэтому оно занимает всю площадь без обрезки;
      прочие кадры карусели показываются полностью, без кропа. */
   object-fit: contain;
-  transition: transform .4s ease;
+  transition: transform 0.4s ease;
 }
 
 .news-card:hover .news-media img,
@@ -276,9 +251,8 @@ function openNews() {
 }
 
 .news-card-content {
-  padding: clamp(12px, 1.15vw, 15px)
-           clamp(13px, 1.3vw, 17px)
-           clamp(14px, 1.5vw, 18px);
+  padding: clamp(12px, 1.15vw, 15px) clamp(13px, 1.3vw, 17px)
+    clamp(14px, 1.5vw, 18px);
 }
 
 .news-meta {
@@ -288,10 +262,10 @@ function openNews() {
   gap: 12px;
   margin-bottom: 8px;
   color: #89949b;
-  font-size: clamp(8px, .62vw, 9px);
+  font-size: clamp(8px, 0.62vw, 9px);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .35px;
+  letter-spacing: 0.35px;
 }
 
 .news-category {
@@ -318,7 +292,7 @@ function openNews() {
 .news-card p {
   margin: 9px 0 0;
   color: #65727b;
-  font-size: clamp(11px, .85vw, 12px);
+  font-size: clamp(11px, 0.85vw, 12px);
   line-height: 1.45;
 }
 
@@ -328,10 +302,10 @@ function openNews() {
   gap: 6px;
   margin-top: 13px;
   color: #17212b;
-  font-size: clamp(9px, .7vw, 10px);
+  font-size: clamp(9px, 0.7vw, 10px);
   font-weight: 850;
   text-transform: uppercase;
-  letter-spacing: .3px;
+  letter-spacing: 0.3px;
 }
 
 .news-read span {
@@ -354,12 +328,12 @@ function openNews() {
   height: 28px;
   border: 0;
   border-radius: 50%;
-  background: rgba(255,255,255,.92);
+  background: rgba(255, 255, 255, 0.92);
   color: #17212b;
   font-size: 22px;
   line-height: 1;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(0,0,0,.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 }
 
 .slider-dots {
@@ -374,7 +348,7 @@ function openNews() {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(255,255,255,.65);
+  background: rgba(255, 255, 255, 0.65);
   cursor: pointer;
 }
 
@@ -389,7 +363,7 @@ function openNews() {
   right: 10px;
   padding: 5px 8px;
   border-radius: 6px;
-  background: rgba(20,30,40,.65);
+  background: rgba(20, 30, 40, 0.65);
   color: #fff;
   font-size: 8px;
   font-weight: 800;

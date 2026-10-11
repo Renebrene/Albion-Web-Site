@@ -53,23 +53,30 @@
         <span
           class="badge"
           :class="slide.is_active ? 'badge-on' : 'badge-off'"
-        >{{ slide.is_active ? 'активен' : 'скрыт' }}</span>
+          >{{ slide.is_active ? 'активен' : 'скрыт' }}</span
+        >
 
         <span class="slide-head-actions">
           <q-btn
-            flat dense no-caps
+            flat
+            dense
+            no-caps
             label="Сделать верхним"
             :disable="slide.is_hero"
             @click="setHero(slide)"
           />
           <q-btn
-            flat dense no-caps
+            flat
+            dense
+            no-caps
             :label="slide.is_active ? 'Скрыть' : 'Показать'"
             @click="toggleActive(slide)"
           />
           <q-btn
             color="negative"
-            flat dense no-caps
+            flat
+            dense
+            no-caps
             label="Удалить"
             @click="removeSlide(slide)"
           />
@@ -96,38 +103,62 @@
 
         <label class="field">
           <span>Текст</span>
-          <q-input v-model="slide.text" dense outlined type="textarea" autogrow />
+          <q-input
+            v-model="slide.text"
+            dense
+            outlined
+            type="textarea"
+            autogrow
+          />
         </label>
 
         <label class="field">
           <span>Текст кнопки</span>
-          <q-input v-model="slide.button_label" dense outlined placeholder="Оставить заявку" />
+          <q-input
+            v-model="slide.button_label"
+            dense
+            outlined
+            placeholder="Оставить заявку"
+          />
         </label>
 
         <label class="field">
           <span>Ссылка кнопки</span>
-          <q-input v-model="slide.button_url" dense outlined placeholder="/vozmozhnosti" />
+          <q-input
+            v-model="slide.button_url"
+            dense
+            outlined
+            placeholder="/vozmozhnosti"
+          />
         </label>
       </div>
 
       <div class="photo-row">
         <div
           class="photo-preview"
-          :style="slide.image ? { backgroundImage: `url('${slide.image}')` } : undefined"
+          :style="
+            slide.image
+              ? { backgroundImage: `url('${slide.image}')` }
+              : undefined
+          "
         >
           <span v-if="!slide.image">нет фото</span>
         </div>
 
         <div class="photo-actions">
           <q-btn
-            outline dense no-caps
+            outline
+            dense
+            no-caps
             label="Загрузить фото"
             :loading="uploadingKey === `slide-${slide.id}`"
             @click="uploadFor(slide, 'image')"
           />
           <q-btn
             v-if="slide.image"
-            flat dense no-caps
+            flat
+            dense
+            no-caps
             label="Убрать фото"
             @click="slide.image = ''"
           />
@@ -149,7 +180,10 @@
         <div class="items-title">
           Кнопки
           <q-btn
-            flat dense no-caps icon="add"
+            flat
+            dense
+            no-caps
+            icon="add"
             label="Добавить кнопку"
             @click="addSlideButton(slide)"
           />
@@ -158,30 +192,40 @@
         <div v-for="btn in slide.buttons" :key="btn.id" class="button-row">
           <q-input
             v-model="btn.label"
-            dense outlined
+            dense
+            outlined
             placeholder="Текст кнопки"
             class="btn-label"
           />
           <q-input
             v-model="btn.url"
-            dense outlined
+            dense
+            outlined
             placeholder="/vozmozhnosti или #form"
             class="btn-url"
           />
           <q-select
             v-model="btn.variant"
             :options="BUTTON_VARIANTS"
-            emit-value map-options dense outlined
+            emit-value
+            map-options
+            dense
+            outlined
             class="btn-variant"
           />
           <q-btn
-            outline dense no-caps
+            outline
+            dense
+            no-caps
             label="Сохранить"
             :loading="savingKey === `btn-${btn.id}`"
             @click="saveButton(btn)"
           />
           <q-btn
-            color="negative" flat dense no-caps
+            color="negative"
+            flat
+            dense
+            no-caps
             label="Удалить"
             @click="removeButton(btn)"
           />
@@ -197,7 +241,9 @@
         <div class="items-title">
           Горизонтальные карточки
           <q-btn
-            flat dense no-caps
+            flat
+            dense
+            no-caps
             icon="add"
             label="Добавить"
             @click="addItem(slide)"
@@ -213,7 +259,10 @@
             <span class="slide-order">карточка {{ itemIndex + 1 }}</span>
             <span class="slide-head-actions">
               <q-btn
-                color="negative" flat dense no-caps
+                color="negative"
+                flat
+                dense
+                no-caps
                 label="Удалить"
                 @click="removeItem(slide, item)"
               />
@@ -223,11 +272,21 @@
           <div class="grid">
             <label class="field">
               <span>Надзаголовок</span>
-              <q-input v-model="item.eyebrow" dense outlined placeholder="Группа компаний" />
+              <q-input
+                v-model="item.eyebrow"
+                dense
+                outlined
+                placeholder="Группа компаний"
+              />
             </label>
             <label class="field">
               <span>Название/заголовок</span>
-              <q-input v-model="item.title" dense outlined placeholder="АЛЬБИОН" />
+              <q-input
+                v-model="item.title"
+                dense
+                outlined
+                placeholder="АЛЬБИОН"
+              />
             </label>
             <label class="field">
               <span>Слоган (крупно)</span>
@@ -235,7 +294,13 @@
             </label>
             <label class="field">
               <span>Описание</span>
-              <q-input v-model="item.text" dense outlined type="textarea" autogrow />
+              <q-input
+                v-model="item.text"
+                dense
+                outlined
+                type="textarea"
+                autogrow
+              />
             </label>
             <label class="field">
               <span>Кнопка 1: текст</span>
@@ -243,7 +308,12 @@
             </label>
             <label class="field">
               <span>Кнопка 1: ссылка</span>
-              <q-input v-model="item.button_url" dense outlined placeholder="/vozmozhnosti" />
+              <q-input
+                v-model="item.button_url"
+                dense
+                outlined
+                placeholder="/vozmozhnosti"
+              />
             </label>
             <label class="field">
               <span>Кнопка 2: текст</span>
@@ -251,7 +321,12 @@
             </label>
             <label class="field">
               <span>Кнопка 2: ссылка</span>
-              <q-input v-model="item.button2_url" dense outlined placeholder="#form" />
+              <q-input
+                v-model="item.button2_url"
+                dense
+                outlined
+                placeholder="#form"
+              />
             </label>
             <label class="field">
               <span>Доп. блок</span>
@@ -269,21 +344,29 @@
           <div class="photo-row">
             <div
               class="photo-preview"
-              :style="item.image ? { backgroundImage: `url('${item.image}')` } : undefined"
+              :style="
+                item.image
+                  ? { backgroundImage: `url('${item.image}')` }
+                  : undefined
+              "
             >
               <span v-if="!item.image">нет фото</span>
             </div>
 
             <div class="photo-actions">
               <q-btn
-                outline dense no-caps
+                outline
+                dense
+                no-caps
                 label="Загрузить фото"
                 :loading="uploadingKey === `item-${item.id}`"
                 @click="uploadFor(item, 'image')"
               />
               <q-btn
                 v-if="item.image"
-                flat dense no-caps
+                flat
+                dense
+                no-caps
                 label="Убрать фото"
                 @click="item.image = ''"
               />
@@ -305,7 +388,10 @@
             <div class="items-title">
               Кнопки карточки
               <q-btn
-                flat dense no-caps icon="add"
+                flat
+                dense
+                no-caps
+                icon="add"
                 label="Добавить кнопку"
                 @click="addItemButton(item)"
               />
@@ -314,30 +400,40 @@
             <div v-for="btn in item.buttons" :key="btn.id" class="button-row">
               <q-input
                 v-model="btn.label"
-                dense outlined
+                dense
+                outlined
                 placeholder="Текст кнопки"
                 class="btn-label"
               />
               <q-input
                 v-model="btn.url"
-                dense outlined
+                dense
+                outlined
                 placeholder="/vozmozhnosti или #form"
                 class="btn-url"
               />
               <q-select
                 v-model="btn.variant"
                 :options="BUTTON_VARIANTS"
-                emit-value map-options dense outlined
+                emit-value
+                map-options
+                dense
+                outlined
                 class="btn-variant"
               />
               <q-btn
-                outline dense no-caps
+                outline
+                dense
+                no-caps
                 label="Сохранить"
                 :loading="savingKey === `btn-${btn.id}`"
                 @click="saveButton(btn)"
               />
               <q-btn
-                color="negative" flat dense no-caps
+                color="negative"
+                flat
+                dense
+                no-caps
                 label="Удалить"
                 @click="removeButton(btn)"
               />
@@ -367,7 +463,9 @@
           label="Разрешить переходы городов и районов на карту"
           @update:model-value="saveGeoSettings"
         />
-        <span class="hint">Отключение оставляет список кликабельным без перехода.</span>
+        <span class="hint"
+          >Отключение оставляет список кликабельным без перехода.</span
+        >
       </div>
 
       <div class="geo-settings-row">
@@ -382,35 +480,71 @@
           label="Управление колодой карточек колесом мыши"
           @update:model-value="saveGeoWheelMode"
         />
-        <span class="hint">
-          Клик по карточке всегда раскрывает описание.
-        </span>
+        <span class="hint"> Клик по карточке всегда раскрывает описание. </span>
       </div>
 
       <div class="geo-admin-columns">
         <div>
           <div class="items-title">
             Города и районы
-            <q-btn flat dense no-caps icon="add" label="Добавить" @click="addGeoLocation" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="add"
+              label="Добавить"
+              @click="addGeoLocation"
+            />
           </div>
-          <div v-for="location in geo.locations" :key="location.id" class="geo-location-admin">
+          <div
+            v-for="location in geo.locations"
+            :key="location.id"
+            class="geo-location-admin"
+          >
             <div class="geo-admin-row">
               <q-select
                 v-model="location.kind"
                 :options="LOCATION_KINDS"
-                emit-value map-options dense outlined
+                emit-value
+                map-options
+                dense
+                outlined
                 class="geo-kind"
                 @update:model-value="saveGeoLocation(location)"
               />
-              <q-input v-model="location.label" dense outlined class="geo-label" />
-              <q-input v-model="location.map_value" dense outlined class="geo-label" placeholder="Значение для карты" />
-              <q-toggle v-model="location.is_active" dense @update:model-value="saveGeoLocation(location)" />
-              <q-btn flat dense color="negative" icon="delete" @click="removeGeoLocation(location)" />
+              <q-input
+                v-model="location.label"
+                dense
+                outlined
+                class="geo-label"
+              />
+              <q-input
+                v-model="location.map_value"
+                dense
+                outlined
+                class="geo-label"
+                placeholder="Значение для карты"
+              />
+              <q-toggle
+                v-model="location.is_active"
+                dense
+                @update:model-value="saveGeoLocation(location)"
+              />
+              <q-btn
+                flat
+                dense
+                color="negative"
+                icon="delete"
+                @click="removeGeoLocation(location)"
+              />
             </div>
             <div class="geo-admin-sub">
               <q-input
                 v-model="location.description"
-                dense outlined type="textarea" autogrow
+                dense
+                outlined
+                type="textarea"
+                autogrow
                 class="geo-desc"
                 label="Описание (абзацы — показываются в модальном окне)"
               />
@@ -418,12 +552,23 @@
                 <q-select
                   v-model="location.cover_attraction_id"
                   :options="attractionsFor(location)"
-                  option-value="id" option-label="title"
-                  emit-value map-options clearable dense outlined
+                  option-value="id"
+                  option-label="title"
+                  emit-value
+                  map-options
+                  clearable
+                  dense
+                  outlined
                   class="geo-cover"
                   label="Фото-обложка (достопримечательность)"
                 />
-                <q-btn outline dense no-caps label="Сохранить" @click="saveGeoLocation(location)" />
+                <q-btn
+                  outline
+                  dense
+                  no-caps
+                  label="Сохранить"
+                  @click="saveGeoLocation(location)"
+                />
               </div>
             </div>
           </div>
@@ -432,21 +577,60 @@
         <div>
           <div class="items-title">
             Достопримечательности
-            <q-btn flat dense no-caps icon="add" label="Добавить" @click="addGeoAttraction" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="add"
+              label="Добавить"
+              @click="addGeoAttraction"
+            />
           </div>
-          <div v-for="attraction in geo.attractions" :key="attraction.id" class="geo-attraction-admin">
-            <q-input v-model="attraction.title" dense outlined label="Название" />
+          <div
+            v-for="attraction in geo.attractions"
+            :key="attraction.id"
+            class="geo-attraction-admin"
+          >
+            <q-input
+              v-model="attraction.title"
+              dense
+              outlined
+              label="Название"
+            />
             <q-select
               v-model="attraction.location_id"
               :options="geo.locations"
-              option-value="id" option-label="label"
-              emit-value map-options dense outlined
+              option-value="id"
+              option-label="label"
+              emit-value
+              map-options
+              dense
+              outlined
               label="Город/район"
             />
-            <q-input v-model="attraction.description" dense outlined type="textarea" autogrow label="Описание" />
+            <q-input
+              v-model="attraction.description"
+              dense
+              outlined
+              type="textarea"
+              autogrow
+              label="Описание"
+            />
             <div class="geo-admin-actions">
-              <q-btn outline dense no-caps label="Сохранить" @click="saveGeoAttraction(attraction)" />
-              <q-btn flat dense color="negative" label="Удалить" @click="removeGeoAttraction(attraction)" />
+              <q-btn
+                outline
+                dense
+                no-caps
+                label="Сохранить"
+                @click="saveGeoAttraction(attraction)"
+              />
+              <q-btn
+                flat
+                dense
+                color="negative"
+                label="Удалить"
+                @click="removeGeoAttraction(attraction)"
+              />
             </div>
           </div>
         </div>
@@ -458,24 +642,26 @@
       <div class="section-title">
         Сообщения с формы
         <q-btn
-          flat dense no-caps
+          flat
+          dense
+          no-caps
           icon="refresh"
           label="Обновить"
           @click="loadFeedback"
         />
       </div>
 
-      <div
-        v-for="item in feedback"
-        :key="item.id"
-        class="feedback-card"
-      >
+      <div v-for="item in feedback" :key="item.id" class="feedback-card">
         <div class="feedback-head">
           <b>{{ item.name || 'Без имени' }}</b>
           <span v-if="item.phone">· {{ item.phone }}</span>
-          <span class="feedback-date">{{ formatDateTime(item.created_at) }}</span>
+          <span class="feedback-date">{{
+            formatDateTime(item.created_at)
+          }}</span>
           <q-btn
-            flat dense no-caps
+            flat
+            dense
+            no-caps
             color="negative"
             label="Удалить"
             class="feedback-del"
@@ -507,7 +693,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -517,7 +703,9 @@ async function request(path, options = {}) {
     try {
       const data = await response.json()
       detail = data.detail || detail
-    } catch (exc) { /* not json */ }
+    } catch (exc) {
+      /* not json */
+    }
     throw new Error(detail)
   }
 
@@ -560,7 +748,10 @@ const WHEEL_MODES = [
 
 const EXTRA_OPTIONS = [
   { label: 'Нет', value: '' },
-  { label: 'Статистика сети (конструкции/форматы/стороны)', value: 'network_stats' }
+  {
+    label: 'Статистика сети (конструкции/форматы/стороны)',
+    value: 'network_stats'
+  }
 ]
 
 const KIND_OPTIONS = [
@@ -576,8 +767,10 @@ function formatDateTime(value) {
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return ''
   const pad = n => String(n).padStart(2, '0')
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} `
-    + `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  return (
+    `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  )
 }
 
 async function loadFeedback() {
@@ -635,11 +828,17 @@ async function addGeoLocation() {
     const data = await request('/api/admin/home/geo/locations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'city', label: 'Новая локация', map_value: '' })
+      body: JSON.stringify({
+        kind: 'city',
+        label: 'Новая локация',
+        map_value: ''
+      })
     })
     geo.value.locations = data.locations || []
     geo.value.attractions = data.attractions || []
-  } catch (exc) { error.value = String(exc) }
+  } catch (exc) {
+    error.value = String(exc)
+  }
 }
 
 /* Достопримечательности выбранной локации — для выбора фото-обложки. */
@@ -665,16 +864,22 @@ async function saveGeoLocation(location) {
     })
     geo.value.locations = data.locations || []
     geo.value.attractions = data.attractions || []
-  } catch (exc) { error.value = String(exc) }
+  } catch (exc) {
+    error.value = String(exc)
+  }
 }
 
 async function removeGeoLocation(location) {
   if (!window.confirm('Удалить локацию?')) return
   try {
-    const data = await request(`/api/admin/home/geo/locations/${location.id}`, { method: 'DELETE' })
+    const data = await request(`/api/admin/home/geo/locations/${location.id}`, {
+      method: 'DELETE'
+    })
     geo.value.locations = data.locations || []
     geo.value.attractions = data.attractions || []
-  } catch (exc) { error.value = String(exc) }
+  } catch (exc) {
+    error.value = String(exc)
+  }
 }
 
 async function addGeoAttraction() {
@@ -682,37 +887,52 @@ async function addGeoAttraction() {
     const data = await request('/api/admin/home/geo/attractions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Новая достопримечательность', description: '' })
-    })
-    geo.value.locations = data.locations || []
-    geo.value.attractions = data.attractions || []
-  } catch (exc) { error.value = String(exc) }
-}
-
-async function saveGeoAttraction(attraction) {
-  try {
-    const data = await request(`/api/admin/home/geo/attractions/${attraction.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        title: attraction.title,
-        description: attraction.description,
-        location_id: attraction.location_id,
-        is_active: attraction.is_active
+        title: 'Новая достопримечательность',
+        description: ''
       })
     })
     geo.value.locations = data.locations || []
     geo.value.attractions = data.attractions || []
-  } catch (exc) { error.value = String(exc) }
+  } catch (exc) {
+    error.value = String(exc)
+  }
+}
+
+async function saveGeoAttraction(attraction) {
+  try {
+    const data = await request(
+      `/api/admin/home/geo/attractions/${attraction.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: attraction.title,
+          description: attraction.description,
+          location_id: attraction.location_id,
+          is_active: attraction.is_active
+        })
+      }
+    )
+    geo.value.locations = data.locations || []
+    geo.value.attractions = data.attractions || []
+  } catch (exc) {
+    error.value = String(exc)
+  }
 }
 
 async function removeGeoAttraction(attraction) {
   if (!window.confirm('Удалить достопримечательность?')) return
   try {
-    const data = await request(`/api/admin/home/geo/attractions/${attraction.id}`, { method: 'DELETE' })
+    const data = await request(
+      `/api/admin/home/geo/attractions/${attraction.id}`,
+      { method: 'DELETE' }
+    )
     geo.value.locations = data.locations || []
     geo.value.attractions = data.attractions || []
-  } catch (exc) { error.value = String(exc) }
+  } catch (exc) {
+    error.value = String(exc)
+  }
 }
 
 async function removeFeedback(item) {
@@ -775,14 +995,18 @@ async function patchSlide(slide, payload, key) {
 }
 
 function saveSlide(slide) {
-  patchSlide(slide, {
-    kind: slide.kind,
-    title: slide.title,
-    text: slide.text,
-    button_label: slide.button_label,
-    button_url: slide.button_url,
-    image_path: slide.image
-  }, `slide-${slide.id}`)
+  patchSlide(
+    slide,
+    {
+      kind: slide.kind,
+      title: slide.title,
+      text: slide.text,
+      button_label: slide.button_label,
+      button_url: slide.button_url,
+      image_path: slide.image
+    },
+    `slide-${slide.id}`
+  )
 }
 
 function setHero(slide) {
@@ -874,14 +1098,15 @@ async function addSlideButton(slide) {
   error.value = ''
 
   try {
-    const data = await request(
-      `/api/admin/home/slides/${slide.id}/buttons`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: 'Новая кнопка', url: '', variant: 'primary' })
-      }
-    )
+    const data = await request(`/api/admin/home/slides/${slide.id}/buttons`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: 'Новая кнопка',
+        url: '',
+        variant: 'primary'
+      })
+    })
     slides.value = data.slides || []
   } catch (exc) {
     error.value = String(exc)
@@ -892,14 +1117,15 @@ async function addItemButton(item) {
   error.value = ''
 
   try {
-    const data = await request(
-      `/api/admin/home/items/${item.id}/buttons`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: 'Новая кнопка', url: '', variant: 'primary' })
-      }
-    )
+    const data = await request(`/api/admin/home/items/${item.id}/buttons`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: 'Новая кнопка',
+        url: '',
+        variant: 'primary'
+      })
+    })
     slides.value = data.slides || []
   } catch (exc) {
     error.value = String(exc)
@@ -1007,10 +1233,19 @@ onMounted(() => {
   margin-bottom: 6px;
 }
 
-h1 { font-size: 26px; margin: 0 0 6px; }
-.page-header p { margin: 0; color: #64748b; }
+h1 {
+  font-size: 26px;
+  margin: 0 0 6px;
+}
+.page-header p {
+  margin: 0;
+  color: #64748b;
+}
 
-.header-actions { display: flex; gap: 8px; }
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
 
 .error-text {
   color: #b91c1c;
@@ -1027,7 +1262,10 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   margin-bottom: 18px;
 }
 
-.hint { color: #64748b; font-size: 13px; }
+.hint {
+  color: #64748b;
+  font-size: 13px;
+}
 
 .slide-card {
   border: 1px solid #e2e8f0;
@@ -1037,7 +1275,10 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   background: #fff;
 }
 
-.slide-card.is-hero { border-color: #cbd5e1; box-shadow: 0 8px 22px rgba(15,23,42,.06); }
+.slide-card.is-hero {
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+}
 
 .slide-head {
   display: flex;
@@ -1046,7 +1287,10 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   margin-bottom: 12px;
 }
 
-.slide-order { font-weight: 700; color: #475569; }
+.slide-order {
+  font-weight: 700;
+  color: #475569;
+}
 
 .badge {
   font-size: 12px;
@@ -1056,11 +1300,24 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   color: #475569;
 }
 
-.badge-hero { background: #fef3c7; color: #92400e; }
-.badge-on { background: #dcfce7; color: #166534; }
-.badge-off { background: #e2e8f0; color: #64748b; }
+.badge-hero {
+  background: #fef3c7;
+  color: #92400e;
+}
+.badge-on {
+  background: #dcfce7;
+  color: #166534;
+}
+.badge-off {
+  background: #e2e8f0;
+  color: #64748b;
+}
 
-.slide-head-actions { margin-left: auto; display: flex; gap: 4px; }
+.slide-head-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
 
 .grid {
   display: grid;
@@ -1068,8 +1325,15 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   gap: 12px 16px;
 }
 
-.field { display: flex; flex-direction: column; gap: 4px; }
-.field > span { font-size: 12px; color: #64748b; }
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.field > span {
+  font-size: 12px;
+  color: #64748b;
+}
 
 .photo-row {
   display: flex;
@@ -1091,9 +1355,14 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   font-size: 12px;
 }
 
-.photo-actions { display: flex; gap: 8px; }
+.photo-actions {
+  display: flex;
+  gap: 8px;
+}
 
-.save-row { margin-top: 14px; }
+.save-row {
+  margin-top: 14px;
+}
 
 .items-block {
   margin-top: 18px;
@@ -1124,9 +1393,17 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   margin-bottom: 8px;
 }
 
-.button-row .btn-label { flex: 1 1 180px; min-width: 160px; }
-.button-row .btn-url { flex: 1 1 240px; min-width: 200px; }
-.button-row .btn-variant { flex: 0 0 190px; }
+.button-row .btn-label {
+  flex: 1 1 180px;
+  min-width: 160px;
+}
+.button-row .btn-url {
+  flex: 1 1 240px;
+  min-width: 200px;
+}
+.button-row .btn-variant {
+  flex: 0 0 190px;
+}
 
 .item-card {
   border: 1px solid #eef2f6;
@@ -1136,7 +1413,9 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   background: #fafbfc;
 }
 
-.empty-text { color: #94a3b8; }
+.empty-text {
+  color: #94a3b8;
+}
 
 .section-card {
   margin-top: 24px;
@@ -1170,30 +1449,95 @@ h1 { font-size: 26px; margin: 0 0 6px; }
   font-size: 14px;
 }
 
-.feedback-date { color: #94a3b8; font-size: 12px; }
-.feedback-del { margin-left: auto; }
-.feedback-msg { margin-top: 6px; color: #334155; white-space: pre-wrap; }
-
-.geo-settings-row { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; flex-wrap: wrap; }
-.geo-wheel { flex: 1 1 420px; min-width: 0; max-width: 560px; }
-.geo-admin-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-.geo-admin-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.geo-kind { flex: 0 0 110px; }
-.geo-label { min-width: 0; flex: 1; }
-.geo-location-admin { padding: 10px; margin-bottom: 10px; border: 1px solid #eef2f6; border-radius: 8px; background: #fafbfc; }
-.geo-admin-sub { display: grid; gap: 8px; margin-top: 6px; }
-.geo-admin-sub-side { display: flex; align-items: center; gap: 8px; }
-.geo-cover { flex: 1; min-width: 0; }
-.geo-attraction-admin { padding: 10px; margin-bottom: 10px; border: 1px solid #eef2f6; border-radius: 8px; display: grid; gap: 8px; }
-.geo-admin-actions { display: flex; gap: 8px; }
-
-@media (max-width: 900px) {
-  .geo-admin-columns { grid-template-columns: 1fr; }
+.feedback-date {
+  color: #94a3b8;
+  font-size: 12px;
+}
+.feedback-del {
+  margin-left: auto;
+}
+.feedback-msg {
+  margin-top: 6px;
+  color: #334155;
+  white-space: pre-wrap;
 }
 
+.geo-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.geo-wheel {
+  flex: 1 1 420px;
+  min-width: 0;
+  max-width: 560px;
+}
+.geo-admin-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+.geo-admin-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+.geo-kind {
+  flex: 0 0 110px;
+}
+.geo-label {
+  min-width: 0;
+  flex: 1;
+}
+.geo-location-admin {
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+.geo-admin-sub {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+.geo-admin-sub-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.geo-cover {
+  flex: 1;
+  min-width: 0;
+}
+.geo-attraction-admin {
+  padding: 10px;
+  margin-bottom: 10px;
+  border: 1px solid #eef2f6;
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+}
+.geo-admin-actions {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 900px) {
+  .geo-admin-columns {
+    grid-template-columns: 1fr;
+  }
+}
 
 @media (max-width: 760px) {
-  .administration-home { padding: 16px; }
-  .grid { grid-template-columns: 1fr; }
+  .administration-home {
+    padding: 16px;
+  }
+  .grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

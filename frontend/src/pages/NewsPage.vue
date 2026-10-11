@@ -1,7 +1,6 @@
 <template>
   <q-page class="news-page">
     <div class="news-container">
-
       <!-- Заголовок и фильтры зафиксированы, лента новостей
            прокручивается под ними. -->
       <div class="news-sticky">
@@ -11,10 +10,7 @@
             <h1>Новости</h1>
           </div>
 
-          <p>
-            События, проекты и новые возможности
-            компании
-          </p>
+          <p> События, проекты и новые возможности компании </p>
         </header>
 
         <nav class="news-categories">
@@ -45,29 +41,18 @@
             />
           </section>
 
-          <div
-            v-if="!filteredNews.length"
-            class="news-empty"
-          >
+          <div v-if="!filteredNews.length" class="news-empty">
             <strong>Новостей пока нет</strong>
             <span>Попробуйте выбрать другую категорию.</span>
           </div>
         </template>
       </div>
-
     </div>
   </q-page>
 </template>
 
 <script setup>
-import {
-  computed,
-  nextTick,
-  onBeforeUnmount,
-  onMounted,
-  ref,
-  watch
-} from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import NewsCard from '../components/news/NewsCard.vue'
 import NEWS from '../data/news'
 import { getNews } from '@/services/api'
@@ -82,9 +67,10 @@ const loading = ref(true)
  * published_at, локальные данные — строку категории и поле date.
  */
 function normalizeNews(item) {
-  const category = item.category && typeof item.category === 'object'
-    ? item.category.name
-    : item.category
+  const category =
+    item.category && typeof item.category === 'object'
+      ? item.category.name
+      : item.category
 
   const date = String(item.date || item.published_at || '').slice(0, 10)
 
@@ -101,17 +87,13 @@ function normalizeNews(item) {
 }
 
 function localNews() {
-  return NEWS
-    .filter(item => item.status === 'published')
-    .map(normalizeNews)
+  return NEWS.filter(item => item.status === 'published').map(normalizeNews)
 }
 
 onMounted(async () => {
   try {
     const data = await getNews()
-    const list = Array.isArray(data)
-      ? data
-      : (data?.data || data?.items || [])
+    const list = Array.isArray(data) ? data : data?.data || data?.items || []
 
     const published = list.filter(item => item.is_published !== false)
 
@@ -129,11 +111,7 @@ onMounted(async () => {
 
 const categories = computed(() => {
   const values = [
-    ...new Set(
-      newsList.value
-        .map(item => item.category)
-        .filter(Boolean)
-    )
+    ...new Set(newsList.value.map(item => item.category).filter(Boolean))
   ]
 
   return ['Все', ...values]
@@ -208,10 +186,7 @@ function layoutMasonry() {
   const heights = cards.map(card => card.getBoundingClientRect().height)
 
   cards.forEach((card, index) => {
-    const span = Math.max(
-      1,
-      Math.ceil((heights[index] + MASONRY_GAP) / unit)
-    )
+    const span = Math.max(1, Math.ceil((heights[index] + MASONRY_GAP) / unit))
 
     card.style.gridRowEnd = `span ${span}`
   })
@@ -312,7 +287,7 @@ watch([filteredNews, loading], async () => {
   max-width: 300px;
   margin: 0;
   color: #78848b;
-  font-size: clamp(11px, .8vw, 12px);
+  font-size: clamp(11px, 0.8vw, 12px);
   line-height: 1.45;
   text-align: right;
 }
@@ -339,7 +314,7 @@ watch([filteredNews, loading], async () => {
   font-size: 10px;
   font-weight: 750;
   text-transform: uppercase;
-  letter-spacing: .35px;
+  letter-spacing: 0.35px;
 }
 
 .news-categories button:hover {
@@ -454,12 +429,12 @@ watch([filteredNews, loading], async () => {
  */
 html:has(.news-page),
 body:has(.news-page) {
-  scrollbar-width: none;      /* Firefox */
-  -ms-overflow-style: none;   /* старый Edge / IE */
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* старый Edge / IE */
 }
 
 html:has(.news-page)::-webkit-scrollbar,
 body:has(.news-page)::-webkit-scrollbar {
-  display: none;              /* Chrome / Safari */
+  display: none; /* Chrome / Safari */
 }
 </style>

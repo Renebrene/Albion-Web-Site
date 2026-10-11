@@ -14,7 +14,7 @@
         <div class="inventory-intro">
           <div class="inventory-total">
             <strong>{{ constructions.length }}</strong>
-            <span>конструкций<br>в каталоге</span>
+            <span>конструкций<br />в каталоге</span>
           </div>
 
           <div class="inventory-types-title">
@@ -92,7 +92,7 @@ onMounted(async () => {
         ...cms,
         button: {
           ...content.value.button,
-          ...(cms.button || {})
+          ...cms.button
         }
       }
     }
@@ -161,7 +161,7 @@ function openType(type) {
   margin: 0;
   max-width: 760px;
   font-size: clamp(42px, 5vw, 72px);
-  line-height: .95;
+  line-height: 0.95;
   letter-spacing: -2.5px;
   font-weight: 900;
 }
@@ -178,8 +178,8 @@ function openType(type) {
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 70px;
   padding: 38px 0;
-  border-top: 1px solid rgba(255,255,255,.12);
-  border-bottom: 1px solid rgba(255,255,255,.12);
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .inventory-intro {
@@ -196,7 +196,7 @@ function openType(type) {
 
 .inventory-total strong {
   font-size: 64px;
-  line-height: .9;
+  line-height: 0.9;
   font-weight: 900;
   letter-spacing: -3px;
 }
@@ -208,7 +208,7 @@ function openType(type) {
   line-height: 1.3;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .inventory-types-title {
@@ -232,28 +232,30 @@ function openType(type) {
   min-height: 78px;
   padding: 0 12px;
   border: 0;
-  border-bottom: 1px solid rgba(255,255,255,.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   background: transparent;
   color: #fff;
   text-align: left;
   cursor: pointer;
-  transition: background .18s ease, padding .18s ease;
+  transition:
+    background 0.18s ease,
+    padding 0.18s ease;
 }
 
 .inventory-type:nth-child(-n + 2) {
-  border-top: 1px solid rgba(255,255,255,.1);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .inventory-type:hover {
   padding-left: 18px;
-  background: rgba(255,255,255,.055);
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .type-index {
   color: #66747e;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .type-name {
@@ -276,7 +278,7 @@ function openType(type) {
   color: var(--albion-accent);
   font-size: 18px;
   font-weight: 700;
-  transition: transform .18s ease;
+  transition: transform 0.18s ease;
 }
 
 .inventory-type:hover .type-arrow {
@@ -295,7 +297,7 @@ function openType(type) {
   color: #71808c;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -307,7 +309,7 @@ function openType(type) {
   color: #fff;
   font-size: 10px;
   font-weight: 850;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 

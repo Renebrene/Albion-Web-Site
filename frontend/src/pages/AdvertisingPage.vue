@@ -410,8 +410,10 @@
                                 :class="[
                                   sideMonthState(block, month.full),
                                   {
-                                    'is-selected':
-                                      isSideMonthSelected(block, month.full),
+                                    'is-selected': isSideMonthSelected(
+                                      block,
+                                      month.full
+                                    ),
                                     'is-locked':
                                       isBlockActive(block) &&
                                       !isSideFree(block, month.full)
@@ -565,9 +567,7 @@
                                    кроме видеоэкрана; гасится настройкой
                                    «Показывать количество динамических сторон»). -->
                               <span
-                                v-if="
-                                  block.kind === 'dynamic' && showDynCount
-                                "
+                                v-if="block.kind === 'dynamic' && showDynCount"
                                 class="dyn-count"
                                 >({{ block.items.length }})</span
                               >

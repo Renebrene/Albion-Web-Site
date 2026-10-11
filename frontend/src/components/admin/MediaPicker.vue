@@ -4,11 +4,21 @@
       <q-card-section class="media-picker-head">
         <div class="media-picker-title">
           Выбор из медиатеки
-          <span v-if="multiple && selectedIds.length" class="media-picker-title-count">
+          <span
+            v-if="multiple && selectedIds.length"
+            class="media-picker-title-count"
+          >
             выбрано: {{ selectedIds.length }}
           </span>
         </div>
-        <q-btn flat round dense icon="close" aria-label="Закрыть" @click="open = false" />
+        <q-btn
+          flat
+          round
+          dense
+          icon="close"
+          aria-label="Закрыть"
+          @click="open = false"
+        />
       </q-card-section>
 
       <q-card-section class="media-picker-filters">
@@ -49,12 +59,19 @@
           <span>Загрузка…</span>
         </div>
 
-        <div v-else-if="error" class="media-picker-state media-picker-state--error">
+        <div
+          v-else-if="error"
+          class="media-picker-state media-picker-state--error"
+        >
           {{ error }}
         </div>
 
         <div v-else-if="!filteredItems.length" class="media-picker-state">
-          {{ items.length ? 'По заданным условиям файлы не найдены.' : 'В медиатеке пока нет файлов.' }}
+          {{
+            items.length
+              ? 'По заданным условиям файлы не найдены.'
+              : 'В медиатеке пока нет файлов.'
+          }}
         </div>
 
         <div v-else class="media-picker-grid">
@@ -72,15 +89,25 @@
             <span
               v-if="multiple"
               class="media-picker-check"
-              :class="{ 'media-picker-check--on': selectedIds.includes(item.id) }"
+              :class="{
+                'media-picker-check--on': selectedIds.includes(item.id)
+              }"
               aria-hidden="true"
             >
-              <q-icon :name="selectedIds.includes(item.id) ? 'check_circle' : 'radio_button_unchecked'" />
+              <q-icon
+                :name="
+                  selectedIds.includes(item.id)
+                    ? 'check_circle'
+                    : 'radio_button_unchecked'
+                "
+              />
             </span>
 
             <div class="media-picker-thumb">
               <video
-                v-if="item.mime_type?.startsWith('video/') && thumbnailUrl(item)"
+                v-if="
+                  item.mime_type?.startsWith('video/') && thumbnailUrl(item)
+                "
                 :src="storageUrl(item.storage_path)"
                 :poster="thumbnailUrl(item)"
                 muted
@@ -91,7 +118,7 @@
                 :src="thumbnailUrl(item)"
                 :alt="item.original_name"
                 loading="lazy"
-              >
+              />
               <div v-else class="media-picker-thumb-empty">Нет превью</div>
             </div>
 
@@ -157,11 +184,14 @@ const PAGE_SIZE = 30
 
 const open = ref(props.modelValue)
 
-watch(() => props.modelValue, (value) => {
-  open.value = value
-})
+watch(
+  () => props.modelValue,
+  value => {
+    open.value = value
+  }
+)
 
-watch(open, (value) => {
+watch(open, value => {
   emit('update:modelValue', value)
 })
 
@@ -180,20 +210,23 @@ const selectedIds = ref([])
 let loadedOnce = false
 
 const categoryOptions = computed(() =>
-  categories.value.map((category) => ({ label: category.name, value: category.id }))
+  categories.value.map(category => ({
+    label: category.name,
+    value: category.id
+  }))
 )
 
 const filteredItems = computed(() => {
   const query = search.value.trim().toLowerCase()
 
-  return items.value.filter((item) => {
+  return items.value.filter(item => {
     if (query && !(item.original_name || '').toLowerCase().includes(query)) {
       return false
     }
 
     if (
       categoryIds.value.length &&
-      !categoryIds.value.some((id) => item.category_id?.includes(id))
+      !categoryIds.value.some(id => item.category_id?.includes(id))
     ) {
       return false
     }
@@ -203,7 +236,7 @@ const filteredItems = computed(() => {
 })
 
 const selectedItem = computed(
-  () => items.value.find((item) => item.id === selectedId.value) || null
+  () => items.value.find(item => item.id === selectedId.value) || null
 )
 
 function authHeaders() {
@@ -220,7 +253,7 @@ function thumbnailUrl(item) {
     return storageUrl(item.preview_path)
   }
 
-  const thumb = item.variants?.find((variant) => variant.variant === 'thumb')
+  const thumb = item.variants?.find(variant => variant.variant === 'thumb')
   return storageUrl(thumb?.storage_path || item.storage_path)
 }
 
@@ -250,9 +283,11 @@ async function fetchMedia(limit, offsetValue) {
 async function loadCategories() {
   loadingCategories.value = true
   try {
-    const response = await fetch('/api/admin/media/categories', { headers: authHeaders() })
+    const response = await fetch('/api/admin/media/categories', {
+      headers: authHeaders()
+    })
     const data = await response.json().catch(() => null)
-    categories.value = response.ok ? (data?.categories || []) : []
+    categories.value = response.ok ? data?.categories || [] : []
   } catch {
     categories.value = []
   } finally {
@@ -345,7 +380,7 @@ function onItemKeyEnter(item) {
 function confirmMany() {
   const ids = selectedIds.value.slice()
   if (!ids.length) return
-  const chosen = items.value.filter((item) => ids.includes(item.id))
+  const chosen = items.value.filter(item => ids.includes(item.id))
   emit('select-many', ids, chosen)
   open.value = false
 }
@@ -415,7 +450,9 @@ function confirmMany() {
   padding: 8px;
   cursor: pointer;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .media-picker-check {

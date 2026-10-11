@@ -74,8 +74,12 @@
               <td class="col-date">{{ formatDate(item.created_at) }}</td>
               <td class="col-user">
                 <div class="user-cell">
-                  <span class="user-name">{{ item.login || item.user_name || '—' }}</span>
-                  <span v-if="item.user_id" class="user-id">#{{ item.user_id }}</span>
+                  <span class="user-name">{{
+                    item.login || item.user_name || '—'
+                  }}</span>
+                  <span v-if="item.user_id" class="user-id"
+                    >#{{ item.user_id }}</span
+                  >
                 </div>
               </td>
               <td class="col-action">
@@ -86,7 +90,9 @@
               <td class="col-entity">
                 <template v-if="item.entity_type">
                   {{ entityLabel(item.entity_type) }}
-                  <span v-if="item.entity_id" class="entity-id">#{{ item.entity_id }}</span>
+                  <span v-if="item.entity_id" class="entity-id"
+                    >#{{ item.entity_id }}</span
+                  >
                 </template>
                 <span v-else class="muted">—</span>
               </td>
@@ -127,7 +133,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })

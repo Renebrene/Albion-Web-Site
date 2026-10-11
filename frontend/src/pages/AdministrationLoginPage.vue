@@ -8,18 +8,12 @@
         title="Перейти на сайт"
         aria-label="Albion — перейти на сайт"
       >
-        <img
-          src="/logo.png"
-          alt="Albion"
-          class="login-brand-logo"
-        >
+        <img src="/logo.png" alt="Albion" class="login-brand-logo" />
       </RouterLink>
 
       <h1>Администрирование</h1>
 
-      <p class="login-subtitle">
-        Вход в панель управления сайтом
-      </p>
+      <p class="login-subtitle"> Вход в панель управления сайтом </p>
 
       <q-form class="login-form" @submit.prevent="submit">
         <q-input

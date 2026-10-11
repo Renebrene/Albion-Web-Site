@@ -1,11 +1,7 @@
 <template>
   <section class="stats-section">
     <div class="stats-grid">
-      <article
-        v-for="stat in stats"
-        :key="stat.label"
-        class="stat"
-      >
+      <article v-for="stat in stats" :key="stat.label" class="stat">
         <div class="stat-value">
           {{ stat.value }}
         </div>
@@ -42,7 +38,7 @@ onMounted(async () => {
 
   try {
     const page = await getPage('home')
-    const block = page?.blocks?.find((item) => item.key === 'stats')
+    const block = page?.blocks?.find(item => item.key === 'stats')
     const content = block?.content
 
     if (content && typeof content === 'object') {
@@ -51,7 +47,7 @@ onMounted(async () => {
         ...content,
         labels: {
           ...cmsContent.value.labels,
-          ...(content.labels || {})
+          ...content.labels
         }
       }
     }
@@ -61,19 +57,13 @@ onMounted(async () => {
 })
 
 const cities = computed(() => {
-  return new Set(
-    constructions.value
-      .map(item => item.city)
-      .filter(Boolean)
-  ).size
+  return new Set(constructions.value.map(item => item.city).filter(Boolean))
+    .size
 })
 
 const types = computed(() => {
-  return new Set(
-    constructions.value
-      .map(item => item.type)
-      .filter(Boolean)
-  ).size
+  return new Set(constructions.value.map(item => item.type).filter(Boolean))
+    .size
 })
 
 const stats = computed(() => [

@@ -10,11 +10,7 @@
             title="Перейти на сайт"
             aria-label="Albion — перейти на сайт"
           >
-            <img
-              src="/logo.png"
-              alt="Albion"
-              class="media-brand-logo"
-            >
+            <img src="/logo.png" alt="Albion" class="media-brand-logo" />
           </RouterLink>
         </div>
 
@@ -38,7 +34,7 @@
             class="file-input-hidden"
             :disabled="uploading"
             @change="onNativeFilesPicked"
-          >
+          />
 
           <div class="upload-main-action">
             <label
@@ -51,10 +47,9 @@
           </div>
 
           <div class="formats-hint">
-            Допустимые форматы — изображения:
-            JPG, PNG, WEBP, HEIC/HEIF, TIFF, BMP, PSD, GIF ·
-            видео: MP4, MOV, WebM, AVI, MKV, MPEG ·
-            документы: PDF, DOC/DOCX, ODT, RTF, TXT, MD, XLS/XLSX, ODS, CSV, PPT/PPTX, ODP
+            Допустимые форматы — изображения: JPG, PNG, WEBP, HEIC/HEIF, TIFF,
+            BMP, PSD, GIF · видео: MP4, MOV, WebM, AVI, MKV, MPEG · документы:
+            PDF, DOC/DOCX, ODT, RTF, TXT, MD, XLS/XLSX, ODS, CSV, PPT/PPTX, ODP
           </div>
         </q-card-section>
       </q-card>
@@ -98,10 +93,7 @@
                   >
                     <span>{{ documentExtension(item.file.name) }}</span>
                   </div>
-                  <img
-                    v-else
-                    :src="queuePreviewUrl(item)"
-                  />
+                  <img v-else :src="queuePreviewUrl(item)" />
                 </div>
 
                 <div class="upload-queue-fields">
@@ -131,7 +123,12 @@
                       emit-value
                       map-options
                       label="Категория"
-                      :options="mediaCategories.map((category) => ({ label: category.name, value: category.id }))"
+                      :options="
+                        mediaCategories.map(category => ({
+                          label: category.name,
+                          value: category.id
+                        }))
+                      "
                       :disable="uploading || item.status !== 'pending'"
                     />
 
@@ -142,16 +139,13 @@
                       aria-label="Добавить категорию"
                       title="Добавить категорию"
                       :disable="uploading"
-                      @click="newCategoryName = ''; categoryDialog = true"
+                      @click="openCategoryDialog"
                     />
                   </div>
                 </div>
 
                 <div class="upload-queue-status">
-                  <q-spinner
-                    v-if="item.status === 'uploading'"
-                    size="20px"
-                  />
+                  <q-spinner v-if="item.status === 'uploading'" size="20px" />
                   <q-icon
                     v-else-if="item.status === 'success'"
                     name="check_circle"
@@ -197,10 +191,7 @@
             </div>
           </q-card-section>
 
-          <q-card-actions
-            v-if="uploadQueue.length > 1"
-            align="right"
-          >
+          <q-card-actions v-if="uploadQueue.length > 1" align="right">
             <q-btn
               flat
               no-caps
@@ -215,21 +206,22 @@
               no-caps
               label="ДОБАВИТЬ ВСЕ"
               @click="uploadAllQueue"
-              :disable="uploading || !uploadQueue.some((item) => item.status === 'pending')"
+              :disable="
+                uploading ||
+                !uploadQueue.some(item => item.status === 'pending')
+              "
             />
           </q-card-actions>
         </q-card>
       </q-dialog>
 
-
       <q-dialog v-model="categoryDialog">
-        <q-card style="min-width: 360px; max-width: 90vw;">
+        <q-card style="min-width: 360px; max-width: 90vw">
           <q-card-section>
             <div class="section-title">Новая категория</div>
           </q-card-section>
 
           <q-card-section>
-
             <q-input
               v-model="newCategoryName"
               outlined
@@ -263,13 +255,12 @@
       </q-dialog>
 
       <q-dialog v-model="editDialog">
-        <q-card style="min-width: 420px; max-width: 90vw;">
+        <q-card style="min-width: 420px; max-width: 90vw">
           <q-card-section>
             <div class="section-title">Редактирование изображения</div>
           </q-card-section>
 
           <q-card-section class="q-gutter-md">
-
             <q-input
               v-model="editOriginalName"
               outlined
@@ -286,10 +277,12 @@
               emit-value
               map-options
               label="Категория"
-              :options="mediaCategories.map((category) => ({
-                label: category.name,
-                value: category.id
-              }))"
+              :options="
+                mediaCategories.map(category => ({
+                  label: category.name,
+                  value: category.id
+                }))
+              "
               :loading="loadingCategories"
               :disable="savingMedia"
             />
@@ -364,9 +357,7 @@
             >
               <div>
                 <strong>{{ variant.variant }}</strong>
-                <span>
-                  {{ variant.width }} × {{ variant.height }}
-                </span>
+                <span> {{ variant.width }} × {{ variant.height }} </span>
               </div>
 
               <a
@@ -412,7 +403,6 @@
         <q-card flat bordered class="catalog-filters">
           <q-card-section>
             <div class="filters-grid">
-
               <q-input
                 v-model="searchQuery"
                 outlined
@@ -450,7 +440,12 @@
                 emit-value
                 map-options
                 label="Раздел хранения"
-                :options="mediaCategories.map((category) => ({ label: category.name, value: category.id }))"
+                :options="
+                  mediaCategories.map(category => ({
+                    label: category.name,
+                    value: category.id
+                  }))
+                "
                 :loading="loadingCategories"
               />
 
@@ -468,7 +463,6 @@
                   { label: 'ДОКУМЕНТЫ', value: 'document' }
                 ]"
               />
-
             </div>
 
             <div class="catalog-toolbar">
@@ -510,11 +504,7 @@
           </q-card-section>
         </q-card>
 
-        <q-card
-          v-if="catalogError"
-          flat
-          class="result-card result-error"
-        >
+        <q-card v-if="catalogError" flat class="result-card result-error">
           <q-card-section>
             <div class="result-title">Ошибка</div>
             <div>{{ catalogError }}</div>
@@ -527,9 +517,7 @@
           bordered
           class="empty-card"
         >
-          <q-card-section>
-            Пока нет загруженных изображений.
-          </q-card-section>
+          <q-card-section> Пока нет загруженных изображений. </q-card-section>
         </q-card>
 
         <q-card
@@ -545,8 +533,14 @@
 
         <div
           v-else
-          ref="mediaGridRef" :class="['media-grid', `media-grid--${viewMode}`]" @scroll.passive="handleMediaGridScroll"
-          :style="viewMode === 'small' ? { '--media-small-columns': smallColumns } : undefined"
+          ref="mediaGridRef"
+          :class="['media-grid', `media-grid--${viewMode}`]"
+          @scroll.passive="handleMediaGridScroll"
+          :style="
+            viewMode === 'small'
+              ? { '--media-small-columns': smallColumns }
+              : undefined
+          "
         >
           <q-card
             v-for="item in filteredMediaItems"
@@ -557,7 +551,9 @@
           >
             <div class="media-thumbnail-wrap">
               <video
-                v-if="viewMode === 'medium' && item.mime_type?.startsWith('video/')"
+                v-if="
+                  viewMode === 'medium' && item.mime_type?.startsWith('video/')
+                "
                 :src="storageUrl(item.storage_path)"
                 :poster="thumbnailUrl(item)"
                 class="media-thumbnail media-thumbnail--video"
@@ -584,9 +580,7 @@
                 </span>
               </div>
 
-              <div v-else class="media-thumbnail-empty">
-                Нет превью
-              </div>
+              <div v-else class="media-thumbnail-empty"> Нет превью </div>
             </div>
 
             <q-card-section class="media-item-content">
@@ -598,7 +592,8 @@
                 <span
                   class="media-type-icon"
                   :class="{
-                    'media-type-icon--video': item.mime_type?.startsWith('video/'),
+                    'media-type-icon--video':
+                      item.mime_type?.startsWith('video/'),
                     'media-type-icon--document': isDocument(item)
                   }"
                 >
@@ -704,57 +699,85 @@
             </q-card-section>
           </q-card>
         </div>
-      <div v-if="mediaStats" class="media-stats">
-        <div class="media-stats__item">
-          <span class="media-stats__label">ФАЙЛЫ</span>
-          <strong>{{ mediaStats.overview.total_files }}</strong>
-          <span>{{ mediaStats.overview.used_files }} используется · {{ formatStatsBytes(mediaStats.overview.size_bytes) }}</span>
-        </div>
-        <div class="media-stats__item">
-          <span class="media-stats__label">ХРАНИЛИЩЕ</span>
-          <strong>{{ formatStatsPercent(mediaStats.storage.free_percent) }}</strong>
-          <span>{{ formatStatsBytes(mediaStats.storage.used_bytes) }} из {{ formatStatsBytes(mediaStats.storage.total_bytes) }}</span>
-        </div>
-        <div class="media-stats__item">
-          <span class="media-stats__label">CPU СЕРВЕРА</span>
-          <strong>{{ formatStatsPercent(mediaStats.cpu_percent) }}</strong>
-          <span>текущая загрузка</span>
-        </div>
-
-        <div class="media-stats__item media-stats__item--wide">
-          <span class="media-stats__label">КАТЕГОРИИ</span>
-          <div v-for="category in mediaStats.categories" :key="category.id" class="media-stats__row">
-            <span>{{ category.name }}</span>
-            <span>{{ category.total_files }} / {{ category.used_files }} · {{ formatStatsBytes(category.size_bytes) }}</span>
+        <div v-if="mediaStats" class="media-stats">
+          <div class="media-stats__item">
+            <span class="media-stats__label">ФАЙЛЫ</span>
+            <strong>{{ mediaStats.overview.total_files }}</strong>
+            <span
+              >{{ mediaStats.overview.used_files }} используется ·
+              {{ formatStatsBytes(mediaStats.overview.size_bytes) }}</span
+            >
           </div>
-        </div>
-
-        <div class="media-stats__item media-stats__item--wide">
-          <span class="media-stats__label">ТИПЫ</span>
-          <div class="media-stats__row">
-            <span>Фото</span>
-            <span>{{ mediaStats.types.photos.total_files }} · {{ formatStatsBytes(mediaStats.types.photos.size_bytes) }}</span>
+          <div class="media-stats__item">
+            <span class="media-stats__label">ХРАНИЛИЩЕ</span>
+            <strong>{{
+              formatStatsPercent(mediaStats.storage.free_percent)
+            }}</strong>
+            <span
+              >{{ formatStatsBytes(mediaStats.storage.used_bytes) }} из
+              {{ formatStatsBytes(mediaStats.storage.total_bytes) }}</span
+            >
           </div>
-          <div class="media-stats__row">
-            <span>Видео</span>
-            <span>{{ mediaStats.types.videos.total_files }} · {{ formatStatsBytes(mediaStats.types.videos.size_bytes) }}</span>
-          </div>
-          <div class="media-stats__row">
-            <span>Другое</span>
-            <span>{{ mediaStats.types.other.total_files }} · {{ formatStatsBytes(mediaStats.types.other.size_bytes) }}</span>
-          </div>
-          <div v-for="extension in mediaStats.types.extensions" :key="extension.extension" class="media-stats__row">
-            <span>.{{ extension.extension }}</span>
-            <span>{{ extension.total_files }} · {{ formatStatsBytes(extension.size_bytes) }}</span>
+          <div class="media-stats__item">
+            <span class="media-stats__label">CPU СЕРВЕРА</span>
+            <strong>{{ formatStatsPercent(mediaStats.cpu_percent) }}</strong>
+            <span>текущая загрузка</span>
           </div>
 
-        </div>
-      </div>
+          <div class="media-stats__item media-stats__item--wide">
+            <span class="media-stats__label">КАТЕГОРИИ</span>
+            <div
+              v-for="category in mediaStats.categories"
+              :key="category.id"
+              class="media-stats__row"
+            >
+              <span>{{ category.name }}</span>
+              <span
+                >{{ category.total_files }} / {{ category.used_files }} ·
+                {{ formatStatsBytes(category.size_bytes) }}</span
+              >
+            </div>
+          </div>
 
+          <div class="media-stats__item media-stats__item--wide">
+            <span class="media-stats__label">ТИПЫ</span>
+            <div class="media-stats__row">
+              <span>Фото</span>
+              <span
+                >{{ mediaStats.types.photos.total_files }} ·
+                {{ formatStatsBytes(mediaStats.types.photos.size_bytes) }}</span
+              >
+            </div>
+            <div class="media-stats__row">
+              <span>Видео</span>
+              <span
+                >{{ mediaStats.types.videos.total_files }} ·
+                {{ formatStatsBytes(mediaStats.types.videos.size_bytes) }}</span
+              >
+            </div>
+            <div class="media-stats__row">
+              <span>Другое</span>
+              <span
+                >{{ mediaStats.types.other.total_files }} ·
+                {{ formatStatsBytes(mediaStats.types.other.size_bytes) }}</span
+              >
+            </div>
+            <div
+              v-for="extension in mediaStats.types.extensions"
+              :key="extension.extension"
+              class="media-stats__row"
+            >
+              <span>.{{ extension.extension }}</span>
+              <span
+                >{{ extension.total_files }} ·
+                {{ formatStatsBytes(extension.size_bytes) }}</span
+              >
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   </q-page>
-
 </template>
 
 <script setup>
@@ -794,9 +817,15 @@ const filterMediaType = ref('all')
 const categoryDialog = ref(false)
 const newCategoryName = ref('')
 const creatingCategory = ref(false)
+
+/* Открыть диалог создания категории с пустым полем. */
+function openCategoryDialog() {
+  newCategoryName.value = ''
+  categoryDialog.value = true
+}
 const editDialog = ref(false)
 const editingMedia = ref(null)
-const editOriginalName = ref('' )
+const editOriginalName = ref('')
 const editCategoryId = ref([])
 const savingMedia = ref(false)
 
@@ -811,16 +840,14 @@ const smallColumnsOptions = [
   { label: '5', value: 5 },
   { label: '6', value: 6 },
   { label: '7', value: 7 },
-  { label: '8', value: 8 },
+  { label: '8', value: 8 }
 ]
-
 
 const viewModeOptions = [
   { label: 'Таблица', value: 'table' },
   { label: 'Компакт', value: 'small' },
-  { label: 'Полный', value: 'medium' },
+  { label: 'Полный', value: 'medium' }
 ]
-
 
 function onNativeFilesPicked(event) {
   prepareUploadQueue(event.target.files)
@@ -828,26 +855,27 @@ function onNativeFilesPicked(event) {
 }
 
 function prepareUploadQueue(files) {
-  const selectedFiles = Array.from(files || []).filter((item) => item instanceof File)
+  const selectedFiles = Array.from(files || []).filter(
+    item => item instanceof File
+  )
 
   if (!selectedFiles.length) {
     return
   }
 
-  uploadQueue.value = selectedFiles.map((item) => ({
+  uploadQueue.value = selectedFiles.map(item => ({
     file: item,
     name: item.name,
-    alt: "",
+    alt: '',
     categoryId: [1],
-    status: "pending",
-    error: ""
+    status: 'pending',
+    error: ''
   }))
 
   uploadProgress.value = 0
   uploadCurrentIndex.value = -1
   uploadDialog.value = true
 }
-
 
 function queuePreviewUrl(item) {
   if (!item.previewUrl) {
@@ -857,16 +885,25 @@ function queuePreviewUrl(item) {
   return item.previewUrl
 }
 
-
 function storageUrl(path) {
   return `/storage/${path}`
 }
 
 const DOCUMENT_EXTENSIONS = new Set([
   'pdf',
-  'doc', 'docx', 'odt', 'rtf', 'txt', 'md',
-  'xls', 'xlsx', 'ods', 'csv',
-  'ppt', 'pptx', 'odp'
+  'doc',
+  'docx',
+  'odt',
+  'rtf',
+  'txt',
+  'md',
+  'xls',
+  'xlsx',
+  'ods',
+  'csv',
+  'ppt',
+  'pptx',
+  'odp'
 ])
 
 const DOCUMENT_MIME_TYPES = new Set([
@@ -903,9 +940,7 @@ function isDocument(item) {
 function documentExtension(name) {
   const extension = fileExtension(name)
 
-  return DOCUMENT_EXTENSIONS.has(extension)
-    ? extension.toUpperCase()
-    : 'DOC'
+  return DOCUMENT_EXTENSIONS.has(extension) ? extension.toUpperCase() : 'DOC'
 }
 
 function mediaTypeSymbol(item) {
@@ -921,14 +956,10 @@ function thumbnailUrl(item) {
     return storageUrl(item.preview_path)
   }
 
-  const thumb = item.variants?.find(
-    (variant) => variant.variant === 'thumb'
-  )
+  const thumb = item.variants?.find(variant => variant.variant === 'thumb')
 
   return storageUrl(thumb?.storage_path || item.storage_path)
 }
-
-
 
 function formatFileSize(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) {
@@ -940,7 +971,7 @@ function formatFileSize(bytes) {
 
 function formatStatsBytes(bytes) {
   if (!Number.isFinite(bytes) || bytes < 0) {
-    return "—"
+    return '—'
   }
 
   return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`
@@ -948,7 +979,7 @@ function formatStatsBytes(bytes) {
 
 function formatStatsPercent(value) {
   if (!Number.isFinite(value)) {
-    return "—"
+    return '—'
   }
 
   return `${value.toFixed(1)}%`
@@ -977,13 +1008,9 @@ function formatDate(value) {
 const filteredMediaItems = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
 
-  return mediaItems.value.filter((item) => {
+  return mediaItems.value.filter(item => {
     if (query) {
-      const haystack = [
-        item.original_name,
-        item.alt,
-        item.title
-      ]
+      const haystack = [item.original_name, item.alt, item.title]
         .filter(Boolean)
         .join(' ')
         .toLowerCase()
@@ -993,22 +1020,30 @@ const filteredMediaItems = computed(() => {
       }
     }
 
-    if (filterMediaType.value === "video" && !item.mime_type?.startsWith("video/")) {
-      return false
-    }
-
     if (
-      filterMediaType.value === "photo" &&
-      (item.mime_type?.startsWith("video/") || isDocument(item))
+      filterMediaType.value === 'video' &&
+      !item.mime_type?.startsWith('video/')
     ) {
       return false
     }
 
-    if (filterMediaType.value === "document" && !isDocument(item)) {
+    if (
+      filterMediaType.value === 'photo' &&
+      (item.mime_type?.startsWith('video/') || isDocument(item))
+    ) {
       return false
     }
 
-    if (filterCategoryId.value.length && !filterCategoryId.value.some((categoryId) => item.category_id?.includes(categoryId))) {
+    if (filterMediaType.value === 'document' && !isDocument(item)) {
+      return false
+    }
+
+    if (
+      filterCategoryId.value.length &&
+      !filterCategoryId.value.some(categoryId =>
+        item.category_id?.includes(categoryId)
+      )
+    ) {
       return false
     }
 
@@ -1044,7 +1079,7 @@ const hasActiveFilters = computed(() => {
   return Boolean(
     searchQuery.value ||
     filterCategoryId.value.length > 0 ||
-    filterMediaType.value !== "all" ||
+    filterMediaType.value !== 'all' ||
     dateFrom.value ||
     dateTo.value
   )
@@ -1054,7 +1089,7 @@ function resetFilters() {
   searchQuery.value = ''
   filterCategoryId.value = []
   dateFrom.value = ''
-  filterMediaType.value = "all"
+  filterMediaType.value = 'all'
   dateTo.value = ''
 }
 
@@ -1106,22 +1141,26 @@ async function createCategory() {
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      catalogError.value =
-        data?.detail || 'Не удалось создать категорию'
+      catalogError.value = data?.detail || 'Не удалось создать категорию'
       return
     }
 
     const category = data?.category
 
     if (category) {
-      mediaCategories.value = [...mediaCategories.value, category].sort((a, b) => a.sort_order !== b.sort_order ? a.sort_order - b.sort_order : a.name.localeCompare(b.name, "ru"))
+      mediaCategories.value = [...mediaCategories.value, category].sort(
+        (a, b) =>
+          a.sort_order !== b.sort_order
+            ? a.sort_order - b.sort_order
+            : a.name.localeCompare(b.name, 'ru')
+      )
       uploadCategoryId.value = [...uploadCategoryId.value, category.id]
     }
 
-    newCategoryName.value = ""
+    newCategoryName.value = ''
     categoryDialog.value = false
   } catch {
-    catalogError.value = "Не удалось выполнить запрос к серверу"
+    catalogError.value = 'Не удалось выполнить запрос к серверу'
   } finally {
     creatingCategory.value = false
   }
@@ -1130,7 +1169,11 @@ async function createCategory() {
 function openEditMedia(item) {
   editingMedia.value = item
   editOriginalName.value = item.original_name || ''
-  editCategoryId.value = Array.isArray(item.category_id) ? item.category_id : item.category_id != null ? [item.category_id] : [...uploadCategoryId.value]
+  editCategoryId.value = Array.isArray(item.category_id)
+    ? item.category_id
+    : item.category_id != null
+      ? [item.category_id]
+      : [...uploadCategoryId.value]
   catalogError.value = ''
   editDialog.value = true
 }
@@ -1163,7 +1206,9 @@ async function saveMediaEdit() {
 
   const formData = new FormData()
   formData.append('original_name', name)
-  editCategoryId.value.forEach((categoryId) => formData.append('category_id', String(categoryId)))
+  editCategoryId.value.forEach(categoryId =>
+    formData.append('category_id', String(categoryId))
+  )
 
   try {
     const response = await fetch(`/api/admin/media/${editingMedia.value.id}`, {
@@ -1183,8 +1228,7 @@ async function saveMediaEdit() {
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      catalogError.value =
-        data?.detail || 'Не удалось сохранить изменения'
+      catalogError.value = data?.detail || 'Не удалось сохранить изменения'
       return
     }
 
@@ -1223,8 +1267,7 @@ async function loadMediaCategories() {
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      catalogError.value =
-        data?.detail || 'Не удалось загрузить категории'
+      catalogError.value = data?.detail || 'Не удалось загрузить категории'
       return
     }
 
@@ -1232,8 +1275,8 @@ async function loadMediaCategories() {
 
     if (
       mediaCategories.value.length &&
-      !mediaCategories.value.some(
-        (category) => uploadCategoryId.value.includes(category.id)
+      !mediaCategories.value.some(category =>
+        uploadCategoryId.value.includes(category.id)
       )
     ) {
       uploadCategoryId.value = [mediaCategories.value[0].id]
@@ -1277,8 +1320,7 @@ async function loadMedia() {
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      catalogError.value =
-        data?.detail || 'Не удалось загрузить каталог медиа'
+      catalogError.value = data?.detail || 'Не удалось загрузить каталог медиа'
       return
     }
 
@@ -1299,18 +1341,18 @@ async function loadMediaStats() {
   }
 
   loadingMediaStats.value = true
-  mediaStatsError.value = ""
+  mediaStatsError.value = ''
 
   try {
-    const response = await fetch("/api/admin/media/stats", {
+    const response = await fetch('/api/admin/media/stats', {
       headers: {
         Authorization: `Bearer ${token}`
       }
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem("albion_admin_token")
-      await router.replace("/administration")
+      sessionStorage.removeItem('albion_admin_token')
+      await router.replace('/administration')
       return
     }
 
@@ -1318,18 +1360,17 @@ async function loadMediaStats() {
 
     if (!response.ok) {
       mediaStatsError.value =
-        data?.detail || "Не удалось загрузить статистику медиа"
+        data?.detail || 'Не удалось загрузить статистику медиа'
       return
     }
 
     mediaStats.value = data
   } catch {
-    mediaStatsError.value = "Не удалось загрузить статистику медиа"
+    mediaStatsError.value = 'Не удалось загрузить статистику медиа'
   } finally {
     loadingMediaStats.value = false
   }
 }
-
 
 async function loadMoreMedia() {
   if (loadingMedia.value || loadingMoreMedia.value || !mediaHasMore.value) {
@@ -1355,8 +1396,8 @@ async function loadMoreMedia() {
     )
 
     if (response.status === 401) {
-      sessionStorage.removeItem("albion_admin_token")
-      await router.replace("/administration")
+      sessionStorage.removeItem('albion_admin_token')
+      await router.replace('/administration')
       return
     }
 
@@ -1364,7 +1405,7 @@ async function loadMoreMedia() {
 
     if (!response.ok) {
       catalogError.value =
-        data?.detail || "Не удалось загрузить следующие файлы"
+        data?.detail || 'Не удалось загрузить следующие файлы'
       return
     }
 
@@ -1373,7 +1414,7 @@ async function loadMoreMedia() {
     mediaOffset.value += newItems.length
     mediaHasMore.value = data?.has_more === true
   } catch {
-    catalogError.value = "Не удалось выполнить запрос к серверу"
+    catalogError.value = 'Не удалось выполнить запрос к серверу'
   } finally {
     loadingMoreMedia.value = false
   }
@@ -1383,7 +1424,8 @@ function handleMediaGridScroll(event) {
   const element = event.currentTarget
   if (!element) return
 
-  const remaining = element.scrollHeight - element.scrollTop - element.clientHeight
+  const remaining =
+    element.scrollHeight - element.scrollTop - element.clientHeight
   if (remaining < 600) loadMoreMedia()
 }
 
@@ -1394,29 +1436,31 @@ async function uploadQueueItem(item) {
     return false
   }
 
-  item.status = "uploading"
-  item.error = ""
+  item.status = 'uploading'
+  item.error = ''
 
   const formData = new FormData()
-  formData.append("file", item.file)
-  formData.append("original_name", item.name.trim() || item.file.name)
-  item.categoryId.forEach((categoryId) => formData.append("category_id", String(categoryId)))
+  formData.append('file', item.file)
+  formData.append('original_name', item.name.trim() || item.file.name)
+  item.categoryId.forEach(categoryId =>
+    formData.append('category_id', String(categoryId))
+  )
 
   if (item.alt.trim()) {
-    formData.append("alt", item.alt.trim())
+    formData.append('alt', item.alt.trim())
   }
 
   if (item.title?.trim()) {
-    formData.append("title", item.title.trim())
+    formData.append('title', item.title.trim())
   }
 
-  if (item.file.type.startsWith("video/") && item.previewTime > 0) {
-    formData.append("preview_time", String(item.previewTime))
+  if (item.file.type.startsWith('video/') && item.previewTime > 0) {
+    formData.append('preview_time', String(item.previewTime))
   }
 
   try {
-    const response = await fetch("/api/admin/media", {
-      method: "POST",
+    const response = await fetch('/api/admin/media', {
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${token}`
       },
@@ -1424,25 +1468,25 @@ async function uploadQueueItem(item) {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem("albion_admin_token")
-      await router.replace("/administration")
+      sessionStorage.removeItem('albion_admin_token')
+      await router.replace('/administration')
       return false
     }
 
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      item.status = "error"
-      item.error = data?.detail || "Не удалось загрузить файл"
+      item.status = 'error'
+      item.error = data?.detail || 'Не удалось загрузить файл'
       return false
     }
 
-    item.status = "success"
+    item.status = 'success'
     item.result = data?.media || null
     return true
   } catch {
-    item.status = "error"
-    item.error = "Не удалось выполнить запрос к серверу"
+    item.status = 'error'
+    item.error = 'Не удалось выполнить запрос к серверу'
     return false
   }
 }
@@ -1469,18 +1513,18 @@ async function uploadSingleQueue(item) {
 }
 
 async function uploadAllQueue() {
-  const items = uploadQueue.value.filter((item) => item.status === "pending")
+  const items = uploadQueue.value.filter(item => item.status === 'pending')
 
   if (!items.length) {
     return
   }
 
-  items.forEach((item) => {
+  items.forEach(item => {
     item.name = item.file.name
-    item.alt = ""
+    item.alt = ''
     item.categoryId = [1]
-    item.status = "pending"
-    item.error = ""
+    item.status = 'pending'
+    item.error = ''
   })
 
   uploading.value = true
@@ -1553,14 +1597,11 @@ async function deleteMedia(item) {
     const data = await response.json().catch(() => null)
 
     if (!response.ok) {
-      catalogError.value =
-        data?.detail || 'Не удалось удалить изображение'
+      catalogError.value = data?.detail || 'Не удалось удалить изображение'
       return
     }
 
-    mediaItems.value = mediaItems.value.filter(
-      (media) => media.id !== item.id
-    )
+    mediaItems.value = mediaItems.value.filter(media => media.id !== item.id)
 
     if (result.value?.id === item.id) {
       result.value = null
@@ -1591,7 +1632,6 @@ onBeforeUnmount(() => {
   }
 })
 </script>
-
 
 <style scoped>
 .media-page {
@@ -1698,7 +1738,6 @@ onBeforeUnmount(() => {
     grid-row: 1 / span 2;
   }
 }
-
 
 .media-container {
   width: 100%;
@@ -2245,7 +2284,6 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr 1fr;
   }
 
-
   .media-grid--medium {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2303,8 +2341,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
-
-
   .catalog-toolbar {
     align-items: flex-start;
     flex-direction: column;
@@ -2362,7 +2398,6 @@ onBeforeUnmount(() => {
 
   .media-grid--small,
   .media-grid--medium,
-
   .media-grid--table .media-item {
     display: block;
   }

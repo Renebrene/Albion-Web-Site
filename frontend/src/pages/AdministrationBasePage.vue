@@ -27,8 +27,8 @@
       <div class="section-title">1. Загрузить Excel</div>
       <div class="section-hint">
         Файл может лежать где угодно — попадёт в папку
-        <code>input/</code>. В ней всегда один файл: предыдущий
-        уходит в архив после успешного обновления.
+        <code>input/</code>. В ней всегда один файл: предыдущий уходит в архив
+        после успешного обновления.
       </div>
 
       <div class="upload-row">
@@ -52,8 +52,10 @@
       </div>
 
       <div v-if="uploadedFile" class="ok-text">
-        Сохранён файл: <b>{{ uploadedFile.filename }}</b>
-        ({{ (uploadedFile.size / 1024).toFixed(1) }} KB)
+        Сохранён файл: <b>{{ uploadedFile.filename }}</b> ({{
+          (uploadedFile.size / 1024).toFixed(1)
+        }}
+        KB)
         <span v-if="uploadedFile.moved_previous">
           · предыдущий → .previous (архивируется после обновления)
         </span>
@@ -75,7 +77,10 @@
           · {{ (updateState.input_pending.size / 1024).toFixed(1) }} KB
         </span>
         <span
-          v-if="!updateState.input_pending.valid && updateState.input_pending.problem"
+          v-if="
+            !updateState.input_pending.valid &&
+            updateState.input_pending.problem
+          "
           class="pending-file-problem"
         >
           — {{ updateState.input_pending.problem }}
@@ -87,9 +92,9 @@
     <div class="section-card">
       <div class="section-title">2. Обновить базу</div>
       <div class="section-hint">
-        Полное обновление: текстовая часть пересоздаётся целиком,
-        медиа скачиваются только для изменённых ссылок, оригиналы
-        не хранятся — создаются превью large/card/thumb.
+        Полное обновление: текстовая часть пересоздаётся целиком, медиа
+        скачиваются только для изменённых ссылок, оригиналы не хранятся —
+        создаются превью large/card/thumb.
       </div>
 
       <div class="last-update-row">
@@ -109,9 +114,15 @@
         <b>{{ updateState.last_restore.import_key }}</b>
         <template v-if="updateState.last_restore.base_date">
           — от
-          {{ (updateState.last_restore.base_date || '').split('-').reverse().join('.') }}
+          {{
+            (updateState.last_restore.base_date || '')
+              .split('-')
+              .reverse()
+              .join('.')
+          }}
         </template>
-        · восстановление {{ formatDateTime(updateState.last_restore.restored_at) }}
+        · восстановление
+        {{ formatDateTime(updateState.last_restore.restored_at) }}
       </div>
 
       <div class="upload-row">
@@ -152,7 +163,9 @@
 
       <!-- счётчики медиа -->
       <div
-        v-if="updateState.state === 'running' || updateState.media.tasks !== null"
+        v-if="
+          updateState.state === 'running' || updateState.media.tasks !== null
+        "
         class="media-row"
       >
         <span v-if="updateState.media.tasks !== null">
@@ -182,31 +195,23 @@
       </div>
 
       <!-- результат -->
-      <div
-        v-if="updateState.state === 'success'"
-        class="ok-text"
-      >
+      <div v-if="updateState.state === 'success'" class="ok-text">
         Обновление завершено.
         <template v-if="updateState.commit_key">
-          Новая версия: <b>{{ updateState.commit_key }}</b>.
+          Новая версия: <b>{{ updateState.commit_key }}</b
+          >.
         </template>
       </div>
-
-      </div>
+    </div>
 
     <!-- ============ ТЕКУЩИЙ ЛОГ ОБ ОШИБКАХ ============ -->
     <div class="section-card">
       <div class="section-title">3. Текущий лог об ошибках</div>
 
       <!-- общая информация об ошибках -->
-      <div
-        v-if="errorsText"
-        class="errors-block"
-      >
+      <div v-if="errorsText" class="errors-block">
         <div class="errors-header">
-          <div class="errors-title">
-            Ошибки обновления
-          </div>
+          <div class="errors-title"> Ошибки обновления </div>
 
           <div class="errors-actions">
             <q-btn
@@ -225,9 +230,7 @@
       <div v-else-if="updateState.state === 'error'" class="error-text">
         Прогон завершился с ошибкой — подробности в логе ниже.
       </div>
-      <div v-else class="ok-text">
-        Ошибок не обнаружено.
-      </div>
+      <div v-else class="ok-text"> Ошибок не обнаружено. </div>
 
       <div class="log-actions-row">
         <q-btn
@@ -263,16 +266,12 @@
           <span class="log-size">{{ (log.size / 1024).toFixed(1) }} KB</span>
         </button>
       </div>
-      <div v-else class="empty-text">
-        Сохранённых логов пока нет.
-      </div>
+      <div v-else class="empty-text"> Сохранённых логов пока нет. </div>
     </div>
 
     <!-- ============ АРХИВЫ ============ -->
     <div class="section-card">
-      <div class="section-title">
-        4. Архивы базы
-      </div>
+      <div class="section-title"> 4. Архивы базы </div>
 
       <div class="archives-toolbar">
         <q-btn
@@ -284,11 +283,7 @@
         />
       </div>
 
-      <div
-        v-for="item in archives"
-        :key="item.import_key"
-        class="archive-card"
-      >
+      <div v-for="item in archives" :key="item.import_key" class="archive-card">
         <div class="archive-row">
           <div>
             <div class="archive-key">{{ item.import_key }}</div>
@@ -298,22 +293,12 @@
           </div>
 
           <div class="archive-chips">
-            <span
-              v-if="item.source_exists"
-              class="chip chip-green"
-            >Excel</span>
-            <span
-              v-if="item.database_exists"
-              class="chip chip-blue"
-            >DB</span>
-            <span
-              v-if="item.media_exists"
-              class="chip chip-orange"
-            >Media</span>
-            <span
-              v-if="!item.database_exists"
-              class="chip chip-red"
-            >без дампа</span>
+            <span v-if="item.source_exists" class="chip chip-green">Excel</span>
+            <span v-if="item.database_exists" class="chip chip-blue">DB</span>
+            <span v-if="item.media_exists" class="chip chip-orange">Media</span>
+            <span v-if="!item.database_exists" class="chip chip-red"
+              >без дампа</span
+            >
           </div>
         </div>
 
@@ -353,19 +338,13 @@
           <div class="dialog-text">
             Версия <b>{{ confirmKey }}</b> заменит конструкции и их медиа
             данными из архива. Остальные разделы базы — новости, настройки,
-            пользователи, контакты — не изменятся.
-            Текущее состояние будет сохранено в архив
-            <code>_safety</code> перед восстановлением.
+            пользователи, контакты — не изменятся. Текущее состояние будет
+            сохранено в архив <code>_safety</code> перед восстановлением.
           </div>
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn
-            flat
-            no-caps
-            label="Отмена"
-            v-close-popup
-          />
+          <q-btn flat no-caps label="Отмена" v-close-popup />
           <q-btn
             color="negative"
             no-caps
@@ -382,14 +361,10 @@
         <q-card-section>
           <div class="dialog-title">Восстановление...</div>
           <div class="dialog-text">
-            Идёт восстановление версии <b>{{ busyKey }}</b>.
-            Это может занять несколько минут.
+            Идёт восстановление версии <b>{{ busyKey }}</b
+            >. Это может занять несколько минут.
           </div>
-          <q-linear-progress
-            indeterminate
-            color="negative"
-            class="q-mt-md"
-          />
+          <q-linear-progress indeterminate color="negative" class="q-mt-md" />
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -416,10 +391,7 @@
             </div>
           </template>
 
-          <div
-            v-if="result?.verify"
-            class="result-grid"
-          >
+          <div v-if="result?.verify" class="result-grid">
             <div>constructions</div>
             <div>{{ result.verify.counts?.constructions }}</div>
 
@@ -438,17 +410,11 @@
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn
-            flat
-            no-caps
-            label="Закрыть"
-            v-close-popup
-          />
+          <q-btn flat no-caps label="Закрыть" v-close-popup />
         </q-card-actions>
       </q-card>
     </q-dialog>
-
-    </q-page>
+  </q-page>
 </template>
 
 <script setup>
@@ -466,7 +432,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -570,8 +536,10 @@ function formatDateTime(value) {
 
   const pad = n => String(n).padStart(2, '0')
 
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.`
-    + `${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return (
+    `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.` +
+    `${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  )
 }
 
 // --- восстановление из архивов ---
@@ -1103,10 +1071,22 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 }
 
-.chip-green { background: #2e7d32; color: #fff; }
-.chip-blue { background: #1565c0; color: #fff; }
-.chip-orange { background: #ef6c00; color: #fff; }
-.chip-red { background: #c62828; color: #fff; }
+.chip-green {
+  background: #2e7d32;
+  color: #fff;
+}
+.chip-blue {
+  background: #1565c0;
+  color: #fff;
+}
+.chip-orange {
+  background: #ef6c00;
+  color: #fff;
+}
+.chip-red {
+  background: #c62828;
+  color: #fff;
+}
 
 .archive-actions {
   display: flex;
@@ -1153,7 +1133,7 @@ onBeforeUnmount(() => {
   width: 100%;
   padding: 9px 12px;
   border: 0;
-  border-bottom: 1px solid #eceeF1;
+  border-bottom: 1px solid #eceef1;
   background: transparent;
   text-align: left;
   color: #17212b;

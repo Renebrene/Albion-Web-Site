@@ -5,17 +5,11 @@ export function normalizeAvailability(value) {
 }
 
 export function getMonthValue(item, month) {
-  return (
-    item?.months?.[month] ??
-    item?.statuses?.[month] ??
-    ''
-  )
+  return item?.months?.[month] ?? item?.statuses?.[month] ?? ''
 }
 
 export function getAvailabilityState(item, month) {
-  const raw = String(
-    getMonthValue(item, month)
-  ).trim()
+  const raw = String(getMonthValue(item, month)).trim()
 
   // Нет данных = СВОБОДНО
   if (!raw) {
@@ -30,18 +24,12 @@ export function getAvailabilityState(item, month) {
   }
 
   // Резерв / утверждение
-  if (
-    value.includes('резерв') ||
-    value.includes('утверж')
-  ) {
+  if (value.includes('резерв') || value.includes('утверж')) {
     return 'reserve'
   }
 
   // Продано / занято
-  if (
-    value.includes('продан') ||
-    value.includes('занят')
-  ) {
+  if (value.includes('продан') || value.includes('занят')) {
     return 'busy'
   }
 
@@ -51,16 +39,10 @@ export function getAvailabilityState(item, month) {
   }
 
   // Процент загрузки менее 100% = свободно
-  const percent = value.match(
-    /(\d+(?:[.,]\d+)?)\s*%/
-  )
+  const percent = value.match(/(\d+(?:[.,]\d+)?)\s*%/)
 
   if (percent) {
-    return Number(
-      percent[1].replace(',', '.')
-    ) >= 100
-      ? 'busy'
-      : 'free'
+    return Number(percent[1].replace(',', '.')) >= 100 ? 'busy' : 'free'
   }
 
   // Любое другое непустое значение считаем занятым.

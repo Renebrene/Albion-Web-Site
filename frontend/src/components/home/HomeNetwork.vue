@@ -1,7 +1,6 @@
 <template>
   <section class="network-section">
     <div class="network-shell">
-
       <div class="network-heading">
         <div>
           <div class="eyebrow">СОБСТВЕННАЯ СЕТЬ</div>
@@ -13,16 +12,14 @@
         </div>
 
         <p>
-          Собственная сеть рекламных конструкций
-          в Ростове-на-Дону и городах Ростовской области.
+          Собственная сеть рекламных конструкций в Ростове-на-Дону и городах
+          Ростовской области.
         </p>
       </div>
 
       <div class="network-layout">
-
         <!-- Визуальная карта -->
         <div class="network-map">
-
           <div class="map-label">
             <span class="map-dot"></span>
             РОСТОВСКАЯ ОБЛАСТЬ
@@ -58,7 +55,6 @@
 
         <!-- Информация о сети -->
         <div class="network-info">
-
           <div class="network-block">
             <div class="block-number">01</div>
 
@@ -87,11 +83,7 @@
               <h3>Ключевые трассы и территории</h3>
 
               <div class="highways">
-                <div
-                  v-for="highway in highways"
-                  :key="highway"
-                  class="highway"
-                >
+                <div v-for="highway in highways" :key="highway" class="highway">
                   <span class="highway-icon">→</span>
                   <span>{{ highway }}</span>
                 </div>
@@ -105,7 +97,6 @@
             class="network-button"
             to="/vozmozhnosti"
           />
-
         </div>
       </div>
     </div>
@@ -139,10 +130,7 @@ const cityList = computed(() => {
   constructions.value.forEach(item => {
     if (!item.city) return
 
-    counts.set(
-      item.city,
-      (counts.get(item.city) || 0) + 1
-    )
+    counts.set(item.city, (counts.get(item.city) || 0) + 1)
   })
 
   return [...counts.entries()]
@@ -208,9 +196,7 @@ const mapPoints = computed(() => {
 
   return cityList.value
     .map(city => {
-      const coordinates = points.find(
-        point => point.name === city.name
-      )
+      const coordinates = points.find(point => point.name === city.name)
 
       if (!coordinates) return null
 
@@ -323,11 +309,7 @@ h2 span {
       rgba(225, 42, 31, 0.16),
       transparent 26%
     ),
-    linear-gradient(
-      145deg,
-      #dfe5e7,
-      #cbd4d8
-    );
+    linear-gradient(145deg, #dfe5e7, #cbd4d8);
 }
 
 .network-map::before,

@@ -22,9 +22,7 @@
               {{ item.kicker }}
             </div>
 
-            <component
-              :is="item.type === 'network' ? 'h1' : 'h2'"
-            >
+            <component :is="item.type === 'network' ? 'h1' : 'h2'">
               {{ item.title }}
               <span>{{ item.title_accent }}</span>
             </component>
@@ -85,17 +83,11 @@
               </div>
             </template>
 
-            <div
-              v-else-if="item.type === 'production'"
-              class="production-word"
-            >
+            <div v-else-if="item.type === 'production'" class="production-word">
               {{ item.visual?.text }}
             </div>
 
-            <div
-              v-else-if="item.type === 'digital'"
-              class="digital-screen"
-            >
+            <div v-else-if="item.type === 'digital'" class="digital-screen">
               {{ item.visual?.text }}
             </div>
           </div>
@@ -103,10 +95,7 @@
       </q-carousel-slide>
 
       <template #control>
-        <q-carousel-control
-          position="bottom-right"
-          :offset="[32, 28]"
-        >
+        <q-carousel-control position="bottom-right" :offset="[32, 28]">
           <div class="hero-dots">
             <button
               v-for="item in slides"
@@ -190,7 +179,7 @@ const slides = ref(fallbackSlides)
 onMounted(async () => {
   try {
     const page = await getPage('home')
-    const hero = page?.blocks?.find((block) => block.key === 'hero')
+    const hero = page?.blocks?.find(block => block.key === 'hero')
     const cmsSlides = hero?.content?.slides
 
     if (Array.isArray(cmsSlides) && cmsSlides.length > 0) {
@@ -219,13 +208,21 @@ onMounted(async () => {
   min-height: 560px;
   padding: 0;
   background:
-    radial-gradient(circle at 75% 35%, rgba(225, 42, 31, 0.18), transparent 32%),
+    radial-gradient(
+      circle at 75% 35%,
+      rgba(225, 42, 31, 0.18),
+      transparent 32%
+    ),
     linear-gradient(120deg, #17212b 0%, #26343e 55%, #34444e 100%);
 }
 
 .hero-slide-dark {
   background:
-    radial-gradient(circle at 78% 30%, rgba(255, 255, 255, 0.08), transparent 30%),
+    radial-gradient(
+      circle at 78% 30%,
+      rgba(255, 255, 255, 0.08),
+      transparent 30%
+    ),
     linear-gradient(120deg, #101820, #1d2933);
 }
 
@@ -393,12 +390,11 @@ h2 span {
   border: 12px solid #111a20;
   border-radius: 14px;
 
-  background:
-    linear-gradient(
-      135deg,
-      rgba(225, 42, 31, 0.8),
-      rgba(225, 42, 31, 0.15)
-    );
+  background: linear-gradient(
+    135deg,
+    rgba(225, 42, 31, 0.8),
+    rgba(225, 42, 31, 0.15)
+  );
 
   color: #fff;
   font-size: 40px;

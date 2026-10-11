@@ -4,7 +4,10 @@
       <div>
         <div class="eyebrow">АДМИНИСТРАЦИЯ</div>
         <h1>Настройки</h1>
-        <p>Карта, внешний вид сайта (шрифты, цвета, скругления). Наборы настроек.</p>
+        <p
+          >Карта, внешний вид сайта (шрифты, цвета, скругления). Наборы
+          настроек.</p
+        >
       </div>
 
       <div class="header-actions">
@@ -40,11 +43,7 @@
         </div>
 
         <div class="form-grid">
-          <div
-            v-for="field in group.fields"
-            :key="field.key"
-            class="field"
-          >
+          <div v-for="field in group.fields" :key="field.key" class="field">
             <label>{{ field.label }}</label>
 
             <!-- Текстовое поле -->
@@ -85,7 +84,7 @@
                 class="color-swatch"
                 :value="values[field.key]"
                 @input="values[field.key] = $event.target.value"
-              >
+              />
               <q-input
                 v-model="values[field.key]"
                 outlined
@@ -143,15 +142,9 @@
           />
         </div>
 
-        <div v-if="!presets.length" class="empty-text">
-          Наборов пока нет.
-        </div>
+        <div v-if="!presets.length" class="empty-text"> Наборов пока нет. </div>
 
-        <article
-          v-for="preset in presets"
-          :key="preset.id"
-          class="preset-row"
-        >
+        <article v-for="preset in presets" :key="preset.id" class="preset-row">
           <div class="preset-info">
             <div class="preset-name">{{ preset.name }}</div>
             <div class="preset-date">{{ formatDate(preset.created_at) }}</div>
@@ -231,7 +224,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -306,7 +299,9 @@ let toastTimer = null
 function notify(text, type = 'ok') {
   toast.value = { show: true, type, text }
   if (toastTimer) clearTimeout(toastTimer)
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
+  toastTimer = setTimeout(() => {
+    toast.value.show = false
+  }, 3000)
 }
 
 function formatDate(value) {
@@ -448,10 +443,9 @@ async function deletePreset(preset) {
 
   presetBusy.value = true
   try {
-    const data = await request(
-      `/api/admin/settings/presets/${preset.id}`,
-      { method: 'DELETE' }
-    )
+    const data = await request(`/api/admin/settings/presets/${preset.id}`, {
+      method: 'DELETE'
+    })
     applyData(data)
     notify(`Набор «${preset.name}» удалён.`)
   } catch (exc) {
@@ -666,7 +660,9 @@ onMounted(() => load())
 
 .toast-enter-active,
 .toast-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .toast-enter-from,

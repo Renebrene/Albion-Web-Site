@@ -30,19 +30,25 @@ export function sideLabel(item) {
 
 /* Формат «щит»: любая подпись — это СТОРОНА (щит статичен, поверхностей нет). */
 function isShieldFormat(type) {
-  return String(type || '').toLowerCase().includes('щит')
+  return String(type || '')
+    .toLowerCase()
+    .includes('щит')
 }
 
 /* Формат «экран»: голая A1 — СТОРОНА, но A(1) — уже поверхность. */
 function isScreenFormat(type) {
-  return String(type || '').toLowerCase().includes('экран')
+  return String(type || '')
+    .toLowerCase()
+    .includes('экран')
 }
 
 /* Динамика = на стороне несколько поверхностей.
  * Индекс в скобках (A(1), A1(2)) — поверхность (кроме щита).
  * Голая A1/A2 — поверхность вне щита и экрана. */
 export function isDynamicSide(side, type) {
-  const value = String(side || '').toUpperCase().trim()
+  const value = String(side || '')
+    .toUpperCase()
+    .trim()
 
   if (isShieldFormat(type)) {
     return false
@@ -67,7 +73,9 @@ export function isDynamicSide(side, type) {
  * Остальные: «A1(2)» → «A1», «A(3)» → «A»; голая «A1» → «A»
  * (у экрана голая «A1» — сторона, остаётся «A1»). */
 export function parentSide(side, type) {
-  const value = String(side || '').toUpperCase().trim()
+  const value = String(side || '')
+    .toUpperCase()
+    .trim()
 
   if (isShieldFormat(type)) {
     return value
@@ -93,17 +101,18 @@ export function dedupeSides(items) {
 
   for (const item of items) {
     const side = sideLabel(item)
-    const type = String(item?.type || '').trim().toUpperCase()
+    const type = String(item?.type || '')
+      .trim()
+      .toUpperCase()
 
     const exists = sides.some(existing => {
       const existingSide = sideLabel(existing)
-      const existingType = String(existing?.type || '').trim().toUpperCase()
+      const existingType = String(existing?.type || '')
+        .trim()
+        .toUpperCase()
 
       return (
-        side &&
-        existingSide &&
-        side === existingSide &&
-        type === existingType
+        side && existingSide && side === existingSide && type === existingType
       )
     })
 
@@ -122,7 +131,9 @@ export function dedupeSides(items) {
  */
 export function familyOf(items) {
   const types = items.map(item =>
-    String(item?.type || '').trim().toLowerCase()
+    String(item?.type || '')
+      .trim()
+      .toLowerCase()
   )
 
   if (types.some(type => type.includes('пиллар'))) {
@@ -158,7 +169,9 @@ export function groupSides(items) {
   const groups = []
 
   for (const item of items) {
-    const type = String(item?.type || '').trim().toLowerCase()
+    const type = String(item?.type || '')
+      .trim()
+      .toLowerCase()
     const parent = parentSide(sideLabel(item), item.type)
     const group = groups.find(
       existing => existing.parent === parent && existing.type === type
@@ -173,7 +186,9 @@ export function groupSides(items) {
 
   return groups.map(group => {
     const first = group.items[0]
-    const type = String(first?.type || '').trim().toLowerCase()
+    const type = String(first?.type || '')
+      .trim()
+      .toLowerCase()
 
     let kind
 
@@ -222,7 +237,9 @@ export function groupByPoint(items) {
     } else if (Number.isFinite(lat) && Number.isFinite(lng)) {
       key = `${lat.toFixed(5)}|${lng.toFixed(5)}`
     } else {
-      const city = String(item?.city || '').trim().toLowerCase()
+      const city = String(item?.city || '')
+        .trim()
+        .toLowerCase()
       const address = String(item?.address || item?.name || '')
         .trim()
         .toLowerCase()

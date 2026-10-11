@@ -34,7 +34,7 @@ export default defineRouter((/* { store, ssrContext } */) => {
     history: createHistory(import.meta.env.QUASAR_VUE_ROUTER_BASE)
   })
 
-  Router.beforeEach((to) => {
+  Router.beforeEach(to => {
     if (!to.meta.requiresAdmin) {
       return true
     }

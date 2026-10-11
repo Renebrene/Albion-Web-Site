@@ -80,7 +80,11 @@
             class="chip"
           >
             {{ email }}
-            <button type="button" @click="form.additionalEmails.splice(index, 1)">×</button>
+            <button
+              type="button"
+              @click="form.additionalEmails.splice(index, 1)"
+              >×</button
+            >
           </span>
         </div>
       </section>
@@ -112,11 +116,7 @@
         >
           <div class="mini-card-body">
             <div class="mini-card-thumb">
-              <img
-                v-if="office.media_url"
-                :src="office.media_url"
-                alt=""
-              >
+              <img v-if="office.media_url" :src="office.media_url" alt="" />
               <span v-else>🗺</span>
             </div>
             <div class="mini-card-info">
@@ -128,14 +128,31 @@
           </div>
 
           <div class="mini-card-actions">
-            <q-btn flat dense no-caps icon="arrow_upward"
-                   :disable="index === 0" @click="moveOffice(index, -1)" />
-            <q-btn flat dense no-caps icon="arrow_downward"
-                   :disable="index === data.offices.length - 1"
-                   @click="moveOffice(index, 1)" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_upward"
+              :disable="index === 0"
+              @click="moveOffice(index, -1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_downward"
+              :disable="index === data.offices.length - 1"
+              @click="moveOffice(index, 1)"
+            />
             <q-btn flat dense no-caps icon="edit" @click="editOffice(office)" />
-            <q-btn flat dense no-caps icon="delete" color="negative"
-                   @click="deleteOffice(office)" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="delete"
+              color="negative"
+              @click="deleteOffice(office)"
+            />
           </div>
         </article>
       </section>
@@ -150,16 +167,44 @@
           <div class="department-title">{{ department.name }}</div>
 
           <div class="inline-actions">
-            <q-btn flat dense no-caps icon="arrow_upward"
-                   :disable="dIndex === 0" @click="moveDepartment(dIndex, -1)" />
-            <q-btn flat dense no-caps icon="arrow_downward"
-                   :disable="dIndex === data.departments.length - 1"
-                   @click="moveDepartment(dIndex, 1)" />
-            <q-btn flat dense no-caps icon="edit" @click="editDepartment(department)" />
-            <q-btn flat dense no-caps icon="delete" color="negative"
-                   @click="deleteDepartment(department)" />
-            <q-btn flat no-caps color="primary" label="+ Сотрудник"
-                   @click="newEmployee(department)" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_upward"
+              :disable="dIndex === 0"
+              @click="moveDepartment(dIndex, -1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_downward"
+              :disable="dIndex === data.departments.length - 1"
+              @click="moveDepartment(dIndex, 1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="edit"
+              @click="editDepartment(department)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="delete"
+              color="negative"
+              @click="deleteDepartment(department)"
+            />
+            <q-btn
+              flat
+              no-caps
+              color="primary"
+              label="+ Сотрудник"
+              @click="newEmployee(department)"
+            />
           </div>
         </div>
 
@@ -174,11 +219,7 @@
         >
           <div class="mini-card-body">
             <div class="mini-card-thumb">
-              <img
-                v-if="employee.media_url"
-                :src="employee.media_url"
-                alt=""
-              >
+              <img v-if="employee.media_url" :src="employee.media_url" alt="" />
               <span v-else>👤</span>
             </div>
             <div class="mini-card-info">
@@ -187,23 +228,54 @@
               </div>
               <div class="mini-card-meta">
                 {{ employee.position }}
-                <template v-if="employee.subdivision"> · {{ employee.subdivision }}</template>
-                <template v-if="employee.phone"> · {{ employee.phone }}</template>
-                <template v-if="employee.personal_phone"> · личн. {{ employee.personal_phone }}</template>
-                <template v-if="employee.email"> · {{ employee.email }}</template>
+                <template v-if="employee.subdivision">
+                  · {{ employee.subdivision }}</template
+                >
+                <template v-if="employee.phone">
+                  · {{ employee.phone }}</template
+                >
+                <template v-if="employee.personal_phone">
+                  · личн. {{ employee.personal_phone }}</template
+                >
+                <template v-if="employee.email">
+                  · {{ employee.email }}</template
+                >
               </div>
             </div>
           </div>
 
           <div class="mini-card-actions">
-            <q-btn flat dense no-caps icon="arrow_upward"
-                   :disable="eIndex === 0" @click="moveEmployee(dIndex, eIndex, -1)" />
-            <q-btn flat dense no-caps icon="arrow_downward"
-                   :disable="eIndex === department.employees.length - 1"
-                   @click="moveEmployee(dIndex, eIndex, 1)" />
-            <q-btn flat dense no-caps icon="edit" @click="editEmployee(employee)" />
-            <q-btn flat dense no-caps icon="delete" color="negative"
-                   @click="deleteEmployee(employee)" />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_upward"
+              :disable="eIndex === 0"
+              @click="moveEmployee(dIndex, eIndex, -1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="arrow_downward"
+              :disable="eIndex === department.employees.length - 1"
+              @click="moveEmployee(dIndex, eIndex, 1)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="edit"
+              @click="editEmployee(employee)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              icon="delete"
+              color="negative"
+              @click="deleteEmployee(employee)"
+            />
           </div>
         </article>
       </section>
@@ -225,9 +297,11 @@
         <q-card-section>
           <div class="dialog-title">
             {{
-              editingType === 'office' ? 'Офис'
-              : editingType === 'department' ? 'Раздел'
-              : 'Сотрудник'
+              editingType === 'office'
+                ? 'Офис'
+                : editingType === 'department'
+                  ? 'Раздел'
+                  : 'Сотрудник'
             }}
           </div>
         </q-card-section>
@@ -247,8 +321,13 @@
             </div>
             <div class="field">
               <label>Адрес</label>
-              <q-input v-model="editing.address" outlined dense type="textarea"
-                       autogrow />
+              <q-input
+                v-model="editing.address"
+                outlined
+                dense
+                type="textarea"
+                autogrow
+              />
             </div>
             <div class="field">
               <label>Телефон</label>
@@ -261,15 +340,32 @@
             <div class="field">
               <label>Почты</label>
               <div class="chips-list">
-                <span v-for="(email, i) in editing.emails" :key="i" class="chip">
+                <span
+                  v-for="(email, i) in editing.emails"
+                  :key="i"
+                  class="chip"
+                >
                   {{ email }}
-                  <button type="button" @click="editing.emails.splice(i, 1)">×</button>
+                  <button type="button" @click="editing.emails.splice(i, 1)"
+                    >×</button
+                  >
                 </span>
               </div>
-              <q-input v-model="newOfficeEmail" outlined dense placeholder="Email…"
-                       @keyup.enter="addOfficeEmail">
+              <q-input
+                v-model="newOfficeEmail"
+                outlined
+                dense
+                placeholder="Email…"
+                @keyup.enter="addOfficeEmail"
+              >
                 <template #append>
-                  <q-btn flat dense no-caps label="Добавить" @click="addOfficeEmail" />
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    label="Добавить"
+                    @click="addOfficeEmail"
+                  />
                 </template>
               </q-input>
             </div>
@@ -280,8 +376,13 @@
                   Установлено
                   <button type="button" @click="clearOfficeMedia">×</button>
                 </span>
-                <q-btn flat no-caps color="primary" label="Загрузить из медиа"
-                       @click="openPicker('office')" />
+                <q-btn
+                  flat
+                  no-caps
+                  color="primary"
+                  label="Загрузить из медиа"
+                  @click="openPicker('office')"
+                />
               </div>
               <div class="media-hint">
                 Необходимые фото нужно загрузить в медиахранилище в раздел
@@ -306,7 +407,12 @@
             </div>
             <div class="field">
               <label>ФИО</label>
-              <q-input v-model="editing.name" outlined dense placeholder="ФИО" />
+              <q-input
+                v-model="editing.name"
+                outlined
+                dense
+                placeholder="ФИО"
+              />
             </div>
             <div class="field">
               <label>Должность</label>
@@ -339,8 +445,13 @@
                   Установлено
                   <button type="button" @click="clearEmployeeMedia">×</button>
                 </span>
-                <q-btn flat no-caps color="primary" label="Загрузить из медиа"
-                       @click="openPicker('employee')" />
+                <q-btn
+                  flat
+                  no-caps
+                  color="primary"
+                  label="Загрузить из медиа"
+                  @click="openPicker('employee')"
+                />
               </div>
               <div class="media-hint">
                 Необходимые фото нужно загрузить в медиахранилище в раздел
@@ -352,8 +463,13 @@
 
         <q-card-actions align="right">
           <q-btn flat no-caps label="Отмена" v-close-popup />
-          <q-btn color="primary" no-caps label="Сохранить" :loading="saving"
-                 @click="saveEditing" />
+          <q-btn
+            color="primary"
+            no-caps
+            label="Сохранить"
+            :loading="saving"
+            @click="saveEditing"
+          />
         </q-card-actions>
       </q-card>
     </q-dialog>
@@ -383,11 +499,7 @@
               class="media-cell"
               @click="selectMedia(item)"
             >
-              <img
-                v-if="isImage(item)"
-                :src="mediaUrl(item)"
-                alt=""
-              >
+              <img v-if="isImage(item)" :src="mediaUrl(item)" alt="" />
               <span v-else>🎞</span>
             </button>
           </div>
@@ -416,7 +528,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -619,7 +731,9 @@ function clearOfficeMedia() {
 async function deleteOffice(office) {
   if (!confirm(`Удалить офис «${office.name}»?`)) return
   try {
-    await request(`/api/admin/contacts/offices/${office.id}`, { method: 'DELETE' })
+    await request(`/api/admin/contacts/offices/${office.id}`, {
+      method: 'DELETE'
+    })
     await loadData()
   } catch (exc) {
     error.value = String(exc)
@@ -705,8 +819,9 @@ async function saveDepartment() {
 async function deleteDepartment(department) {
   if (!confirm(`Удалить раздел «${department.name}» и его сотрудников?`)) return
   try {
-    await request(`/api/admin/contacts/departments/${department.id}`,
-                  { method: 'DELETE' })
+    await request(`/api/admin/contacts/departments/${department.id}`, {
+      method: 'DELETE'
+    })
     await loadData()
   } catch (exc) {
     error.value = String(exc)
@@ -796,8 +911,9 @@ function clearEmployeeMedia() {
 async function deleteEmployee(employee) {
   if (!confirm(`Удалить сотрудника?`)) return
   try {
-    await request(`/api/admin/contacts/employees/${employee.id}`,
-                  { method: 'DELETE' })
+    await request(`/api/admin/contacts/employees/${employee.id}`, {
+      method: 'DELETE'
+    })
     await loadData()
   } catch (exc) {
     error.value = String(exc)
@@ -872,7 +988,9 @@ async function openPicker(target) {
     const categoryName = PICKER_CATEGORY[target] || 'Сотрудники'
     const categoryId = await ensureCategory(categoryName)
     pickerFilterName.value = categoryName
-    const result = await request(`/api/admin/media?limit=200&category_id=${categoryId}`)
+    const result = await request(
+      `/api/admin/media?limit=200&category_id=${categoryId}`
+    )
     mediaList.value = result.media || []
   } catch (exc) {
     pickerError.value = String(exc)

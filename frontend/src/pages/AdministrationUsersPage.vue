@@ -76,7 +76,13 @@
             <td class="date-cell">{{ formatDate(user.last_login_at) }}</td>
             <td class="actions-cell">
               <q-btn flat dense no-caps icon="edit" @click="openEdit(user)" />
-              <q-btn flat dense no-caps icon="key" @click="openPassword(user)" />
+              <q-btn
+                flat
+                dense
+                no-caps
+                icon="key"
+                @click="openPassword(user)"
+              />
             </td>
           </tr>
         </tbody>
@@ -253,7 +259,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })

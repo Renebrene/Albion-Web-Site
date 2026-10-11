@@ -1,20 +1,16 @@
 <template>
   <q-page class="page">
     <div class="container">
-
       <div class="hero">
         <div>
           <div class="eyebrow">ALBION · НАРУЖНАЯ РЕКЛАМА</div>
 
           <h1>
-            Реклама,<br>
+            Реклама,<br />
             которая работает
           </h1>
 
-          <p>
-            Собственная сеть рекламных конструкций
-            в Ростовской области.
-          </p>
+          <p> Собственная сеть рекламных конструкций в Ростовской области. </p>
 
           <q-btn
             unelevated
@@ -44,11 +40,7 @@
         </div>
       </div>
 
-      <q-banner
-        v-if="error"
-        class="bg-red-1 text-negative q-mb-lg"
-        rounded
-      >
+      <q-banner v-if="error" class="bg-red-1 text-negative q-mb-lg" rounded>
         {{ error }}
       </q-banner>
 
@@ -59,7 +51,6 @@
       <div v-if="loaded" class="success">
         ✓ API подключено. Данные загружены.
       </div>
-
     </div>
   </q-page>
 </template>
@@ -73,9 +64,7 @@ const loading = ref(false)
 const loaded = ref(false)
 const error = ref('')
 
-const constructionsCount = computed(
-  () => constructions.value.length
-)
+const constructionsCount = computed(() => constructions.value.length)
 
 const citiesCount = computed(
   () => new Set(constructions.value.map(x => x.city)).size
@@ -93,8 +82,7 @@ async function loadData() {
     constructions.value = await getConstructions()
     loaded.value = true
   } catch (err) {
-    error.value =
-      'Не удалось подключиться к серверу данных: ' + err.message
+    error.value = 'Не удалось подключиться к серверу данных: ' + err.message
   } finally {
     loading.value = false
   }
@@ -136,7 +124,7 @@ async function loadData() {
 h1 {
   margin: 0 0 25px;
   font-size: clamp(52px, 6vw, 90px);
-  line-height: .92;
+  line-height: 0.92;
   font-weight: 800;
   letter-spacing: -4px;
 }

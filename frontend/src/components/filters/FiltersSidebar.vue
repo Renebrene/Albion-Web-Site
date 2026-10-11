@@ -1,7 +1,9 @@
 <template>
   <aside class="filters-sidebar">
     <div class="sidebar-head">
-      <h2>{{ mode === 'list' ? 'Список конструкций' : 'Интерактивная карта' }}</h2>
+      <h2>{{
+        mode === 'list' ? 'Список конструкций' : 'Интерактивная карта'
+      }}</h2>
     </div>
 
     <section class="filter-section">
@@ -12,8 +14,8 @@
           <span class="logic-help">
             ?
             <span class="logic-tooltip">
-              И – одновременно все свободные месяцы, ИЛИ – свободен хотя бы
-              один месяц из запрошенных
+              И – одновременно все свободные месяцы, ИЛИ – свободен хотя бы один
+              месяц из запрошенных
             </span>
           </span>
 
@@ -73,19 +75,9 @@
         <div class="section-label">Города / районы</div>
 
         <div class="city-actions">
-          <button
-            type="button"
-            @click="selectAllCities"
-          >
-            Выбрать все
-          </button>
+          <button type="button" @click="selectAllCities"> Выбрать все </button>
 
-          <button
-            type="button"
-            @click="clearCities"
-          >
-            Снять все
-          </button>
+          <button type="button" @click="clearCities"> Снять все </button>
         </div>
       </div>
 
@@ -227,9 +219,7 @@ function selectAllCities() {
 function clearCities() {
   emit(
     'update:selectedCities',
-    props.cities.includes('Ростов-на-Дону')
-      ? ['Ростов-на-Дону']
-      : []
+    props.cities.includes('Ростов-на-Дону') ? ['Ростов-на-Дону'] : []
   )
 }
 </script>
@@ -275,12 +265,8 @@ function clearCities() {
   color: #17212b;
   font-size: 21px;
   line-height: 1.1;
-  letter-spacing: -.4px;
+  letter-spacing: -0.4px;
 }
-
-
-
-
 
 .filter-section {
   margin-top: 22px;
@@ -295,7 +281,7 @@ function clearCities() {
   text-transform: uppercase;
 }
 
- .logic-wrap {
+.logic-wrap {
   display: flex;
   align-items: center;
   gap: 6px;
@@ -351,8 +337,8 @@ function clearCities() {
   pointer-events: none;
 
   transition:
-    opacity .15s ease,
-    visibility .15s ease;
+    opacity 0.15s ease,
+    visibility 0.15s ease;
 
   z-index: 30;
 }
@@ -387,7 +373,7 @@ function clearCities() {
 .logic-switch button.active {
   background: #fff;
   color: #17212b;
-  box-shadow: 0 1px 4px rgba(20, 30, 40, .10);
+  box-shadow: 0 1px 4px rgba(20, 30, 40, 0.1);
 }
 
 .chips {
@@ -405,7 +391,7 @@ function clearCities() {
   cursor: pointer;
   font-size: 10px;
   font-weight: 700;
-  transition: .12s ease;
+  transition: 0.12s ease;
 }
 
 .chip:hover {

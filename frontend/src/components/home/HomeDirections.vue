@@ -1,7 +1,6 @@
 <template>
   <section class="directions-section">
     <div class="directions-shell">
-
       <div class="directions-heading">
         <div>
           <div class="eyebrow">
@@ -34,16 +33,12 @@
             {{ item }}
           </span>
 
-          <span class="direction-arrow">
-            →
-          </span>
+          <span class="direction-arrow"> → </span>
         </button>
       </div>
 
       <div class="directions-footer">
-        <span>
-          {{ activities.length }} направлений деятельности
-        </span>
+        <span> {{ activities.length }} направлений деятельности </span>
 
         <q-btn
           unelevated
@@ -52,7 +47,6 @@
           :to="content.button.to"
         />
       </div>
-
     </div>
   </section>
 </template>
@@ -98,7 +92,7 @@ onMounted(async () => {
         ...cms,
         button: {
           ...content.value.button,
-          ...(cms.button || {})
+          ...cms.button
         }
       }
     }
@@ -144,7 +138,7 @@ function openDirections() {
   margin: 0;
   color: #17212b;
   font-size: clamp(42px, 5vw, 72px);
-  line-height: .95;
+  line-height: 0.95;
   letter-spacing: -2.5px;
   font-weight: 900;
 }
@@ -174,7 +168,9 @@ function openDirections() {
   color: #17212b;
   text-align: left;
   cursor: pointer;
-  transition: background .18s ease, padding .18s ease;
+  transition:
+    background 0.18s ease,
+    padding 0.18s ease;
 }
 
 .direction-item:hover {
@@ -186,7 +182,7 @@ function openDirections() {
   color: #a2adb4;
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
 }
 
 .direction-title {
@@ -199,7 +195,7 @@ function openDirections() {
   color: var(--albion-accent);
   font-size: 20px;
   text-align: right;
-  transition: transform .18s ease;
+  transition: transform 0.18s ease;
 }
 
 .direction-item:hover .direction-arrow {
@@ -218,7 +214,7 @@ function openDirections() {
   color: #89949b;
   font-size: 10px;
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -230,7 +226,7 @@ function openDirections() {
   color: #fff;
   font-size: 10px;
   font-weight: 850;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 

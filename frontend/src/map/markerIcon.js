@@ -11,20 +11,7 @@ export function escapeHtml(value) {
     .replaceAll("'", '&#039;')
 }
 
-const ALL_MONTHS = [
-  'Август',
-  'Сентябрь',
-  'Октябрь',
-  'Ноябрь',
-  'Декабрь'
-]
-
-function isVideoScreen(item) {
-  return String(item?.type || '')
-    .trim()
-    .toLowerCase()
-    .includes('видеоэкран')
-}
+const ALL_MONTHS = ['Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
 /*
  * Нормализуем состояние одного месяца.
@@ -51,7 +38,7 @@ function isBusy(item, value) {
       ...item,
       months: item?.months,
       statuses: {
-        ...(item?.statuses || {}),
+        ...item?.statuses,
         __marker_value__: raw
       }
     },
@@ -60,7 +47,6 @@ function isBusy(item, value) {
 
   return state === 'busy'
 }
-
 
 /*
  * Цвет конструкции определяется ТОЛЬКО
@@ -107,11 +93,7 @@ export function markerIcon(item, selectedMonths = []) {
       <div
         class="albion-dot"
         style="background:${color}"
-        title="${escapeHtml(
-          item?.address ||
-          item?.name ||
-          ''
-        )}"
+        title="${escapeHtml(item?.address || item?.name || '')}"
       ></div>
     `,
 

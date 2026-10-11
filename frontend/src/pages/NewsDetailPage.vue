@@ -1,20 +1,13 @@
 <template>
   <q-page class="news-detail-page">
     <div v-if="news" class="news-detail">
-
-      <button
-        type="button"
-        class="back-button"
-        @click="goBack"
-      >
+      <button type="button" class="back-button" @click="goBack">
         <span>←</span>
         Все новости
       </button>
 
       <div class="news-detail-layout">
-
         <main class="news-main">
-
           <div class="news-top-meta">
             <span class="news-category">{{ news.category }}</span>
             <span>{{ formattedDate }}</span>
@@ -36,27 +29,20 @@
           />
 
           <div class="news-content">
-            <p
-              v-for="(paragraph, index) in paragraphs"
-              :key="index"
-            >
+            <p v-for="(paragraph, index) in paragraphs" :key="index">
               {{ paragraph }}
             </p>
           </div>
-
         </main>
 
         <aside class="news-sidebar">
-
           <div class="sidebar-block">
             <div class="sidebar-label">ALBION</div>
-            <div class="sidebar-title">
-              Рекламные возможности
-            </div>
+            <div class="sidebar-title"> Рекламные возможности </div>
 
             <p>
-              Выберите подходящие рекламные конструкции,
-              адреса и периоды размещения на интерактивной карте.
+              Выберите подходящие рекламные конструкции, адреса и периоды
+              размещения на интерактивной карте.
             </p>
 
             <button
@@ -88,9 +74,7 @@
               <span class="related-arrow">→</span>
             </button>
           </div>
-
         </aside>
-
       </div>
     </div>
 
@@ -100,12 +84,7 @@
 
     <div v-else class="news-not-found">
       <h1>Новость не найдена</h1>
-      <button
-        type="button"
-        @click="goBack"
-      >
-        Вернуться к новостям
-      </button>
+      <button type="button" @click="goBack"> Вернуться к новостям </button>
     </div>
   </q-page>
 </template>
@@ -132,9 +111,10 @@ const loading = ref(true)
 function normalizeNews(item) {
   if (!item) return null
 
-  const category = item.category && typeof item.category === 'object'
-    ? item.category.name
-    : item.category
+  const category =
+    item.category && typeof item.category === 'object'
+      ? item.category.name
+      : item.category
 
   const date = String(item.date || item.published_at || '').slice(0, 10)
 
@@ -181,9 +161,7 @@ const news = computed(() => {
   if (loading.value) return null
 
   const local = NEWS.find(
-    item =>
-      item.slug === route.params.slug &&
-      item.status === 'published'
+    item => item.slug === route.params.slug && item.status === 'published'
   )
 
   return normalizeNews(local)
@@ -207,22 +185,16 @@ const formattedDate = computed(() => {
     day: '2-digit',
     month: 'long',
     year: 'numeric'
-  }).format(
-    new Date(`${news.value.date}T12:00:00`)
-  )
+  }).format(new Date(`${news.value.date}T12:00:00`))
 })
 
 const relatedNews = computed(() => {
   if (!news.value) return []
 
-  return NEWS
-    .filter(item =>
-      item.status === 'published' &&
-      item.id !== news.value.id
-    )
-    .sort((a, b) =>
-      new Date(b.date) - new Date(a.date)
-    )
+  return NEWS.filter(
+    item => item.status === 'published' && item.id !== news.value.id
+  )
+    .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, 4)
 })
 
@@ -277,7 +249,7 @@ function formatShortDate(date) {
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: .4px;
+  letter-spacing: 0.4px;
 }
 
 .back-button:hover {
@@ -310,7 +282,7 @@ function formatShortDate(date) {
   font-size: 10px;
   font-weight: 750;
   text-transform: uppercase;
-  letter-spacing: .45px;
+  letter-spacing: 0.45px;
 }
 
 .news-category {
@@ -322,7 +294,7 @@ function formatShortDate(date) {
   margin: 0;
   color: #17212b;
   font-size: clamp(34px, 4vw, 58px);
-  line-height: .98;
+  line-height: 0.98;
   font-weight: 900;
   letter-spacing: -2px;
 }
@@ -404,7 +376,7 @@ function formatShortDate(date) {
   font-size: 9px;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: .35px;
+  letter-spacing: 0.35px;
 }
 
 .sidebar-button:hover {

@@ -41,6 +41,7 @@ const url = computed(() => (currentImage.value ? currentImage.value.url : ''))
 // ---------------------------------------------------------------- утилиты
 
 // Запрещённые в файловых системах символы и управляющие коды.
+// eslint-disable-next-line no-control-regex
 const INVALID_FS_CHARS = /[\\/:*?"<>|\u0000-\u001f]/g
 
 /*
@@ -128,10 +129,7 @@ export function sanitizeFileName(base, photoUrl, maxLength = 120) {
 
   let stem = existing ? raw.slice(0, -existing[0].length) : raw
 
-  stem = stem
-    .replace(INVALID_FS_CHARS, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+  stem = stem.replace(INVALID_FS_CHARS, ' ').replace(/\s+/g, ' ').trim()
 
   // Оставляем место под «.расширение».
   const maxStem = Math.max(1, maxLength - ext.length - 1)

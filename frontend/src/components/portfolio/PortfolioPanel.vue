@@ -1009,7 +1009,7 @@ function handleClear() {
   white-space: nowrap;
 
   cursor: pointer;
-  transition: .15s ease;
+  transition: 0.15s ease;
 }
 
 /*
@@ -1034,12 +1034,12 @@ function handleClear() {
 
 /* Свободный месяц кликабелен: клик добавляет и убирает его. */
 .portfolio-month.state-free:hover:not(.is-disabled) {
-  filter: brightness(.95);
+  filter: brightness(0.95);
 }
 
 /* Занятые и резервные добавить нельзя — цвет статуса оставляем читаемым. */
 .portfolio-month.is-disabled {
-  opacity: .8;
+  opacity: 0.8;
   cursor: not-allowed;
 }
 
@@ -1049,7 +1049,7 @@ function handleClear() {
 }
 
 .portfolio-month.is-selected:hover {
-  filter: brightness(.94);
+  filter: brightness(0.94);
 }
 
 .portfolio-month.is-stale {
@@ -1208,7 +1208,7 @@ function handleClear() {
 
   font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
 }
 
 /* --------------------------------------------------------- Тост */

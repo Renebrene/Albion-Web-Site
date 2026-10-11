@@ -53,7 +53,8 @@ function isSurfaceActive(id) {
 
 function monthCell(item, month) {
   const surfaceId = surfaceIdOf(item)
-  const selected = surfaceId !== null && portfolio.isMonthSelected(surfaceId, month.full)
+  const selected =
+    surfaceId !== null && portfolio.isMonthSelected(surfaceId, month.full)
 
   /*
    * Выбрать можно только свободный месяц: у занятых/резервных не ставим
@@ -62,9 +63,10 @@ function monthCell(item, month) {
    */
   const locked = !selected && !isFree(item, month.full)
 
-  const pfAttrs = surfaceId !== null && !locked
-    ? ` data-pf-month="${escapeHtml(String(surfaceId))}|${escapeHtml(month.full)}"`
-    : ''
+  const pfAttrs =
+    surfaceId !== null && !locked
+      ? ` data-pf-month="${escapeHtml(String(surfaceId))}|${escapeHtml(month.full)}"`
+      : ''
 
   return `
     <div
@@ -126,11 +128,13 @@ function videoMonthBlock(item) {
           ? `${label} (${raw})`
           : getMonthStatusLabel(item, month.full)
 
-        const selected = surfaceId !== null && portfolio.isMonthSelected(surfaceId, month.full)
+        const selected =
+          surfaceId !== null && portfolio.isMonthSelected(surfaceId, month.full)
 
-        const pfAttrs = surfaceId !== null
-          ? ` data-pf-month="${escapeHtml(String(surfaceId))}|${escapeHtml(month.full)}"`
-          : ''
+        const pfAttrs =
+          surfaceId !== null
+            ? ` data-pf-month="${escapeHtml(String(surfaceId))}|${escapeHtml(month.full)}"`
+            : ''
 
         return `
           <div
@@ -146,22 +150,15 @@ function videoMonthBlock(item) {
 }
 
 function promoPrice(item) {
-  return String(
-    item?.promoPrice ??
-    item?.promo_price ??
-    ''
-  ).trim()
+  return String(item?.promoPrice ?? item?.promo_price ?? '').trim()
 }
 
 function priceBlock(item) {
   const price = item?.price
   const promo = promoPrice(item)
 
-  const hasPrice = (
-    price !== undefined &&
-    price !== null &&
-    String(price).trim() !== ''
-  )
+  const hasPrice =
+    price !== undefined && price !== null && String(price).trim() !== ''
 
   const hasPromo = promo !== ''
 
@@ -213,22 +210,14 @@ function sideBlock(item) {
 }
 
 function typeBlock(item) {
-  const type = String(
-    item?.type || 'Конструкция'
-  ).trim()
+  const type = String(item?.type || 'Конструкция').trim()
 
-  const size = String(
-    item?.size || ''
-  ).trim()
+  const size = String(item?.size || '').trim()
 
   return `
     <div class="popup-type">
       <strong>${escapeHtml(type)}</strong>
-      ${
-        size
-          ? `<span class="popup-size">${escapeHtml(size)}</span>`
-          : ''
-      }
+      ${size ? `<span class="popup-size">${escapeHtml(size)}</span>` : ''}
     </div>
   `
 }
@@ -322,22 +311,20 @@ function photoBlock(item) {
 }
 
 function featuresBlock(item, isDynamic, surfaceCount = 0) {
-  const light = String(item?.light || '').trim().toLowerCase()
-  const hasLight = [
-    'да',
-    'yes',
-    'true',
-    '1'
-  ].includes(light)
+  const light = String(item?.light || '')
+    .trim()
+    .toLowerCase()
+  const hasLight = ['да', 'yes', 'true', '1'].includes(light)
 
   const dyn = Boolean(isDynamic)
 
   /* Кол-во поверхностей стороны — как «динамика (5)» в списке.
      Показываем только у динамики (не у видеоэкрана: он сюда не попадает)
      и только если это разрешено настройкой show_dyn_count. */
-  const count = showDynCount.value && Number(surfaceCount) > 0
-    ? `<span class="dyn-count">(${escapeHtml(String(surfaceCount))})</span>`
-    : ''
+  const count =
+    showDynCount.value && Number(surfaceCount) > 0
+      ? `<span class="dyn-count">(${escapeHtml(String(surfaceCount))})</span>`
+      : ''
 
   return `
     <div class="popup-features">
@@ -421,12 +408,16 @@ function dynamicRowsBlock(group) {
 
   return `
     <div class="popup-dynamic-rows">
-      ${group.items.map(item => `
+      ${group.items
+        .map(
+          item => `
         <div class="popup-dynamic-row">
           <span class="popup-dynamic-side">${escapeHtml(sideLabel(item))}</span>
           ${MONTHS.map(month => monthCell(item, month)).join('')}
         </div>
-      `).join('')}
+      `
+        )
+        .join('')}
     </div>
   `
 }
@@ -488,17 +479,9 @@ function renderGroup(group) {
 function commonHeader(items) {
   const first = items[0] || {}
 
-  const address = String(
-    first?.address ||
-    first?.name ||
-    ''
-  ).trim()
+  const address = String(first?.address || first?.name || '').trim()
 
-  const place = String(
-    first?.city ||
-    first?.district ||
-    ''
-  ).trim()
+  const place = String(first?.city || first?.district || '').trim()
 
   return `
     <div class="popup-header">
@@ -604,9 +587,7 @@ export function popupContent(input) {
 
       <div class="popup-sides">
 
-        ${visibleGroups
-          .map(renderGroup)
-          .join('')}
+        ${visibleGroups.map(renderGroup).join('')}
 
       </div>
 

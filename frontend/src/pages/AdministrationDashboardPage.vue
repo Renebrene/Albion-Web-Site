@@ -40,19 +40,11 @@
           </button>
 
           <template v-if="editMode">
-            <button
-              type="button"
-              class="dashboard-tool"
-              @click="resetLayout"
-            >
+            <button type="button" class="dashboard-tool" @click="resetLayout">
               Сбросить
             </button>
 
-            <button
-              type="button"
-              class="dashboard-tool"
-              @click="cancelEdit"
-            >
+            <button type="button" class="dashboard-tool" @click="cancelEdit">
               Отменить
             </button>
 
@@ -97,10 +89,7 @@
           «Сохранить».
         </p>
 
-        <section
-          class="dashboard-grid"
-          :class="{ 'is-editing': editMode }"
-        >
+        <section class="dashboard-grid" :class="{ 'is-editing': editMode }">
           <q-card
             v-for="(item, index) in items"
             :key="item.path"
@@ -109,9 +98,8 @@
             class="dashboard-card"
             :class="{
               'is-dragging': draggingIndex === index,
-              'is-drop': reorderMode
-                && dropIndex === index
-                && draggingIndex !== index
+              'is-drop':
+                reorderMode && dropIndex === index && draggingIndex !== index
             }"
             @dragover.prevent="onDragOver(index)"
             @drop.prevent="onDrop(index)"
@@ -123,11 +111,7 @@
               class="tile-icon"
               aria-hidden="true"
             >
-              <img
-                v-if="isMediaIcon(item.icon)"
-                :src="item.icon"
-                alt=""
-              >
+              <img v-if="isMediaIcon(item.icon)" :src="item.icon" alt="" />
               <svg
                 v-else
                 viewBox="0 0 24 24"
@@ -167,7 +151,7 @@
                 placeholder="Название"
                 maxlength="60"
                 @click.stop
-              >
+              />
 
               <div v-else class="dashboard-card-title">
                 {{ item.title }}
@@ -188,11 +172,7 @@
               </div>
 
               <!-- Выбор значка раздела (только в режиме «Названия») -->
-              <div
-                v-if="renameMode"
-                class="tile-icon-picker"
-                @click.stop
-              >
+              <div v-if="renameMode" class="tile-icon-picker" @click.stop>
                 <div class="tile-icon-grid">
                   <button
                     type="button"
@@ -244,10 +224,7 @@
         </section>
 
         <!-- Выбор картинки-значка из медиатеки -->
-        <MediaPicker
-          v-model="mediaPickerOpen"
-          @select="onMediaIconPicked"
-        />
+        <MediaPicker v-model="mediaPickerOpen" @select="onMediaIconPicked" />
       </template>
     </div>
   </q-page>
@@ -444,7 +421,11 @@ const PRESET_ICONS = [
   {
     key: 'info',
     label: 'Информация',
-    paths: ['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z', 'M12 16v-5', 'M12 8h.01']
+    paths: [
+      'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z',
+      'M12 16v-5',
+      'M12 8h.01'
+    ]
   },
   {
     key: 'pin',
@@ -467,7 +448,11 @@ const PRESET_ICONS = [
   {
     key: 'briefcase',
     label: 'Компания',
-    paths: ['M3 7h18v13H3z', 'M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2', 'M3 12h18']
+    paths: [
+      'M3 7h18v13H3z',
+      'M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2',
+      'M3 12h18'
+    ]
   },
   {
     key: 'menu',

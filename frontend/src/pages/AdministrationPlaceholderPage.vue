@@ -22,9 +22,7 @@
       <div class="placeholder-body">
         <q-icon name="construction" size="44px" />
 
-        <div class="placeholder-title">
-          Раздел находится в разработке
-        </div>
+        <div class="placeholder-title"> Раздел находится в разработке </div>
 
         <div class="placeholder-note">
           Функциональность появится в следующих обновлениях админ-панели.

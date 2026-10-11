@@ -14,9 +14,7 @@
       </a>
     </nav>
 
-    <div class="footer-brand">
-      2027@АЛЬБИОН
-    </div>
+    <div class="footer-brand"> 2027@АЛЬБИОН </div>
   </footer>
 </template>
 
@@ -67,7 +65,7 @@ onMounted(async () => {
 
   background: #17212b;
 
-  color: rgba(255, 255, 255, .7);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .footer-links {
@@ -77,13 +75,13 @@ onMounted(async () => {
 }
 
 .footer-link {
-  color: rgba(255, 255, 255, .7);
+  color: rgba(255, 255, 255, 0.7);
 
   font-size: 12px;
 
   text-decoration: none;
 
-  transition: color .15s ease;
+  transition: color 0.15s ease;
 }
 
 .footer-link:hover {
@@ -91,11 +89,11 @@ onMounted(async () => {
 }
 
 .footer-brand {
-  color: rgba(255, 255, 255, .45);
+  color: rgba(255, 255, 255, 0.45);
 
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 
 @media (max-width: 640px) {

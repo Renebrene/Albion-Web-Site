@@ -8,12 +8,9 @@
       :placeholder="placeholder"
       @input="$emit('update:modelValue', $event.target.value)"
       @keydown.enter="onSearch"
-    >
+    />
 
-    <div
-      v-if="showMode"
-      class="search-mode"
-    >
+    <div v-if="showMode" class="search-mode">
       <button
         type="button"
         :class="{ active: mode === 'coords' }"
@@ -31,12 +28,7 @@
       </button>
     </div>
 
-    <button
-      type="button"
-      class="search-icon"
-      title="Найти"
-      @click="onSearch"
-    >
+    <button type="button" class="search-icon" title="Найти" @click="onSearch">
       ⌕
     </button>
   </div>
@@ -68,11 +60,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits([
-  'update:modelValue',
-  'update:mode',
-  'search'
-])
+const emit = defineEmits(['update:modelValue', 'update:mode', 'search'])
 
 const placeholder = computed(() => {
   if (!props.showMode) {
@@ -104,13 +92,13 @@ function onSearch() {
 
   padding: 0 8px 0 10px;
 
-  background: rgba(255,255,255,.97);
+  background: rgba(255, 255, 255, 0.97);
 
-  border: 1px solid rgba(220,225,228,.9);
+  border: 1px solid rgba(220, 225, 228, 0.9);
 
   border-radius: 12px;
 
-  box-shadow: 0 10px 35px rgba(25,35,45,.15);
+  box-shadow: 0 10px 35px rgba(25, 35, 45, 0.15);
 }
 
 /* счётчик — слева */
@@ -181,7 +169,7 @@ function onSearch() {
 .search-mode button.active {
   background: #fff;
   color: #17212b;
-  box-shadow: 0 1px 4px rgba(20, 30, 40, .12);
+  box-shadow: 0 1px 4px rgba(20, 30, 40, 0.12);
 }
 
 /* иконка поиска — справа */
@@ -205,7 +193,7 @@ function onSearch() {
 
   cursor: pointer;
 
-  transition: background .18s ease;
+  transition: background 0.18s ease;
 }
 
 .search-icon:hover {

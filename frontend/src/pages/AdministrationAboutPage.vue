@@ -318,7 +318,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -417,10 +417,11 @@ async function loadData() {
 }
 
 function addBlock() {
-  const nextOrder = blocks.value.reduce(
-    (max, b) => Math.max(max, Number(b.sort_order) || 0),
-    0
-  ) + 10
+  const nextOrder =
+    blocks.value.reduce(
+      (max, b) => Math.max(max, Number(b.sort_order) || 0),
+      0
+    ) + 10
   blocks.value.push({
     id: null,
     block_key: '',
@@ -442,10 +443,11 @@ function removeBlock(index) {
 }
 
 function addStat() {
-  const nextOrder = stats.value.reduce(
-    (max, s) => Math.max(max, Number(s.sort_order) || 0),
-    0
-  ) + 10
+  const nextOrder =
+    stats.value.reduce(
+      (max, s) => Math.max(max, Number(s.sort_order) || 0),
+      0
+    ) + 10
   stats.value.push({
     id: null,
     value: '',
@@ -456,10 +458,11 @@ function addStat() {
 }
 
 function addNetwork() {
-  const nextOrder = network.value.reduce(
-    (max, n) => Math.max(max, Number(n.sort_order) || 0),
-    0
-  ) + 10
+  const nextOrder =
+    network.value.reduce(
+      (max, n) => Math.max(max, Number(n.sort_order) || 0),
+      0
+    ) + 10
   network.value.push({
     id: null,
     item_type: 'city',
@@ -475,10 +478,18 @@ function buildBlockPayload(block) {
     const raw = (block.contentText || '').trim()
     content = raw ? JSON.parse(raw) : {}
   } catch (exc) {
-    throw new Error(`Блок «${block.title || block.block_key}»: некорректный JSON`)
+    throw new Error(
+      `Блок «${block.title || block.block_key}»: некорректный JSON`
+    )
   }
-  if (content === null || typeof content !== 'object' || Array.isArray(content)) {
-    throw new Error(`Блок «${block.title || block.block_key}»: content должен быть объектом`)
+  if (
+    content === null ||
+    typeof content !== 'object' ||
+    Array.isArray(content)
+  ) {
+    throw new Error(
+      `Блок «${block.title || block.block_key}»: content должен быть объектом`
+    )
   }
 
   return {

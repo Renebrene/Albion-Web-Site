@@ -24,13 +24,7 @@ let selectedMonths = []
 let renderTimer = null
 let resizeObserver = null
 
-const ALL_MONTHS = [
-  'Август',
-  'Сентябрь',
-  'Октябрь',
-  'Ноябрь',
-  'Декабрь'
-]
+const ALL_MONTHS = ['Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
 /* =========================================================
    HELPERS
@@ -74,10 +68,7 @@ function normalizeItems(items) {
         const lat = Number(item?.lat)
         const lng = Number(item?.lng)
 
-        return (
-          Number.isFinite(lat) &&
-          Number.isFinite(lng)
-        )
+        return Number.isFinite(lat) && Number.isFinite(lng)
       })
     : []
 }
@@ -170,8 +161,7 @@ function uniqueSides(items) {
  */
 function markerColor(items) {
   const months =
-    Array.isArray(selectedMonths) &&
-    selectedMonths.length
+    Array.isArray(selectedMonths) && selectedMonths.length
       ? selectedMonths
       : ALL_MONTHS
 
@@ -205,9 +195,7 @@ function markerColor(items) {
    * Оранжевый в этом режиме не используется.
    */
   if (mapColorMode.value === 'two') {
-    return freeCount > 0
-      ? mapDotColors.value.free
-      : mapDotColors.value.busy
+    return freeCount > 0 ? mapDotColors.value.free : mapDotColors.value.busy
   }
 
   // Всё свободно → «свободный» цвет.
@@ -289,17 +277,13 @@ function createMap(element) {
     })
   })
 
-  L.tileLayer(
-    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    {
-      maxZoom: 19,
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
 
-      attribution:
-        '&copy; OpenStreetMap contributors',
+    attribution: '&copy; OpenStreetMap contributors',
 
-      crossOrigin: true
-    }
-  ).addTo(map)
+    crossOrigin: true
+  }).addTo(map)
 
   clusterGroup = L.markerClusterGroup({
     chunkedLoading: true,
@@ -352,28 +336,19 @@ function createMarker(group) {
   const lat = Number(first.lat)
   const lng = Number(first.lng)
 
-  if (
-    !Number.isFinite(lat) ||
-    !Number.isFinite(lng)
-  ) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return null
   }
 
-  const marker = L.marker(
-    [lat, lng],
-    {
-      icon: markerIcon(items),
+  const marker = L.marker([lat, lng], {
+    icon: markerIcon(items),
 
-      keyboard: true,
+    keyboard: true,
 
-      riseOnHover: true,
+    riseOnHover: true,
 
-      title:
-        first.address ||
-        first.name ||
-        'Рекламная конструкция'
-    }
-  )
+    title: first.address || first.name || 'Рекламная конструкция'
+  })
 
   /*
    * popupContent получает ВСЕ стороны,
@@ -385,30 +360,21 @@ function createMarker(group) {
    */
   const isDoublePopup = popupLayout(items) !== 'single'
 
-  marker.bindPopup(
-    popupContent(items),
-    {
-      className: isDoublePopup
-        ? 'albion-popup albion-popup-double'
-        : 'albion-popup albion-popup-single',
+  marker.bindPopup(popupContent(items), {
+    className: isDoublePopup
+      ? 'albion-popup albion-popup-double'
+      : 'albion-popup albion-popup-single',
 
-      maxWidth: isDoublePopup
-        ? 760
-        : 340,
+    maxWidth: isDoublePopup ? 760 : 340,
 
-      minWidth: isDoublePopup
-        ? 700
-        : 300,
+    minWidth: isDoublePopup ? 700 : 300,
 
-      closeButton: true,
+    closeButton: true,
 
-      autoPan: true,
+    autoPan: true,
 
-      autoPanPadding: isDoublePopup
-        ? [40, 40]
-        : [30, 30]
-    }
-  )
+    autoPanPadding: isDoublePopup ? [40, 40] : [30, 30]
+  })
 
   return marker
 }
@@ -420,12 +386,9 @@ function renderMarkers() {
 
   clusterGroup.clearLayers()
 
-  const normalized = normalizeItems(
-    constructions
-  )
+  const normalized = normalizeItems(constructions)
 
-  const groups =
-    groupConstructions(normalized)
+  const groups = groupConstructions(normalized)
 
   const markers = []
 
@@ -465,55 +428,32 @@ function scheduleRender() {
    PUBLIC DATA API
    ========================================================= */
 
-function setConstructions(
-  items,
-  months = []
-) {
+function setConstructions(items, months = []) {
   /*
    * Фильтрация меняет только набор маркеров.
    * Центр и масштаб карты сохраняем.
    */
-  const currentCenter = map
-    ? map.getCenter()
-    : null
+  const currentCenter = map ? map.getCenter() : null
 
-  const currentZoom = map
-    ? map.getZoom()
-    : null
+  const currentZoom = map ? map.getZoom() : null
 
-  constructions = Array.isArray(items)
-    ? items
-    : []
+  constructions = Array.isArray(items) ? items : []
 
-  selectedMonths =
-    Array.isArray(months)
-      ? months
-      : []
+  selectedMonths = Array.isArray(months) ? months : []
 
   scheduleRender()
 
-  if (
-    map &&
-    currentCenter &&
-    Number.isFinite(currentZoom)
-  ) {
+  if (map && currentCenter && Number.isFinite(currentZoom)) {
     requestAnimationFrame(() => {
       if (map) {
-        map.setView(
-          currentCenter,
-          currentZoom,
-          { animate: false }
-        )
+        map.setView(currentCenter, currentZoom, { animate: false })
       }
     })
   }
 }
 
 function setCenterChangeHandler(handler) {
-  centerChangeHandler =
-    typeof handler === 'function'
-      ? handler
-      : null
+  centerChangeHandler = typeof handler === 'function' ? handler : null
 
   if (map && centerChangeHandler) {
     const center = map.getCenter()
@@ -563,24 +503,18 @@ function setSearchPoint(lat, lng) {
   const latitude = Number(lat)
   const longitude = Number(lng)
 
-  if (
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude)
-  ) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return
   }
 
   const position = [latitude, longitude]
 
   if (!searchPointMarker) {
-    searchPointMarker = L.marker(
-      position,
-      {
-        interactive: false,
-        keyboard: false,
-        zIndexOffset: 1000
-      }
-    ).addTo(map)
+    searchPointMarker = L.marker(position, {
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: 1000
+    }).addTo(map)
   } else {
     searchPointMarker.setLatLng(position)
   }
@@ -616,18 +550,15 @@ function setSearchRadius(lat, lng, radius) {
   const position = [latitude, longitude]
 
   if (!searchRadiusCircle) {
-    searchRadiusCircle = L.circle(
-      position,
-      {
-        radius: distance,
-        color: '#e12a1f',
-        weight: 2,
-        opacity: 0.85,
-        fillColor: '#e12a1f',
-        fillOpacity: 0.10,
-        interactive: false
-      }
-    ).addTo(map)
+    searchRadiusCircle = L.circle(position, {
+      radius: distance,
+      color: '#e12a1f',
+      weight: 2,
+      opacity: 0.85,
+      fillColor: '#e12a1f',
+      fillOpacity: 0.1,
+      interactive: false
+    }).addTo(map)
 
     if (searchRadiusCircle.bringToBack) {
       searchRadiusCircle.bringToBack()
@@ -655,20 +586,13 @@ function setMapCenter(lat, lng, zoom = 14) {
   const latitude = Number(lat)
   const longitude = Number(lng)
 
-  if (
-    !Number.isFinite(latitude) ||
-    !Number.isFinite(longitude)
-  ) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return
   }
 
-  map.flyTo(
-    [latitude, longitude],
-    zoom,
-    {
-      duration: 0.8
-    }
-  )
+  map.flyTo([latitude, longitude], zoom, {
+    duration: 0.8
+  })
 }
 
 function getVisibleConstructions() {
@@ -682,10 +606,7 @@ function getVisibleConstructions() {
     const lat = Number(item?.lat)
     const lng = Number(item?.lng)
 
-    if (
-      !Number.isFinite(lat) ||
-      !Number.isFinite(lng)
-    ) {
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
       return false
     }
 
@@ -728,9 +649,7 @@ function geojsonOuterRings(geojson) {
     }
   }
 
-  return rings.map(ring =>
-    ring.map(([lng, lat]) => [lat, lng])
-  )
+  return rings.map(ring => ring.map(([lng, lat]) => [lat, lng]))
 }
 
 async function loadRegion() {
@@ -739,14 +658,10 @@ async function loadRegion() {
   }
 
   try {
-    const response = await fetch(
-      '/rostov-region.geojson'
-    )
+    const response = await fetch('/rostov-region.geojson')
 
     if (!response.ok) {
-      throw new Error(
-        `GeoJSON error: ${response.status}`
-      )
+      throw new Error(`GeoJSON error: ${response.status}`)
     }
 
     const geojson = await response.json()
@@ -775,17 +690,14 @@ async function loadRegion() {
       [90, -180]
     ]
 
-    maskLayer = L.polygon(
-      [worldRing, ...rings],
-      {
-        stroke: false,
-        fill: true,
-        fillColor: '#2f383f',
-        fillOpacity: 0.82,
-        fillRule: 'evenodd',
-        interactive: false
-      }
-    )
+    maskLayer = L.polygon([worldRing, ...rings], {
+      stroke: false,
+      fill: true,
+      fillColor: '#2f383f',
+      fillOpacity: 0.82,
+      fillRule: 'evenodd',
+      interactive: false
+    })
 
     maskLayer.addTo(map)
 
@@ -794,33 +706,25 @@ async function loadRegion() {
     }
 
     /* Граница области — поверх маски. */
-    regionLayer = L.geoJSON(
-      geojson,
-      {
-        style: {
-          color: '#5b6670',
-          weight: 1.5,
-          opacity: 0.9,
+    regionLayer = L.geoJSON(geojson, {
+      style: {
+        color: '#5b6670',
+        weight: 1.5,
+        opacity: 0.9,
 
-          fill: false,
+        fill: false,
 
-          fillOpacity: 0
-        },
+        fillOpacity: 0
+      },
 
-        interactive: false
-      }
-    )
+      interactive: false
+    })
 
     regionLayer.addTo(map)
 
-    console.log(
-      'Albion Map: Ростовская область и маска загружены'
-    )
+    console.log('Albion Map: Ростовская область и маска загружены')
   } catch (error) {
-    console.error(
-      'Albion Map: ошибка загрузки GeoJSON',
-      error
-    )
+    console.error('Albion Map: ошибка загрузки GeoJSON', error)
   }
 }
 
@@ -899,10 +803,7 @@ function fitToConstructions(items = constructions) {
   }
 
   const bounds = L.latLngBounds(
-    normalized.map(item => [
-      Number(item.lat),
-      Number(item.lng)
-    ])
+    normalized.map(item => [Number(item.lat), Number(item.lng)])
   )
 
   if (bounds.isValid()) {
@@ -922,9 +823,7 @@ function focusToItems(items, predicate) {
 
   const matched = source.filter(item => {
     try {
-      return typeof predicate === 'function'
-        ? predicate(item)
-        : true
+      return typeof predicate === 'function' ? predicate(item) : true
     } catch {
       return false
     }
@@ -936,10 +835,7 @@ function focusToItems(items, predicate) {
     return
   }
 
-  const points = normalized.map(item => [
-    Number(item.lat),
-    Number(item.lng)
-  ])
+  const points = normalized.map(item => [Number(item.lat), Number(item.lng)])
 
   /*
    * Одна точка:

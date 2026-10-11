@@ -35,13 +35,11 @@
     </div>
 
     <div class="section-card">
-      <div class="section-title">
-        Бекапы
-      </div>
+      <div class="section-title"> Бекапы </div>
       <div class="section-hint">
         Перед восстановлением текущее состояние автоматически сохраняется в
-        новый бекап — так всегда можно вернуться назад.
-        Данные конструкций бекап не затрагивает.
+        новый бекап — так всегда можно вернуться назад. Данные конструкций бекап
+        не затрагивает.
       </div>
 
       <div class="backups-toolbar">
@@ -64,34 +62,22 @@
         />
       </div>
 
-      <div
-        v-for="item in backups"
-        :key="item.name"
-        class="archive-card"
-      >
+      <div v-for="item in backups" :key="item.name" class="archive-card">
         <div class="archive-row">
           <div>
             <div class="archive-key">{{ item.name }}</div>
             <div class="archive-meta">
               {{ formatDateTime(item.created_at) }}
-              · {{ item.size_mb }} MB
-              · {{ reasonLabel(item.reason) }}
+              · {{ item.size_mb }} MB · {{ reasonLabel(item.reason) }}
             </div>
           </div>
 
           <div class="archive-chips">
-            <span
-              v-if="item.database_exists"
-              class="chip chip-blue"
-            >DB</span>
-            <span
-              v-if="item.media_exists"
-              class="chip chip-orange"
-            >Media</span>
-            <span
-              v-if="!item.database_exists"
-              class="chip chip-red"
-            >без дампа</span>
+            <span v-if="item.database_exists" class="chip chip-blue">DB</span>
+            <span v-if="item.media_exists" class="chip chip-orange">Media</span>
+            <span v-if="!item.database_exists" class="chip chip-red"
+              >без дампа</span
+            >
           </div>
         </div>
 
@@ -130,9 +116,9 @@
           <div class="dialog-title">Восстановить бекап?</div>
           <div class="dialog-text">
             Бекап <b>{{ confirmName }}</b> заменит новости, страницы, настройки,
-            пользователей, контакты и медиа сайта.
-            Текущее состояние будет сохранено в новый бекап автоматически.
-            Конструкции и их медиа не изменяются.
+            пользователей, контакты и медиа сайта. Текущее состояние будет
+            сохранено в новый бекап автоматически. Конструкции и их медиа не
+            изменяются.
           </div>
         </q-card-section>
 
@@ -154,13 +140,10 @@
         <q-card-section>
           <div class="dialog-title">Восстановление...</div>
           <div class="dialog-text">
-            Восстанавливаем бекап <b>{{ busyName }}</b>.
+            Восстанавливаем бекап <b>{{ busyName }}</b
+            >.
           </div>
-          <q-linear-progress
-            indeterminate
-            color="negative"
-            class="q-mt-md"
-          />
+          <q-linear-progress indeterminate color="negative" class="q-mt-md" />
         </q-card-section>
       </q-card>
     </q-dialog>
@@ -222,7 +205,7 @@ async function request(path, options = {}) {
   const response = await fetch(path, {
     ...options,
     headers: {
-      ...(options.headers || {}),
+      ...options.headers,
       ...authHeaders()
     }
   })
@@ -281,8 +264,10 @@ function formatDateTime(value) {
 
   const pad = n => String(n).padStart(2, '0')
 
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.`
-    + `${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  return (
+    `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.` +
+    `${date.getFullYear()} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+  )
 }
 
 async function loadBackups() {

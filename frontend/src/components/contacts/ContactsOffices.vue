@@ -1,11 +1,7 @@
 <template>
   <section class="offices-section">
     <div class="offices">
-      <article
-        v-for="office in offices"
-        :key="office.id"
-        class="office-card"
-      >
+      <article v-for="office in offices" :key="office.id" class="office-card">
         <div class="office-info">
           <h3>{{ office.name }}</h3>
 
@@ -21,7 +17,10 @@
             {{ office.phone }}
           </a>
 
-          <div v-if="office.emails && office.emails.length" class="office-emails">
+          <div
+            v-if="office.emails && office.emails.length"
+            class="office-emails"
+          >
             <a
               v-for="email in office.emails"
               :key="email"
@@ -49,10 +48,8 @@
               v-if="office.image"
               :src="office.image"
               :alt="`Карта: ${office.name}`"
-            >
-            <span v-else class="map-placeholder">
-              Яндекс.Карта
-            </span>
+            />
+            <span v-else class="map-placeholder"> Яндекс.Карта </span>
           </a>
 
           <a
@@ -98,7 +95,7 @@ defineProps({
   border-radius: 16px;
   border: 1px solid #e6e8ec;
   background: white;
-  box-shadow: 0 8px 26px rgba(23, 33, 43, .05);
+  box-shadow: 0 8px 26px rgba(23, 33, 43, 0.05);
   align-items: start;
 }
 
@@ -106,7 +103,7 @@ defineProps({
 .office-info h3 {
   margin: 0 0 10px;
   font-size: 17px;
-  letter-spacing: -.01em;
+  letter-spacing: -0.01em;
 }
 
 .office-address {
@@ -175,7 +172,7 @@ defineProps({
   color: #8a969f;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: .04em;
+  letter-spacing: 0.04em;
 }
 
 .map-link {

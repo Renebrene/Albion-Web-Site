@@ -31,9 +31,7 @@ function whenYmapsReady() {
 
 export function loadYandexMaps() {
   if (typeof window === 'undefined') {
-    return Promise.reject(
-      new Error('Yandex Maps: window недоступен')
-    )
+    return Promise.reject(new Error('Yandex Maps: window недоступен'))
   }
 
   /* API уже подключён (например, был загружен ранее). */
@@ -67,12 +65,7 @@ export function loadYandexMaps() {
     const fail = error => {
       loadingPromise = null
 
-      finish(
-        reject,
-        error instanceof Error
-          ? error
-          : new Error(String(error))
-      )
+      finish(reject, error instanceof Error ? error : new Error(String(error)))
     }
 
     const succeed = () => {
@@ -84,18 +77,12 @@ export function loadYandexMaps() {
 
     timeoutId = setTimeout(
       () =>
-        fail(
-          new Error(
-            'Yandex Maps: превышено время ожидания загрузки API'
-          )
-        ),
+        fail(new Error('Yandex Maps: превышено время ожидания загрузки API')),
       LOAD_TIMEOUT_MS
     )
 
     /* Убираем возможный «зависший» скрипт прошлой попытки. */
-    const stale = document.querySelector(
-      `script[${SCRIPT_ATTR}]`
-    )
+    const stale = document.querySelector(`script[${SCRIPT_ATTR}]`)
 
     if (stale && stale.parentNode) {
       stale.parentNode.removeChild(stale)
@@ -115,9 +102,7 @@ export function loadYandexMaps() {
 
     script.onerror = () =>
       fail(
-        new Error(
-          'Yandex Maps: не удалось загрузить скрипт api-maps.yandex.ru'
-        )
+        new Error('Yandex Maps: не удалось загрузить скрипт api-maps.yandex.ru')
       )
 
     document.head.appendChild(script)

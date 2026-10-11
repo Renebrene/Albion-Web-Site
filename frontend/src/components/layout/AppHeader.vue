@@ -269,12 +269,9 @@
               v-if="isExternalCmsUrl(item.safeUrl)"
               :href="item.safeUrl"
               class="mobile-nav-link"
-            >{{ item.label }}</a>
-            <RouterLink
-              v-else
-              :to="item.safeUrl"
-              class="mobile-nav-link"
+              >{{ item.label }}</a
             >
+            <RouterLink v-else :to="item.safeUrl" class="mobile-nav-link">
               {{ item.label }}
             </RouterLink>
           </template>

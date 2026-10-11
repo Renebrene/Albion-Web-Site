@@ -28,7 +28,7 @@
           :src="active.url"
           :alt="active.alt || alt || 'Медиа новости'"
           decoding="async"
-        >
+        />
 
         <!-- Фото: ленивая загрузка и сохранение пропорций -->
         <img
@@ -39,7 +39,7 @@
           :alt="active.alt || alt || 'Медиа новости'"
           loading="lazy"
           decoding="async"
-        >
+        />
       </Transition>
     </div>
 
@@ -96,7 +96,7 @@
 // `variants` может отсутствовать (старые данные / ответ без него) — не падаем.
 export function variantPath(item, variant) {
   const variants = Array.isArray(item?.variants) ? item.variants : []
-  const found = variants.find((entry) => entry && entry.variant === variant)
+  const found = variants.find(entry => entry && entry.variant === variant)
   return found?.storage_path || ''
 }
 
@@ -106,7 +106,11 @@ export function variantPath(item, variant) {
 export function mediaUrl(item, preferred) {
   if (!item) return ''
 
-  const order = Array.isArray(preferred) ? preferred : (preferred ? [preferred] : [])
+  const order = Array.isArray(preferred)
+    ? preferred
+    : preferred
+      ? [preferred]
+      : []
   for (const variant of order) {
     const path = variantPath(item, variant)
     if (path) return `/storage/${path}`
@@ -132,7 +136,7 @@ export function mediaKind(item) {
 
   const url = mediaUrl(item).toLowerCase().split('?')[0]
   if (/\.(mp4|webm|mov|m4v|ogv|ogm)$/.test(url)) return 'video'
-  if (/\.gif$/.test(url)) return 'gif'
+  if (url.endsWith('.gif')) return 'gif'
   return 'image'
 }
 
@@ -220,9 +224,13 @@ const items = computed(() => normalizeMedia(props.media, 'large'))
 const active = computed(() => items.value[current.value] || {})
 
 // При смене набора медиа начинаем с обложки.
-watch(items, list => {
-  current.value = coverIndex(list)
-}, { immediate: true })
+watch(
+  items,
+  list => {
+    current.value = coverIndex(list)
+  },
+  { immediate: true }
+)
 
 function next() {
   const count = items.value.length
@@ -291,7 +299,7 @@ video.media-item {
 /* Плавная смена слайда */
 .media-fade-enter-active,
 .media-fade-leave-active {
-  transition: opacity .22s ease;
+  transition: opacity 0.22s ease;
 }
 
 .media-fade-enter-from,
@@ -308,12 +316,12 @@ video.media-item {
   transform: translateY(-50%);
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .92);
+  background: rgba(255, 255, 255, 0.92);
   color: #17212b;
   cursor: pointer;
   font-size: 32px;
   line-height: 1;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, .12);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
 }
 
 .carousel-arrow:hover {
@@ -334,7 +342,7 @@ video.media-item {
   right: 16px;
   padding: 7px 10px;
   border-radius: 7px;
-  background: rgba(20, 30, 40, .68);
+  background: rgba(20, 30, 40, 0.68);
   color: #fff;
   font-size: 9px;
   font-weight: 800;
@@ -355,7 +363,7 @@ video.media-item {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: rgba(255, 255, 255, .55);
+  background: rgba(255, 255, 255, 0.55);
   cursor: pointer;
 }
 
