@@ -212,9 +212,7 @@ function markerColor(items) {
   return mapDotColors.value.mixed
 }
 
-function markerIcon(items) {
-  const color = markerColor(items)
-
+function markerIconFor(color) {
   return L.divIcon({
     className: 'albion-dot-wrapper',
 
@@ -231,6 +229,10 @@ function markerIcon(items) {
     iconAnchor: [9, 9],
     popupAnchor: [0, -9]
   })
+}
+
+function markerIcon(items) {
+  return markerIconFor(markerColor(items))
 }
 
 /* =========================================================
@@ -320,13 +322,42 @@ function createMap(element) {
    MARKERS
    ========================================================= */
 
-function createMarker(group) {
-  const items = uniqueSides(group.items)
+/*
+ * Параметры попапа зависят от числа ВИДИМЫХ КАРТОЧЕК (popupLayout), а не от
+ * сырого числа сторон: иначе призматрон A(1)+A(2)+A(3) (3 стороны → одна
+ * карточка) получал широкую обёртку при узком контенте.
+ */
+function popupOptions(isDouble) {
+  return {
+    className: isDouble
+      ? 'albion-popup albion-popup-double'
+      : 'albion-popup albion-popup-single',
 
-  if (!items.length) {
-    return null
+    maxWidth: isDouble ? 760 : 340,
+
+    minWidth: isDouble ? 700 : 300,
+
+    closeButton: true,
+
+    autoPan: true,
+
+    autoPanPadding: isDouble ? [40, 40] : [30, 30]
   }
+}
 
+/*
+ * Карта уже нарисованных маркеров: ключ точки → запись.
+ *
+ * Нужна, чтобы при смене фильтра переиспользовать существующие маркеры,
+ * а не сносить и пересоздавать все (см. renderMarkers).
+ */
+const markerByKey = new Map()
+
+/*
+ * Создаёт маркер для группы сторон. Возвращает запись для markerByKey
+ * либо null, если координат нет.
+ */
+function buildMarker(items, html, isDouble) {
   /*
    * Координаты берём из первой прошедшей стороны.
    * Обычно A и B физически имеют одинаковые координаты.
@@ -350,58 +381,105 @@ function createMarker(group) {
     title: first.address || first.name || 'Рекламная конструкция'
   })
 
-  /*
-   * popupContent получает ВСЕ стороны,
-   * которые прошли фильтр.
-   *
-   * Ширину попапа выбираем по ЧИСЛУ ВИДИМЫХ ГРУПП (popupLayout), а не по
-   * сырому числу сторон: иначе призматрон A(1)+A(2)+A(3) (3 стороны → одна
-   * карточка) получал широкую обёртку при узком контенте.
-   */
-  const isDoublePopup = popupLayout(items) !== 'single'
+  marker.bindPopup(html, popupOptions(isDouble))
 
-  marker.bindPopup(popupContent(items), {
-    className: isDoublePopup
-      ? 'albion-popup albion-popup-double'
-      : 'albion-popup albion-popup-single',
-
-    maxWidth: isDoublePopup ? 760 : 340,
-
-    minWidth: isDoublePopup ? 700 : 300,
-
-    closeButton: true,
-
-    autoPan: true,
-
-    autoPanPadding: isDoublePopup ? [40, 40] : [30, 30]
-  })
-
-  return marker
+  return { marker, html, isDouble, color: markerColor(items), lat, lng }
 }
 
+/*
+ * Дифф-обновление маркеров вместо полного пересоздания.
+ *
+ * Перебираем группы физических точек и для каждой:
+ *   - новую точку добавляем;
+ *   - существующую переиспользуем: меняем координаты/цвет/попап только если
+ *     они реально изменились (сравнение с прошлым состоянием в markerByKey);
+ *   - исчезнувшие точки удаляем.
+ *
+ * Это убирает «мигание» и лишнюю работу при каждом изменении фильтра.
+ */
 function renderMarkers() {
   if (!map || !clusterGroup) {
     return
   }
 
-  clusterGroup.clearLayers()
-
   const normalized = normalizeItems(constructions)
 
   const groups = groupConstructions(normalized)
 
-  const markers = []
+  const nextKeys = new Set()
 
   for (const group of groups) {
-    const marker = createMarker(group)
+    const items = uniqueSides(group.items)
 
-    if (marker) {
-      markers.push(marker)
+    if (!items.length) {
+      continue
+    }
+
+    const first = items[0]
+
+    const lat = Number(first.lat)
+    const lng = Number(first.lng)
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      continue
+    }
+
+    const key = group.key
+
+    nextKeys.add(key)
+
+    const html = popupContent(items)
+
+    const isDouble = popupLayout(items) !== 'single'
+
+    const color = markerColor(items)
+
+    let entry = markerByKey.get(key)
+
+    // Новая точка — создаём и добавляем.
+    if (!entry) {
+      entry = buildMarker(items, html, isDouble)
+
+      if (!entry) {
+        continue
+      }
+
+      clusterGroup.addLayer(entry.marker)
+
+      markerByKey.set(key, entry)
+
+      continue
+    }
+
+    // Точка уже на карте — правим только то, что изменилось.
+    if (entry.lat !== lat || entry.lng !== lng) {
+      entry.marker.setLatLng([lat, lng])
+      entry.lat = lat
+      entry.lng = lng
+    }
+
+    if (entry.color !== color) {
+      entry.marker.setIcon(markerIconFor(color))
+      entry.color = color
+    }
+
+    if (entry.isDouble !== isDouble) {
+      // Смена компоновки меняет класс и ширину попапа — нужна повторная привязка.
+      entry.marker.bindPopup(html, popupOptions(isDouble))
+      entry.isDouble = isDouble
+      entry.html = html
+    } else if (entry.html !== html) {
+      entry.marker.setPopupContent(html)
+      entry.html = html
     }
   }
 
-  if (markers.length) {
-    clusterGroup.addLayers(markers)
+  // Точки, которые больше не проходят фильтр, убираем с карты.
+  for (const [key, entry] of markerByKey) {
+    if (!nextKeys.has(key)) {
+      clusterGroup.removeLayer(entry.marker)
+      markerByKey.delete(key)
+    }
   }
 
   console.log(
@@ -409,7 +487,7 @@ function renderMarkers() {
   )
 
   console.log(
-    `Albion map: ${groups.length} physical constructions / ${markers.length} markers`
+    `Albion map: ${groups.length} physical constructions / ${markerByKey.size} markers`
   )
 }
 
@@ -788,6 +866,8 @@ function destroyMap() {
   }
 
   clusterGroup = null
+
+  markerByKey.clear()
 
   if (map) {
     map.remove()
