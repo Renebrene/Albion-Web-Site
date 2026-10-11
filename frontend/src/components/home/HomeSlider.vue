@@ -973,7 +973,7 @@ function onWheel(event) {
   // Внутренний список (города/районы) прокручиваем сами, а слайд
   // переключаем только когда список уже докручен до края.
   const scroller = event.target && event.target.closest
-    ? event.target.closest('.geo-scroll')
+    ? event.target.closest('.geo-list-window')
     : null
 
   if (scroller) {
