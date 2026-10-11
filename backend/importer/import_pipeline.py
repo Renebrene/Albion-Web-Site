@@ -183,7 +183,14 @@ def archive_constructions_database(import_key: str) -> Path:
     return destination
 
 
-def archive_old_import_media(import_key: str) -> Path:
+def archive_import_media(import_key: str) -> Path | None:
+    """Копирует медиа (с превью) ТЕКУЩЕГО импорта в его архив.
+
+    Сохраняем media того же импорта, что и `database.dump`: тогда архив
+    самосогласован — restore кладёт media в
+    storage/constructions/imports/<import_key>, к этой же базе.
+    Если у импорта медиа нет — возвращаем None (шаг не критичен).
+    """
     source = (
         PROJECT_DIR
         / "storage"
@@ -194,9 +201,7 @@ def archive_old_import_media(import_key: str) -> Path:
     destination = ARCHIVE_DIR / import_key / "media"
 
     if not source.exists():
-        raise RuntimeError(
-            f"Processed media старого import не найден: {source}"
-        )
+        return None
 
     if destination.exists():
         return destination
@@ -342,19 +347,16 @@ def run(*, commit: bool) -> None:
     archived_db = archive_constructions_database(import_key)
     print(f"constructions database: {archived_db}")
 
-    if old_active_import_key:
-        archived_media = archive_old_import_media(
-            old_active_import_key
-        )
-        print(f"constructions media:    {archived_media}")
+    # Медиа ТЕКУЩЕГО импорта (с превью) — вместе с дампом БД.
+    archived_media = archive_import_media(import_key)
+    print(f"constructions media:    {archived_media or '(нет медиа)'}")
 
+    if old_active_import_key:
         cleanup_import_storage(old_active_import_key)
         print(
             "storage/constructions/imports/"
             f"{old_active_import_key}: удалён"
         )
-    else:
-        print("Предыдущего ACTIVE import нет: media архивировать не нужно.")
 
     print()
     print("===== STEP 7: CLEANUP =====")

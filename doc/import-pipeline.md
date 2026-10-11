@@ -16,7 +16,7 @@
 | 3 | Скачивание медиа (dry-run: проверка ссылок) | `construction_media_download` / `construction_media_check` |
 | 4 | Превью large/card/thumb | `construction_media_preview` |
 | 5 | SQLite → PostgreSQL | `staging_to_postgres` |
-| 6 | Архивация старого импорта | `import_archive_service` |
+| 6 | Архивация текущего импорта (дамп БД + медиа) | `import_pipeline` |
 | 7 | Очистка временных каталогов + retention | `import_pipeline` |
 
 - `--commit` — реальный прогон (COMMIT + архивация); без него — **DRY-RUN**
@@ -55,8 +55,11 @@ surface_hash, availability, медиа-файлы, ≤1 active). Режим dry-
 `ALBION_IMPORT_DRY_RUN`; результат — `load_result.json`.
 
 **6. Архивация** (`archive/constructions/<key>/`): `source.xlsx`,
-`database.dump` (`pg_dump -Fc` только по таблицам конструкций и их sequence),
-`media/` — копия медиа предыдущего импорта.
+`database.dump` (`pg_dump -Fc` только по таблицам конструкций и их sequence) и
+`media/` — копия медиа (с превью large/card/thumb) **того же** импорта, что и
+дамп. Так архив самосогласован: `restore` кладёт media в
+`storage/constructions/imports/<import_key>`. Медиа предыдущего импорта при
+этом удаляется из `storage` (в архив не копируется).
 
 **7. Очистка + retention.** Удаляются временные каталоги; хранится не более
 **5** архивов конструкций (`cleanup_old_archives(root, keep=5)`).
