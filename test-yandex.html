@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Yandex Maps Test</title>
+<title>Yandex Maps Test (API 2.1)</title>
 
 <style>
 html, body, #map {
@@ -23,58 +23,62 @@ html, body, #map {
     box-shadow: 0 4px 20px rgba(0,0,0,.2);
 }
 </style>
-
-<script
-src="https://api-maps.yandex.ru/v3/?apikey=f16a6fd4-f404-4042-a0f1-ee9d83a7b47d&lang=ru_RU">
-</script>
-
 </head>
 
 <body>
 
-<div id="status">Загрузка Яндекс Карт...</div>
+<div id="status">Загрузка Яндекс Карт…</div>
 <div id="map"></div>
 
 <script>
-async function init() {
+/*
+ * Ручной тест Yandex Maps JS API 2.1 — той же версии, что использует сайт
+ * (см. frontend/src/map/yandexLoader.js). Ключ НЕ хранится в файле: передайте
+ * его в адресе страницы, например:
+ *
+ *   test-yandex.html?apikey=ВАШ_КЛЮЧ
+ */
+const status = document.getElementById('status')
 
-    const status = document.getElementById("status");
+const apikey = new URLSearchParams(location.search).get('apikey')
 
-    try {
-
-        await ymaps3.ready;
-
-        status.innerHTML =
-            "<b style='color:green'>✓ Яндекс Карты API работает</b>";
-
-        const {YMap, YMapDefaultSchemeLayer} = ymaps3;
-
-        const map = new YMap(
-            document.getElementById("map"),
-            {
-                location: {
-                    center: [39.7015, 47.2357],
-                    zoom: 11
-                }
-            }
-        );
-
-        map.addChild(
-            new YMapDefaultSchemeLayer()
-        );
-
-    } catch (error) {
-
-        console.error(error);
-
-        status.innerHTML =
-            "<b style='color:red'>Ошибка API</b><br>" +
-            String(error);
-
+if (!apikey) {
+    status.innerHTML =
+        "<b style='color:red'>Укажите ключ:</b> test-yandex.html?apikey=…"
+} else {
+    const script = document.createElement('script')
+    script.src =
+        'https://api-maps.yandex.ru/2.1/?lang=ru_RU&apikey=' +
+        encodeURIComponent(apikey)
+    script.onload = init
+    script.onerror = () => {
+        status.innerHTML = "<b style='color:red'>Не удалось загрузить API</b>"
     }
+    document.head.appendChild(script)
 }
 
-init();
+function init() {
+    if (!window.ymaps) {
+        status.innerHTML = "<b style='color:red'>ymaps недоступен</b>"
+        return
+    }
+
+    ymaps.ready(() => {
+        try {
+            new ymaps.Map('map', {
+                center: [47.2357, 39.7015],
+                zoom: 11
+            })
+
+            status.innerHTML =
+                "<b style='color:green'>✓ Яндекс Карты API 2.1 работает</b>"
+        } catch (error) {
+            console.error(error)
+            status.innerHTML =
+                "<b style='color:red'>Ошибка API</b><br>" + String(error)
+        }
+    })
+}
 </script>
 
 </body>

@@ -4,6 +4,8 @@ node_modules
 
 # .env files
 .env*
+# …кроме образца без секретов — его храним в репозитории.
+!.env.example
 
 # Quasar core related directories
 .quasar

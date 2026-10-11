@@ -17,11 +17,15 @@ export const DEFAULT_MAP_ENGINE = 'osm'
 /*
  * Ключ Yandex Maps JS API 2.1.
  *
- * Берём из .env (VITE_YANDEX_MAPS_KEY), при отсутствии — ключ по умолчанию.
+ * Только из окружения: VITE_YANDEX_MAPS_KEY (см. frontend/.env.example).
+ * В исходниках ключ не хранится — так его можно ротировать и ограничить
+ * по домену в кабинете разработчика Яндекс.Карт, не трогая код.
+ *
+ * Если ключ не задан, загрузчик API сразу откажется (см. yandexLoader.js),
+ * и карта молча переключится на Leaflet/OSM — сайт продолжит работать.
  */
 export const YANDEX_MAPS_KEY =
-  (import.meta.env && import.meta.env.VITE_YANDEX_MAPS_KEY) ||
-  '892d3b65-eb5c-4c57-92d8-666266f880fa'
+  (import.meta.env && import.meta.env.VITE_YANDEX_MAPS_KEY) || ''
 
 /* Активный оператор карты (реактивно). */
 export const mapEngine = ref(DEFAULT_MAP_ENGINE)

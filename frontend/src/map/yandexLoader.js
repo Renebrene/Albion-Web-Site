@@ -39,6 +39,13 @@ export function loadYandexMaps() {
     return whenYmapsReady()
   }
 
+  /* Без ключа API не поднимется — MapView откатится на Leaflet. */
+  if (!YANDEX_MAPS_KEY) {
+    return Promise.reject(
+      new Error('Yandex Maps: не задан ключ API (VITE_YANDEX_MAPS_KEY)')
+    )
+  }
+
   if (loadingPromise) {
     return loadingPromise
   }
