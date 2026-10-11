@@ -550,6 +550,7 @@ const netStats = ref(null)
 const AUTOPLAY_MS = 6000
 const heroIndex = ref(0)
 let heroTimer = null
+let homeSliderMounted = false
 
 /* Карточки верхнего слайда (горизонтальная карусель). */
 function heroItems(slide) {
@@ -682,6 +683,8 @@ function gotoHero(i) {
 }
 
 function restartHeroAutoplay() {
+  if (!homeSliderMounted) return
+
   if (heroTimer) {
     clearInterval(heroTimer)
     heroTimer = null
@@ -1051,7 +1054,10 @@ watch(
 )
 
 onMounted(() => {
-  load().then(restartHeroAutoplay)
+  homeSliderMounted = true
+  load().then(() => {
+    if (homeSliderMounted) restartHeroAutoplay()
+  })
 
   const el = rootRef.value
   if (el) el.addEventListener('wheel', onWheel, { passive: false })
@@ -1059,10 +1065,14 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  homeSliderMounted = false
   const el = rootRef.value
   if (el) el.removeEventListener('wheel', onWheel)
   window.removeEventListener('keydown', onKey)
-  if (heroTimer) clearInterval(heroTimer)
+  if (heroTimer) {
+    clearInterval(heroTimer)
+    heroTimer = null
+  }
 })
 </script>
 
