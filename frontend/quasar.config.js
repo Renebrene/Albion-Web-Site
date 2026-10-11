@@ -44,6 +44,17 @@ export default defineConfig((/* ctx */) => {
         // Если нужно разрешить абсолютно любые хосты (например, для ngrok),
         // замените строку выше на:
         // viteConf.server.allowedHosts = true
+      },
+
+      /*
+       * Quasar по умолчанию отдаёт в клиентский код только переменные с
+       * префиксом QCLI_. Добавляем VITE_, чтобы ключ Yandex Maps из
+       * frontend/.env.local (VITE_YANDEX_MAPS_KEY) попадал в import.meta.env
+       * и, соответственно, в бандл. Значение берётся из окружения, в коде
+       * ключ не хранится.
+       */
+      env: {
+        clientPrefix: ['QCLI_', 'VITE_']
       }
 
       // viteVuePluginOptions: {},
