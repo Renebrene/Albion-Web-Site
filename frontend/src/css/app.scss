@@ -145,10 +145,6 @@ h6 {
   letter-spacing: 0 !important;
 }
 
-.popup-type strong {
-  font-weight: 850;
-}
-
 .popup-type .popup-size {
   color: #65727b;
 
@@ -168,19 +164,7 @@ h6 {
   text-align: center;
 }
 
-.popup-title strong {
-  font-weight: 850;
-}
-
 /* Адрес */
-.popup-address {
-  color: #65727b;
-
-  font-size: 12px;
-  line-height: 1.35;
-
-  text-align: center;
-}
 
 /* Сторона */
 .popup-meta {
@@ -248,22 +232,6 @@ h6 {
   font-weight: 800;
 }
 
-.popup-month strong.free {
-  color: var(--albion-map-free, #2ea66d);
-}
-
-.popup-month strong.reserve {
-  color: var(--albion-map-mixed, #e6a51c);
-}
-
-.popup-month strong.approval {
-  color: #d58a16;
-}
-
-.popup-month strong.busy {
-  color: var(--albion-map-busy, #e24b42);
-}
-
 /* Фото */
 .popup-photo-link {
   display: block;
@@ -279,10 +247,6 @@ h6 {
   font-weight: 800;
 
   text-decoration: none;
-}
-
-.popup-photo-link:hover {
-  text-decoration: underline;
 }
 
 /* =========================================================
@@ -321,10 +285,6 @@ h6 {
    ALBION — SINGLE / DOUBLE SIDE POPUP
    ========================================================= */
 
-.albion-popup .leaflet-popup-content {
-  margin: 0 !important;
-}
-
 .albion-popup .leaflet-popup-content-wrapper {
   padding: 0 !important;
   border-radius: 16px !important;
@@ -342,10 +302,6 @@ h6 {
   text-align: center;
 }
 
-.popup-single {
-  width: 300px;
-}
-
 .popup-double {
   width: 720px;
   max-width: calc(100vw - 50px);
@@ -361,10 +317,6 @@ h6 {
   font-size: 16px;
   line-height: 1.15;
   text-align: center;
-}
-
-.popup-title strong {
-  font-weight: 850;
 }
 
 .popup-address {
@@ -423,14 +375,6 @@ h6 {
   font-size: 17px;
   line-height: 1;
   font-weight: 950;
-}
-
-.popup-side-A {
-  color: var(--albion-accent) !important;
-}
-
-.popup-side-B {
-  color: #3977a8 !important;
 }
 
 .popup-price {
@@ -504,10 +448,6 @@ h6 {
   font-size: 14px;
   line-height: 1.15;
   text-align: center;
-}
-
-.popup-type strong {
-  font-weight: 850;
 }
 
 .popup-size {
