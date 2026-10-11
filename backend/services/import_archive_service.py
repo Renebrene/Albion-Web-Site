@@ -236,7 +236,6 @@ def restore_archive(import_key: str, dry_run: bool = False) -> dict:
         if present
         else list(CONSTRUCTIONS_TABLES)
     )
-    sequences = [f"{table}_id_seq" for table in tables]
 
     from backend.services.data_service import get_connection
 
@@ -248,10 +247,14 @@ def restore_archive(import_key: str, dry_run: bool = False) -> dict:
                 + " CASCADE"
             )
 
+    # Важно: НЕ фильтруем через `-t <таблица>`. Колоночные DEFAULT и
+    # CONSTRAINT (PK/UNIQUE/FK) — это отдельные записи дампа с именами
+    # вида «DEFAULT public construction_imports id» или
+    # «CONSTRAINT public construction_imports …_pkey», и фильтр
+    # `-t construction_imports` их пропускал → таблицы восстанавливались
+    # без default'ов и ключей. Дамп и так содержит только объекты
+    # конструкций, поэтому восстанавливаем его целиком.
     restore_args = ["pg_restore", "--no-owner"]
-
-    for object_name in (*tables, *sequences):
-        restore_args += ["-t", object_name]
 
     restore_proc = subprocess.run(
         [*restore_args, *db_args, str(dump_file)],

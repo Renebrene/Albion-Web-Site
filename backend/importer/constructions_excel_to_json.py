@@ -140,6 +140,27 @@ def find_header_row(ws) -> tuple[int, dict[str, int]]:
     return best_row, best_columns
 
 
+# В выгрузке 1С ссылки на фото/карту лежат формулой:
+#   =HYPERLINK("https://disk.yandex.ru/i/…","Ссылка")
+# При чтении с data_only=True openpyxl вернул бы текст «Ссылка» вместо
+# адреса (и медиа не скачалось бы). Поэтому читаем формулы
+# (data_only=False) и достаём из них сам URL.
+_HYPERLINK_RE = re.compile(r'^=HYPERLINK\(\s*"([^"]+)"', re.IGNORECASE)
+
+
+def extract_hyperlink(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+
+    text = value.strip()
+
+    if not text.upper().startswith("=HYPERLINK"):
+        return ""
+
+    match = _HYPERLINK_RE.match(text)
+    return match.group(1).strip() if match else ""
+
+
 def get_value(
     row: tuple[Any, ...],
     columns: dict[str, int],
@@ -150,7 +171,15 @@ def get_value(
     if not col_no or col_no > len(row):
         return ""
 
-    return clean(row[col_no - 1])
+    raw = row[col_no - 1]
+
+    # Ячейка-ссылка → отдаём адрес, а не подпись «Ссылка».
+    url = extract_hyperlink(raw)
+
+    if url:
+        return url
+
+    return clean(raw)
 
 
 def parse_coordinates(
@@ -300,7 +329,9 @@ def convert() -> Path:
     wb = load_workbook(
         source,
         read_only=True,
-        data_only=True,
+        # data_only=False — чтобы читать формулы (=HYPERLINK) и доставать
+        # из них адреса фото/карты (см. get_value / extract_hyperlink).
+        data_only=False,
     )
 
     try:

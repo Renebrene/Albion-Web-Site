@@ -8,6 +8,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import tempfile
 import threading
 from pathlib import Path
 
@@ -202,6 +203,64 @@ def _write_status(status: dict) -> None:
 # ---------------------------------------------------------------- upload
 
 
+def _convert_excel_to_xlsx(
+    filename: str,
+    content: bytes,
+) -> tuple[str, bytes] | None:
+    """Пересохраняет Excel в стандартный OOXML .xlsx через LibreOffice.
+
+    Сырые выгрузки 1С часто не читаются openpyxl (старый .xls и др.);
+    LibreOffice (headless) приводит файл к формату, который импортёр
+    понимает. Возвращает (имя, байты) либо None, если конвертация
+    недоступна или не удалась — тогда файл сохраняется как есть.
+    """
+    binary = shutil.which("soffice") or shutil.which("libreoffice")
+
+    if binary is None:
+        return None
+
+    with tempfile.TemporaryDirectory(prefix="xlsx-convert-") as work:
+        work_dir = Path(work)
+        source = work_dir / Path(filename).name
+        source.write_bytes(content)
+
+        out_dir = work_dir / "out"
+        out_dir.mkdir()
+
+        command = [
+            binary,
+            "--headless",
+            "--norestore",
+            "--nolockcheck",
+            f"-env:UserInstallation=file://{work_dir / 'profile'}",
+            "--convert-to",
+            "xlsx",
+            "--outdir",
+            str(out_dir),
+            str(source),
+        ]
+
+        try:
+            subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=180,
+            )
+        except Exception:
+            return None
+
+        produced = sorted(out_dir.glob("*.xlsx"))
+
+        if not produced:
+            return None
+
+        return (
+            f"{Path(filename).stem}.xlsx",
+            produced[0].read_bytes(),
+        )
+
+
 def save_uploaded_file(
     filename: str,
     content: bytes,
@@ -244,18 +303,27 @@ def save_uploaded_file(
             shutil.move(str(item), str(destination))
             moved_previous = destination.name
 
-    destination = INPUT_DIR / Path(filename).name
+    # Приводим файл к «чистому» OOXML .xlsx через LibreOffice: сырые
+    # выгрузки 1С бывают в форматах, которые openpyxl не читает.
+    converted = _convert_excel_to_xlsx(Path(filename).name, content)
 
-    destination.write_bytes(content)
+    if converted is not None:
+        file_name, file_bytes = converted
+    else:
+        file_name, file_bytes = Path(filename).name, content
+
+    destination = INPUT_DIR / file_name
+    destination.write_bytes(file_bytes)
 
     return {
         "success": True,
         "filename": destination.name,
-        "size": len(content),
+        "size": len(file_bytes),
         "saved": str(
             destination.relative_to(PROJECT_DIR)
         ),
         "moved_previous": moved_previous,
+        "converted": converted is not None,
     }
 
 

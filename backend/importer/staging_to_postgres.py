@@ -214,10 +214,12 @@ def validate_postgres_state(conn) -> None:
         """)
         active_count = int(cur.fetchone()[0])
 
-        if active_count != 1:
+        # 0 допустимо — это первый импорт «с нуля» (active-версии ещё нет).
+        # Больше одной active-версии быть не должно.
+        if active_count > 1:
             raise RuntimeError(
-                "Ожидался ровно один active construction import, "
-                f"получено: {active_count}"
+                "Ожидался один active construction import (или ни одного "
+                f"при первом импорте), получено: {active_count}"
             )
 
 
