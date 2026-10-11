@@ -37,7 +37,7 @@
     "postcss": "^8.5.8"
   },
   "engines": {
-    "node": ">= 26 || ^24 || ^22.12"
+    "node": "^22.22.0 || ^24.0.0"
   },
   "productName": "ALBIONSITE"
 }
