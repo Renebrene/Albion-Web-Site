@@ -3,6 +3,7 @@ import 'leaflet.markercluster'
 
 import { popupContent, popupLayout } from './popupContent'
 import { getAvailabilityState } from '../utils/availability'
+import { MONTHS } from '../utils/constructionGroups'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
@@ -23,8 +24,6 @@ let selectedMonths = []
 
 let renderTimer = null
 let resizeObserver = null
-
-const ALL_MONTHS = ['Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
 /* =========================================================
    HELPERS
@@ -163,7 +162,7 @@ function markerColor(items) {
   const months =
     Array.isArray(selectedMonths) && selectedMonths.length
       ? selectedMonths
-      : ALL_MONTHS
+      : MONTHS.map(month => month.full)
 
   const sides = uniqueSides(items)
 

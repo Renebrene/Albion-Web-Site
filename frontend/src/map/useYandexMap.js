@@ -9,7 +9,7 @@
  */
 
 import { popupContent, popupLayout } from './popupContent'
-import { groupByPoint } from '../utils/constructionGroups'
+import { MONTHS, groupByPoint } from '../utils/constructionGroups'
 import { getAvailabilityState } from '../utils/availability'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
 
@@ -28,8 +28,6 @@ const FLY_DURATION = 400
  */
 const MAX_RING_LNG = 140
 const MAX_RING_LAT = 100
-
-const ALL_MONTHS = ['Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
 let ymaps = null
 let map = null
@@ -126,7 +124,7 @@ function markerColor(items) {
   const months =
     Array.isArray(selectedMonths) && selectedMonths.length
       ? selectedMonths
-      : ALL_MONTHS
+      : MONTHS.map(month => month.full)
 
   const sides = uniqueSides(items)
 

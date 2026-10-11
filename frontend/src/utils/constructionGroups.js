@@ -6,13 +6,89 @@
  * Здесь только чистая логика — без HTML, без DOM, без Leaflet.
  */
 
-export const MONTHS = [
-  { full: 'Август', short: 'АВГ' },
-  { full: 'Сентябрь', short: 'СЕН' },
-  { full: 'Октябрь', short: 'ОКТ' },
-  { full: 'Ноябрь', short: 'НОЯ' },
-  { full: 'Декабрь', short: 'ДЕК' }
+import { reactive } from 'vue'
+
+/* Полный календарный порядок месяцев — для сортировки. */
+const MONTH_ORDER = [
+  'Январь',
+  'Февраль',
+  'Март',
+  'Апрель',
+  'Май',
+  'Июнь',
+  'Июль',
+  'Август',
+  'Сентябрь',
+  'Октябрь',
+  'Ноябрь',
+  'Декабрь'
 ]
+
+/* Краткие подписи месяцев. */
+const MONTH_SHORT = {
+  Январь: 'ЯНВ',
+  Февраль: 'ФЕВ',
+  Март: 'МАР',
+  Апрель: 'АПР',
+  Май: 'МАЙ',
+  Июнь: 'ИЮН',
+  Июль: 'ИЮЛ',
+  Август: 'АВГ',
+  Сентябрь: 'СЕН',
+  Октябрь: 'ОКТ',
+  Ноябрь: 'НОЯ',
+  Декабрь: 'ДЕК'
+}
+
+/*
+ * Список месяцев — РЕАКТИВНЫЙ, наполняется из данных (см. setMonths).
+ * Раньше был жёстко зашит [Август…Декабрь]; теперь берётся только то,
+ * что реально есть в новой базе.
+ */
+export const MONTHS = reactive([])
+
+/* Месяцы (полные имена), присутствующие в наборе конструкций. */
+export function monthsFromItems(items) {
+  const found = new Set()
+
+  for (const item of items || []) {
+    for (const month of Object.keys(item?.months || {})) {
+      found.add(month)
+    }
+
+    for (const month of Object.keys(item?.statuses || {})) {
+      found.add(month)
+    }
+  }
+
+  return [...found].sort((a, b) => {
+    const ia = MONTH_ORDER.indexOf(a)
+    const ib = MONTH_ORDER.indexOf(b)
+
+    if (ia === -1 && ib === -1) return a.localeCompare(b)
+    if (ia === -1) return 1
+    if (ib === -1) return -1
+    return ia - ib
+  })
+}
+
+/* Строит список месяцев ({ full, short }) без изменения глобального. */
+export function buildMonthList(fullNames) {
+  return (fullNames || []).map(full => ({
+    full,
+    short: MONTH_SHORT[full] || full.slice(0, 3).toUpperCase()
+  }))
+}
+
+/* Устанавливает глобальный список месяцев. */
+export function setMonths(fullNames) {
+  MONTHS.splice(0, MONTHS.length, ...buildMonthList(fullNames))
+}
+
+/* Месяцы прямо из набора конструкций — удобная обёртка. */
+export function setMonthsFromItems(items) {
+  setMonths(monthsFromItems(items))
+}
 
 /*
  * Терминология:

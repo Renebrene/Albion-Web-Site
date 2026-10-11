@@ -1,6 +1,7 @@
 import L from 'leaflet'
 import { getAvailabilityState, getMonthValue } from '../utils/availability'
 import { mapDotColors } from '../config/mapColors'
+import { MONTHS } from '../utils/constructionGroups'
 
 export function escapeHtml(value) {
   return String(value ?? '')
@@ -10,8 +11,6 @@ export function escapeHtml(value) {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#039;')
 }
-
-const ALL_MONTHS = ['Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
 /*
  * Нормализуем состояние одного месяца.
@@ -60,7 +59,7 @@ function getColor(item, selectedMonths = []) {
   const months =
     Array.isArray(selectedMonths) && selectedMonths.length
       ? selectedMonths
-      : ALL_MONTHS
+      : MONTHS.map(month => month.full)
 
   const states = months.map(month => ({
     month,

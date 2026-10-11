@@ -643,7 +643,8 @@ import {
   parentSide,
   dedupeSides,
   groupSides,
-  groupByPoint
+  groupByPoint,
+  setMonthsFromItems
 } from '../utils/constructionGroups'
 import { availableMode } from '../config/availableMode'
 import { showDynCount } from '../config/dynCount'
@@ -1857,6 +1858,9 @@ onMounted(async () => {
   try {
     const data = await getConstructions()
     constructions.value = Array.isArray(data) ? data : []
+
+    // Месяцы берём из данных новой базы (а не жёсткого списка).
+    setMonthsFromItems(constructions.value)
 
     if (route.query.chat === '1' && route.query.mode === 'map') {
       workspaceMode.value = 'map'

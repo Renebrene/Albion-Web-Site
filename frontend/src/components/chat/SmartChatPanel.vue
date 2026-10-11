@@ -342,6 +342,8 @@ import { useSmartChat } from '../../composables/useSmartChat'
 import { copyToClipboard } from '../../services/portfolioExport'
 import {
   MONTHS,
+  buildMonthList,
+  monthsFromItems,
   dedupeSides,
   groupByPoint,
   groupSides
@@ -404,6 +406,27 @@ const collapseToSides = computed(
 const { messages, loading, lastResponse, send, reset } = useSmartChat(
   props.chatKey
 )
+
+/*
+ * Месяцы чата — из месяцев его результатов (а не из глобального списка):
+ * так чат работает и без открытия карты. Если результатов ещё нет —
+ * берём глобальный список (может быть пустым).
+ */
+const chatMonths = computed(() => {
+  const items = []
+
+  for (const message of messages.value || []) {
+    const results = message?.results?.items
+
+    if (Array.isArray(results)) {
+      items.push(...results)
+    }
+  }
+
+  const names = monthsFromItems(items)
+
+  return names.length ? buildMonthList(names) : MONTHS
+})
 const { openPhoto } = usePhotoViewer()
 const router = useRouter()
 const { setResultIds } = useChatWorkspace()
@@ -641,7 +664,9 @@ function sidesLabel(blocks) {
 
   const free = blocks
     .filter(side =>
-      side.items.some(row => MONTHS.some(month => isFree(row, month.full)))
+      side.items.some(row =>
+        chatMonths.value.some(month => isFree(row, month.full))
+      )
     )
     .map(side => side.parent)
     .filter(Boolean)
@@ -791,7 +816,7 @@ function sideMonthPrice(side, monthFull) {
 function sideMonthChips(side) {
   const active = isBlockActive(side)
 
-  return MONTHS.map(month => {
+  return chatMonths.value.map(month => {
     const state = isSideFree(side, month.full) ? 'free' : 'busy'
     const selected = isSideMonthSelected(side, month.full)
     const price = sideMonthPrice(side, month.full)
@@ -811,7 +836,7 @@ function sideMonthChips(side) {
 function rowMonthChips(side, row) {
   const active = isBlockActive(side)
 
-  return MONTHS.map(month => {
+  return chatMonths.value.map(month => {
     const state = getAvailabilityState(row, month.full)
     const selected = isMonthSelected(row.id, month.full)
     const price = row.month_prices?.[month.full] ?? null

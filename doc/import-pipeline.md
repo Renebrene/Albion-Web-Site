@@ -27,7 +27,9 @@
 
 **1. Excel → JSON** (`input/` → `tmp/constructions_import.json`).
 В `input/` должен быть ровно один `.xls/.xlsx`. Читает формулы `=HYPERLINK(...)`
-(`data_only=False`), поэтому ссылки фото/карты не теряются. Считает `surface_hash`
+(`data_only=False`), поэтому ссылки фото/карты не теряются. Месяцы берутся
+**только из реально присутствующих колонок** (`month_columns`) — отсутствующие
+в базу не попадают. Считает `surface_hash`
 (SHA-256 по город/район/адрес/название/сторона/номер/тип/размер/координаты).
 
 **2. JSON → SQLite staging** (`tmp/import/<key>/staging.sqlite`).
