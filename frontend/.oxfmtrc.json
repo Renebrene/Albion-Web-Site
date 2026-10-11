@@ -3,6 +3,7 @@
   "ignorePatterns": [
     "**/node_modules/",
     "dist/",
+    "public/",
     "quasar.config.*.temporary.compiled*",
     ".quasar/",
     "src-cordova/",

@@ -40,11 +40,11 @@ export default defineConfig((/* ctx */) => {
       extendViteConf(viteConf) {
         viteConf.server = viteConf.server || {}
         viteConf.server.allowedHosts = ['albion.cloudpub.ru']
-        
-        // Если нужно разрешить абсолютно любые хосты (например, для ngrok), 
+
+        // Если нужно разрешить абсолютно любые хосты (например, для ngrok),
         // замените строку выше на:
         // viteConf.server.allowedHosts = true
-      },
+      }
 
       // viteVuePluginOptions: {},
       // vueJsx: true,

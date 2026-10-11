@@ -525,10 +525,9 @@ onMounted(() => {
 
 .menu-row {
   display: grid;
-  grid-template-columns: 20px minmax(160px, 1fr) minmax(
-      150px,
-      1fr
-    ) auto 40px auto;
+  grid-template-columns:
+    20px minmax(160px, 1fr) minmax(150px, 1fr)
+    auto 40px auto;
   align-items: center;
   gap: 10px;
 }
