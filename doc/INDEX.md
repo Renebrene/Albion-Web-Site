@@ -11,6 +11,7 @@
 | [`api.md`](api.md) | Справочник эндпоинтов — **генерируется** |
 | [`database.md`](database.md) | Схема БД: таблицы, ключи, расширения — **генерируется** |
 | [`troubleshooting.md`](troubleshooting.md) | Известные грабли: симптом → причина → что делать |
+| [`glossary.md`](glossary.md) | Термины: конструкция, сторона, поверхность, статусы, портфель |
 | [`../deploy/README.md`](../deploy/README.md) | Деплой: env, nginx, Docker/нативно, тесты |
 
 > `api.md` и `database.md` генерируются скриптами (`scripts/gen_api_doc.py`,
