@@ -776,7 +776,12 @@ async function createArchive() {
     const data = await request('/api/admin/base/archives', { method: 'POST' })
 
     archives.value = data.archives || archives.value
-    notice.value = `Архив создан: ${data.archive?.import_key || ''}`
+
+    const removed = data.archive?.removed || []
+
+    notice.value =
+      `Архив создан: ${data.archive?.import_key || ''}` +
+      (removed.length ? ` · удалено старых: ${removed.length}` : '')
   } catch (exc) {
     error.value = String(exc)
   } finally {

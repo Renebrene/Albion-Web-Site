@@ -23,6 +23,9 @@ TMP_DIR = PROJECT_DIR / "tmp"
 IMPORT_DIR = TMP_DIR / "import"
 ARCHIVE_DIR = CONSTRUCTIONS_ARCHIVE_ROOT
 
+# Сколько архивов конструкций храним (ручные и автоматические вместе).
+KEEP_ARCHIVES = 5
+
 
 def load_project_env() -> dict[str, str]:
     env: dict[str, str] = {}
@@ -275,7 +278,14 @@ def create_current_archive(reason: str = "manual") -> dict:
     if media_src.exists():
         shutil.copytree(media_src, destination / "media")
 
-    return {"import_key": key, "active_import_key": active_key}
+    # Соблюдаем лимит архивов и при ручном создании.
+    removed = cleanup_old_archives(ARCHIVE_DIR)
+
+    return {
+        "import_key": key,
+        "active_import_key": active_key,
+        "removed": removed,
+    }
 
 
 def cleanup_import_temp(import_key: str) -> None:
@@ -298,7 +308,16 @@ def cleanup_import_storage(import_key: str) -> None:
         shutil.rmtree(storage_root)
 
 
-def cleanup_old_archives(root: Path, *, keep: int = 5) -> list[str]:
+def cleanup_old_archives(
+    root: Path,
+    *,
+    keep: int = KEEP_ARCHIVES,
+) -> list[str]:
+    """Удаляет архивы сверх `keep`, оставляя самые свежие (по времени).
+
+    Сортировка — по mtime (а не по имени): ручные архивы называются
+    `manual-…` и по имени вставали бы не в хронологическом порядке.
+    """
     if not root.exists():
         return []
 
@@ -308,7 +327,7 @@ def cleanup_old_archives(root: Path, *, keep: int = 5) -> list[str]:
             for path in root.iterdir()
             if path.is_dir() and not path.name.startswith("_")
         ),
-        key=lambda path: path.name,
+        key=lambda path: (path.stat().st_mtime, path.name),
         reverse=True,
     )
 
@@ -431,7 +450,7 @@ def run(*, commit: bool) -> None:
 
     print()
     print("===== ARCHIVE RETENTION =====")
-    removed_archives = cleanup_old_archives(ARCHIVE_DIR, keep=5)
+    removed_archives = cleanup_old_archives(ARCHIVE_DIR)
 
     if removed_archives:
         for archive_name in removed_archives:
