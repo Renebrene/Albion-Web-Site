@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import re
+import statistics
 from pathlib import Path
 from typing import Any
 
@@ -224,6 +226,76 @@ def parse_coordinates(
     return lat, lng
 
 
+# Координата считается аномальной, если уехала от медианного центра набора
+# дальше этого порога (км). Ростовская область ~300 км в поперечнике, так что
+# по умолчанию помечаем точки, явно выпадающие из скопления.
+COORD_ANOMALY_KM = 300.0
+
+
+def haversine_km(
+    lat1: float,
+    lng1: float,
+    lat2: float,
+    lng2: float,
+) -> float:
+    """Расстояние между двумя точками по сфере, км."""
+    radius = 6371.0
+
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    d_phi = math.radians(lat2 - lat1)
+    d_lambda = math.radians(lng2 - lng1)
+
+    a = (
+        math.sin(d_phi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2) ** 2
+    )
+
+    return 2 * radius * math.asin(math.sqrt(a))
+
+
+def find_coordinate_anomalies(
+    records: list[dict[str, Any]],
+    threshold_km: float = COORD_ANOMALY_KM,
+) -> tuple[list[dict[str, Any]], tuple[float, float] | None]:
+    """Ищет координаты, сильно удалённые от основного скопления.
+
+    Центр — медиана широт/долгот (устойчива к выбросам). Возвращает список
+    аномалий (по убыванию расстояния) и сам центр.
+    """
+    points = [
+        (rec.get("latitude"), rec.get("longitude"), rec)
+        for rec in records
+        if rec.get("latitude") is not None and rec.get("longitude") is not None
+    ]
+
+    if len(points) < 5:
+        return [], None
+
+    med_lat = statistics.median(point[0] for point in points)
+    med_lng = statistics.median(point[1] for point in points)
+
+    anomalies: list[dict[str, Any]] = []
+
+    for lat, lng, rec in points:
+        distance = haversine_km(med_lat, med_lng, lat, lng)
+
+        if distance > threshold_km:
+            anomalies.append(
+                {
+                    "address": rec.get("address"),
+                    "side": rec.get("side"),
+                    "latitude": lat,
+                    "longitude": lng,
+                    "distance_km": round(distance, 1),
+                }
+            )
+
+    anomalies.sort(key=lambda item: item["distance_km"], reverse=True)
+
+    return anomalies, (med_lat, med_lng)
+
+
 def normalize_status(value: str) -> str:
     text = clean(value)
 
@@ -400,6 +472,34 @@ def convert() -> Path:
                 continue
 
             records.append(item)
+
+        # Проверка координат на аномалии (сильно выпадающие из скопления).
+        anomalies, center = find_coordinate_anomalies(records)
+
+        print()
+        print("Проверка координат на аномалии:")
+
+        if center is None:
+            print("  координатных точек слишком мало для проверки")
+        elif not anomalies:
+            print(
+                f"  аномалий не найдено "
+                f"(центр {center[0]:.4f}, {center[1]:.4f})"
+            )
+        else:
+            print(
+                f"  найдено {len(anomalies)} "
+                f"(центр {center[0]:.4f}, {center[1]:.4f}, "
+                f"порог {COORD_ANOMALY_KM:.0f} км):"
+            )
+
+            for item in anomalies:
+                print(
+                    f"  [АНОМАЛИЯ КООРДИНАТ] {item['address']} "
+                    f"сторона={item['side']}: "
+                    f"{item['latitude']}, {item['longitude']} — "
+                    f"{item['distance_km']} км"
+                )
 
     finally:
         wb.close()
