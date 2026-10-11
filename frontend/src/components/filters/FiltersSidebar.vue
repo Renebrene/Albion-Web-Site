@@ -23,6 +23,7 @@
             <button
               type="button"
               :class="{ active: monthLogic === 'AND' }"
+              :aria-pressed="monthLogic === 'AND'"
               @click="$emit('update:monthLogic', 'AND')"
             >
               И
@@ -31,6 +32,7 @@
             <button
               type="button"
               :class="{ active: monthLogic === 'OR' }"
+              :aria-pressed="monthLogic === 'OR'"
               @click="$emit('update:monthLogic', 'OR')"
             >
               ИЛИ
@@ -46,6 +48,7 @@
           type="button"
           class="chip"
           :class="{ active: selectedMonths.includes(month.value) }"
+          :aria-pressed="selectedMonths.includes(month.value)"
           @click="toggleMonth(month.value)"
         >
           {{ month.label }}
@@ -63,6 +66,7 @@
           type="button"
           class="chip"
           :class="{ active: selectedTypes.includes(type) }"
+          :aria-pressed="selectedTypes.includes(type)"
           @click="toggleType(type)"
         >
           {{ type }}
@@ -92,6 +96,7 @@
             type="button"
             class="city-check-button"
             :aria-label="`Выбрать город ${city}`"
+            :aria-pressed="selectedCities.includes(city)"
             @click.stop="toggleCity(city)"
           >
             <span class="city-check">
