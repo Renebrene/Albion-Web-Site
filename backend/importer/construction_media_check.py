@@ -37,12 +37,13 @@ USER_AGENT = (
 )
 
 
-def check_one(entry: dict) -> dict:
-    started = time.time()
+def _probe(href: str) -> int | None:
+    """Проверяет доступность ссылки без полной загрузки файла.
 
+    Сначала HEAD; если хост на него не отвечает (в т.ч. Яндекс) — Range-запрос
+    первых байт. Возвращает размер, если он известен.
+    """
     try:
-        href = get_direct_link(entry["url"])
-
         request = Request(
             href,
             method="HEAD",
@@ -52,10 +53,29 @@ def check_one(entry: dict) -> dict:
         with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
             length = response.headers.get("Content-Length")
 
+        return int(length) if length and length.isdigit() else None
+
+    except Exception:
+        pass
+
+    request = Request(
+        href,
+        headers={"User-Agent": USER_AGENT, "Range": "bytes=0-0"},
+    )
+
+    with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+        response.read(1)
+
+    return None
+
+
+def check_one(entry: dict) -> dict:
+    started = time.time()
+
+    try:
+        href = get_direct_link(entry["url"])
+        entry["check_size"] = _probe(href)
         entry["status"] = "ok"
-        entry["check_size"] = (
-            int(length) if length and length.isdigit() else None
-        )
         entry["error"] = None
 
     except Exception as exc:
@@ -149,6 +169,7 @@ def main() -> None:
 
     # Лог проверки — рядом с обычным логом загрузки.
     log_path = get_log_path(staging_path).with_name("media_check.jsonl")
+    log_path.parent.mkdir(parents=True, exist_ok=True)
 
     with log_path.open("w", encoding="utf-8") as log_file:
         for entry in entries:
