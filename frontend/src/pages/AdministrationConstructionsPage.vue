@@ -368,50 +368,52 @@
               <div v-else class="edit-photo-placeholder"> ALBION </div>
             </div>
 
-            <div class="edit-photo-actions">
-              <q-btn
-                outline
-                no-caps
-                icon="photo_library"
-                label="Медиатека"
-                :disable="!editingItem.surface_hash || overriding"
-                @click="pickerOpen = true"
-              />
+            <div class="edit-photo-content">
+              <div class="edit-photo-actions">
+                <q-btn
+                  outline
+                  no-caps
+                  icon="photo_library"
+                  label="Медиатека"
+                  :disable="!editingItem.surface_hash || overriding"
+                  @click="pickerOpen = true"
+                />
 
-              <label
-                class="upload-file-btn"
-                :class="{
-                  'is-disabled': !editingItem.surface_hash || overriding
-                }"
-                for="construction-photo-input"
-              >
-                {{ overriding ? 'Загрузка…' : 'Загрузить' }}
-              </label>
+                <label
+                  class="upload-file-btn"
+                  :class="{
+                    'is-disabled': !editingItem.surface_hash || overriding
+                  }"
+                  for="construction-photo-input"
+                >
+                  {{ overriding ? 'Загрузка…' : 'Загрузить' }}
+                </label>
 
-              <q-btn
-                v-if="editingItem.photo"
-                flat
-                no-caps
-                color="negative"
-                icon="delete_outline"
-                label="Удалить фото"
-                @click="clearEditingPhoto"
-              />
+                <q-btn
+                  v-if="editingItem.photo"
+                  flat
+                  no-caps
+                  color="negative"
+                  icon="delete_outline"
+                  label="Удалить фото"
+                  @click="clearEditingPhoto"
+                />
 
-              <input
-                id="construction-photo-input"
-                type="file"
-                accept="image/*"
-                class="file-input-hidden"
-                :disabled="!editingItem.surface_hash || overriding"
-                @change="onPhotoFilePicked"
-              />
-            </div>
+                <input
+                  id="construction-photo-input"
+                  type="file"
+                  accept="image/*"
+                  class="file-input-hidden"
+                  :disabled="!editingItem.surface_hash || overriding"
+                  @change="onPhotoFilePicked"
+                />
+              </div>
 
-            <div class="photo-note">
-              Медиатека конструкций — каталог превью. Замена фото сохраняется во
-              временный каталог и действует на всём сайте до следующего
-              обновления базы.
+              <div class="photo-note">
+                Медиатека конструкций — каталог превью. Замена фото сохраняется
+                во временный каталог и действует на всём сайте до следующего
+                обновления базы.
+              </div>
             </div>
           </div>
 
@@ -426,16 +428,26 @@
               outlined
               :options="cityOptions(editingItem.city)"
             >
-              <template #label>
-                Город
-                <span v-if="showStar('city')" class="field-star">*</span>
+              <template #label>Город</template>
+              <template #append>
+                <span
+                  v-if="showStar('city')"
+                  class="field-star"
+                  title="Изменено"
+                  >*</span
+                >
               </template>
             </q-select>
 
             <q-input v-model="editingItem.address" dense outlined>
-              <template #label>
-                Адрес
-                <span v-if="showStar('address')" class="field-star">*</span>
+              <template #label>Адрес</template>
+              <template #append>
+                <span
+                  v-if="showStar('address')"
+                  class="field-star"
+                  title="Изменено"
+                  >*</span
+                >
               </template>
             </q-input>
 
@@ -445,9 +457,14 @@
               outlined
               :options="sideOptions"
             >
-              <template #label>
-                Сторона
-                <span v-if="showStar('side')" class="field-star">*</span>
+              <template #label>Сторона</template>
+              <template #append>
+                <span
+                  v-if="showStar('side')"
+                  class="field-star"
+                  title="Изменено"
+                  >*</span
+                >
               </template>
             </q-select>
 
@@ -457,16 +474,26 @@
               outlined
               :options="typeOptions"
             >
-              <template #label>
-                Тип конструкции
-                <span v-if="showStar('type')" class="field-star">*</span>
+              <template #label>Тип конструкции</template>
+              <template #append>
+                <span
+                  v-if="showStar('type')"
+                  class="field-star"
+                  title="Изменено"
+                  >*</span
+                >
               </template>
             </q-select>
 
             <q-input v-model="editingItem.size" dense outlined>
-              <template #label>
-                Размер
-                <span v-if="showStar('size')" class="field-star">*</span>
+              <template #label>Размер</template>
+              <template #append>
+                <span
+                  v-if="showStar('size')"
+                  class="field-star"
+                  title="Изменено"
+                  >*</span
+                >
               </template>
             </q-input>
 
@@ -476,9 +503,14 @@
               outlined
               :options="materialOptions"
             >
-              <template #label>
-                Материал
-                <span v-if="showStar('material')" class="field-star">*</span>
+              <template #label>Материал</template>
+              <template #append>
+                <span
+                  v-if="showStar('material')"
+                  class="field-star"
+                  title="Изменено"
+                  >*</span
+                >
               </template>
             </q-select>
 
@@ -549,15 +581,16 @@
             >
               <q-input v-model="field.name" dense outlined label="Название" />
 
-              <q-input v-model="field.value" dense outlined label="Значение">
-                <template #label>
-                  Значение
+              <q-input v-model="field.value" dense outlined>
+                <template #label>Значение</template>
+                <template #append>
                   <span
                     v-if="
                       (field.name === 'Номер' && showStar('number')) ||
                       (field.name === 'Район' && showStar('district'))
                     "
                     class="field-star"
+                    title="Изменено"
                     >*</span
                   >
                 </template>
@@ -1152,6 +1185,9 @@ function fieldChanged(key) {
 
   const get = FIELD_GETTERS[key]
 
+  // У медиа-пунктов (photo/map) геттера нет — их сравнивать не с чем.
+  if (typeof get !== 'function') return false
+
   return get(editingItem.value) !== get(originalItem.value)
 }
 
@@ -1285,11 +1321,20 @@ async function resetToDefault() {
   constructionsError.value = ''
 
   try {
+    // Снимаем ВСЕ временные изменения: поля, фото и карту-схему.
     await clearConstructionFieldOverride({ surface_hash: target.surface_hash })
-    await clearConstructionPhotoOverride({
-      surface_hash: target.surface_hash,
-      media_type: 'photo'
-    })
+
+    for (const mediaType of ['photo', 'map']) {
+      await clearConstructionPhotoOverride({
+        surface_hash: target.surface_hash,
+        media_type: mediaType
+      })
+    }
+
+    // Убираем отметки «изменено» в открытой форме (звёздочки у полей).
+    if (editingItem.value) {
+      editingItem.value.overridden = []
+    }
 
     editDialog.value = false
     await loadConstructions()
@@ -1505,6 +1550,14 @@ onBeforeUnmount(() => {
   align-items: start;
 }
 
+/* Правая колонка блока фото: кнопки, а под ними — пояснение. */
+.edit-photo-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
 .edit-photo-preview {
   aspect-ratio: 16 / 9;
   overflow: hidden;
@@ -1630,6 +1683,7 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+  align-items: start;
 }
 
 .edit-checkbox {
@@ -1653,6 +1707,16 @@ onBeforeUnmount(() => {
 
 .edit-dialog .q-field + .q-field {
   margin-top: 8px;
+}
+
+/*
+ * Правило выше — для вертикального стека полей. Внутри 2-колоночных сеток
+ * отступ уже даёт gap, а лишний margin-top сдвигал второе поле строки вниз
+ * (Город/Адрес вставали на разной высоте).
+ */
+.edit-main-grid > .q-field + .q-field,
+.extra-edit-row > .q-field + .q-field {
+  margin-top: 0;
 }
 
 .extra-section-title {
