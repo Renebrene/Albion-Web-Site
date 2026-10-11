@@ -32,6 +32,18 @@
 (`try_files … /index.html`), прокси `/api` и `/storage`, кэш ассетов и
 CSP-заголовок для боевого домена.
 
+## Планировщик авто-бекапа и multiworker
+
+Backend при старте поднимает фоновый поток авто-бекапа сайта
+(`site_backup_service.start_scheduler`, раз в 7 дней). При запуске
+uvicorn с несколькими worker'ами поток стартует в каждом процессе, но
+создание бекапа защищено **advisory-блокировкой PostgreSQL**
+(`pg_try_advisory_lock`): бекап создаёт ровно один worker, остальные
+пропускают итерацию. Дополнительно не чаще раза в 7 дней.
+
+Это покрыто тестом `backend/tests/test_site_backup_scheduler.py`
+(параллельный вызов → создание один раз).
+
 ## Ключ Yandex Maps: ротация и ограничение
 
 - Версия API — **2.1** (как в `frontend/src/map/yandexLoader.js`; ручной тест
