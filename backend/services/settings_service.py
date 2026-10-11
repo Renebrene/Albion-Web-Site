@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 from backend.services.data_service import get_connection
@@ -180,6 +181,11 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
 # Список ключей в порядке формы (для фронта)
 SCHEMA_KEYS = [item["key"] for item in SETTINGS_SCHEMA]
 
+# Ключи-цвета: значение должно быть hex (#RGB/#RRGGBB/#RRGGBBAA). Иначе цвет
+# попадает в SVG (fill) и CSS-переменные, где произвольная строка недопустима.
+_HEX_COLOR_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
+_COLOR_KEYS = {item["key"] for item in SETTINGS_SCHEMA if item.get("type") == "color"}
+
 
 def _default_appearance() -> dict[str, str]:
     return {item["key"]: str(item["default"]) for item in SETTINGS_SCHEMA}
@@ -281,6 +287,13 @@ def save_settings(settings: dict) -> dict:
 
             for key, value in settings.items():
                 if key in SCHEMA_KEYS:
+                    if key in _COLOR_KEYS and not _HEX_COLOR_RE.match(
+                        str(value).strip()
+                    ):
+                        raise ValueError(
+                            f"Некорректный цвет для настройки «{key}»: ожидается #RRGGBB"
+                        )
+
                     current[key] = str(value)
 
             _write_current(conn, current)

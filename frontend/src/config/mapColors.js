@@ -38,10 +38,17 @@ export function setMapColorMode(value) {
   mapColorMode.value = value === 'two' ? 'two' : 'three'
 }
 
-function pick(value, fallback) {
+/*
+ * Цвет безопасен только если это hex (#RGB / #RRGGBB / #RRGGBBAA).
+ * Значение приходит из настроек и попадает в SVG (fill) и CSS-переменные,
+ * поэтому произвольную строку пропускать нельзя. Иначе — дефолт.
+ */
+const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/
+
+function safeColor(value, fallback) {
   const text = String(value ?? '').trim()
 
-  return text || fallback
+  return HEX_COLOR.test(text) ? text : fallback
 }
 
 /*
@@ -52,8 +59,8 @@ export function setMapDotColors(settings) {
   const source = settings || {}
 
   mapDotColors.value = {
-    free: pick(source.map_color_free, DEFAULT_MAP_DOT_COLORS.free),
-    busy: pick(source.map_color_busy, DEFAULT_MAP_DOT_COLORS.busy),
-    mixed: pick(source.map_color_mixed, DEFAULT_MAP_DOT_COLORS.mixed)
+    free: safeColor(source.map_color_free, DEFAULT_MAP_DOT_COLORS.free),
+    busy: safeColor(source.map_color_busy, DEFAULT_MAP_DOT_COLORS.busy),
+    mixed: safeColor(source.map_color_mixed, DEFAULT_MAP_DOT_COLORS.mixed)
   }
 }
