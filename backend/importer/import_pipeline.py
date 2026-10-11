@@ -273,13 +273,19 @@ def run(*, commit: bool) -> None:
     print()
     print(f"Import key: {import_key}")
 
-    print()
-    print("===== STEP 3: DOWNLOAD MEDIA =====")
-    run_stage("backend.importer.construction_media_download")
+    if commit:
+        print()
+        print("===== STEP 3: DOWNLOAD MEDIA =====")
+        run_stage("backend.importer.construction_media_download")
 
-    print()
-    print("===== STEP 4: CREATE PREVIEWS =====")
-    run_stage("backend.importer.construction_media_preview")
+        print()
+        print("===== STEP 4: CREATE PREVIEWS =====")
+        run_stage("backend.importer.construction_media_preview")
+    else:
+        # Dry-run: файлы не качаем — только проверяем доступность ссылок.
+        print()
+        print("===== STEP 3: CHECK MEDIA LINKS (dry-run, без скачивания) =====")
+        run_stage("backend.importer.construction_media_check")
 
     print()
     print("===== STEP 5: SQLITE → POSTGRESQL =====")

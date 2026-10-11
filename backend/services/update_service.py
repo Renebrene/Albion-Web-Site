@@ -5,6 +5,7 @@ import json
 import os
 import re
 import shutil
+import signal
 import sqlite3
 import subprocess
 import sys
@@ -127,6 +128,10 @@ STEP_MARKERS = {
 
 _LOCK = threading.Lock()
 _PROCESS: Optional[subprocess.Popen] = None
+
+# Пользователь запросил остановку — чтобы монитор пометил прогон как
+# «остановлен», а не «ошибка».
+_STOP_REQUESTED = False
 
 
 # ---------------------------------------------------------------- утилиты
@@ -500,13 +505,15 @@ def start_update(
     dry_run: bool = False,
 ) -> dict:
     """Запускает полный конвейер обновления базы в подпроцессе."""
-    global _PROCESS
+    global _PROCESS, _STOP_REQUESTED
 
     with _LOCK:
         if _is_running():
             raise RuntimeError(
                 "Обновление уже выполняется"
             )
+
+        _STOP_REQUESTED = False
 
         # В input/ должен быть ровно один Excel
         sources = [
@@ -576,6 +583,9 @@ def start_update(
             env=env,
             stdout=log_handle,
             stderr=subprocess.STDOUT,
+            # Своя сессия/группа процессов — чтобы «Остановить» убил и
+            # пайплайн, и запущенные им стадии-подпроцессы.
+            start_new_session=True,
         )
 
         threading.Thread(
@@ -595,6 +605,45 @@ def start_update(
             LOG_FILE.relative_to(PROJECT_DIR)
         ),
     }
+
+
+def stop_update() -> dict:
+    """Останавливает текущий прогон обновления/ dry-run.
+
+    Убивает всю группу процессов (сам пайплайн и запущенные им
+    стадии-подпроцессы). Монитор затем пометит прогон как «stopped».
+    """
+    global _STOP_REQUESTED
+
+    with _LOCK:
+        process = _PROCESS
+
+        if process is None or process.poll() is not None:
+            return {"success": False, "state": "not_running"}
+
+        _STOP_REQUESTED = True
+        pid = process.pid
+
+    try:
+        os.killpg(os.getpgid(pid), signal.SIGTERM)
+    except Exception:
+        try:
+            process.terminate()
+        except Exception:
+            pass
+
+    try:
+        process.wait(timeout=10)
+    except Exception:
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+        except Exception:
+            try:
+                process.kill()
+            except Exception:
+                pass
+
+    return {"success": True, "state": "stopping"}
 
 
 # ---------------------------------------------------------------- мониторинг
@@ -783,6 +832,8 @@ def _finish(
     collected: bool,
     seen_lines: int,
 ) -> None:
+    global _STOP_REQUESTED
+
     exit_code = process.poll()
 
     if LOG_FILE.exists():
@@ -818,7 +869,11 @@ def _finish(
 
         collected = True
 
-    if exit_code == 0:
+    if _STOP_REQUESTED:
+        # Прогон остановлен пользователем — это не ошибка.
+        status["state"] = "stopped"
+        status["errors"] = []
+    elif exit_code == 0:
         status["state"] = "success"
 
         if not dry_run:
@@ -846,6 +901,8 @@ def _finish(
                 status["errors"] = failure
 
     _archive_run_log(commit_key)
+
+    _STOP_REQUESTED = False
 
     _write_status(status)
 

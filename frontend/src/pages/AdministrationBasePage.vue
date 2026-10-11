@@ -141,11 +141,26 @@
           :loading="updateRunning"
           @click="startUpdate"
         />
+
+        <q-btn
+          v-if="updateRunning || stopping"
+          color="warning"
+          text-color="dark"
+          no-caps
+          icon="stop"
+          label="Остановить"
+          :loading="stopping"
+          @click="stopUpdate"
+        />
       </div>
 
       <div v-if="updateState.state === 'error'" class="error-text">
         Обновление завершилось с ошибкой (код
         {{ updateState.exit_code }}).
+      </div>
+
+      <div v-if="updateState.state === 'stopped'" class="stopped-text">
+        Прогон остановлен пользователем.
       </div>
 
       <!-- индикаторы шагов -->
@@ -471,6 +486,7 @@ const uploadedFile = ref(null)
 // --- обновление ---
 const dryRunMode = ref(true)
 const updateRunning = ref(false)
+const stopping = ref(false)
 const updateState = ref({
   state: 'idle',
   steps: [],
@@ -522,6 +538,8 @@ const statusLabel = computed(() => {
       return 'Завершено успешно'
     case 'error':
       return 'Ошибка'
+    case 'stopped':
+      return 'Остановлено'
     default:
       return 'Ожидание'
   }
@@ -608,6 +626,21 @@ async function startUpdate() {
     error.value = String(exc)
     updateRunning.value = false
     updateState.value = { ...idleStatus }
+  }
+}
+
+async function stopUpdate() {
+  stopping.value = true
+
+  try {
+    await request('/api/admin/base/update/stop', { method: 'POST' })
+  } catch (exc) {
+    error.value = String(exc)
+  } finally {
+    stopping.value = false
+    // Статус станет «stopped» после того, как монитор допишет его —
+    // активный интервал опроса подхватит это; дополнительно опросим сейчас.
+    await pollStatus()
   }
 }
 
@@ -832,6 +865,15 @@ onBeforeUnmount(() => {
   color: #2e7d32;
   background: #f1f8f1;
   padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 14px;
+  margin-top: 10px;
+}
+
+.stopped-text {
+  color: #b26a00;
+  background: #fff6e5;
+  padding: 12px 16px;
   border-radius: 10px;
   font-size: 14px;
   margin-top: 10px;

@@ -32,6 +32,7 @@ from backend.services.update_service import (
     mark_site_restored,
     save_uploaded_file,
     start_update,
+    stop_update,
 )
 
 
@@ -217,6 +218,20 @@ def update(
     """Запускает полное обновление базы (Excel → PostgreSQL)."""
     try:
         return start_update(dry_run=dry_run)
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        ) from exc
+
+
+@router.post("/update/stop")
+def update_stop(
+    auth=Depends(require_admin),
+):
+    """Останавливает текущий прогон обновления / dry-run."""
+    try:
+        return stop_update()
     except RuntimeError as exc:
         raise HTTPException(
             status_code=409,
