@@ -611,6 +611,16 @@ const heroIndex = ref(0)
 let heroTimer = null
 let homeSliderMounted = false
 
+/* Пользователь просит меньше движения — не крутим hero-карусель автоматически.
+   Переходы слайдов гасит CSS-медиазапрос prefers-reduced-motion. */
+const prefersReducedMotion = ref(false)
+let reduceMotionQuery = null
+
+if (typeof window !== 'undefined' && window.matchMedia) {
+  reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  prefersReducedMotion.value = reduceMotionQuery.matches
+}
+
 /* Карточки верхнего слайда (горизонтальная карусель). */
 function heroItems(slide) {
   const items = ((slide && slide.items) || []).filter(
@@ -758,6 +768,11 @@ function restartHeroAutoplay() {
     heroTimer = null
   }
 
+  // При reduced motion автопрокрутка выключена.
+  if (prefersReducedMotion.value) {
+    return
+  }
+
   const slide = slides.value[index.value]
 
   if (!slide || slide.kind !== 'hero' || heroCount.value < 2) {
@@ -768,6 +783,19 @@ function restartHeroAutoplay() {
     heroIndex.value = (heroIndex.value + 1) % heroCount.value
   }, AUTOPLAY_MS)
 }
+
+/* Реакция на изменение предпочтения: включили reduce — гасим таймер,
+   выключили — запускаем заново. */
+watch(prefersReducedMotion, value => {
+  if (value) {
+    if (heroTimer) {
+      clearInterval(heroTimer)
+      heroTimer = null
+    }
+  } else {
+    restartHeroAutoplay()
+  }
+})
 
 /* Фон слайда с вертикальным параллаксом. */
 function slideBgStyle(slide, i) {
@@ -1163,11 +1191,17 @@ watch(
   }
 )
 
+function onReduceMotionChange(event) {
+  prefersReducedMotion.value = event.matches
+}
+
 onMounted(() => {
   homeSliderMounted = true
   load().then(() => {
     if (homeSliderMounted) restartHeroAutoplay()
   })
+
+  reduceMotionQuery?.addEventListener?.('change', onReduceMotionChange)
 
   const el = rootRef.value
   if (el) el.addEventListener('wheel', onWheel, { passive: false })
@@ -1176,6 +1210,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   homeSliderMounted = false
+  reduceMotionQuery?.removeEventListener?.('change', onReduceMotionChange)
   const el = rootRef.value
   if (el) el.removeEventListener('wheel', onWheel)
   window.removeEventListener('keydown', onKey)
@@ -2194,6 +2229,14 @@ onBeforeUnmount(() => {
 @media (prefers-reduced-motion: reduce) {
   .geo-list-track {
     animation: none;
+  }
+
+  /* Без плавных переходов слайдов/карусели. */
+  .slides-track,
+  .hero-v1-track,
+  .geo-fan-card,
+  .geo-modal {
+    transition: none;
   }
 }
 
