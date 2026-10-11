@@ -37,6 +37,13 @@ load_env_file(PROJECT_DIR / ".env")
 
 
 MONTHS = {
+    1: "Январь",
+    2: "Февраль",
+    3: "Март",
+    4: "Апрель",
+    5: "Май",
+    6: "Июнь",
+    7: "Июль",
     8: "Август",
     9: "Сентябрь",
     10: "Октябрь",
@@ -201,12 +208,10 @@ def get_data():
            AND cmm.media_type = 'map'
         LEFT JOIN surface_availability a
             ON a.surface_id = s.id
-           AND a.year = 2026
-           AND a.month BETWEEN 8 AND 12
 
         WHERE s.is_active = TRUE
 
-        ORDER BY s.id, a.month
+        ORDER BY s.id, a.year, a.month
     """
 
     records = {}
@@ -329,6 +334,7 @@ def get_data():
                         item["photo_large"] = (
                             photo_override.get("large") or item["photo_large"]
                         )
+                        item.setdefault("overridden", []).append("photo")
 
                     map_override = overrides.get((surface_hash, "map"))
 
@@ -337,6 +343,7 @@ def get_data():
                         item["map_large"] = (
                             map_override.get("large") or item["map_large"]
                         )
+                        item.setdefault("overridden", []).append("map")
 
                     # Временное переопределение основных полей (адрес, город,
                     # район, тип, размер, сторона, свет, материал, номер).
@@ -349,7 +356,10 @@ def get_data():
                             if key in _OVERRIDABLE_FIELDS:
                                 item[key] = _text(value)
 
-                        item["overridden"] = sorted(field_override.keys())
+                        item["overridden"] = sorted(
+                            set(item.get("overridden") or [])
+                            | set(field_override.keys())
+                        )
 
                 if month is not None and month in MONTHS:
                     month_name = MONTHS[month]

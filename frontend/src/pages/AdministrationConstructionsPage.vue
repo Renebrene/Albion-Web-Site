@@ -225,6 +225,15 @@
                   <span>{{ item.size }}</span>
                 </div>
 
+                <span
+                  v-if="item.overridden?.length"
+                  class="construction-changed"
+                  :title="
+                    'Изменено: ' + item.overridden.map(fieldLabel).join(', ')
+                  "
+                  >изменено *</span
+                >
+
                 <div class="construction-id"> #{{ item.id }} </div>
               </div>
 
@@ -274,20 +283,24 @@
 
               <div
                 class="months-grid"
-                :style="{ '--months-count': months.length }"
+                :style="{ '--months-count': monthColumns.length }"
               >
                 <div
-                  v-for="month in months"
-                  :key="month.key"
+                  v-for="month in monthColumns"
+                  :key="month"
                   class="month-cell"
-                  :class="item.months[month.key].status"
+                  :class="item.months[month]?.status || 'free'"
                 >
-                  <div class="month-name">{{ month.short }}</div>
+                  <div class="month-name">{{ MONTH_SHORT[month] }}</div>
                   <div class="month-price">
-                    {{ formatPrice(item.months[month.key].price) }}
+                    {{
+                      item.months[month]
+                        ? formatPrice(item.months[month].price)
+                        : '—'
+                    }}
                   </div>
                   <div class="month-status">
-                    {{ item.months[month.key].statusLabel }}
+                    {{ item.months[month]?.statusLabel || '' }}
                   </div>
                 </div>
               </div>
@@ -342,7 +355,12 @@
         <q-separator />
 
         <q-card-section v-if="editingItem">
-          <div class="edit-section-title">ФОТО КОНСТРУКЦИИ</div>
+          <div class="edit-section-title">
+            ФОТО КОНСТРУКЦИИ
+            <span v-if="showStar('photo')" class="field-star" title="Изменено"
+              >*</span
+            >
+          </div>
 
           <div class="edit-photo">
             <div class="edit-photo-preview">
@@ -410,14 +428,14 @@
             >
               <template #label>
                 Город
-                <span v-if="fieldChanged('city')" class="field-star">*</span>
+                <span v-if="showStar('city')" class="field-star">*</span>
               </template>
             </q-select>
 
             <q-input v-model="editingItem.address" dense outlined>
               <template #label>
                 Адрес
-                <span v-if="fieldChanged('address')" class="field-star">*</span>
+                <span v-if="showStar('address')" class="field-star">*</span>
               </template>
             </q-input>
 
@@ -429,7 +447,7 @@
             >
               <template #label>
                 Сторона
-                <span v-if="fieldChanged('side')" class="field-star">*</span>
+                <span v-if="showStar('side')" class="field-star">*</span>
               </template>
             </q-select>
 
@@ -441,14 +459,14 @@
             >
               <template #label>
                 Тип конструкции
-                <span v-if="fieldChanged('type')" class="field-star">*</span>
+                <span v-if="showStar('type')" class="field-star">*</span>
               </template>
             </q-select>
 
             <q-input v-model="editingItem.size" dense outlined>
               <template #label>
                 Размер
-                <span v-if="fieldChanged('size')" class="field-star">*</span>
+                <span v-if="showStar('size')" class="field-star">*</span>
               </template>
             </q-input>
 
@@ -460,7 +478,7 @@
             >
               <template #label>
                 Материал
-                <span v-if="fieldChanged('material')" class="field-star">*</span>
+                <span v-if="showStar('material')" class="field-star">*</span>
               </template>
             </q-select>
 
@@ -469,10 +487,7 @@
                 v-model="editingItem.lightEnabled"
                 label="Освещение"
               />
-              <span
-                v-if="fieldChanged('light')"
-                class="field-star"
-                title="Изменено"
+              <span v-if="showStar('light')" class="field-star" title="Изменено"
                 >*</span
               >
             </div>
@@ -483,13 +498,17 @@
           </div>
 
           <div class="edit-months">
-            <div v-for="month in months" :key="month.key" class="edit-month">
+            <div
+              v-for="month in editingMonthColumns"
+              :key="month"
+              class="edit-month"
+            >
               <div class="edit-month-name">
-                {{ month.short }}
+                {{ MONTH_SHORT[month] }}
               </div>
 
               <q-input
-                v-model.number="editingItem.months[month.key].price"
+                v-model.number="editingItem.months[month].price"
                 dense
                 outlined
                 type="number"
@@ -497,14 +516,14 @@
               />
 
               <q-select
-                v-model="editingItem.months[month.key].status"
+                v-model="editingItem.months[month].status"
                 dense
                 outlined
                 emit-value
                 map-options
                 label="Статус"
                 :options="statusOptions"
-                @update:model-value="updateStatusLabel(month.key)"
+                @update:model-value="updateStatusLabel(month)"
               />
             </div>
           </div>
@@ -535,8 +554,8 @@
                   Значение
                   <span
                     v-if="
-                      (field.name === 'Номер' && fieldChanged('number')) ||
-                      (field.name === 'Район' && fieldChanged('district'))
+                      (field.name === 'Номер' && showStar('number')) ||
+                      (field.name === 'Район' && showStar('district'))
                     "
                     class="field-star"
                     >*</span
@@ -550,6 +569,23 @@
         <q-separator />
 
         <q-card-actions align="right" class="edit-dialog-actions">
+          <q-btn
+            flat
+            dense
+            round
+            icon="settings_backup_restore"
+            color="grey-8"
+            :loading="resetting"
+            :disable="!editingItem.surface_hash"
+            @click="resetToDefault"
+          >
+            <q-tooltip
+              >Вернуть по умолчанию (снять временные изменения)</q-tooltip
+            >
+          </q-btn>
+
+          <q-space />
+
           <q-btn flat no-caps label="Отмена" @click="editDialog = false" />
 
           <q-btn
@@ -575,6 +611,8 @@ import { useRouter } from 'vue-router'
 
 import ConstructionMediaPicker from '../components/admin/ConstructionMediaPicker.vue'
 import {
+  clearConstructionFieldOverride,
+  clearConstructionPhotoOverride,
   setConstructionFieldOverride,
   setConstructionPhotoOverride
 } from '../services/constructionMedia'
@@ -595,84 +633,45 @@ function isDynamic(item) {
 
 const router = useRouter()
 
-const months = [
-  { key: 'august', short: 'АВГ' },
-  { key: 'september', short: 'СЕН' },
-  { key: 'october', short: 'ОКТ' },
-  { key: 'november', short: 'НОЯ' },
-  { key: 'december', short: 'ДЕК' }
+/* Календарный порядок месяцев и короткие подписи. */
+const MONTH_ORDER = [
+  'Январь',
+  'Февраль',
+  'Март',
+  'Апрель',
+  'Май',
+  'Июнь',
+  'Июль',
+  'Август',
+  'Сентябрь',
+  'Октябрь',
+  'Ноябрь',
+  'Декабрь'
 ]
 
-const testConstructions = [
-  {
-    id: 1001,
-    city: 'РОСТОВ-НА-ДОНУ',
-    address: '1-й Конной Армии ул. 32',
-    side: 'A',
-    type: 'ЩИТ',
-    size: '6 × 3 м',
-    light: 'Да',
-    lightEnabled: true,
-    material: 'Металл',
-    months: {
-      august: { price: 15400, status: 'free', statusLabel: 'свободно' },
-      september: { price: 15400, status: 'free', statusLabel: 'свободно' },
-      october: { price: 16000, status: 'reserved', statusLabel: 'резерв' },
-      november: { price: 16000, status: 'free', statusLabel: 'свободно' },
-      december: { price: 17000, status: 'free', statusLabel: 'свободно' }
-    },
-    extra: [
-      { name: 'Паспорт', value: 'АЛБ-2026-001' },
-      { name: 'Владелец', value: 'ООО «Альбион»' },
-      { name: '', value: '' }
-    ]
-  },
-  {
-    id: 1002,
-    city: 'РОСТОВ-НА-ДОНУ',
-    address: 'Будённовский проспект 80',
-    side: 'B',
-    type: 'СИТИБОРД',
-    size: '3,7 × 2,7 м',
-    light: 'Да',
-    material: 'Алюминий',
-    months: {
-      august: { price: 22000, status: 'busy', statusLabel: 'занято' },
-      september: { price: 22000, status: 'free', statusLabel: 'свободно' },
-      october: { price: 23000, status: 'free', statusLabel: 'свободно' },
-      november: { price: 23000, status: 'pending', statusLabel: 'утверждение' },
-      december: { price: 24000, status: 'free', statusLabel: 'свободно' }
-    },
-    extra: [
-      { name: 'Примечание', value: 'Въезд со стороны проспекта' },
-      { name: '', value: '' },
-      { name: '', value: '' }
-    ]
-  },
-  {
-    id: 1003,
-    city: 'БАТАЙСК',
-    address: 'ул. Кирова 156',
-    side: 'A1',
-    type: 'ПИЛЛАР',
-    size: '1,2 × 3 м',
-    light: 'Нет',
-    lightEnabled: false,
-    material: 'Композит',
-    months: {
-      august: { price: 12000, status: 'free', statusLabel: 'свободно' },
-      september: { price: 12000, status: 'free', statusLabel: 'свободно' },
-      october: { price: 12500, status: 'free', statusLabel: 'свободно' },
-      november: { price: 12500, status: 'free', statusLabel: 'свободно' },
-      december: { price: 13000, status: 'reserved', statusLabel: 'резерв' }
-    },
-    extra: [
-      { name: 'Номер опоры', value: '156-А' },
-      { name: 'Район', value: 'Центральный' },
-      { name: 'Примечание', value: 'Тестовое поле' }
-    ]
-  }
-]
+const MONTH_SHORT = {
+  Январь: 'ЯНВ',
+  Февраль: 'ФЕВ',
+  Март: 'МАР',
+  Апрель: 'АПР',
+  Май: 'МАЙ',
+  Июнь: 'ИЮН',
+  Июль: 'ИЮЛ',
+  Август: 'АВГ',
+  Сентябрь: 'СЕН',
+  Октябрь: 'ОКТ',
+  Ноябрь: 'НОЯ',
+  Декабрь: 'ДЕК'
+}
+
+function sortMonths(names) {
+  return [...names].sort((a, b) => {
+    const ia = MONTH_ORDER.indexOf(a)
+    const ib = MONTH_ORDER.indexOf(b)
+
+    return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
+  })
+}
 
 function formatPrice(value) {
   if (!value) return '—'
@@ -808,14 +807,6 @@ async function loadBaseStats() {
   }
 }
 
-const monthMap = {
-  Август: 'august',
-  Сентябрь: 'september',
-  Октябрь: 'october',
-  Ноябрь: 'november',
-  Декабрь: 'december'
-}
-
 const statusMap = {
   Свободно: 'free',
   'В резерве': 'reserved',
@@ -833,24 +824,45 @@ function parsePrice(value) {
   return Number.isFinite(number) ? number : 0
 }
 
+/* Актуальные месяцы, присутствующие в текущей базе (по всем конструкциям). */
+const monthColumns = computed(() => {
+  const found = new Set()
+
+  for (const item of displayConstructions.value) {
+    Object.keys(item.months || {}).forEach(name => found.add(name))
+  }
+
+  return sortMonths(found)
+})
+
+/* Месяцы редактируемой конструкции. */
+const editingMonthColumns = computed(() =>
+  sortMonths(Object.keys(editingItem.value?.months || {}))
+)
+
 function mapConstruction(item) {
+  /*
+   * Ключ — полное имя месяца (как отдаёт база: «Октябрь», «Ноябрь»…).
+   * Состав берём из данных, без фиксированного списка месяцев и без
+   * подстановки базовой цены: цена — только реальная месячная.
+   */
   const mappedMonths = {}
+  const names = new Set([
+    ...Object.keys(item.months || {}),
+    ...Object.keys(item.statuses || {}),
+    ...Object.keys(item.month_prices || {})
+  ])
 
-  months.forEach(month => {
-    const apiMonth = Object.keys(monthMap).find(
-      key => monthMap[key] === month.key
-    )
-
-    const monthName = apiMonth || ''
+  for (const monthName of names) {
     const rawStatus = item.statuses?.[monthName] || 'Свободно'
-    const rawPrice = item.month_prices?.[monthName] || item.price || ''
+    const rawPrice = item.month_prices?.[monthName] ?? ''
 
-    mappedMonths[month.key] = {
+    mappedMonths[monthName] = {
       price: parsePrice(rawPrice),
       status: statusMap[rawStatus] || 'free',
       statusLabel: rawStatus.toLowerCase()
     }
-  })
+  }
 
   return {
     id: item.id,
@@ -1050,6 +1062,7 @@ function clearEditingPhoto() {
 
 const pickerOpen = ref(false)
 const overriding = ref(false)
+const resetting = ref(false)
 
 function onPhotoFilePicked(event) {
   const file = event.target.files?.[0]
@@ -1109,7 +1122,9 @@ const FIELD_LABELS = {
   material: 'Материал',
   light: 'Освещение',
   number: 'Номер',
-  district: 'Район'
+  district: 'Район',
+  photo: 'Фото',
+  map: 'Карта'
 }
 
 function extraValue(item, name) {
@@ -1138,6 +1153,18 @@ function fieldChanged(key) {
   const get = FIELD_GETTERS[key]
 
   return get(editingItem.value) !== get(originalItem.value)
+}
+
+/*
+ * Показывать звёздочку у поля: оно уже временно переопределено в базе
+ * ИЛИ изменено сейчас в форме (как бейдж «изменено *» на карточке).
+ */
+function showStar(key) {
+  if (!editingItem.value) return false
+
+  const overridden = editingItem.value.overridden || []
+
+  return overridden.includes(key) || fieldChanged(key)
 }
 
 const changedFields = computed(() =>
@@ -1175,7 +1202,10 @@ function openEdit(item) {
 
   const copy = cloneConstruction(item)
 
-  copy.lightEnabled = String(copy.light || '').trim().toLowerCase() === 'да'
+  copy.lightEnabled =
+    String(copy.light || '')
+      .trim()
+      .toLowerCase() === 'да'
 
   editingItem.value = copy
   originalItem.value = cloneConstruction(copy)
@@ -1194,11 +1224,14 @@ function updateStatusLabel(monthKey) {
 function applyPriceToAll() {
   if (!editingItem.value) return
 
-  const firstMonth = months[0].key
-  const price = editingItem.value.months[firstMonth].price
+  const columns = editingMonthColumns.value
 
-  months.forEach(month => {
-    editingItem.value.months[month.key].price = price
+  if (!columns.length) return
+
+  const price = editingItem.value.months[columns[0]].price
+
+  columns.forEach(month => {
+    editingItem.value.months[month].price = price
   })
 }
 
@@ -1239,6 +1272,31 @@ async function saveEdit() {
     constructionsError.value = String(exc?.message || exc)
   } finally {
     savingEdit.value = false
+  }
+}
+
+/* Вернуть конструкцию по умолчанию: снять временные изменения (фото и поля). */
+async function resetToDefault() {
+  const target = editingItem.value
+
+  if (!target?.surface_hash) return
+
+  resetting.value = true
+  constructionsError.value = ''
+
+  try {
+    await clearConstructionFieldOverride({ surface_hash: target.surface_hash })
+    await clearConstructionPhotoOverride({
+      surface_hash: target.surface_hash,
+      media_type: 'photo'
+    })
+
+    editDialog.value = false
+    await loadConstructions()
+  } catch (exc) {
+    constructionsError.value = String(exc?.message || exc)
+  } finally {
+    resetting.value = false
   }
 }
 
@@ -1535,6 +1593,33 @@ onBeforeUnmount(() => {
   color: #8a5a00;
   font-size: 12px;
   line-height: 1.45;
+}
+
+/* Звёздочка у изменённого поля / пометка изменённой карточки. */
+.field-star {
+  margin-left: 3px;
+  color: var(--q-primary);
+  font-weight: 900;
+}
+
+.construction-changed {
+  flex: 0 0 auto;
+
+  padding: 1px 7px;
+  border-radius: 6px;
+
+  background: #fff0d2;
+  color: #b96b00;
+
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+
+.changed-filter {
+  margin-right: 8px;
+  font-size: 13px;
 }
 
 .edit-main-section {
