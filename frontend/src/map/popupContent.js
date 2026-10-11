@@ -546,15 +546,15 @@ export function popupLayout(input) {
   return count === 3 ? 'triple' : count > 1 ? 'double' : 'single'
 }
 
-export function popupContent(input) {
+/*
+ * Нормализация и группировка входа попапа — общая для разметки и для
+ * сигнатуры кэша (см. popupContent / signatureOf).
+ */
+function prepare(input) {
   const items = normalizeSides(input)
 
   if (!items.length) {
-    return `
-      <div class="popup-empty">
-        Нет данных
-      </div>
-    `
+    return { empty: true }
   }
 
   // Убираем дубликаты по стороне В ПРЕДЕЛАХ формата (порядок сохраняем):
@@ -574,7 +574,63 @@ export function popupContent(input) {
   const visibleGroups = groups.slice(0, maxBlocks)
   const allSides = visibleGroups.flatMap(group => group.items)
 
-  const popupClass = `popup-${popupLayout(items)}`
+  const layout = popupLayout(items)
+
+  return { empty: false, layout, visibleGroups, allSides }
+}
+
+/*
+ * Ключ кэша разметки: состав видимых групп + состояние портфеля для их
+ * поверхностей + настройки внешнего вида. Если ничего из этого не
+ * изменилось, готовую разметку можно не пересобирать.
+ */
+function signatureOf(ctx) {
+  const parts = [
+    ctx.layout,
+    availableMode.value ? '1' : '0',
+    showDynCount.value ? '1' : '0'
+  ]
+
+  for (const group of ctx.visibleGroups) {
+    for (const item of group.items) {
+      const id = surfaceIdOf(item)
+
+      let months = ''
+
+      for (const month of MONTHS) {
+        months +=
+          id !== null && portfolio.isMonthSelected(id, month.full) ? '1' : '0'
+      }
+
+      parts.push(String(id ?? ''), isSurfaceActive(id) ? '1' : '0', months)
+    }
+  }
+
+  return parts.join('|')
+}
+
+/*
+ * Кэш готовой разметки. Разметка зависит от состава группы, портфеля и
+ * настроек внешнего вида — всё это входит в ключ, поэтому «протухнуть»
+ * без смены ключа она не может. Ограничиваем размер, чтобы карта не
+ * росла бесконечно.
+ */
+const contentCache = new Map()
+const CONTENT_CACHE_MAX = 400
+
+/*
+ * Сброс кэша разметки. Нужен при загрузке нового набора конструкций:
+ * тот же id поверхности может прийти уже с другими ценой/фото/статусом,
+ * а ключ кэша этого не различает (внутри одного набора данных поля
+ * поверхности не меняются).
+ */
+export function clearPopupContentCache() {
+  contentCache.clear()
+}
+
+/* Собирает разметку попапа из подготовленного контекста. */
+function buildContent(ctx) {
+  const popupClass = `popup-${ctx.layout}`
 
   /*
    * Режим выбора включается не на корне, а на секции стороны —
@@ -583,14 +639,44 @@ export function popupContent(input) {
   return `
     <div class="popup ${popupClass}">
 
-      ${commonHeader(allSides)}
+      ${commonHeader(ctx.allSides)}
 
       <div class="popup-sides">
 
-        ${visibleGroups.map(renderGroup).join('')}
+        ${ctx.visibleGroups.map(renderGroup).join('')}
 
       </div>
 
     </div>
   `
+}
+
+export function popupContent(input) {
+  const ctx = prepare(input)
+
+  if (ctx.empty) {
+    return `
+      <div class="popup-empty">
+        Нет данных
+      </div>
+    `
+  }
+
+  const key = signatureOf(ctx)
+
+  const cached = contentCache.get(key)
+
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const html = buildContent(ctx)
+
+  if (contentCache.size >= CONTENT_CACHE_MAX) {
+    contentCache.clear()
+  }
+
+  contentCache.set(key, html)
+
+  return html
 }

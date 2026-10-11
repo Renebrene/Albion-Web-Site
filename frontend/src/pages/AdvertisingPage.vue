@@ -654,6 +654,7 @@ import FiltersSidebar from '../components/filters/FiltersSidebar.vue'
 import MapSearch from '../components/workspace/MapSearch.vue'
 import PointSearchPanel from '../components/workspace/PointSearchPanel.vue'
 import MapView from '../map/MapView.vue'
+import { clearPopupContentCache } from '../map/popupContent'
 
 import { getConstructions } from '../services/api'
 
@@ -1865,6 +1866,12 @@ onMounted(async () => {
 
     // Подтягиваем свежие цены/статусы выбранных месяцев из psql.
     syncWithConstructions(constructions.value)
+
+    /*
+     * Данные конструкций загружены/обновлены — сбрасываем кэш разметки
+     * попапов: тот же id поверхности мог прийти с новыми ценой/фото/статусом.
+     */
+    clearPopupContentCache()
 
     console.log('Albion page: загружено', constructions.value.length)
   } catch (error) {
