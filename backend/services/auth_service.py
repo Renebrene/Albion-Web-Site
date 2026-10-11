@@ -185,3 +185,35 @@ def revoke_session(token: str) -> bool:
         ).fetchone()
 
     return result is not None
+
+
+def revoke_user_sessions(user_id: int, keep_token: str | None = None) -> int:
+    """Отзывает ВСЕ активные сессии пользователя.
+
+    Нужно после смены пароля, смены роли или отключения аккаунта: иначе уже
+    выданные токены (живут до 7 дней) продолжают давать доступ.
+
+    keep_token — токен, который НЕ отзывать (например, текущая сессия
+    администратора, меняющего свой же пароль).
+    """
+    params: list = [int(user_id)]
+    keep_clause = ""
+
+    if keep_token:
+        keep_clause = " AND token_hash <> %s"
+        params.append(hash_token(keep_token))
+
+    with get_connection() as conn:
+        rows = conn.execute(
+            f"""
+            UPDATE admin_sessions
+            SET revoked_at = NOW()
+            WHERE user_id = %s
+              AND revoked_at IS NULL
+              {keep_clause}
+            RETURNING id
+            """,
+            tuple(params),
+        ).fetchall()
+
+    return len(rows)

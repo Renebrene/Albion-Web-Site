@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.services.auth_api import require_admin
-from backend.services.auth_service import PASSWORD_HASH
+from backend.services.auth_service import PASSWORD_HASH, revoke_user_sessions
 from backend.services.data_service import get_connection
 
 
@@ -280,6 +280,10 @@ def admin_update_user(
                 tuple(values),
             ).fetchone()
 
+    # При смене роли или отключении аккаунта отзываем выданные сессии.
+    if payload.role is not None or payload.is_active is not None:
+        revoke_user_sessions(user_id)
+
     return {
         "success": True,
         "user": _serialize(row),
@@ -315,5 +319,9 @@ def admin_change_password(
             status_code=404,
             detail="Пользователь не найден.",
         )
+
+    # Отзываем все сессии пользователя; свою текущую оставляем,
+    # чтобы администратор не вылетел сразу после смены своего пароля.
+    revoke_user_sessions(user_id, keep_token=(auth or {}).get("token"))
 
     return {"success": True}
