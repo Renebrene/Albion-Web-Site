@@ -580,7 +580,6 @@ const testConstructions = [
     size: '6 × 3 м',
     light: 'Да',
     lightEnabled: true,
-    lightEnabled: true,
     material: 'Металл',
     months: {
       august: { price: 15400, status: 'free', statusLabel: 'свободно' },
