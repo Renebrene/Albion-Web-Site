@@ -498,6 +498,7 @@
                 class="fb-input"
                 type="text"
                 placeholder="Имя"
+                aria-label="Ваше имя"
                 autocomplete="name"
               />
               <input
@@ -505,12 +506,14 @@
                 class="fb-input"
                 type="tel"
                 placeholder="Телефон"
+                aria-label="Телефон для связи"
                 autocomplete="tel"
               />
               <textarea
                 v-model="form.message"
                 class="fb-input fb-textarea"
                 placeholder="Сообщение"
+                aria-label="Сообщение"
                 rows="3"
               ></textarea>
 
@@ -1663,13 +1666,14 @@ onBeforeUnmount(() => {
 .hero-arrow:hover {
   background: rgba(255, 255, 255, 0.3);
 }
+/* Обе стрелки — справа, рядом друг с другом (в обмен с точками). */
 .hero-arrow--prev {
-  left: 0;
+  right: 84px;
+  left: auto;
 }
-/* Обе стрелки — слева, рядом друг с другом. */
 .hero-arrow--next {
-  left: 60px;
-  right: auto;
+  right: 24px;
+  left: auto;
 }
 
 .hero-dots {
@@ -2244,7 +2248,8 @@ onBeforeUnmount(() => {
 .v-dots {
   position: absolute;
   top: 50%;
-  right: 16px;
+  left: 16px;
+  right: auto;
   z-index: 4;
   transform: translateY(-50%);
   display: flex;
