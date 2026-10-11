@@ -35,14 +35,7 @@
                   :key="item.id || hi"
                   class="hero-v1-slide"
                 >
-                  <div
-                    class="hero-v1-bg"
-                    :style="
-                      item.image
-                        ? { backgroundImage: `url('${item.image}')` }
-                        : undefined
-                    "
-                  ></div>
+                  <div class="hero-v1-bg" :style="heroBgStyle(hi, item)"></div>
 
                   <div class="hero-a">
                     <div class="hero-a-brand">
@@ -595,12 +588,29 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { safeCmsUrl } from '../../utils/safeCmsUrl'
 
 const rootRef = ref(null)
 const slides = ref([])
 const index = ref(0)
+
+/*
+ * Ленивая загрузка фонов слайдов.
+ *
+ * Раньше background-image ставился сразу всем слайдам, и браузер тянул
+ * все фоны при открытии главной. Теперь фон грузится только у активного
+ * слайда и его соседей (чтобы переход был плавным без «мигания»), а
+ * остальные — по мере активации (см. markSlideBg / slideBgStyle).
+ */
+const loadedSlideBgs = reactive(new Set())
+
+/*
+ * Ленивая загрузка фонов карусели hero-слайда (те же соображения, что и
+ * для слайдов). Грузим фон текущего кадра и следующего (его вот-вот
+ * покажет автопрокрутка), остальные — по мере активации.
+ */
+const loadedHeroBgs = reactive(new Set())
 
 const news = ref([])
 const about = ref(null)
@@ -800,17 +810,51 @@ watch(prefersReducedMotion, value => {
   }
 })
 
+/*
+ * Помечает слайд и его соседей как «нужно загрузить фон».
+ * Соседей — заранее, чтобы при листании картинка уже была в кэше.
+ */
+function markSlideBg(i) {
+  const count = slides.value.length
+
+  if (!count) {
+    return
+  }
+
+  for (const offset of [0, -1, 1]) {
+    const idx = i + offset
+
+    if (idx >= 0 && idx < count) {
+      loadedSlideBgs.add(idx)
+    }
+  }
+}
+
+watch([index, () => slides.value.length], () => markSlideBg(index.value), {
+  immediate: true
+})
+
 /* Фон слайда с вертикальным параллаксом. */
 function slideBgStyle(slide, i) {
   const style = {
     transform: `scale(1.12) translateY(${(i - index.value) * 12}%)`
   }
 
-  if (slide && slide.image) {
+  // Картинку подставляем только когда фон уже разрешено грузить.
+  if (slide && slide.image && loadedSlideBgs.has(i)) {
     style.backgroundImage = `url('${slide.image}')`
   }
 
   return style
+}
+
+/* Фон кадра hero-карусели — грузим только у разрешённых кадров. */
+function heroBgStyle(i, item) {
+  if (item && item.image && loadedHeroBgs.has(i)) {
+    return { backgroundImage: `url('${item.image}')` }
+  }
+
+  return undefined
 }
 
 const form = ref({ name: '', phone: '', message: '' })
@@ -1180,7 +1224,28 @@ watch(index, () => {
   heroIndex.value = 0
   geoAttractionIndex.value = 0
   geoExpanded.value = null
+  // Индексы кадров hero у каждого слайда свои — сбрасываем отметки загрузки.
+  loadedHeroBgs.clear()
   restartHeroAutoplay()
+})
+
+/*
+ * Помечает текущий кадр hero-карусели и следующий как «нужно загрузить».
+ * Индексы замкнуты по кругу: после последнего кадра снова идёт первый.
+ */
+function markHeroBg(i) {
+  const count = heroCount.value
+
+  if (!count) {
+    return
+  }
+
+  loadedHeroBgs.add(((i % count) + count) % count)
+  loadedHeroBgs.add((((i + 1) % count) + count) % count)
+}
+
+watch([heroIndex, heroCount], () => markHeroBg(heroIndex.value), {
+  immediate: true
 })
 
 watch(
