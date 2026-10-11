@@ -101,9 +101,9 @@
         <b>Тестовый прогон (dry-run)</b> — безопасная проверка перед боевым
         обновлением. Разбирает Excel, строит staging и проверяет доступность
         ссылок на медиа <em>без скачивания</em>: видно, сколько фото придётся
-        докачать и сколько ссылок недоступно. База, архивы и файлы при этом
-        не меняются. Если dry-run проходит без ошибок — снимите галочку
-        «Тестовый прогон» и запустите реальное обновление.
+        докачать и сколько ссылок недоступно. База, архивы и файлы при этом не
+        меняются. Если dry-run проходит без ошибок — снимите галочку «Тестовый
+        прогон» и запустите реальное обновление.
       </div>
 
       <div class="last-update-row">
@@ -163,9 +163,15 @@
         />
       </div>
 
-      <div v-if="updateState.state === 'error'" class="error-text">
-        Обновление завершилось с ошибкой (код
-        {{ updateState.exit_code }}).
+      <div v-if="updateState.state === 'error'" class="error-block">
+        <div class="error-text">
+          Обновление завершилось с ошибкой (код
+          {{ updateState.exit_code }})<template v-if="failedStepName"
+            >, этап «{{ failedStepName }}»</template
+          >.
+        </div>
+
+        <pre v-if="errorSummary" class="error-detail">{{ errorSummary }}</pre>
       </div>
 
       <div v-if="updateState.state === 'stopped'" class="stopped-text">
@@ -557,6 +563,25 @@ const errorsText = computed(() => {
   return errors.join('\n')
 })
 
+/* Этап, на котором прогон упал (или с пропускаемыми ошибками). */
+const failedStepName = computed(() => {
+  const steps = updateState.value.steps || []
+  const step =
+    steps.find(item => item.state === 'error') ||
+    steps.find(item => item.state === 'current')
+
+  return step?.name || ''
+})
+
+/* Подробная суть ошибки — первые значимые строки, для показа рядом с сообщением. */
+const errorSummary = computed(() =>
+  (updateState.value.errors || [])
+    .map(line => String(line).trim())
+    .filter(Boolean)
+    .slice(0, 8)
+    .join('\n')
+)
+
 const statusLabel = computed(() => {
   switch (updateState.value.state) {
     case 'running':
@@ -911,6 +936,28 @@ onBeforeUnmount(() => {
   font-size: 14px;
 }
 
+/* Подробности ошибки обновления рядом с сообщением. */
+.error-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.error-detail {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 10px;
+  background: #fff7f7;
+  border: 1px solid #f3caca;
+  color: #8a1c1c;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 240px;
+  overflow: auto;
+}
+
 .ok-text {
   color: #2e7d32;
   background: #f1f8f1;
@@ -1054,6 +1101,22 @@ onBeforeUnmount(() => {
   background: #fff8e1;
   border-color: #ffd54f;
   color: #b26a00;
+  font-weight: 700;
+}
+
+/* Этап с пропускаемыми ошибками (напр. нескачанные медиа) — светло-розовый. */
+.step-warn {
+  background: #fdecf3;
+  border-color: #f3c0d1;
+  color: #b0325c;
+  font-weight: 700;
+}
+
+/* Этап с фатальной ошибкой (прогон упал) — красный. */
+.step-error {
+  background: #fdecea;
+  border-color: #e57373;
+  color: #c62828;
   font-weight: 700;
 }
 

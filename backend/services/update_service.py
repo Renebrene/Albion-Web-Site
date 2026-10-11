@@ -169,6 +169,9 @@ def _empty_status() -> dict:
                 "num": num,
                 "name": name,
                 "state": "pending",
+                # Счётчик «мягких» (пропускаемых) ошибок этапа — например
+                # нескачанные медиа. Если > 0, этап подсвечивается светло-розовым.
+                "errors": 0,
             }
             for num, name in STEP_MARKERS.items()
         ],
@@ -735,6 +738,23 @@ def _parse_step(line: str) -> int | None:
     return None
 
 
+def _mark_step_error(status: dict, raw_value: str) -> None:
+    """Отмечает текущий этап как имеющий пропускаемые ошибки."""
+    try:
+        count = int(str(raw_value).strip())
+    except (TypeError, ValueError):
+        count = 0
+
+    if count <= 0:
+        return
+
+    current = status.get("current_step") or 0
+
+    for step_item in status["steps"]:
+        if step_item["num"] == current:
+            step_item["errors"] = count
+
+
 def _apply_line(
     status: dict,
     line: str,
@@ -752,7 +772,12 @@ def _apply_line(
             num = step_item["num"]
 
             if num < step:
-                step_item["state"] = "done"
+                # Этап с пропускаемыми ошибками (напр. нескачанные медиа)
+                # помечаем особым состоянием «warn» (светло-розовый),
+                # а не «выполнено».
+                step_item["state"] = (
+                    "warn" if step_item.get("errors") else "done"
+                )
             elif num == step:
                 step_item["state"] = "current"
 
@@ -782,9 +807,13 @@ def _apply_line(
         touched = True
 
     if line.startswith("Errors:"):
-        status["media"]["errors"] = (
-            line.split(":", 1)[1].strip()
-        )
+        value = line.split(":", 1)[1].strip()
+        status["media"]["errors"] = value
+        _mark_step_error(status, value)
+        touched = True
+
+    if line.startswith("ERROR:"):
+        _mark_step_error(status, line.split(":", 1)[1].strip())
         touched = True
 
     if line.startswith("OK:"):
@@ -889,15 +918,19 @@ def _extract_failure(lines: list[str]) -> list[str]:
         return lines[first_tb:]
 
     picked = [
-        line
+        line.strip()
         for line in lines
-        if re.search(r"error|exception|ошибк|failed", line, re.I)
+        if line.strip()
+        and re.search(r"error|exception|ошибк|fail|traceback", line, re.I)
     ]
 
     if picked:
         return picked[-8:]
 
-    return lines[-10:] if lines else []
+    # Ничего явного — отдаём последние непустые строки лога.
+    tail = [line.rstrip() for line in lines if line.strip()]
+
+    return tail[-10:]
 
 
 def _finish(
@@ -973,8 +1006,24 @@ def _finish(
         if not status.get("errors"):
             failure = _extract_failure(lines)
 
-            if failure:
-                status["errors"] = failure
+            status["errors"] = failure or [
+                f"Прогон завершился с кодом {exit_code}. "
+                "Подробности — в логе обновления."
+            ]
+
+    # Завершаем последний этап: при фатальной ошибке — красный (error),
+    # при пропускаемых ошибках — светло-розовый (warn), иначе «выполнено».
+    if status["state"] != "stopped":
+        for step_item in status["steps"]:
+            if step_item["state"] != "current":
+                continue
+
+            if status["state"] == "error":
+                step_item["state"] = "error"
+            elif step_item.get("errors"):
+                step_item["state"] = "warn"
+            else:
+                step_item["state"] = "done"
 
     _archive_run_log(commit_key)
 
