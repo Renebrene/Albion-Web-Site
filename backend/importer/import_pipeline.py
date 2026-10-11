@@ -341,6 +341,43 @@ def cleanup_old_archives(
     return removed
 
 
+def current_active_import_key() -> str | None:
+    """Ключ текущего ACTIVE-импорта конструкций (состояние ДО обновления)."""
+    from backend.services.data_service import get_connection
+
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT import_key FROM construction_imports "
+                "WHERE status = 'active' LIMIT 1"
+            ).fetchone()
+    except Exception:
+        return None
+
+    return row[0] if row else None
+
+
+def snapshot_current_base(import_key: str) -> Path:
+    """Снимок ТЕКУЩЕЙ базы ДО обновления — гарантированный откат.
+
+    Делает самосогласованный архив текущего ACTIVE-импорта: дамп текущей БД
+    + превью этого импорта. Восстанавливается обычным restore (media ляжет в
+    storage/constructions/imports/<import_key>, и пути в дампе совпадут).
+
+    Если архив этого импорта уже есть — это и есть тот же снимок, не плодим
+    дубликаты.
+    """
+    archive_dir = ARCHIVE_DIR / import_key
+
+    if (archive_dir / "database.dump").exists():
+        return archive_dir
+
+    archive_constructions_database(import_key)
+    archive_import_media(import_key)
+
+    return archive_dir
+
+
 def run(*, commit: bool) -> None:
     source = find_source_file()
 
@@ -364,6 +401,18 @@ def run(*, commit: bool) -> None:
     print(f"Import key: {import_key}")
 
     if commit:
+        # Снимок ТЕКУЩЕЙ базы (до изменений) — чтобы откат был всегда, даже
+        # если прогон упадёт раньше шага архивации.
+        print()
+        print("===== STEP 0: SNAPSHOT CURRENT BASE (до обновления) =====")
+        current_key = current_active_import_key()
+
+        if current_key:
+            snapshot = snapshot_current_base(current_key)
+            print(f"Снимок текущей базы: {snapshot}")
+        else:
+            print("Текущего ACTIVE-импорта нет — снимок не требуется.")
+
         print()
         print("===== STEP 3: DOWNLOAD MEDIA =====")
         run_stage("backend.importer.construction_media_download")
