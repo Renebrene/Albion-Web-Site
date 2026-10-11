@@ -478,6 +478,15 @@ def main() -> None:
                 f"Уже скачано ранее:  {len(already)}"
             )
 
+        total_to_download = len(download_entries)
+        progress_step = max(1, total_to_download // 20)
+        done = 0
+
+        print(
+            f"Скачиваем: {total_to_download} "
+            f"(пропущено — уже есть: {reuse_count})"
+        )
+
         with ThreadPoolExecutor(
             max_workers=DOWNLOAD_WORKERS,
         ) as executor:
@@ -493,6 +502,12 @@ def main() -> None:
 
             for future in as_completed(futures):
                 future.result()
+                done += 1
+
+                # Живой прогресс: строку «Downloaded: K» парсит админка,
+                # поэтому счётчик «Скачано» обновляется по ходу.
+                if done % progress_step == 0 or done == total_to_download:
+                    print(f"Downloaded: {len(already) + done}")
 
         ok = len(already) + sum(
             1

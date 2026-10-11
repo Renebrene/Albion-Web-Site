@@ -195,14 +195,17 @@
         <span v-if="updateState.media.tasks !== null">
           Медиа задач: {{ updateState.media.tasks }}
         </span>
-        <span v-if="updateState.media.reuse !== null">
-          REUSE: {{ updateState.media.reuse }}
-        </span>
         <span v-if="updateState.media.download !== null">
-          DOWNLOAD: {{ updateState.media.download }}
+          К скачиванию: {{ updateState.media.download }}
         </span>
         <span v-if="updateState.media.downloaded !== null">
           Скачано: {{ updateState.media.downloaded }}
+          <template v-if="updateState.media.download">
+            из {{ updateState.media.download }}
+          </template>
+        </span>
+        <span v-if="updateState.media.reuse !== null">
+          Пропущено (уже есть): {{ updateState.media.reuse }}
         </span>
         <span
           v-if="updateState.media.errors !== null"
