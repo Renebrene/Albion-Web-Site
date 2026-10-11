@@ -624,6 +624,7 @@
             color="primary"
             label="Сохранить"
             :loading="savingEdit"
+            :disable="!changedFields.length"
             @click="saveEdit"
           />
         </q-card-actions>
@@ -1230,9 +1231,8 @@ function cloneConstruction(item) {
   return JSON.parse(JSON.stringify(item))
 }
 
-function openEdit(item) {
-  releaseObjectUrl(editingItem.value?.photo)
-
+/* Заполняет форму копией конструкции; исходник — для сравнения «изменено». */
+function applyItemToForm(item) {
   const copy = cloneConstruction(item)
 
   copy.lightEnabled =
@@ -1242,6 +1242,12 @@ function openEdit(item) {
 
   editingItem.value = copy
   originalItem.value = cloneConstruction(copy)
+}
+
+function openEdit(item) {
+  releaseObjectUrl(editingItem.value?.photo)
+
+  applyItemToForm(item)
   editDialog.value = true
 }
 
@@ -1280,7 +1286,7 @@ async function saveEdit() {
   const fields = collectOverrideFields()
 
   if (!Object.keys(fields).length) {
-    editDialog.value = false
+    // Нечего сохранять — кнопка «Сохранить» для этого и заблокирована.
     return
   }
 
@@ -1308,33 +1314,45 @@ async function saveEdit() {
   }
 }
 
-/* Вернуть конструкцию по умолчанию: снять временные изменения (фото и поля). */
+/*
+ * Вернуть конструкцию по умолчанию: снять временные изменения (поля, фото,
+ * карта). Окно НЕ закрывается — форма перезаполняется значениями по умолчанию,
+ * все отметки «изменено» снимаются, «Сохранить» снова гаснет.
+ */
 async function resetToDefault() {
   const target = editingItem.value
 
   if (!target?.surface_hash) return
 
+  const hash = target.surface_hash
+
   resetting.value = true
   constructionsError.value = ''
 
   try {
-    // Снимаем ВСЕ временные изменения: поля, фото и карту-схему.
-    await clearConstructionFieldOverride({ surface_hash: target.surface_hash })
+    await clearConstructionFieldOverride({ surface_hash: hash })
 
     for (const mediaType of ['photo', 'map']) {
       await clearConstructionPhotoOverride({
-        surface_hash: target.surface_hash,
+        surface_hash: hash,
         media_type: mediaType
       })
     }
 
-    // Убираем отметки «изменено» в открытой форме (звёздочки у полей).
-    if (editingItem.value) {
-      editingItem.value.overridden = []
-    }
-
-    editDialog.value = false
     await loadConstructions()
+
+    const fresh = displayConstructions.value.find(
+      item => item.surface_hash === hash
+    )
+
+    if (fresh) {
+      releaseObjectUrl(editingItem.value?.photo)
+      applyItemToForm(fresh)
+    } else if (editingItem.value) {
+      // Конструкция пропала из списка — хотя бы гасим отметки.
+      editingItem.value.overridden = []
+      originalItem.value = cloneConstruction(editingItem.value)
+    }
   } catch (exc) {
     constructionsError.value = String(exc?.message || exc)
   } finally {
