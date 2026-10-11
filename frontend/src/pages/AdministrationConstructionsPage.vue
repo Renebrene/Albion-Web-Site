@@ -363,7 +363,7 @@
                 color="negative"
                 icon="delete_outline"
                 label="Удалить фото"
-                @click="editingItem.photo = ''"
+                @click="clearEditingPhoto"
               />
 
               <input
@@ -506,7 +506,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { isDynamicSide } from '../utils/constructionGroups'
@@ -612,6 +612,22 @@ function formatPrice(value) {
 
 const editDialog = ref(false)
 const editingItem = ref(null)
+
+/* Object URL превью загруженного фото — отзываем при замене/закрытии, иначе
+   Blob удерживается в памяти. */
+const objectUrls = new Set()
+
+function releaseObjectUrl(url) {
+  if (url && objectUrls.has(url)) {
+    URL.revokeObjectURL(url)
+    objectUrls.delete(url)
+  }
+}
+
+function releaseAllObjectUrls() {
+  objectUrls.forEach(url => URL.revokeObjectURL(url))
+  objectUrls.clear()
+}
 
 const viewMode = ref('full')
 const compactColumns = ref(6)
@@ -946,8 +962,20 @@ function handlePhotoUpload(event) {
 
   if (!file || !editingItem.value) return
 
-  editingItem.value.photo = URL.createObjectURL(file)
+  releaseObjectUrl(editingItem.value.photo)
+
+  const url = URL.createObjectURL(file)
+  objectUrls.add(url)
+  editingItem.value.photo = url
   event.target.value = ''
+}
+
+/* Убрать фото из редактора и освободить object URL. */
+function clearEditingPhoto() {
+  if (!editingItem.value) return
+
+  releaseObjectUrl(editingItem.value.photo)
+  editingItem.value.photo = ''
 }
 
 function openMediaPicker() {
@@ -966,6 +994,7 @@ function cloneConstruction(item) {
 }
 
 function openEdit(item) {
+  releaseObjectUrl(editingItem.value?.photo)
   editingItem.value = cloneConstruction(item)
   editDialog.value = true
 }
@@ -1005,6 +1034,10 @@ function saveEdit() {
 
   editDialog.value = false
 }
+
+onBeforeUnmount(() => {
+  releaseAllObjectUrls()
+})
 </script>
 
 <style scoped>

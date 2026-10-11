@@ -863,6 +863,8 @@ function prepareUploadQueue(files) {
     return
   }
 
+  revokeQueuePreviews()
+
   uploadQueue.value = selectedFiles.map(item => ({
     file: item,
     name: item.name,
@@ -883,6 +885,16 @@ function queuePreviewUrl(item) {
   }
 
   return item.previewUrl
+}
+
+/* Освобождаем все object URL превью очереди (иначе утечка Blob-памяти). */
+function revokeQueuePreviews() {
+  uploadQueue.value.forEach(item => {
+    if (item.previewUrl) {
+      URL.revokeObjectURL(item.previewUrl)
+      item.previewUrl = ''
+    }
+  })
 }
 
 function storageUrl(path) {
@@ -1630,6 +1642,8 @@ onBeforeUnmount(() => {
     window.clearInterval(mediaStatsTimer.value)
     mediaStatsTimer.value = null
   }
+
+  revokeQueuePreviews()
 })
 </script>
 
