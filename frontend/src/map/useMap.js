@@ -653,7 +653,9 @@ function geojsonOuterRings(geojson) {
 }
 
 async function loadRegion() {
-  if (!map) {
+  const current = map
+
+  if (!current) {
     return
   }
 
@@ -666,13 +668,19 @@ async function loadRegion() {
 
     const geojson = await response.json()
 
+    // Карту могли уничтожить, пока грузился GeoJSON — тогда map уже null,
+    // и обращение к нему бросало бы TypeError.
+    if (map !== current) {
+      return
+    }
+
     if (regionLayer) {
-      map.removeLayer(regionLayer)
+      current.removeLayer(regionLayer)
       regionLayer = null
     }
 
     if (maskLayer) {
-      map.removeLayer(maskLayer)
+      current.removeLayer(maskLayer)
       maskLayer = null
     }
 
@@ -699,7 +707,7 @@ async function loadRegion() {
       interactive: false
     })
 
-    maskLayer.addTo(map)
+    maskLayer.addTo(current)
 
     if (maskLayer.bringToBack) {
       maskLayer.bringToBack()
@@ -720,7 +728,7 @@ async function loadRegion() {
       interactive: false
     })
 
-    regionLayer.addTo(map)
+    regionLayer.addTo(current)
 
     console.log('Albion Map: Ростовская область и маска загружены')
   } catch (error) {

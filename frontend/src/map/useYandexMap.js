@@ -296,6 +296,8 @@ function createPlacemark(group) {
    * при узком контенте (пустое поле).
    */
   const isDoublePopup = popupLayout(items) !== 'single'
+  const narrowViewport =
+    typeof window !== 'undefined' && window.innerWidth < 600
 
   return new ymaps.Placemark(
     [lat, lng],
@@ -330,9 +332,10 @@ function createPlacemark(group) {
        * Ширины балуна подогнаны под попап: двойной/тройной сужены
        * (см. CSS [class*='balloon__content'] .popup-double/-triple),
        * одиночный — 300px. Иначе балон шире контента и по бокам пусто.
+       * На узких экранах не даём балуну выйти за пределы вьюпорта.
        */
-      balloonMaxWidth: isDoublePopup ? 700 : 340,
-      balloonMinWidth: isDoublePopup ? 480 : 280,
+      balloonMaxWidth: narrowViewport ? 320 : isDoublePopup ? 700 : 340,
+      balloonMinWidth: narrowViewport ? 260 : isDoublePopup ? 480 : 280,
       balloonAutoPan: true,
 
       hasBalloon: true,
@@ -787,7 +790,9 @@ function removeRegionLayers() {
 }
 
 async function loadRegion() {
-  if (!map) {
+  const current = map
+
+  if (!current) {
     return
   }
 
@@ -799,6 +804,11 @@ async function loadRegion() {
     }
 
     const geojson = await response.json()
+
+    // Карту могли уничтожить, пока грузился GeoJSON.
+    if (map !== current) {
+      return
+    }
 
     removeRegionLayers()
 
@@ -829,10 +839,10 @@ async function loadRegion() {
       }
     )
 
-    map.geoObjects.add(maskPolygon)
+    current.geoObjects.add(maskPolygon)
 
     /* Держим рамку маски по размеру текущего вида. */
-    map.events.add('boundschange', scheduleMaskRefresh)
+    current.events.add('boundschange', scheduleMaskRefresh)
 
     /* Граница области — поверх маски. */
     regionOutline = new ymaps.Polyline(
@@ -848,7 +858,7 @@ async function loadRegion() {
       }
     )
 
-    map.geoObjects.add(regionOutline)
+    current.geoObjects.add(regionOutline)
 
     console.log('Albion Map (Yandex): Ростовская область и маска загружены')
   } catch (error) {

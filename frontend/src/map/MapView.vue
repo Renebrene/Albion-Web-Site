@@ -56,6 +56,10 @@ const mapElement = ref(null)
 const mapApi = shallowRef(null)
 const activeEngine = ref('')
 
+/* Компонент размонтирован: асинхронная инициализация не должна продолжать
+   работу с уже удалённым DOM/картой. */
+let disposed = false
+
 /*
  * Готовность карты: движок создан и регион загружен. Нужна, чтобы
  * центровка по городу/району (из ссылки на карточке) выполнялась
@@ -87,17 +91,37 @@ async function loadLeafletCss() {
  * не попадает в чанк страницы и подгружается только когда карта реально
  * использует Leaflet-движок.
  */
-async function resolveEngine() {
+/* Загрузка API движка (без создания карты). */
+async function loadEngineApi(engine) {
+  if (engine === 'yandex') {
+    await loadYandexMaps()
+
+    const { useYandexMap } = await import('./useYandexMap')
+
+    return useYandexMap()
+  }
+
+  await loadLeafletCss()
+
+  const { useMap } = await import('./useMap')
+
+  return useMap()
+}
+
+/*
+ * Инициализация карты: сначала настроенный движок, при ЛЮБОЙ ошибке
+ * (загрузка API или создание карты) — откат на Leaflet. Раньше ошибка
+ * createMap() не приводила к фолбэку и карта оставалась пустой.
+ */
+async function initMap() {
   await ensureSiteSettings()
 
   if (mapEngine.value === 'yandex') {
     try {
-      await loadYandexMaps()
-
-      const { useYandexMap } = await import('./useYandexMap')
-
+      const api = await loadEngineApi('yandex')
+      api.createMap(mapElement.value)
       activeEngine.value = 'yandex'
-      return useYandexMap()
+      return api
     } catch (error) {
       console.warn(
         'Albion map: Yandex Maps недоступны, откат на Leaflet.',
@@ -106,12 +130,10 @@ async function resolveEngine() {
     }
   }
 
+  const api = await loadEngineApi('leaflet')
+  api.createMap(mapElement.value)
   activeEngine.value = 'leaflet'
-  await loadLeafletCss()
-
-  const { useMap } = await import('./useMap')
-
-  return useMap()
+  return api
 }
 
 function syncSearchPoint() {
@@ -143,10 +165,28 @@ function syncSearchPoint() {
 }
 
 onMounted(async () => {
-  const api = await resolveEngine()
-  mapApi.value = api
+  disposed = false
 
-  api.createMap(mapElement.value)
+  let api
+
+  try {
+    api = await initMap()
+  } catch (error) {
+    console.error('Albion map: не удалось инициализировать карту.', error)
+    return
+  }
+
+  // Успели размонтироваться, пока грузился движок — сворачиваемся.
+  if (disposed) {
+    try {
+      api.destroyMap()
+    } catch (error) {
+      /* карта могла не успеть создаться */
+    }
+    return
+  }
+
+  mapApi.value = api
 
   syncSearchPoint()
 
@@ -163,7 +203,15 @@ onMounted(async () => {
     console.warn('Albion map: не удалось загрузить регион.', error)
   }
 
+  if (disposed) {
+    return
+  }
+
   await nextTick()
+
+  if (disposed) {
+    return
+  }
 
   api.invalidateSize()
 
@@ -228,6 +276,8 @@ defineExpose({
 })
 
 onBeforeUnmount(() => {
+  disposed = true
+
   const api = mapApi.value
 
   if (!api) {
