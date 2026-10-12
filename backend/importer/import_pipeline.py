@@ -519,7 +519,7 @@ def run(*, commit: bool) -> None:
     print(f"constructions database: {archived_db}")
 
     # Медиа ТЕКУЩЕГО импорта (с превью) — вместе с дампом БД.
-    archived_media = archive_import_media(import_key)
+    archived_media = archive_import_media(import_key, hardlink=True)
     print(f"constructions media:    {archived_media or '(нет медиа)'}")
 
     if old_active_import_key:
