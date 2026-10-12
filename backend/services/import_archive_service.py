@@ -90,7 +90,12 @@ def list_archives() -> list[dict]:
 
 
 def _copy_into(source: Path, destination: Path) -> int:
-    """Скопировать содержимое каталога ``source`` в ``destination``."""
+    """Скопировать содержимое каталога ``source`` в ``destination``.
+
+    Файлы, уже лежащие на месте (тот же inode — например, архив-снимок
+    перед обновлением сделан жёсткими ссылками на этот же storage),
+    пропускаем: копирование «файла в самого себя» падает SameFileError.
+    """
     import shutil
 
     copied = 0
@@ -101,6 +106,13 @@ def _copy_into(source: Path, destination: Path) -> int:
 
         target = destination / item.relative_to(source)
         target.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            if target.exists() and target.samefile(item):
+                continue
+        except OSError:
+            pass
+
         shutil.copy2(item, target)
         copied += 1
 

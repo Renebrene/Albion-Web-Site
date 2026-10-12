@@ -187,13 +187,32 @@ def archive_constructions_database(import_key: str) -> Path:
     return destination
 
 
-def archive_import_media(import_key: str) -> Path | None:
+def _link_or_copy(source: str, destination: str) -> None:
+    """Жёсткая ссылка, а если нельзя (другая ФС) — обычное копирование.
+
+    Медиа импорта неизменяемо (пишется один раз в свой каталог), поэтому
+    снимок жёсткими ссылками мгновенный и не занимает место.
+    """
+    try:
+        os.link(source, destination)
+    except OSError:
+        shutil.copy2(source, destination)
+
+
+def archive_import_media(
+    import_key: str,
+    *,
+    hardlink: bool = False,
+) -> Path | None:
     """Копирует медиа (с превью) ТЕКУЩЕГО импорта в его архив.
 
     Сохраняем media того же импорта, что и `database.dump`: тогда архив
     самосогласован — restore кладёт media в
     storage/constructions/imports/<import_key>, к этой же базе.
     Если у импорта медиа нет — возвращаем None (шаг не критичен).
+
+    ``hardlink=True`` — снимок ссылками (быстро, без занятого места);
+    используется для предварительного снимка перед обновлением.
     """
     source = (
         PROJECT_DIR
@@ -211,7 +230,11 @@ def archive_import_media(import_key: str) -> Path | None:
         return destination
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(source, destination)
+    shutil.copytree(
+        source,
+        destination,
+        copy_function=_link_or_copy if hardlink else shutil.copy2,
+    )
 
     return destination
 
@@ -276,7 +299,12 @@ def create_current_archive(reason: str = "manual") -> dict:
     )
 
     if media_src.exists():
-        shutil.copytree(media_src, destination / "media")
+        # Жёсткие ссылки: ручной снимок тоже мгновенный и без места.
+        shutil.copytree(
+            media_src,
+            destination / "media",
+            copy_function=_link_or_copy,
+        )
 
     # Соблюдаем лимит архивов и при ручном создании.
     removed = cleanup_old_archives(ARCHIVE_DIR)
@@ -357,7 +385,7 @@ def current_active_import_key() -> str | None:
     return row[0] if row else None
 
 
-def snapshot_current_base(import_key: str) -> Path:
+def snapshot_current_base(import_key: str, *, hardlink: bool = False) -> Path:
     """Снимок ТЕКУЩЕЙ базы ДО обновления — гарантированный откат.
 
     Делает самосогласованный архив текущего ACTIVE-импорта: дамп текущей БД
@@ -373,7 +401,7 @@ def snapshot_current_base(import_key: str) -> Path:
         return archive_dir
 
     archive_constructions_database(import_key)
-    archive_import_media(import_key)
+    archive_import_media(import_key, hardlink=hardlink)
 
     return archive_dir
 
@@ -435,6 +463,15 @@ def run(*, commit: bool) -> None:
         },
     )
 
+    # Мягкие проверки (адреса/координаты/цены). Не блокируют прогон:
+    # падают только ошибки внутри самих проверок, и тогда их видно в логе.
+    print()
+    print("===== STEPS 6-8: CHECKS (адреса/координаты/цены) =====")
+    run_stage(
+        "backend.importer.constructions_checks",
+        env={"ALBION_IMPORT_KEY": import_key},
+    )
+
     old_active_import_key = None
 
     if commit:
@@ -473,7 +510,7 @@ def run(*, commit: bool) -> None:
         return
 
     print()
-    print("===== STEP 6: ARCHIVE =====")
+    print("===== STEP 9: ARCHIVE =====")
 
     archived_source = archive_source(source, import_key)
     print(f"source.xlsx:            {archived_source}")
@@ -493,7 +530,7 @@ def run(*, commit: bool) -> None:
         )
 
     print()
-    print("===== STEP 7: CLEANUP =====")
+    print("===== STEP 10: CLEANUP =====")
     cleanup_import_temp(import_key)
     print(f"tmp/import/{import_key}: удалён")
 

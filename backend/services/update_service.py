@@ -126,9 +126,18 @@ STEP_MARKERS = {
     3: "Медиа (download)",
     4: "Превью (large/card/thumb)",
     5: "PostgreSQL (новый импорт)",
-    6: "Архивация",
-    7: "Очистка",
+    6: "Проверка адресов",
+    7: "Проверка координат",
+    8: "Проверка цен",
+    9: "Архивация",
+    10: "Очистка",
 }
+
+# Номера «мягких» этапов проверок — им в статус пишутся подробные сообщения.
+CHECK_STEPS = frozenset({6, 7, 8})
+
+# «STEP N:» в логе пайплайна (в т.ч. «===== STEP 6: ... =====»).
+_STEP_RE = re.compile(r"STEP\s+(\d+)\s*:")
 
 _LOCK = threading.Lock()
 _PROCESS: Optional[subprocess.Popen] = None
@@ -172,6 +181,8 @@ def _empty_status() -> dict:
                 # Счётчик «мягких» (пропускаемых) ошибок этапа — например
                 # нескачанные медиа. Если > 0, этап подсвечивается светло-розовым.
                 "errors": 0,
+                # Подробные сообщения этапа (для проверок адресов/координат/цен).
+                "messages": [],
             }
             for num, name in STEP_MARKERS.items()
         ],
@@ -614,6 +625,31 @@ def start_update(
             LOG_FILE.write_text("", encoding="utf-8")
             _write_status(status)
 
+            # Снимок текущей базы (тексты + превью/карты) ДО начала работ:
+            # архив появляется в списке сразу и остаётся там. Медиа
+            # связываем жёсткими ссылками — мгновенно и без места.
+            if not dry_run:
+                try:
+                    from backend.importer.import_pipeline import (
+                        current_active_import_key,
+                        snapshot_current_base,
+                    )
+
+                    active_key = current_active_import_key()
+
+                    if active_key:
+                        snapshot = snapshot_current_base(
+                            active_key,
+                            hardlink=True,
+                        )
+                        status["pre_update_archive"] = snapshot.name
+                    else:
+                        status["pre_update_archive"] = None
+                except Exception as exc:
+                    status["pre_update_archive_error"] = str(exc)
+
+                _write_status(status)
+
             command = [
                 sys.executable,
                 "-m",
@@ -729,13 +765,15 @@ def stop_update() -> dict:
 
 
 def _parse_step(line: str) -> int | None:
-    for num, name in STEP_MARKERS.items():
-        if f"STEP {num}:" in line or (
-            f"===== STEP {num}" in line
-        ):
-            return num
+    """Номер этапа из строки лога («===== STEP 9: ARCHIVE =====» -> 9)."""
+    match = _STEP_RE.search(line)
 
-    return None
+    if not match:
+        return None
+
+    num = int(match.group(1))
+
+    return num if num in STEP_MARKERS else None
 
 
 def _mark_step_error(status: dict, raw_value: str) -> None:
@@ -780,6 +818,18 @@ def _apply_line(
                 )
             elif num == step:
                 step_item["state"] = "current"
+
+        touched = True
+
+    # Подробное сообщение проверки — в список текущего этапа (6/7/8).
+    if line.startswith("CHECK:") and (
+        status.get("current_step") or 0
+    ) in CHECK_STEPS:
+        text = line.split(":", 1)[1].strip()
+
+        for step_item in status["steps"]:
+            if step_item["num"] == status["current_step"]:
+                step_item.setdefault("messages", []).append(text)
 
         touched = True
 
@@ -933,6 +983,66 @@ def _extract_failure(lines: list[str]) -> list[str]:
     return tail[-10:]
 
 
+def _db_is_unusable() -> bool:
+    """База после прогона пустая или без активного импорта."""
+    try:
+        with get_connection() as conn:
+            active = conn.execute(
+                "SELECT id FROM construction_imports "
+                "WHERE status = 'active' ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+
+            if not active:
+                return True
+
+            count = conn.execute(
+                "SELECT COUNT(*) FROM surfaces WHERE is_active = TRUE"
+            ).fetchone()[0]
+    except Exception:
+        return True
+
+    return int(count) == 0
+
+
+def _rollback_if_critical(
+    status: dict,
+    dry_run: bool,
+) -> Optional[dict]:
+    """Авто-откат к снимку перед обновлением при критической ошибке.
+
+    Критическая — когда этап «PostgreSQL (новый импорт)» не завершился или
+    база осталась нерабочей. Мягкие ошибки (медиа/координаты/цены) откат
+    не вызывают: новая база остаётся в работе.
+    """
+    if dry_run:
+        return None
+
+    archive_key = status.get("pre_update_archive")
+
+    if not archive_key:
+        return None
+
+    steps = {item["num"]: item for item in status["steps"]}
+
+    if steps.get(5, {}).get("state") != "error" and not _db_is_unusable():
+        return None
+
+    from backend.services.import_archive_service import restore_archive
+
+    try:
+        restore_archive(archive_key)
+        mark_restored(archive_key)
+        invalidate_data_cache()
+    except Exception as exc:
+        return {
+            "archive": archive_key,
+            "ok": False,
+            "error": str(exc),
+        }
+
+    return {"archive": archive_key, "ok": True}
+
+
 def _finish(
     status: dict,
     process: subprocess.Popen,
@@ -954,6 +1064,12 @@ def _finish(
             lines = [str(exit_code or "ошибка")]
     else:
         lines = []
+
+    # Сбрасываем поэтапные счётчики/сообщения перед повторным проходом по
+    # всему логу: монитор их уже собрал, иначе они задвоятся.
+    for step_item in status["steps"]:
+        step_item["errors"] = 0
+        step_item["messages"] = []
 
     # Финальный проход: даже если строка с Import key потерялась
     # из-за порционной записи — ищем её по всему логу.
@@ -1010,6 +1126,13 @@ def _finish(
                 f"Прогон завершился с кодом {exit_code}. "
                 "Подробности — в логе обновления."
             ]
+
+        # Критическая ошибка (не удалось записать в psql) — база могла
+        # остаться нерабочей: откатываемся к снимку, сделанному до запуска.
+        rollback = _rollback_if_critical(status, dry_run)
+
+        if rollback:
+            status["rollback"] = rollback
 
     # Завершаем последний этап: при фатальной ошибке — красный (error),
     # при пропускаемых ошибках — светло-розовый (warn), иначе «выполнено».
