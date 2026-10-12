@@ -188,7 +188,25 @@
         >
           <span class="step-num">{{ step.num }}</span>
           {{ step.name }}
+          <span v-if="step.errors" class="step-count">
+            {{ step.errors }}
+          </span>
         </div>
+      </div>
+
+      <!-- подробности по этапам проверок (розовые) -->
+      <div
+        v-for="group in stepsWithMessages"
+        :key="'msgs-' + group.num"
+        class="step-messages"
+      >
+        <div class="step-messages-title">
+          Этап {{ group.num }}. {{ group.name }} — замечаний:
+          {{ group.count }}
+        </div>
+        <pre class="scroll-field">{{
+          group.shown.join('\n') + (group.rest ? '\n… и ещё ' + group.rest : '')
+        }}</pre>
       </div>
 
       <!-- счётчики медиа -->
@@ -234,6 +252,25 @@
           Новая версия: <b>{{ updateState.commit_key }}</b
           >.
         </template>
+      </div>
+
+      <!-- автоматический откат при критической ошибке -->
+      <div v-if="updateState.rollback" class="rollback-note">
+        <template v-if="updateState.rollback.ok">
+          Критическая ошибка при записи в PostgreSQL — база откатана к снимку
+          <b>{{ updateState.rollback.archive }}</b
+          >.
+        </template>
+        <template v-else>
+          Не удалось откатиться к снимку
+          <b>{{ updateState.rollback.archive }}</b
+          >: {{ updateState.rollback.error }}
+        </template>
+      </div>
+
+      <div v-if="updateState.pre_update_archive" class="snapshot-note">
+        Снимок текущей базы перед обновлением:
+        <b>{{ updateState.pre_update_archive }}</b> (см. архивы ниже).
       </div>
     </div>
 
@@ -533,7 +570,9 @@ const idleStatus = {
   steps: [],
   media: {},
   preview: {},
-  errors: []
+  errors: [],
+  rollback: null,
+  pre_update_archive: null
 }
 
 /*
@@ -562,6 +601,20 @@ const errorsText = computed(() => {
 
   return errors.join('\n')
 })
+
+/* Этапы проверок с подробными сообщениями (розовая подсветка + список). */
+const stepsWithMessages = computed(() =>
+  (updateState.value.steps || [])
+    .filter(step => step.messages && step.messages.length)
+    .map(step => ({
+      num: step.num,
+      name: step.name,
+      count: step.messages.length,
+      // Больше 60 строк не показываем — остальное в общем логе.
+      shown: step.messages.slice(0, 60),
+      rest: Math.max(0, step.messages.length - 60)
+    }))
+)
 
 /* Этап, на котором прогон упал (или с пропускаемыми ошибками). */
 const failedStepName = computed(() => {
@@ -1118,6 +1171,60 @@ onBeforeUnmount(() => {
   border-color: #e57373;
   color: #c62828;
   font-weight: 700;
+}
+
+.step-count {
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid currentColor;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* Подробности по этапу проверки — светлый розовый блок под шагами. */
+.step-messages {
+  margin-top: 10px;
+  border: 1px solid #f3c0d1;
+  border-radius: 10px;
+  background: #fdf2f6;
+  overflow: hidden;
+}
+
+.step-messages-title {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f3c0d1;
+  color: #b0325c;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.step-messages .scroll-field {
+  max-height: 220px;
+  margin: 0;
+  padding: 10px 12px;
+}
+
+/* Автоматический откат при критической ошибке. */
+.rollback-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e57373;
+  border-radius: 10px;
+  background: #fdecea;
+  color: #c62828;
+  font-size: 13px;
+}
+
+.snapshot-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #cfe0f5;
+  border-radius: 10px;
+  background: #eef5fd;
+  color: #1c5fa8;
+  font-size: 13px;
 }
 
 /* медиа-счётчики */
