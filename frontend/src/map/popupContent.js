@@ -384,12 +384,32 @@ function sideCard(item) {
  * В режиме «по сторонам» — одна строка: месяц свободен, если свободна
  * хоть одна поверхность, иначе продано (резерв не показываем). */
 function sideAggMonthCell(group, month) {
-  const anyFree = (group.items || []).some(item => isFree(item, month.full))
+  const freeIds = (group.items || [])
+    .filter(item => isFree(item, month.full))
+    .map(item => surfaceIdOf(item))
+    .filter(id => id !== null)
+
+  const anyFree = freeIds.length > 0
   const state = anyFree ? 'free' : 'busy'
   const title = anyFree ? 'Свободно' : 'Продано'
 
+  /*
+   * В режиме «по сторонам» отдельной ячейки на каждую поверхность нет,
+   * поэтому агрегированная ячейка несёт СПИСОК id свободных поверхностей
+   * стороны. Клик добавляет/убирает месяц сразу у всех (см. onDocumentClick).
+   * Без этого из динамической половины в портфель нельзя было ничего добавить.
+   */
+  const selected = freeIds.some(id => portfolio.isMonthSelected(id, month.full))
+
+  const pfAttrs = freeIds.length
+    ? ` data-pf-month="${escapeHtml(freeIds.join(','))}|${escapeHtml(month.full)}"`
+    : ''
+
   return `
-    <div class="popup-month ${state}" title="${escapeHtml(title)}">
+    <div
+      class="popup-month ${state}${selected ? ' is-selected' : ''}${freeIds.length ? '' : ' is-locked'}"
+      title="${escapeHtml(title)}"${pfAttrs}
+    >
       ${escapeHtml(month.short)}
     </div>
   `

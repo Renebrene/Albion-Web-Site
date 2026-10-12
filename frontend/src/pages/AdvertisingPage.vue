@@ -1757,9 +1757,27 @@ function clearSurfaceMonths(popupRoot, surfaceId) {
     return
   }
 
-  popupRoot
-    .querySelectorAll(`[data-pf-month^="${surfaceId}|"]`)
-    .forEach(monthEl => monthEl.classList.remove('is-selected'))
+  const id = String(surfaceId)
+
+  // data-pf-month может нести список id (агрегация по стороне),
+  // поэтому проверяем вхождение, а не префикс.
+  popupRoot.querySelectorAll('[data-pf-month]').forEach(monthEl => {
+    const raw = monthEl.getAttribute('data-pf-month') || ''
+    const sep = raw.indexOf('|')
+
+    if (sep <= 0) {
+      return
+    }
+
+    const ids = raw
+      .slice(0, sep)
+      .split(',')
+      .map(value => value.trim())
+
+    if (ids.includes(id)) {
+      monthEl.classList.remove('is-selected')
+    }
+  })
 }
 
 function onDocumentClick(event) {
@@ -1808,15 +1826,26 @@ function onDocumentClick(event) {
     return
   }
 
-  const surfaceId = raw.slice(0, sep)
+  /*
+   * data-pf-month = "<id[,id…]>|<месяц>". В режиме «по сторонам» месяц
+   * агрегирован по стороне и несёт сразу несколько поверхностей — тогда
+   * переключаем месяц у всех.
+   */
+  const idList = raw
+    .slice(0, sep)
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean)
   const monthFull = raw.slice(sep + 1)
 
-  // Данные поверхности берём из уже загруженного списка конструкций.
-  const surface = constructions.value.find(
-    construction => String(construction?.id) === surfaceId
-  )
+  // Данные поверхностей берём из уже загруженного списка конструкций.
+  const surfaces = idList
+    .map(id =>
+      constructions.value.find(construction => String(construction?.id) === id)
+    )
+    .filter(Boolean)
 
-  if (!surface) {
+  if (!surfaces.length) {
     return
   }
 
@@ -1830,23 +1859,36 @@ function onDocumentClick(event) {
     return
   }
 
-  /* Снять можно всегда; добавить — только свободный месяц. */
-  if (isMonthLocked(surface, monthFull)) {
-    return
-  }
+  /*
+   * Каждую поверхность переключаем независимо — как в списке
+   * (onSideMonthClick): снять можно всегда, добавить — только свободный
+   * месяц. В агрегированном месяце стороны это все её поверхности сразу.
+   */
+  surfaces.forEach(surface => {
+    if (isMonthLocked(surface, monthFull)) {
+      return
+    }
 
-  toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
-
-  monthEl.classList.toggle('is-selected', isMonthSelected(surfaceId, monthFull))
+    toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
+  })
 
   const popupRoot =
     monthEl.closest('.popup') || monthEl.closest('.albion-popup')
 
+  monthEl.classList.toggle(
+    'is-selected',
+    surfaces.some(surface => isMonthSelected(surfaceIdOf(surface), monthFull))
+  )
+
   // Снят последний месяц — позиция ушла из портфеля: убираем рамки
   // со всех её месяцев, иначе они останутся висеть.
-  if (!isSurfaceActive(surfaceId)) {
-    clearSurfaceMonths(popupRoot, surfaceId)
-  }
+  surfaces.forEach(surface => {
+    const id = surfaceIdOf(surface)
+
+    if (!isSurfaceActive(id)) {
+      clearSurfaceMonths(popupRoot, id)
+    }
+  })
 
   // Кнопки и pf-mode корня — по актуальному состоянию стора.
   refreshPopupState(popupRoot)
