@@ -8,8 +8,7 @@ from pathlib import Path
 from threading import Lock
 
 from backend.importer.construction_media_downloader import (
-    download_bytes,
-    get_direct_link,
+    fetch_public_media,
 )
 from backend.services.data_service import get_connection
 
@@ -17,7 +16,9 @@ from backend.services.data_service import get_connection
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 STAGING_ROOT = PROJECT_DIR / "tmp" / "import"
 
-DOWNLOAD_WORKERS = 12
+# Публичный API Яндекса отвечает капчей/404 на всплеск параллельных
+# запросов, поэтому качаем умеренно — с повторами (см. downloader).
+DOWNLOAD_WORKERS = 6
 
 LOG_LOCK = Lock()
 
@@ -327,8 +328,7 @@ def download_one(
     )
 
     try:
-        href = get_direct_link(entry["url"])
-        data = download_bytes(href)
+        data = fetch_public_media(entry["url"])
 
         tmp_path = destination.with_suffix(
             destination.suffix + ".tmp"
@@ -481,6 +481,7 @@ def main() -> None:
         total_to_download = len(download_entries)
         progress_step = max(1, total_to_download // 20)
         done = 0
+        ok_done = 0
 
         print(
             f"Скачиваем: {total_to_download} "
@@ -490,24 +491,30 @@ def main() -> None:
         with ThreadPoolExecutor(
             max_workers=DOWNLOAD_WORKERS,
         ) as executor:
-            futures = [
+            futures = {
                 executor.submit(
                     download_one,
                     entry,
                     download_root,
                     log_path,
-                )
+                ): entry
                 for entry in download_entries
-            ]
+            }
 
             for future in as_completed(futures):
+                entry = futures[future]
                 future.result()
                 done += 1
+
+                # В прогресс идём только УСПЕШНЫЕ загрузки: иначе счётчик
+                # «Скачано» показывал число попыток, а не скачанных файлов.
+                if entry.get("status") == "ok":
+                    ok_done += 1
 
                 # Живой прогресс: строку «Downloaded: K» парсит админка,
                 # поэтому счётчик «Скачано» обновляется по ходу.
                 if done % progress_step == 0 or done == total_to_download:
-                    print(f"Downloaded: {len(already) + done}")
+                    print(f"Downloaded: {len(already) + ok_done}")
 
         ok = len(already) + sum(
             1

@@ -3,7 +3,7 @@
 Строит тот же медиа-план, что и загрузчик (и сохраняет media_plan.json,
 чтобы шаг 5 мог его прочитать), но вместо скачивания файлов проверяет
 доступность каждой ссылки: резолв публичной ссылки Яндекс.Диска
-(get_direct_link) и HEAD-запрос. Ничего не качает и не пишет в downloads/.
+(resolve_public_link) и HEAD-запрос. Ничего не качает и не пишет в downloads/.
 
 Результат по каждой ссылке: status = "ok" | "error" (+ размер и время).
 
@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 from backend.services.data_service import get_connection
@@ -26,10 +27,11 @@ from backend.importer.construction_media_download import (
     plan_media_tasks,
     write_plan,
 )
-from backend.importer.construction_media_downloader import get_direct_link
+from backend.importer.construction_media_downloader import resolve_public_link
 
 
-CHECK_WORKERS = 12
+# API Яндекса отвечает капчей на всплеск параллельных запросов.
+CHECK_WORKERS = 6
 REQUEST_TIMEOUT = 30
 USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
@@ -40,40 +42,44 @@ USER_AGENT = (
 def _probe(href: str) -> int | None:
     """Проверяет доступность ссылки без полной загрузки файла.
 
-    Сначала HEAD; если хост на него не отвечает (в т.ч. Яндекс) — Range-запрос
-    первых байт. Возвращает размер, если он известен.
+    Сначала Range-запрос первых байт: это настоящая выдача файла. HEAD у
+    Яндекса может ответить 200, а последующий GET — 500 («file IO failure»),
+    из-за чего dry-run обещал загрузки, которые реально падали.
+    HEAD — только если Range не поддержан (405/501).
     """
     try:
         request = Request(
             href,
-            method="HEAD",
-            headers={"User-Agent": USER_AGENT},
+            headers={"User-Agent": USER_AGENT, "Range": "bytes=0-0"},
         )
 
         with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+            response.read(1)
             length = response.headers.get("Content-Length")
 
         return int(length) if length and length.isdigit() else None
 
-    except Exception:
-        pass
+    except HTTPError as exc:
+        if exc.code not in (405, 501):
+            raise
 
     request = Request(
         href,
-        headers={"User-Agent": USER_AGENT, "Range": "bytes=0-0"},
+        method="HEAD",
+        headers={"User-Agent": USER_AGENT},
     )
 
     with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-        response.read(1)
+        length = response.headers.get("Content-Length")
 
-    return None
+    return int(length) if length and length.isdigit() else None
 
 
 def check_one(entry: dict) -> dict:
     started = time.time()
 
     try:
-        href = get_direct_link(entry["url"])
+        href = resolve_public_link(entry["url"])
         entry["check_size"] = _probe(href)
         entry["status"] = "ok"
         entry["error"] = None

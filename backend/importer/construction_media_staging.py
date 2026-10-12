@@ -6,8 +6,7 @@ from pathlib import Path
 from backend.importer.construction_media_downloader import (
     build_filename,
     build_variants,
-    download_bytes,
-    get_direct_link,
+    fetch_public_media,
     write_variants,
 )
 
@@ -108,8 +107,7 @@ def process_test_photo(
         "photo",
     )
 
-    href = get_direct_link(url)
-    data = download_bytes(href)
+    data = fetch_public_media(url)
 
     image, variants, image_format = build_variants(data)
 

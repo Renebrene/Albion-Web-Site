@@ -5,12 +5,14 @@ import os
 import re
 import shutil
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from pathlib import Path
 from urllib.parse import urlparse
 
 from urllib.parse import urlencode
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 from PIL import Image
 
@@ -25,6 +27,93 @@ from backend.services.media_service import (
 
 
 API_URL = "https://cloud-api.yandex.net/v1/disk/public/resources/download"
+
+# Публичный API Яндекса без User-Agent ведёт себя как бот (капча/404),
+# а при троттлинге отдаёт 404/429/5xx — поэтому повторяем с паузой.
+USER_AGENT = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+)
+RETRY_ATTEMPTS = 3
+RETRY_BASE_DELAY = 1.5
+RETRYABLE_STATUS = frozenset({404, 408, 425, 429, 500, 502, 503, 504})
+
+
+def _is_dead_public_link(error: HTTPError) -> bool:
+    """Ссылка реально недоступна (удалена/заблокирована) — повтор не поможет."""
+    if error.code != 404:
+        return False
+
+    try:
+        body = error.read().decode("utf-8", "replace")
+    except Exception:
+        return False
+
+    return "DiskNotFoundError" in body
+
+
+def _sleep_backoff(attempt: int) -> None:
+    time.sleep(RETRY_BASE_DELAY * (2**attempt))
+
+
+def resolve_public_link(public_url: str) -> str:
+    """Временная ссылка на файл, с повторами (API троттлит всплески).
+
+    Мёртвую ссылку («ресурс не найден») отдаём сразу — повторять нечего.
+    """
+    last_error: Exception | None = None
+
+    for attempt in range(RETRY_ATTEMPTS):
+        try:
+            return get_direct_link(public_url)
+        except HTTPError as exc:
+            if _is_dead_public_link(exc) or exc.code not in RETRYABLE_STATUS:
+                raise
+
+            last_error = exc
+        except (URLError, TimeoutError) as exc:
+            last_error = exc
+
+        if attempt < RETRY_ATTEMPTS - 1:
+            _sleep_backoff(attempt)
+
+    raise last_error if last_error else RuntimeError("Не удалось разрешить ссылку")
+
+
+def fetch_public_media(public_url: str) -> bytes:
+    """Скачивает файл по публичной ссылке: резолв + загрузка, с повторами.
+
+    Каждая попытка резолвит ссылку заново: временный адрес CDN живёт
+    недолго, и повтор по устаревшему href всё равно вернёт ошибку.
+    """
+    last_error: Exception | None = None
+
+    for attempt in range(RETRY_ATTEMPTS):
+        try:
+            href = get_direct_link(public_url)
+        except HTTPError as exc:
+            if _is_dead_public_link(exc) or exc.code not in RETRYABLE_STATUS:
+                raise
+
+            last_error = exc
+        except (URLError, TimeoutError) as exc:
+            last_error = exc
+        else:
+            try:
+                return download_bytes(href)
+            except HTTPError as exc:
+                # href мог истечь — на повторе получим свежий.
+                if exc.code not in RETRYABLE_STATUS:
+                    raise
+
+                last_error = exc
+            except (URLError, TimeoutError) as exc:
+                last_error = exc
+
+        if attempt < RETRY_ATTEMPTS - 1:
+            _sleep_backoff(attempt)
+
+    raise last_error if last_error else RuntimeError("Не удалось скачать файл")
 
 STORAGE_ROOT = (
     PROJECT_DIR
@@ -136,7 +225,10 @@ def get_active_import(conn) -> tuple[int, str]:
 
 def get_direct_link(public_url: str) -> str:
     query = urlencode({"public_key": public_url})
-    request = Request(f"{API_URL}?{query}")
+    request = Request(
+        f"{API_URL}?{query}",
+        headers={"User-Agent": USER_AGENT},
+    )
 
     with urlopen(request, timeout=30) as response:
         import json
@@ -152,7 +244,7 @@ def get_direct_link(public_url: str) -> str:
 
 
 def download_bytes(href: str) -> bytes:
-    request = Request(href)
+    request = Request(href, headers={"User-Agent": USER_AGENT})
 
     with urlopen(request, timeout=120) as response:
         content_length = response.headers.get("Content-Length")
