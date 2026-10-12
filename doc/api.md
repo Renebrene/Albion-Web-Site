@@ -2,7 +2,7 @@
 
 # API — справочник эндпоинтов
 
-Сгенерировано из OpenAPI (`/openapi.json`). Версия приложения: `1.0.0`. Путей: 99, операций: 125.
+Сгенерировано из OpenAPI (`/openapi.json`). Версия приложения: `1.0.0`. Путей: 108, операций: 138.
 
 Регенерация: `.venv/bin/python scripts/gen_api_doc.py`.
 
@@ -53,6 +53,7 @@
 | Метод | Путь | Описание |
 |---|---|---|
 | GET | `/api/admin/base/archives` | Archives |
+| POST | `/api/admin/base/archives` | Archive Create |
 | POST | `/api/admin/base/archives/{import_key}/restore` | Restore |
 | GET | `/api/admin/base/restore-info` | Restore Info |
 | GET | `/api/admin/base/site-backups` | Site Backups |
@@ -63,6 +64,7 @@
 | GET | `/api/admin/base/update/logs` | Update Logs |
 | GET | `/api/admin/base/update/logs/{name}` | Update Log Named |
 | GET | `/api/admin/base/update/status` | Update Status |
+| POST | `/api/admin/base/update/stop` | Update Stop |
 | POST | `/api/admin/base/upload` | Upload |
 
 ## admin-cabinet-users
@@ -78,6 +80,16 @@
 | GET | `/api/admin/chat-log` | Chat Log |
 | GET | `/api/admin/chat-log/export` | Chat Log Export |
 | POST | `/api/admin/chat-log/selection` | Chat Log Selection |
+
+## admin-construction-media
+
+| Метод | Путь | Описание |
+|---|---|---|
+| POST | `/api/admin/constructions/media/fields` | Set Fields Override |
+| DELETE | `/api/admin/constructions/media/fields` | Clear Fields Override |
+| POST | `/api/admin/constructions/media/override` | Set Media Override |
+| DELETE | `/api/admin/constructions/media/override` | Clear Media Override |
+| GET | `/api/admin/constructions/media/overrides` | List Media Overrides |
 
 ## admin-contacts
 
@@ -148,6 +160,14 @@
 | PUT | `/api/admin/news/{news_id}` | Admin Update News |
 | DELETE | `/api/admin/news/{news_id}` | Admin Delete News |
 
+## admin-seo
+
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/api/admin/seo` | Admin Get Seo |
+| PUT | `/api/admin/seo` | Admin Save Seo |
+| POST | `/api/admin/seo/reset` | Admin Reset Seo |
+
 ## admin-settings
 
 | Метод | Путь | Описание |
@@ -205,6 +225,14 @@
 | Метод | Путь | Описание |
 |---|---|---|
 | POST | `/api/portfolio/export` | Export Portfolio |
+
+## seo
+
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/api/seo` | Public Get Seo |
+| GET | `/robots.txt` | Robots |
+| GET | `/sitemap.xml` | Sitemap |
 
 ## settings
 

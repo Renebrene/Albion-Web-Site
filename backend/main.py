@@ -142,6 +142,17 @@ from backend.api.info import (
 app.include_router(admin_info_router)
 app.include_router(public_info_router)
 
+from backend.api.admin_seo import (
+    router as admin_seo_router,
+    public_router as public_seo_router,
+    crawler_router as crawler_seo_router,
+)
+
+app.include_router(admin_seo_router)
+app.include_router(public_seo_router)
+# /robots.txt и /sitemap.xml — с корня сайта.
+app.include_router(crawler_seo_router)
+
 
 from backend.services.site_backup_service import start_scheduler
 

@@ -59,6 +59,17 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # SEO-файлы генерирует backend из настроек админки (раздел «SEO»).
+    location = /robots.txt {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+    }
+
+    location = /sitemap.xml {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+    }
+
     # Медиа из хранилища → backend (StaticFiles /storage).
     location /storage/ {
         proxy_pass http://127.0.0.1:8000;

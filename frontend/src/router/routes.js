@@ -139,6 +139,13 @@ const routes = [
         }
       },
       {
+        path: 'seo',
+        component: () => import('@/pages/AdministrationSeoPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      {
         path: 'news',
         component: () => import('@/pages/AdministrationNewsPage.vue'),
         meta: {
