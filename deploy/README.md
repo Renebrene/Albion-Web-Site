@@ -114,3 +114,26 @@ journalctl --user -u albion-backend -f
 запускайте `albion-frontend`: backend умеет сам отдавать `frontend/dist/spa`
 историю с fallback — включите `ALBION_SERVE_SPA=1` в `.env` и направьте
 трафик на порт backend. Тогда достаточно одной службы.
+
+### Системные службы (старт до входа любого пользователя)
+
+Вариант выше — пользовательские службы: они стартуют при загрузке, если у
+пользователя включён linger. Если нужен старт системно (например, сервер
+перезагрузился и никто не входил, или linger отключён), есть готовые
+системные юниты — `deploy/systemd/system/` — и установщик:
+
+```bash
+sudo deploy/systemd/install-system.sh
+```
+
+Скрипт создаёт симлинк, копирует юниты в `/etc/systemd/system`, включает их,
+запускает и **отключает пользовательские копии** (иначе конфликт по портам
+8000/9000). Идемпотентен — можно запускать повторно после правок юнитов.
+
+Управление — как у системных служб:
+
+```bash
+sudo systemctl status albion-backend albion-frontend
+sudo systemctl restart albion-frontend
+journalctl -u albion-backend -f
+```

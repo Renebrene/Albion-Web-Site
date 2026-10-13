@@ -1,0 +1,26 @@
+[Unit]
+Description=Albion frontend (Quasar dev server, :9000)
+Documentation=https://github.com/Renebrene/site
+After=network-online.target albion-backend.service
+Wants=network-online.target albion-backend.service
+
+[Service]
+Type=simple
+User=alexice
+Group=alexice
+
+# Симлинк на каталог проекта — в реальном пути есть пробелы и скобки.
+WorkingDirectory=/home/alexice/albion/frontend
+
+# Node из nvm (.nvmrc: 22); PATH нужен, чтобы quasar/vite находили node/npm.
+Environment=PATH=/home/alexice/.nvm/versions/node/v22.23.2/bin:/usr/local/bin:/usr/bin:/bin
+
+ExecStart=/home/alexice/.nvm/versions/node/v22.23.2/bin/node node_modules/.bin/quasar dev
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
