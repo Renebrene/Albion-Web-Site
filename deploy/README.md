@@ -71,3 +71,46 @@ uvicorn с несколькими worker'ами поток стартует в �
   (боевой домен + при необходимости localhost для разработки).
 - При смене/компрометации — перевыпустите ключ и обновите `frontend/.env.local`,
   затем пересоберите фронтенд.
+
+## Службы systemd (автозапуск)
+
+Готовые юниты — `deploy/systemd/`. Запускают ровно то же, что и руками:
+backend (`uvicorn`, :8000) и frontend (dev-сервер Quasar, :9000, проксирует
+`/api`, `/storage`, `/robots.txt`, `/sitemap.xml` на backend).
+
+Установка (пользовательские службы — root не нужен):
+
+```bash
+# 1. Симлинк без пробелов и скобок: systemd не переваривает
+#    «albion_yandex_maps_presentation_demo (Copy)» в WorkingDirectory.
+ln -sfn "/home/alexice/projects/albion_yandex_maps_presentation_demo (Copy)" \
+        /home/alexice/albion
+
+# 2. Юниты + запуск
+cp deploy/systemd/*.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now albion-backend.service albion-frontend.service
+```
+
+Автозапуск при загрузке требует linger (один раз, уже включён):
+
+```bash
+loginctl show-user "$USER" | grep Linger      # Linger=yes
+sudo loginctl enable-linger "$USER"           # если выключен
+```
+
+Управление и логи:
+
+```bash
+systemctl --user status  albion-backend albion-frontend
+systemctl --user restart albion-frontend        # после правок в коде фронта
+journalctl --user -u albion-backend -f
+```
+
+Чтобы применить правки в `deploy/systemd/*.service`, скопируйте файл в
+`~/.config/systemd/user/` и выполните `systemctl --user daemon-reload`.
+
+**Вариант без dev-сервера (прод).** Соберите SPA (`npm run build`) и не
+запускайте `albion-frontend`: backend умеет сам отдавать `frontend/dist/spa`
+историю с fallback — включите `ALBION_SERVE_SPA=1` в `.env` и направьте
+трафик на порт backend. Тогда достаточно одной службы.

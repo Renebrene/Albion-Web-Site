@@ -1,0 +1,24 @@
+[Unit]
+Description=Albion backend (FastAPI + uvicorn)
+Documentation=https://github.com/Renebrene/site
+After=network-online.target postgresql.service
+Wants=network-online.target postgresql.service
+
+[Service]
+Type=simple
+
+# Каталог проекта содержит пробелы и скобки («... (Copy)»), а systemd их в
+# WorkingDirectory не переваривает — используем симлинк:
+#   ln -sfn "/home/alexice/projects/albion_yandex_maps_presentation_demo (Copy)" /home/alexice/albion
+WorkingDirectory=/home/alexice/albion
+
+# .env читается приложением из корня проекта; секреты в юните не храним.
+ExecStart=/home/alexice/albion/.venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 6
+
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target
