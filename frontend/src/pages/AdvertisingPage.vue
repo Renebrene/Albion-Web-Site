@@ -873,8 +873,43 @@ const {
   toggleSelectionMode,
   toggleMonth,
   removeSurface,
-  syncWithConstructions
+  syncWithConstructions,
+  items: portfolioItems,
+  selectionMode: portfolioSelectionMode
 } = usePortfolio()
+
+/*
+ * Разметка поп-апа карты статична, а классы «активно/выбрано» ставятся
+ * вручную. Поэтому при внешнем изменении портфеля (очистка в панели или
+ * личном кабинете, удаление позиции) приводим открытые поп-апы к
+ * актуальному состоянию — иначе подсветка остаётся.
+ */
+const portfolioSignature = computed(() => {
+  const items = portfolioItems.value
+    .map(
+      item =>
+        `${item.surfaceId}:${Object.keys(item.months || {})
+          .sort()
+          .join('|')}`
+    )
+    .sort()
+    .join(',')
+
+  const modes = Object.keys(portfolioSelectionMode)
+    .filter(key => portfolioSelectionMode[key])
+    .sort()
+    .join(',')
+
+  return `${items}::${modes}`
+})
+
+function refreshOpenPopups() {
+  document
+    .querySelectorAll('.leaflet-popup .popup, .albion-popup')
+    .forEach(root => refreshPopupState(root))
+}
+
+watch(portfolioSignature, refreshOpenPopups)
 
 /* ------------------------------------------------- фото: общее окно */
 

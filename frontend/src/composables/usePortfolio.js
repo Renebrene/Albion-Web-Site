@@ -674,6 +674,13 @@ async function clearAccountPortfolio() {
 
     if (response.ok) {
       accountPortfolioUpdatedAt.value = ''
+
+      /*
+       * Чистим и локальный портфель вместе с режимами выбора: иначе на
+       * карте и в списке остаются подсвеченные кнопки «Портфель» и
+       * выбранные месяцы, хотя портфель уже пуст.
+       */
+      clear()
     }
 
     return response.ok
