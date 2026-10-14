@@ -523,11 +523,15 @@ function formatPrice(value) {
 /* ------------------------------------------------- превью */
 
 function hasMedia(item) {
+  /*
+   * `item.map` — исходная ссылка на страницу Яндекс.Диска, а не картинка:
+   * её нельзя показать как изображение, поэтому в наличие медиа не входит.
+   */
   return Boolean(
     item.photo ||
     item.photo_thumb ||
     item.photo_large ||
-    item.map ||
+    item.photo_url ||
     item.map_thumb ||
     item.map_card ||
     item.map_large
@@ -544,7 +548,6 @@ function mediaSrc(item) {
     item.map_thumb ||
     item.map_card ||
     item.map_large ||
-    item.map ||
     ''
   )
 }
@@ -552,7 +555,7 @@ function mediaSrc(item) {
 /* Клик по превью — общий просмотрщик со всеми доступными изображениями. */
 function openMediaViewer(item) {
   const photoUrl = item.photo_large || item.photo || item.photo_url || ''
-  const mapUrl = item.map_large || item.map_card || item.map || ''
+  const mapUrl = item.map_large || item.map_card || item.map_thumb || ''
   const images = []
 
   if (photoUrl) {

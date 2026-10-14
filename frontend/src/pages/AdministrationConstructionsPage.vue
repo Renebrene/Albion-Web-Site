@@ -916,8 +916,12 @@ function mapConstruction(item) {
     lat: item.lat,
     lng: item.lng,
     map: item.map || '',
-    mapLarge:
-      item.map_large || item.map_card || item.map_thumb || item.map || '',
+    /*
+     * Только локальные файлы. `item.map` — исходная ссылка на страницу
+     * Яндекс.Диска, а не картинка: как src она не работает и блокируется
+     * CSP, поэтому в фолбэк не попадает (нет локальной карты — заглушка).
+     */
+    mapLarge: item.map_large || item.map_card || item.map_thumb || '',
     name: item.name || '',
     number: item.number || '',
     district: item.district || '',

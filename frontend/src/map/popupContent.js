@@ -232,10 +232,14 @@ function photoBlock(item) {
   const thumb = item?.photo_thumb || item?.photo || ''
   const card = item?.photo || thumb
 
-  /* Крупный вариант карты-схемы — чтобы окно просмотра (как в портфеле)
-     могло показать и сохранить карту рядом с фото. */
+  /*
+   * Крупный вариант карты-схемы — чтобы окно просмотра (как в портфеле)
+   * могло показать и сохранить карту рядом с фото.
+   * `item.map` — исходная ссылка на страницу Яндекс.Диска, а не файл:
+   * как src она не работает (и блокируется CSP), поэтому не берём её.
+   */
   const mapLarge = String(
-    item?.map_large || item?.map_card || item?.map_thumb || item?.map || ''
+    item?.map_large || item?.map_card || item?.map_thumb || ''
   ).trim()
 
   if (!thumb) {
