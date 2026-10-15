@@ -176,8 +176,19 @@
       </q-menu>
     </div>
 
-    <!-- АВТОРИЗАЦИЯ -->
-    <q-btn flat round dense class="auth-button" aria-label="Авторизация">
+    <!--
+      АВТОРИЗАЦИЯ. Пока личный кабинет скрыт (ACCOUNT_UI_ENABLED = false),
+      значок пользователя не показываем — портфель доступен отдельной
+      кнопкой «ПОРТФЕЛЬ». При включении флага значок возвращается.
+    -->
+    <q-btn
+      v-if="ACCOUNT_UI_ENABLED"
+      flat
+      round
+      dense
+      class="auth-button"
+      aria-label="Авторизация"
+    >
       <q-icon name="person_outline" size="22px" />
 
       <q-menu
