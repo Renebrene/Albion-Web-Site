@@ -185,8 +185,11 @@
         </q-list>
       </q-btn-dropdown>
 
-      <!-- Сохранить в ЛК: активно только при входе; иначе — подсказка. -->
-      <span class="portfolio-save-wrap">
+      <!--
+        Сохранение в личный кабинет. Кабинет скрыт флагом ACCOUNT_UI_ENABLED
+        (портфель живёт в рамках сессии), но код сохранён — вернём флагом.
+      -->
+      <span v-if="ACCOUNT_UI_ENABLED" class="portfolio-save-wrap">
         <q-btn
           outline
           no-caps
@@ -238,6 +241,7 @@ import {
   printPortfolio
 } from '../../services/portfolioExport'
 import { useAccount } from '../../composables/useAccount'
+import { ACCOUNT_UI_ENABLED } from '../../config/features'
 import { usePortfolio } from '../../composables/usePortfolio'
 import {
   photoLabel,

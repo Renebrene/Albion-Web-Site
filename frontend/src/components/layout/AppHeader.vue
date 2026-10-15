@@ -187,7 +187,10 @@
         :offset="[4, 8]"
       >
         <q-list dense class="auth-list">
-          <q-item v-if="account" class="auth-item auth-item-user">
+          <q-item
+            v-if="ACCOUNT_UI_ENABLED && account"
+            class="auth-item auth-item-user"
+          >
             <q-item-section>
               <div class="auth-user-name">{{ account.login }}</div>
               <div class="auth-user-role">
@@ -196,21 +199,17 @@
             </q-item-section>
           </q-item>
 
-          <q-separator v-if="account" />
+          <q-separator v-if="ACCOUNT_UI_ENABLED && account" />
 
-          <!-- Вход в админку — только для администраторов -->
-          <q-item
-            v-if="isAdmin"
-            clickable
-            v-close-popup
-            class="auth-item"
-            to="/administration"
-          >
-            <q-item-section>АДМИНКА</q-item-section>
-          </q-item>
+          <!--
+            Вход в админку убран с публичной части: администратор заходит
+            напрямую на /administration.
+            Личный кабинет скрыт флагом ACCOUNT_UI_ENABLED — портфель живёт
+            в рамках сессии (см. config/features.js).
+          -->
 
           <q-item
-            v-if="!account"
+            v-if="ACCOUNT_UI_ENABLED && !account"
             clickable
             v-close-popup
             class="auth-item"
@@ -220,7 +219,7 @@
           </q-item>
 
           <q-item
-            v-if="!account"
+            v-if="ACCOUNT_UI_ENABLED && !account"
             clickable
             v-close-popup
             class="auth-item"
@@ -229,12 +228,17 @@
             <q-item-section>РЕГИСТРАЦИЯ</q-item-section>
           </q-item>
 
-          <q-item clickable v-close-popup class="auth-item" to="/account">
+          <q-item
+            clickable
+            v-close-popup
+            class="auth-item"
+            :to="ACCOUNT_UI_ENABLED ? '/account' : '/portfolio'"
+          >
             <q-item-section>ПОРТФЕЛЬ</q-item-section>
           </q-item>
 
           <q-item
-            v-if="account"
+            v-if="ACCOUNT_UI_ENABLED && account"
             clickable
             v-close-popup
             class="auth-item auth-item-exit"
@@ -325,6 +329,7 @@ import { useRoute, useRouter } from 'vue-router'
 import PortfolioPanel from '../portfolio/PortfolioPanel.vue'
 import ChatSaveButton from '../chat/ChatSaveButton.vue'
 import SmartChatPanel from '../chat/SmartChatPanel.vue'
+import { ACCOUNT_UI_ENABLED } from '../../config/features'
 import { useAccount } from '../../composables/useAccount'
 import { useChatWorkspace } from '../../composables/useChatWorkspace'
 import { usePortfolio } from '../../composables/usePortfolio'
@@ -450,8 +455,13 @@ onMounted(async () => {
     /* остаёмся на значениях по умолчанию */
   }
 
-  /* Подтягиваем данные кабинета, если пользователь уже входил */
-  await loadMe()
+  /*
+   * Данные кабинета подтягиваем только когда интерфейс входа включён:
+   * при ACCOUNT_UI_ENABLED = false это лишний запрос без сессии.
+   */
+  if (ACCOUNT_UI_ENABLED) {
+    await loadMe()
+  }
 })
 </script>
 

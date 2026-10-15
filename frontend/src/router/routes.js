@@ -1,3 +1,4 @@
+import { ACCOUNT_UI_ENABLED } from '../config/features'
 const routes = [
   {
     path: '/',
@@ -44,10 +45,20 @@ const routes = [
         component: () => import('@/pages/SmartChatPage.vue')
       },
 
-      {
-        path: 'account',
-        component: () => import('@/pages/AccountPage.vue')
-      },
+      /*
+       * Личный кабинет скрыт (ACCOUNT_UI_ENABLED = false): адрес ведёт на
+       * публичную страницу портфеля. Код кабинета сохранён — включается
+       * флагом, см. config/features.js и doc/account-cabinet.md.
+       */
+      ACCOUNT_UI_ENABLED
+        ? {
+            path: 'account',
+            component: () => import('@/pages/AccountPage.vue')
+          }
+        : {
+            path: 'account',
+            redirect: '/portfolio'
+          },
 
       /*
        * «Информация» — закладки (ОБЩЕЕ, КОНСТРУКЦИИ, ГОРОДА И РАЙОНЫ,
