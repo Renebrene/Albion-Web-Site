@@ -12,6 +12,8 @@
 | `ALBION_DB_HOST/PORT/NAME/USER/PASSWORD` | подключение к PostgreSQL |
 | `ALBION_ALLOWED_ORIGINS` | список origin через запятую для CORS (например `https://albion.example.ru`); пусто — только локальная разработка |
 | `ALBION_SERVE_SPA` | `1` — backend сам отдаёт собранный `frontend/dist/spa` с history-fallback (если нет nginx) |
+| `ALBION_SMTP_HOST/PORT/USER/PASSWORD/FROM` | SMTP для уведомлений о заявках (адрес получателя задаётся в админке: Пользователи → Заявки) |
+| `ALBION_SMTP_TLS` | `0` — отключить STARTTLS (по умолчанию включён) |
 
 Запуск: `.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000`
 

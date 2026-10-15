@@ -162,11 +162,63 @@
           :loading="requestsLoading"
           @click="loadRequests"
         />
+        <q-btn
+          flat
+          dense
+          no-caps
+          class="action-secondary"
+          label="CSV"
+          :disable="!requests.length"
+          @click="exportRequests('csv')"
+        />
+        <q-btn
+          flat
+          dense
+          no-caps
+          class="action-secondary"
+          label="Excel"
+          :disable="!requests.length"
+          @click="exportRequests('xlsx')"
+        />
       </div>
 
       <p class="section-note">
         Заявки с сайта (без личного кабинета) и из кабинета — свежие сверху.
       </p>
+
+      <!--
+        Уведомления на почту: адрес выбирается здесь, параметры SMTP —
+        в окружении (ALBION_SMTP_*), чтобы пароли не лежали в базе.
+      -->
+      <div class="notify-row">
+        <q-toggle
+          v-model="notifyForm.enabled"
+          label="Уведомлять о новых заявках"
+          :disable="notifySaving"
+        />
+        <q-input
+          v-model="notifyForm.email"
+          dense
+          outlined
+          class="notify-email"
+          label="Почта для уведомлений"
+          placeholder="reclama@albion.su"
+        />
+        <q-btn
+          unelevated
+          no-caps
+          color="primary"
+          label="Сохранить"
+          :loading="notifySaving"
+          @click="saveNotify"
+        />
+        <span v-if="!notifyForm.smtp_configured" class="notify-hint">
+          Отправка заработает после настройки SMTP в окружении (ALBION_SMTP_HOST
+          / USER / PASSWORD)
+        </span>
+      </div>
+
+      <div v-if="requestsError" class="error-text">{{ requestsError }}</div>
 
       <div v-if="requestsLoading && !requests.length" class="loading-row">
         <q-spinner size="24px" />
@@ -184,6 +236,7 @@
             <th>Контакт</th>
             <th>Что</th>
             <th>Статус</th>
+            <th>Действия</th>
           </tr>
         </thead>
         <tbody>
@@ -199,7 +252,29 @@
               >
             </td>
             <td class="date-cell">{{ row.title }}</td>
-            <td class="date-cell">{{ row.status }}</td>
+            <td class="date-cell">
+              <q-select
+                :model-value="row.status"
+                :options="requestStatusOptions"
+                dense
+                borderless
+                emit-value
+                map-options
+                class="request-status-select"
+                @update:model-value="value => setRequestStatus(row, value)"
+              />
+            </td>
+            <td class="actions-cell">
+              <q-btn
+                flat
+                dense
+                round
+                color="negative"
+                icon="delete_outline"
+                aria-label="Удалить заявку"
+                @click="removeRequest(row)"
+              />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -302,7 +377,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -431,18 +506,120 @@ async function loadCabinetUsers() {
 
 const requests = ref([])
 const requestsLoading = ref(false)
+const requestsError = ref('')
+const requestStatusOptions = ref([])
+
+/* Уведомления о заявках: адрес выбирается здесь (SMTP — в окружении). */
+const notifyForm = reactive({
+  enabled: false,
+  email: '',
+  smtp_configured: false
+})
+const notifySaving = ref(false)
 
 /* Заявки: и анонимные с сайта, и из личного кабинета. */
 async function loadRequests() {
   requestsLoading.value = true
+  requestsError.value = ''
 
   try {
     const result = await request('/api/admin/requests?limit=200')
     requests.value = result.requests || []
+    requestStatusOptions.value = (result.statuses || []).map(item => ({
+      label: item.label,
+      value: item.value
+    }))
+
+    const settings = result.settings || {}
+    notifyForm.enabled = Boolean(settings.enabled)
+    notifyForm.email = settings.email || ''
+    notifyForm.smtp_configured = Boolean(settings.smtp_configured)
   } catch (exc) {
     requests.value = []
+    requestsError.value = String(exc?.message || exc)
   } finally {
     requestsLoading.value = false
+  }
+}
+
+async function setRequestStatus(row, status) {
+  const previous = row.status
+  row.status = status
+
+  try {
+    await request(`/api/admin/requests/${row.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    })
+  } catch (exc) {
+    row.status = previous
+    requestsError.value = String(exc?.message || exc)
+  }
+}
+
+async function removeRequest(row) {
+  if (!window.confirm(`Удалить заявку №${row.id}? Действие необратимо.`)) {
+    return
+  }
+
+  try {
+    await request(`/api/admin/requests/${row.id}`, { method: 'DELETE' })
+    requests.value = requests.value.filter(item => item.id !== row.id)
+  } catch (exc) {
+    requestsError.value = String(exc?.message || exc)
+  }
+}
+
+/* Выгрузка: файл идёт с заголовком авторизации, поэтому через blob. */
+async function exportRequests(fmt) {
+  requestsError.value = ''
+
+  try {
+    const response = await fetch(`/api/admin/requests/export?format=${fmt}`, {
+      headers: authHeaders()
+    })
+
+    if (!response.ok) {
+      throw new Error('Не удалось выгрузить заявки')
+    }
+
+    const blob = await response.blob()
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+
+    link.href = url
+    link.download = fmt === 'xlsx' ? 'zayavki.xlsx' : 'zayavki.csv'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  } catch (exc) {
+    requestsError.value = String(exc?.message || exc)
+  }
+}
+
+async function saveNotify() {
+  notifySaving.value = true
+  requestsError.value = ''
+
+  try {
+    const result = await request('/api/admin/requests/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: notifyForm.enabled,
+        email: notifyForm.email
+      })
+    })
+
+    notifyForm.enabled = Boolean(result.enabled)
+    notifyForm.email = result.email || ''
+    notifyForm.smtp_configured = Boolean(result.smtp_configured)
+  } catch (exc) {
+    requestsError.value = String(exc?.message || exc)
+  } finally {
+    notifySaving.value = false
   }
 }
 
@@ -562,6 +739,28 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.notify-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.notify-email {
+  min-width: 260px;
+  max-width: 320px;
+}
+
+.notify-hint {
+  color: #8a8f98;
+  font-size: 12px;
+}
+
+.request-status-select {
+  min-width: 150px;
+}
+
 .administration-users {
   max-width: 1200px;
   margin: 0 auto;
