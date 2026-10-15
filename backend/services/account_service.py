@@ -368,7 +368,7 @@ def recover_password(login: str, secret_phrase: str, new_password: str) -> bool:
 
 
 def create_request(
-    account_id: int,
+    account_id: int | None,
     title: str,
     surface_id: int | None = None,
     payload: dict | None = None,
@@ -376,7 +376,9 @@ def create_request(
     """
     Создаёт заявку клиента в client_requests и возвращает её.
 
-    title по умолчанию пустая строка; при ошибке данных бросает ValueError.
+    ``account_id = None`` — заявка без личного кабинета (форма с сайта):
+    контакты клиента при этом лежат в ``payload``. title по умолчанию
+    пустая строка; при ошибке данных бросает ValueError.
     """
     clean_title = (title or "").strip()
 
@@ -431,6 +433,43 @@ def list_requests(account_id: int) -> list[dict]:
             "status": row[2],
             "created_at": row[3].isoformat() if row[3] else None,
             "payload": row[4] or {},
+        }
+        for row in rows
+    ]
+
+
+def list_all_requests(limit: int = 200) -> list[dict]:
+    """Все заявки для админки — включая анонимные (account_id IS NULL)."""
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                r.id,
+                r.title,
+                r.status,
+                r.created_at,
+                r.payload,
+                r.surface_id,
+                r.account_id,
+                u.login
+            FROM client_requests r
+            LEFT JOIN user_accounts u ON u.id = r.account_id
+            ORDER BY r.created_at DESC, r.id DESC
+            LIMIT %s
+            """,
+            (int(limit),),
+        ).fetchall()
+
+    return [
+        {
+            "id": row[0],
+            "title": row[1],
+            "status": row[2],
+            "created_at": row[3].isoformat() if row[3] else None,
+            "payload": row[4] or {},
+            "surface_id": row[5],
+            "account_id": row[6],
+            "account_login": row[7],
         }
         for row in rows
     ]

@@ -3,6 +3,9 @@
     <ContactsOffices :offices="activeOffices" />
 
     <ContactsEmployees :departments="activeDepartments" />
+
+    <!-- Заявка без личного кабинета (см. doc/account-cabinet.md). -->
+    <ContactsRequestForm />
   </q-page>
 </template>
 
@@ -13,6 +16,7 @@ import { getContacts } from '@/services/api'
 
 import ContactsOffices from '@/components/contacts/ContactsOffices.vue'
 import ContactsEmployees from '@/components/contacts/ContactsEmployees.vue'
+import ContactsRequestForm from '@/components/contacts/ContactsRequestForm.vue'
 
 const contacts = ref({
   offices: [],

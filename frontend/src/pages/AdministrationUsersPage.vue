@@ -148,6 +148,63 @@
       </table>
     </section>
 
+    <!-- ============ ЗАЯВКИ ============ -->
+    <section class="section-card">
+      <div class="section-title">
+        Заявки
+        <span class="counter">{{ requests.length }}</span>
+        <q-btn
+          flat
+          dense
+          no-caps
+          class="action-secondary"
+          label="Обновить"
+          :loading="requestsLoading"
+          @click="loadRequests"
+        />
+      </div>
+
+      <p class="section-note">
+        Заявки с сайта (без личного кабинета) и из кабинета — свежие сверху.
+      </p>
+
+      <div v-if="requestsLoading && !requests.length" class="loading-row">
+        <q-spinner size="24px" />
+      </div>
+
+      <div v-else-if="!requests.length" class="empty-text">
+        Заявок пока нет.
+      </div>
+
+      <table v-else class="users-table">
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Откуда</th>
+            <th>Контакт</th>
+            <th>Что</th>
+            <th>Статус</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="row in requests" :key="row.id">
+            <td class="date-cell">{{ formatDate(row.created_at) }}</td>
+            <td class="date-cell">
+              {{ row.account_login ? 'Кабинет: ' + row.account_login : 'Сайт' }}
+            </td>
+            <td class="date-cell">
+              {{ row.payload.name || '—'
+              }}<template v-if="row.payload.phone">
+                · {{ row.payload.phone }}</template
+              >
+            </td>
+            <td class="date-cell">{{ row.title }}</td>
+            <td class="date-cell">{{ row.status }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <!-- ============ ДИАЛОГ СОЗДАНИЯ / РЕДАКТИРОВАНИЯ ============ -->
     <q-dialog v-model="editOpen" persistent>
       <q-card class="editor-dialog">
@@ -372,6 +429,23 @@ async function loadCabinetUsers() {
   }
 }
 
+const requests = ref([])
+const requestsLoading = ref(false)
+
+/* Заявки: и анонимные с сайта, и из личного кабинета. */
+async function loadRequests() {
+  requestsLoading.value = true
+
+  try {
+    const result = await request('/api/admin/requests?limit=200')
+    requests.value = result.requests || []
+  } catch (exc) {
+    requests.value = []
+  } finally {
+    requestsLoading.value = false
+  }
+}
+
 function openCreate() {
   clearMessages()
   isNew.value = true
@@ -483,6 +557,7 @@ async function savePassword() {
 onMounted(() => {
   loadUsers()
   loadCabinetUsers()
+  loadRequests()
 })
 </script>
 

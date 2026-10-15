@@ -204,6 +204,17 @@
       </span>
 
       <q-btn
+        unelevated
+        no-caps
+        dense
+        color="primary"
+        class="portfolio-action"
+        label="Отправить заявку"
+        :disable="!count"
+        @click="openRequest"
+      />
+
+      <q-btn
         flat
         no-caps
         dense
@@ -215,6 +226,61 @@
     </div>
 
     <!-- Простой тост (плагин Notify в проекте не подключён) -->
+    <!--
+      Заявка по выбранным позициям. Личного кабинета нет (см.
+      doc/account-cabinet.md) — уходит публичным POST /api/requests.
+    -->
+    <q-dialog v-model="requestOpen">
+      <q-card class="request-card">
+        <q-card-section>
+          <div class="request-title">Отправить заявку</div>
+
+          <p class="request-hint">
+            {{ count }}
+            {{ count === 1 ? 'позиция' : 'позиции' }} из портфеля — мы свяжемся
+            по указанному телефону.
+          </p>
+
+          <q-input v-model="requestForm.name" dense outlined label="Имя" />
+          <q-input
+            v-model="requestForm.phone"
+            dense
+            outlined
+            label="Телефон"
+            placeholder="+7 900 000-00-00"
+          />
+          <q-input
+            v-model="requestForm.comment"
+            dense
+            outlined
+            autogrow
+            type="textarea"
+            label="Комментарий"
+          />
+
+          <div v-if="requestError" class="request-error">
+            {{ requestError }}
+          </div>
+          <div v-else-if="requestDone" class="request-ok">
+            Заявка отправлена — мы свяжемся с вами.
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat no-caps label="Закрыть" @click="requestOpen = false" />
+          <q-btn
+            unelevated
+            no-caps
+            color="primary"
+            label="Отправить"
+            :loading="requestSending"
+            :disable="requestDone"
+            @click="submitRequest"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <Transition name="portfolio-toast">
       <div
         v-if="toast.show"
@@ -228,7 +294,7 @@
 </template>
 
 <script setup>
-import { computed, ref, unref, watch } from 'vue'
+import { computed, reactive, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
@@ -713,6 +779,59 @@ async function handleSave() {
   }
 }
 
+/* ------------------------------------------------- заявка без кабинета */
+
+const requestOpen = ref(false)
+const requestSending = ref(false)
+const requestDone = ref(false)
+const requestError = ref('')
+const requestForm = reactive({ name: '', phone: '', comment: '' })
+
+function openRequest() {
+  requestError.value = ''
+  requestDone.value = false
+  requestOpen.value = true
+}
+
+/* Позиции портфеля → короткий список для заявки. */
+function requestItems() {
+  return items.value.slice(0, 60).map(item => ({
+    id: Number(item.surfaceId) || null,
+    title: [item.type, item.address].filter(Boolean).join(' · ')
+  }))
+}
+
+async function submitRequest() {
+  requestSending.value = true
+  requestError.value = ''
+
+  try {
+    const response = await fetch('/api/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: requestForm.name,
+        phone: requestForm.phone,
+        comment: requestForm.comment,
+        items: requestItems()
+      })
+    })
+
+    const data = await response.json().catch(() => null)
+
+    if (!response.ok) {
+      throw new Error(data?.detail || 'Не удалось отправить заявку')
+    }
+
+    requestDone.value = true
+    requestForm.comment = ''
+  } catch (exc) {
+    requestError.value = String(exc?.message || exc)
+  } finally {
+    requestSending.value = false
+  }
+}
+
 /* Очистка портфеля с подтверждением. */
 function handleClear() {
   if (!count.value) {
@@ -729,6 +848,48 @@ function handleClear() {
 </script>
 
 <style scoped>
+/* Диалог заявки (без личного кабинета). */
+.request-card {
+  width: min(480px, calc(100vw - 32px));
+}
+
+.request-title {
+  margin-bottom: 6px;
+  font-size: 17px;
+  font-weight: 800;
+}
+
+.request-hint {
+  margin: 0 0 12px;
+  color: #6b6b6b;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.request-card .q-field + .q-field {
+  margin-top: 8px;
+}
+
+.request-error,
+.request-ok {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.request-error {
+  border: 1px solid #e57373;
+  background: #fdecea;
+  color: #c62828;
+}
+
+.request-ok {
+  border: 1px solid #a5d6a7;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
 .portfolio-panel {
   display: flex;
   flex-direction: column;

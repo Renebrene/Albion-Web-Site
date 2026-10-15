@@ -153,6 +153,15 @@ app.include_router(public_seo_router)
 # /robots.txt и /sitemap.xml — с корня сайта.
 app.include_router(crawler_seo_router)
 
+from backend.api.public_requests import (
+    router as public_requests_router,
+    admin_router as admin_requests_router,
+)
+
+# Заявки с сайта — без личного кабинета (см. doc/account-cabinet.md).
+app.include_router(public_requests_router)
+app.include_router(admin_requests_router)
+
 
 from backend.services.site_backup_service import start_scheduler
 
