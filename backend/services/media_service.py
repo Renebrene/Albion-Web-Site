@@ -500,7 +500,19 @@ def list_media(
                         SELECT 1
                         FROM page_block_media pbm
                         WHERE pbm.media_id = m.id
-                    ) AS used_in_pages
+                    ) AS used_in_pages,
+                    EXISTS (
+                        SELECT 1
+                        FROM home_geo_attraction_photos g
+                        WHERE g.media_id = m.id
+                    ) AS used_in_geo,
+                    COALESCE((
+                        SELECT array_agg(DISTINCT p.slug)
+                        FROM page_block_media pbm
+                        JOIN page_blocks b ON b.id = pbm.block_id
+                        JOIN pages p ON p.id = b.page_id
+                        WHERE pbm.media_id = m.id
+                    ), ARRAY[]::text[]) AS page_slugs
                 FROM media m
                 {where}
                 ORDER BY m.created_at DESC, m.id DESC
@@ -575,11 +587,84 @@ def list_media(
                         "updated_at": row[14].isoformat() if row[14] else None,
                         "used_in_news": row[15],
                         "used_in_pages": row[16],
+                        "used_in_geo": row[17],
+                        "used_sections": used_section_names(
+                            in_news=row[15],
+                            in_geo=row[17],
+                            page_slugs=row[18],
+                        ),
                         "variants": variants,
                     }
                 )
 
             return result
+
+
+# Фактическое использование медиа → раздел, тег которого снять нельзя.
+# Страницы сайта задаются slug-ом (см. таблицу pages).
+_PAGE_SECTION_BY_SLUG = {
+    "kontakty": "Контакты",
+    "home": "Главная",
+    "o-kompanii": "О компании",
+}
+
+
+def used_section_names(
+    *,
+    in_news: bool = False,
+    in_geo: bool = False,
+    page_slugs=None,
+) -> list[str]:
+    """Разделы, где медиа реально используется (по ссылкам в контенте)."""
+    names: set[str] = set()
+
+    if in_news:
+        names.add("Новости")
+
+    if in_geo:
+        names.add("География")
+
+    for slug in page_slugs or ():
+        names.add(_PAGE_SECTION_BY_SLUG.get(str(slug), "Прочее"))
+
+    return sorted(names)
+
+
+def used_sections_for(cur, media_id: int) -> list[str]:
+    """То же для одного файла (при правке тегов)."""
+    cur.execute(
+        "SELECT EXISTS (SELECT 1 FROM news_media WHERE media_id = %s)",
+        (media_id,),
+    )
+    in_news = bool(cur.fetchone()[0])
+
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM home_geo_attraction_photos WHERE media_id = %s
+        )
+        """,
+        (media_id,),
+    )
+    in_geo = bool(cur.fetchone()[0])
+
+    cur.execute(
+        """
+        SELECT DISTINCT p.slug
+        FROM page_block_media pbm
+        JOIN page_blocks b ON b.id = pbm.block_id
+        JOIN pages p ON p.id = b.page_id
+        WHERE pbm.media_id = %s
+        """,
+        (media_id,),
+    )
+    slugs = [row[0] for row in cur.fetchall()]
+
+    return used_section_names(
+        in_news=in_news,
+        in_geo=in_geo,
+        page_slugs=slugs,
+    )
 
 
 def list_media_categories() -> list[dict]:
@@ -682,6 +767,37 @@ def update_media(
                 )
                 if cur.fetchone()[0] != len(set(category_id)):
                     raise MediaValidationError("Одна или несколько категорий не найдены")
+
+                # Тег раздела, где файл реально используется, снять нельзя.
+                # Добавлять новые теги при этом можно свободно.
+                locked_names = used_sections_for(cur, media_id)
+
+                if locked_names:
+                    cur.execute(
+                        "SELECT id, name FROM media_categories "
+                        "WHERE name = ANY(%s)",
+                        (locked_names,),
+                    )
+                    locked = {row[0]: row[1] for row in cur.fetchall()}
+
+                    cur.execute(
+                        "SELECT category_id FROM media WHERE id = %s",
+                        (media_id,),
+                    )
+                    current_ids = set(cur.fetchone()[0] or [])
+                    new_ids = set(category_id)
+
+                    removed = sorted(
+                        name
+                        for cid, name in locked.items()
+                        if cid in current_ids and cid not in new_ids
+                    )
+
+                    if removed:
+                        raise MediaValidationError(
+                            "Нельзя снять раздел, где файл используется: "
+                            + ", ".join(removed)
+                        )
 
             fields = []
             values = []

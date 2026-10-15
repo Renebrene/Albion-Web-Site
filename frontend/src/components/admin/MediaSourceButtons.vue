@@ -38,6 +38,7 @@
 import { ref } from 'vue'
 
 import { uploadAdminMedia } from '../../services/adminMedia'
+import { mediaCategoryId } from '../../composables/useMediaCategory'
 import MediaPicker from './MediaPicker.vue'
 
 const props = defineProps({
@@ -45,6 +46,11 @@ const props = defineProps({
   accept: { type: String, default: 'image/*' },
   /* Категория(и) медиатеки для загружаемого файла. */
   categoryId: { type: [Number, String, Array], default: null },
+  /*
+   * Раздел по типу страницы: загрузчик сам проставляет свой тег
+   * («Новости», «Слайдеры», …). Игнорируется, если задан categoryId.
+   */
+  section: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
   dense: { type: Boolean, default: false }
 })
@@ -85,7 +91,11 @@ async function uploadFile(file) {
   uploading.value = true
 
   try {
-    const media = await uploadAdminMedia(file, { categoryId: props.categoryId })
+    const categoryId =
+      props.categoryId ??
+      (props.section ? await mediaCategoryId(props.section) : null)
+
+    const media = await uploadAdminMedia(file, { categoryId })
 
     emit('pick', {
       id: media.id,

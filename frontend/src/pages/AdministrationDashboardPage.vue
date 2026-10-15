@@ -245,6 +245,7 @@ import { useRouter } from 'vue-router'
 
 import MediaPicker from '../components/admin/MediaPicker.vue'
 import { uploadAdminMedia } from '../services/adminMedia'
+import { MEDIA_SECTION, mediaCategoryId } from '../composables/useMediaCategory'
 
 const router = useRouter()
 
@@ -636,7 +637,8 @@ function triggerIconUpload(item) {
     if (!file) return
 
     try {
-      const media = await uploadAdminMedia(file)
+      const categoryId = await mediaCategoryId(MEDIA_SECTION.tiles)
+      const media = await uploadAdminMedia(file, { categoryId })
       item.icon = media.url
       error.value = ''
     } catch (exc) {

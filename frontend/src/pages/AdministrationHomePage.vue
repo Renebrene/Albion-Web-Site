@@ -148,6 +148,7 @@
         <div class="photo-actions">
           <MediaSourceButtons
             dense
+            section="Слайдеры"
             @pick="p => (slide.image = p.url)"
             @notify="onMediaNotify"
           />
@@ -353,6 +354,7 @@
             <div class="photo-actions">
               <MediaSourceButtons
                 dense
+                section="Слайдеры"
                 @pick="p => (item.image = p.url)"
                 @notify="onMediaNotify"
               />

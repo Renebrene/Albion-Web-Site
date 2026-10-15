@@ -53,6 +53,7 @@
           />
           <MediaSourceButtons
             dense
+            section="Прочее"
             @pick="p => (item.url = p.url)"
             @notify="onMediaNotify"
           />

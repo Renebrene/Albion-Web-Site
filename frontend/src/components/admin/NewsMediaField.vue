@@ -141,6 +141,10 @@
 import { computed, ref } from 'vue'
 
 import { uploadAdminMedia } from '../../services/adminMedia'
+import {
+  MEDIA_SECTION,
+  mediaCategoryId
+} from '../../composables/useMediaCategory'
 import MediaPicker from './MediaPicker.vue'
 
 const props = defineProps({
@@ -284,7 +288,8 @@ async function uploadFiles(files) {
   try {
     for (const file of list) {
       try {
-        const media = await uploadAdminMedia(file)
+        const categoryId = await mediaCategoryId(MEDIA_SECTION.news)
+        const media = await uploadAdminMedia(file, { categoryId })
 
         if (media) additions.push(media)
       } catch (exc) {

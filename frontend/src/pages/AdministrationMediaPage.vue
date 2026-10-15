@@ -280,12 +280,27 @@
               :options="
                 mediaCategories.map(category => ({
                   label: category.name,
-                  value: category.id
+                  value: category.id,
+                  disable:
+                    lockedCategoryIds.includes(category.id) &&
+                    editCategoryId.includes(category.id)
                 }))
               "
               :loading="loadingCategories"
               :disable="savingMedia"
             />
+
+            <!--
+              Раздел, где файл реально используется, снять нельзя —
+              добавлять другие теги при этом можно.
+            -->
+            <p
+              v-if="editingMedia && editingMedia.used_sections?.length"
+              class="edit-usage-note"
+            >
+              Используется: <b>{{ editingMedia.used_sections.join(', ') }}</b
+              >. Этот раздел снять нельзя, остальные теги — можно менять.
+            </p>
           </q-card-section>
 
           <q-card-actions align="right">
@@ -827,6 +842,16 @@ const editDialog = ref(false)
 const editingMedia = ref(null)
 const editOriginalName = ref('')
 const editCategoryId = ref([])
+
+/*
+ * Разделы, которые «держит» фактическое использование файла: их нельзя
+ * снять (сервер тоже это проверяет), но можно добавить любые другие.
+ */
+const lockedCategoryIds = computed(() =>
+  (editingMedia.value?.used_sections || [])
+    .map(name => mediaCategories.value.find(item => item.name === name)?.id)
+    .filter(id => id !== undefined)
+)
 const savingMedia = ref(false)
 
 const searchQuery = ref('')
@@ -1648,6 +1673,17 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.edit-usage-note {
+  margin: 10px 0 0;
+  color: #6b6b6b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.edit-usage-note b {
+  color: #b0325c;
+}
+
 .media-page {
   min-height: 100vh;
   padding: 32px 24px;
