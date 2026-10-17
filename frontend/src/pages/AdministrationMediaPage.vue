@@ -184,7 +184,7 @@
                     aria-label="Удалить из очереди"
                     title="Не добавлять файл"
                     :disable="uploading || item.status !== 'pending'"
-                    @click="uploadDialog = false"
+                    @click="excludeUploadQueueItem(item)"
                   />
                 </div>
               </div>
@@ -482,9 +482,9 @@
 
             <div class="catalog-toolbar">
               <div class="catalog-count">
-                Найдено файлов: <strong>{{ filteredMediaItems.length }}</strong>
-                <span v-if="filteredMediaItems.length !== mediaItems.length">
-                  из {{ mediaItems.length }}
+                Найдено файлов: <strong>{{ mediaTotal }}</strong>
+                <span v-if="mediaItems.length < mediaTotal">
+                  · показано {{ mediaItems.length }}
                 </span>
               </div>
 
@@ -527,12 +527,18 @@
         </q-card>
 
         <q-card
-          v-else-if="!loadingMedia && mediaItems.length === 0"
+          v-else-if="!loadingMedia && mediaTotal === 0"
           flat
           bordered
           class="empty-card"
         >
-          <q-card-section> Пока нет загруженных изображений. </q-card-section>
+          <q-card-section>
+            {{
+              hasActiveFilters
+                ? 'По заданным фильтрам медиафайлы не найдены.'
+                : 'Пока нет загруженных медиафайлов.'
+            }}
+          </q-card-section>
         </q-card>
 
         <q-card
@@ -796,7 +802,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -813,6 +819,9 @@ const mediaItems = ref([])
 const mediaGridRef = ref(null)
 const mediaPageSize = 30
 const mediaOffset = ref(0)
+const mediaTotal = ref(0)
+let mediaRequestGeneration = 0
+let mediaFilterTimer = null
 const mediaHasMore = ref(true)
 const loadingMoreMedia = ref(false)
 const loadingMedia = ref(false)
@@ -1042,75 +1051,7 @@ function formatDate(value) {
   })
 }
 
-const filteredMediaItems = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase()
-
-  return mediaItems.value.filter(item => {
-    if (query) {
-      const haystack = [item.original_name, item.alt, item.title]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-
-      if (!haystack.includes(query)) {
-        return false
-      }
-    }
-
-    if (
-      filterMediaType.value === 'video' &&
-      !item.mime_type?.startsWith('video/')
-    ) {
-      return false
-    }
-
-    if (
-      filterMediaType.value === 'photo' &&
-      (item.mime_type?.startsWith('video/') || isDocument(item))
-    ) {
-      return false
-    }
-
-    if (filterMediaType.value === 'document' && !isDocument(item)) {
-      return false
-    }
-
-    if (
-      filterCategoryId.value.length &&
-      !filterCategoryId.value.some(categoryId =>
-        item.category_id?.includes(categoryId)
-      )
-    ) {
-      return false
-    }
-
-    if (dateFrom.value || dateTo.value) {
-      const timestamp = new Date(item.created_at).getTime()
-
-      if (Number.isNaN(timestamp)) {
-        return false
-      }
-
-      if (dateFrom.value) {
-        const from = new Date(`${dateFrom.value}T00:00:00`).getTime()
-
-        if (timestamp < from) {
-          return false
-        }
-      }
-
-      if (dateTo.value) {
-        const to = new Date(`${dateTo.value}T23:59:59.999`).getTime()
-
-        if (timestamp > to) {
-          return false
-        }
-      }
-    }
-
-    return true
-  })
-})
+const filteredMediaItems = computed(() => mediaItems.value)
 
 const hasActiveFilters = computed(() => {
   return Boolean(
@@ -1128,6 +1069,30 @@ function resetFilters() {
   dateFrom.value = ''
   filterMediaType.value = 'all'
   dateTo.value = ''
+}
+
+watch(
+  [searchQuery, dateFrom, dateTo, filterMediaType, filterCategoryId],
+  () => {
+    if (mediaFilterTimer) window.clearTimeout(mediaFilterTimer)
+    mediaFilterTimer = window.setTimeout(() => loadMedia(), 250)
+  },
+  { deep: true }
+)
+
+function mediaFilterParams() {
+  const params = new URLSearchParams()
+  const search = searchQuery.value.trim()
+  if (search) params.set('search', search)
+  if (filterMediaType.value !== 'all') {
+    params.set('media_type', filterMediaType.value)
+  }
+  if (dateFrom.value) params.set('date_from', dateFrom.value)
+  if (dateTo.value) params.set('date_to', dateTo.value)
+  if (filterCategoryId.value.length) {
+    params.set('category_ids', filterCategoryId.value.join(','))
+  }
+  return params
 }
 
 async function getAdminToken() {
@@ -1326,11 +1291,10 @@ async function loadMediaCategories() {
 }
 
 async function loadMedia() {
+  const generation = ++mediaRequestGeneration
   const token = await getAdminToken()
 
-  if (!token) {
-    return
-  }
+  if (!token || generation !== mediaRequestGeneration) return
 
   loadingMedia.value = true
   loadingMoreMedia.value = false
@@ -1339,14 +1303,12 @@ async function loadMedia() {
   mediaHasMore.value = true
 
   try {
-    const response = await fetch(
-      `/api/admin/media?limit=${mediaPageSize}&offset=0`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    )
+    const params = mediaFilterParams()
+    params.set('limit', String(mediaPageSize))
+    params.set('offset', '0')
+    const response = await fetch(`/api/admin/media?${params}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
 
     if (response.status === 401) {
       sessionStorage.removeItem('albion_admin_token')
@@ -1355,19 +1317,22 @@ async function loadMedia() {
     }
 
     const data = await response.json().catch(() => null)
-
+    if (generation !== mediaRequestGeneration) return
     if (!response.ok) {
       catalogError.value = data?.detail || 'Не удалось загрузить каталог медиа'
       return
     }
 
     mediaItems.value = data?.media || []
+    mediaTotal.value = Number(data?.total ?? mediaItems.value.length)
     mediaOffset.value = mediaItems.value.length
     mediaHasMore.value = data?.has_more === true
   } catch {
-    catalogError.value = 'Не удалось выполнить запрос к серверу'
+    if (generation === mediaRequestGeneration) {
+      catalogError.value = 'Не удалось выполнить запрос к серверу'
+    }
   } finally {
-    loadingMedia.value = false
+    if (generation === mediaRequestGeneration) loadingMedia.value = false
   }
 }
 async function loadMediaStats() {
@@ -1414,23 +1379,20 @@ async function loadMoreMedia() {
     return
   }
 
+  const generation = mediaRequestGeneration
   const token = await getAdminToken()
 
-  if (!token) {
-    return
-  }
+  if (!token || generation !== mediaRequestGeneration) return
 
   loadingMoreMedia.value = true
 
   try {
-    const response = await fetch(
-      `/api/admin/media?limit=${mediaPageSize}&offset=${mediaOffset.value}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    )
+    const params = mediaFilterParams()
+    params.set('limit', String(mediaPageSize))
+    params.set('offset', String(mediaOffset.value))
+    const response = await fetch(`/api/admin/media?${params}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
 
     if (response.status === 401) {
       sessionStorage.removeItem('albion_admin_token')
@@ -1439,6 +1401,7 @@ async function loadMoreMedia() {
     }
 
     const data = await response.json().catch(() => null)
+    if (generation !== mediaRequestGeneration) return
 
     if (!response.ok) {
       catalogError.value =
@@ -1449,11 +1412,14 @@ async function loadMoreMedia() {
     const newItems = data?.media || []
     mediaItems.value = [...mediaItems.value, ...newItems]
     mediaOffset.value += newItems.length
+    mediaTotal.value = Number(data?.total ?? mediaTotal.value)
     mediaHasMore.value = data?.has_more === true
   } catch {
-    catalogError.value = 'Не удалось выполнить запрос к серверу'
+    if (generation === mediaRequestGeneration) {
+      catalogError.value = 'Не удалось выполнить запрос к серверу'
+    }
   } finally {
-    loadingMoreMedia.value = false
+    if (generation === mediaRequestGeneration) loadingMoreMedia.value = false
   }
 }
 
@@ -1527,6 +1493,12 @@ async function uploadQueueItem(item) {
     return false
   }
 }
+function excludeUploadQueueItem(item) {
+  if (uploading.value || item?.status !== 'pending') return
+  item.status = 'excluded'
+  item.error = ''
+}
+
 async function uploadSingleQueue(item) {
   uploading.value = true
   uploadProgress.value = 0
@@ -1557,9 +1529,6 @@ async function uploadAllQueue() {
   }
 
   items.forEach(item => {
-    item.name = item.file.name
-    item.alt = ''
-    item.categoryId = [1]
     item.status = 'pending'
     item.error = ''
   })
@@ -1639,6 +1608,7 @@ async function deleteMedia(item) {
     }
 
     mediaItems.value = mediaItems.value.filter(media => media.id !== item.id)
+    mediaTotal.value = Math.max(0, mediaTotal.value - 1)
 
     if (result.value?.id === item.id) {
       result.value = null
@@ -1667,6 +1637,11 @@ onBeforeUnmount(() => {
     window.clearInterval(mediaStatsTimer.value)
     mediaStatsTimer.value = null
   }
+  if (mediaFilterTimer) {
+    window.clearTimeout(mediaFilterTimer)
+    mediaFilterTimer = null
+  }
+  mediaRequestGeneration += 1
 
   revokeQueuePreviews()
 })

@@ -85,6 +85,54 @@ class ChatService:
         return session
 
     @staticmethod
+    def _unresolved_location_cue(
+        text: str,
+        query: SearchQuery | None,
+    ) -> str | None:
+        """Detect a location/landmark phrase the rules parser missed.
+
+        Never silently broaden «щит в Азове» to all shields just because the
+        requested place is absent from the synonym dictionary.
+        """
+        normalized = str(text or "").casefold().replace("ё", "е")
+        address = query.address if query is not None else None
+        city = query.city if query is not None else None
+        district = query.district if query is not None else None
+
+        if not address and re.search(
+            r"\b(?:у|около|возле|рядом\s+с)\s+"
+            r"(?:вокзал\w*|станци\w*|аэропорт\w*)",
+            normalized,
+        ):
+            return "ориентир (вокзал/станция)"
+
+        if city or district or address:
+            return None
+
+        match = re.search(
+            r"\b(?:в|из|на)\s+(?:городе\s+)?([а-яё-]{3,})",
+            normalized,
+        )
+        if not match:
+            return None
+
+        token = match.group(1)
+        month_prefixes = (
+            "январ", "феврал", "март", "апрел", "ма", "июн",
+            "июл", "август", "сентябр", "октябр", "ноябр", "декабр",
+        )
+        if token.startswith(month_prefixes):
+            return None
+
+        if token in {
+            "наличии", "резерве", "свободно", "свободные", "целом",
+            "среднем", "области", "городе", "районе",
+        }:
+            return None
+
+        return f"локация «{token}»"
+
+    @staticmethod
     def _generic_district(text: str) -> str | None:
         """Extract the adjective stem of a "<word> район" phrase.
 
@@ -230,8 +278,15 @@ class ChatService:
         except ValueError as exc:
             warnings.append(str(exc))
 
-        if query is not None and (
-            clarification or self._query_has_constraints(query)
+        unresolved_location = self._unresolved_location_cue(
+            normalized_text,
+            query,
+        )
+
+        if (
+            query is not None
+            and (clarification or self._query_has_constraints(query))
+            and unresolved_location is None
         ):
             return query, "rules", warnings, clarification
 
@@ -241,6 +296,20 @@ class ChatService:
             self.dictionary,
         )
         warnings.extend(llm_warnings)
+
+        if unresolved_location:
+            has_location = any(
+                clean.get(key)
+                for key in ("city", "district", "address")
+            )
+            if unresolved_location.startswith("ориентир"):
+                has_location = bool(clean.get("address"))
+
+            if not has_location:
+                raise ValueError(
+                    f"Не удалось распознать {unresolved_location}. "
+                    "Уточните город или укажите адрес/улицу."
+                )
 
         # A dict full of nulls is NOT a successful extraction: without this
         # check SearchQuery has no constraints and returns the whole catalog.
@@ -490,7 +559,13 @@ class ChatService:
                 raise ValueError(
                     "Для поиска свободных конструкций укажите месяц или период"
                 )
-            items = self.bridge.search_rich(query)
+            search_with_meta = getattr(self.bridge, "search_with_meta", None)
+            if callable(search_with_meta):
+                items, search_meta = search_with_meta(query)
+                warnings.extend(search_meta.get("warnings") or [])
+            else:
+                items = self.bridge.search_rich(query)
+
             suggestions = self._suggestions(query, items)
 
             answer = format_answer(query, items)

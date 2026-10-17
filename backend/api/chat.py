@@ -4,8 +4,10 @@ import logging
 import os
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
+from backend.chat import llm
 from backend.chat.models import (
     ChatMessageRequest,
     ChatMessageResponse,
@@ -15,12 +17,15 @@ from backend.chat.models import (
 from backend.chat.postgres_store import PostgresChatStore, persist_enabled
 from backend.chat.service import ChatService
 from backend.chat.store import chat_store
+from backend.services import chat_llm_settings as llm_settings
+from backend.services.auth_api import require_admin
 from backend.services.data_service import get_connection
 
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
+admin_router = APIRouter(prefix="/api/admin/chat", tags=["admin-chat"])
 
 
 def _build_store():
@@ -75,12 +80,18 @@ class _V2WithFallback:
         except Exception:  # noqa: BLE001
             return self.fallback.repository.default_year()
 
-    def search_rich(self, query):
+    def search_with_meta(self, query):
         try:
-            return self.primary.search_rich(query)
+            return self.primary.search_with_meta(query)
         except Exception:  # noqa: BLE001
             logger.exception("Поиск v2 недоступен; откат на v1")
-            return self.fallback.search_rich(query)
+            return self.fallback.search_rich(query), {
+                "warnings": ["Поиск v2 недоступен; использован поиск v1"]
+            }
+
+    def search_rich(self, query):
+        items, _meta = self.search_with_meta(query)
+        return items
 
 
 def _build_bridge():
@@ -125,3 +136,41 @@ def reset_chat(payload: ChatResetRequest) -> dict[str, bool]:
     if not _service.reset(payload.session_id):
         raise HTTPException(status_code=404, detail="Сессия чата не найдена")
     return {"success": True}
+
+
+class ChatLLMStagePayload(BaseModel):
+    profile: str
+    model: str | None = None
+
+
+class ChatLLMSelectionPayload(BaseModel):
+    extract: ChatLLMStagePayload
+    answer: ChatLLMStagePayload
+
+
+@admin_router.get("/llm")
+def chat_llm_info(auth=Depends(require_admin)):
+    """Active providers/models and available profiles (no secrets)."""
+    return {
+        "success": True,
+        **llm.describe(),
+        **llm_settings.describe(),
+    }
+
+
+@admin_router.put("/llm")
+def chat_llm_save(
+    payload: ChatLLMSelectionPayload,
+    auth=Depends(require_admin),
+):
+    """Select extraction/answer profiles without editing code."""
+    try:
+        selection = llm_settings.save_selection(payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {
+        "success": True,
+        "selection": selection,
+        **llm_settings.describe(),
+    }

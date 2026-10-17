@@ -376,7 +376,7 @@ def get_fields(surface_hash: str | None) -> dict | None:
 
 
 def save_fields(surface_hash: str, fields: dict) -> dict:
-    """Сохраняет переопределение основных полей конструкции (активный импорт)."""
+    """Сохраняет основные поля, сохраняя уже записанные month overrides."""
     clean: dict = {}
 
     for key in FIELD_KEYS:
@@ -386,8 +386,15 @@ def save_fields(surface_hash: str, fields: dict) -> dict:
 
     with get_connection() as conn:
         import_id, _key = _active_import(conn)
+        row = conn.execute(
+            "SELECT fields FROM construction_field_overrides WHERE surface_hash = %s",
+            (surface_hash,),
+        ).fetchone()
+        existing = row[0] if row and isinstance(row[0], dict) else {}
+        merged = {"__months": existing["__months"]} if isinstance(existing.get("__months"), dict) else {}
+        merged.update(clean)
 
-        if clean:
+        if merged:
             conn.execute(
                 """
                 INSERT INTO construction_field_overrides
@@ -398,7 +405,7 @@ def save_fields(surface_hash: str, fields: dict) -> dict:
                     fields = EXCLUDED.fields,
                     updated_at = NOW()
                 """,
-                (surface_hash, import_id, Json(clean)),
+                (surface_hash, import_id, Json(merged)),
             )
         else:
             conn.execute(
@@ -413,13 +420,153 @@ def save_fields(surface_hash: str, fields: dict) -> dict:
 
 
 def clear_fields(surface_hash: str) -> bool:
+    """Снимает только основные поля; monthly overrides очищаются отдельно."""
     with get_connection() as conn:
-        conn.execute(
-            "DELETE FROM construction_field_overrides WHERE surface_hash = %s",
+        row = conn.execute(
+            "SELECT fields FROM construction_field_overrides WHERE surface_hash = %s",
             (surface_hash,),
-        )
+        ).fetchone()
+        existing = row[0] if row and isinstance(row[0], dict) else {}
+        months = existing.get("__months")
+        if isinstance(months, dict) and months:
+            conn.execute(
+                "UPDATE construction_field_overrides SET fields = %s, updated_at = NOW() WHERE surface_hash = %s",
+                (Json({"__months": months}), surface_hash),
+            )
+        else:
+            conn.execute(
+                "DELETE FROM construction_field_overrides WHERE surface_hash = %s",
+                (surface_hash,),
+            )
 
     _invalidate_fields()
     _invalidate_data_cache()
 
+    return True
+
+
+# -------------------------------------------- цены/статусы по месяцам
+
+_MONTH_STATUSES = {"free", "reserved", "pending", "busy"}
+
+
+def _clean_month_overrides(months: dict) -> list[tuple[int, int, dict]]:
+    """Validate UI month override entries and convert month names to numbers."""
+    from backend.services.data_service import MONTHS
+
+    names_to_numbers = {name: number for number, name in MONTHS.items()}
+    clean = []
+    for month_name, values in (months or {}).items():
+        if not isinstance(values, dict):
+            continue
+        month_number = names_to_numbers.get(month_name)
+        if month_number is None:
+            raise ValueError(f"Неизвестный месяц: {month_name}")
+        try:
+            year = int(values.get("year"))
+        except (TypeError, ValueError):
+            raise ValueError(f"Некорректный год за {month_name}")
+        if not 2000 <= year <= 2100:
+            raise ValueError(f"Год за {month_name} вне допустимого диапазона")
+
+        item: dict[str, object] = {}
+        if "price" in values:
+            price = values["price"]
+            if price in (None, ""):
+                item["price"] = ""
+            else:
+                try:
+                    number = float(str(price).replace(" ", "").replace(",", "."))
+                except (TypeError, ValueError):
+                    raise ValueError(f"Некорректная цена за {month_name}")
+                if not 0 <= number <= 10_000_000:
+                    raise ValueError(f"Цена за {month_name} вне допустимого диапазона")
+                item["price"] = str(int(number)) if number.is_integer() else str(number)
+
+        if "status" in values:
+            status = str(values["status"] or "").strip().lower()
+            if status not in _MONTH_STATUSES:
+                raise ValueError(f"Некорректный статус за {month_name}")
+            item["status"] = status
+
+        if item:
+            clean.append((year, month_number, item))
+    return clean
+
+
+def get_month_fields_map(force: bool = False) -> dict:
+    """{(surface_hash, year, month): {price, status}} active-import overrides."""
+    stamp = _read_cache_stamp()
+    cache = _MONTH_FIELDS_CACHE
+    if not force and cache["stamp"] == stamp and cache["map"] is not None:
+        return cache["map"]
+
+    with get_connection() as conn:
+        import_id, _key = _active_import(conn)
+        if import_id is None:
+            result = {}
+        else:
+            rows = conn.execute(
+                """
+                SELECT surface_hash, year, month, price, status
+                FROM construction_month_overrides
+                WHERE import_id = %s
+                """,
+                (import_id,),
+            ).fetchall()
+            result = {
+                (row[0], int(row[1]), int(row[2])): {
+                    **({"price": row[3]} if row[3] is not None else {}),
+                    **({"status": row[4]} if row[4] is not None else {}),
+                }
+                for row in rows
+            }
+
+    cache.update(stamp=stamp, map=result)
+    return result
+
+
+_MONTH_FIELDS_CACHE = {"stamp": None, "map": None}
+
+
+def save_month_fields(surface_hash: str, months: dict) -> dict:
+    clean = _clean_month_overrides(months)
+    if not clean:
+        return {"surface_hash": surface_hash, "months": {}}
+
+    with get_connection() as conn:
+        import_id, _key = _active_import(conn)
+        if import_id is None:
+            raise ValueError("Нет активного импорта конструкций")
+        for year, month, values in clean:
+            conn.execute(
+                """
+                INSERT INTO construction_month_overrides
+                    (import_id, surface_hash, year, month, price, status)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON CONFLICT (import_id, surface_hash, year, month) DO UPDATE
+                SET price = COALESCE(EXCLUDED.price, construction_month_overrides.price),
+                    status = COALESCE(EXCLUDED.status, construction_month_overrides.status),
+                    updated_at = NOW()
+                """,
+                (import_id, surface_hash, year, month,
+                 values.get("price"), values.get("status")),
+            )
+
+    _MONTH_FIELDS_CACHE.update(stamp=None, map=None)
+    _invalidate_data_cache()
+    return {"surface_hash": surface_hash, "months": months}
+
+
+def clear_month_fields(surface_hash: str) -> bool:
+    with get_connection() as conn:
+        import_id, _key = _active_import(conn)
+        if import_id is not None:
+            conn.execute(
+                "DELETE FROM construction_month_overrides "
+                "WHERE import_id = %s AND surface_hash = %s",
+                (import_id, surface_hash),
+            )
+    _MONTH_FIELDS_CACHE.update(stamp=None, map=None)
+    _invalidate_data_cache()
     return True

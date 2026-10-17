@@ -262,18 +262,33 @@ class QueryParser:
         становиться частью адреса.
         """
 
+        # Hide dimension pairs before address detection. In «6 на 3 в
+        # Ростове» the tail «на 3 в Ростове» must not become an address.
+        address_source = re.sub(
+            r"(?<!\w)\d+(?:[.,]\d+)?\s*(?:[xXхХ×*]|на)\s*"
+            r"\d+(?:[.,]\d+)?(?!\w)",
+            " ",
+            text,
+            flags=re.IGNORECASE,
+        )
+
         explicit_candidates = []
 
+        month_stop = (
+            r"январ|феврал|март|апрел|ма[ея]|июн|июл|август|"
+            r"сентябр|октябр|ноябр|декабр"
+        )
+        request_stop = r"(?:до|от|дешевле|дороже|не\s+дороже)\b"
         explicit_patterns = [
-            r"\bпо\s+адресу\s+(.+?)(?=$|,|\s+в\s+(?:январ|феврал|март|апрел|ма[ея]|июн|июл|август|сентябр|октябр|ноябр|декабр))",
-            r"\bадрес(?:е|ом)?\s+(.+?)(?=$|,|\s+в\s+(?:январ|феврал|март|апрел|ма[ея]|июн|июл|август|сентябр|октябр|ноябр|декабр))",
-            r"\bна\s+(.+?)(?=$|,|\s+в\s+(?:январ|феврал|март|апрел|ма[ея]|июн|июл|август|сентябр|октябр|ноябр|декабр))",
+            rf"\bпо\s+адресу\s+(.+?)(?=$|,|\s+(?:в|на)\s+(?:{month_stop})|\s+{request_stop})",
+            rf"\bадрес(?:е|ом)?\s+(.+?)(?=$|,|\s+(?:в|на)\s+(?:{month_stop})|\s+{request_stop})",
+            rf"\bна\s+(?!(?:{month_stop})\w*\b|{request_stop})(.+?)(?=$|,|\s+(?:в|на)\s+(?:{month_stop})|\s+{request_stop})",
         ]
 
         for pattern in explicit_patterns:
             for match in re.finditer(
                 pattern,
-                text,
+                address_source,
                 re.IGNORECASE,
             ):
                 candidate = match.group(1).strip(
@@ -301,7 +316,7 @@ class QueryParser:
             re.IGNORECASE,
         )
 
-        for match in special_pattern.finditer(text):
+        for match in special_pattern.finditer(address_source):
             explicit_candidates.append(
                 (
                     len(match.group(0)),
@@ -374,7 +389,7 @@ class QueryParser:
         address_text = re.sub(
             r"\bцена\s+(?:от\s+)?\d+(?:\s+до\s+\d+)?",
             " ",
-            text,
+            address_source,
             flags=re.IGNORECASE,
         )
 
@@ -415,6 +430,16 @@ class QueryParser:
             if int(match.group(0).replace(" ", "")) > 1000
             else match.group(0),
             address_text,
+        )
+
+        # Размер «6 на 3» contains a numeric token which otherwise looks like
+        # a house number and can steal the words that follow («в Ростове»).
+        address_text = re.sub(
+            r"(?<!\w)\d+(?:[.,]\d+)?\s*(?:[xXхХ×*]|на)\s*"
+            r"\d+(?:[.,]\d+)?(?!\w)",
+            " ",
+            address_text,
+            flags=re.IGNORECASE,
         )
 
         tokens = address_text.split()
@@ -800,7 +825,7 @@ class QueryParser:
         match = re.search(
             r"(?<!\d)"
             r"(\d+(?:[.,]\d+)?)"
-            r"\s*[xх×*]"
+            r"\s*(?:[xXхХ×*]|на)\s*"
             r"\s*"
             r"(\d+(?:[.,]\d+)?)"
             r"(?!\d)",
@@ -877,6 +902,23 @@ class QueryParser:
             r"(тыс\.?|тысяч(?:а|и|у)?|"
             r"руб(?:\.?|лей|ля|ль)?|₽)?"
         )
+
+        range_match = re.search(
+            r"\bот\s+(\d[\d\s]*)\s*"
+            + price_suffix
+            + r"\s+до\s+(\d[\d\s]*)\s*"
+            + price_suffix,
+            price_text,
+            re.IGNORECASE,
+        )
+
+        if range_match:
+            min_value, min_suffix, max_value, max_suffix = range_match.groups()
+            shared_suffix = max_suffix or min_suffix
+            return (
+                parse_price_value(min_value, shared_suffix),
+                parse_price_value(max_value, shared_suffix),
+            )
 
         max_match = re.search(
             r"(?:до|дешевле|не\s+дороже)\s*"
@@ -986,7 +1028,11 @@ class QueryParser:
         ):
             return "load_asc"
 
-        if re.search(r"сам\w*\s+деш", text):
+        if (
+            re.search(r"сам\w*\s+деш", text)
+            or re.search(r"недорог\w*", text)
+            or re.search(r"подешевл\w*", text)
+        ):
             return "price_asc"
 
         return None

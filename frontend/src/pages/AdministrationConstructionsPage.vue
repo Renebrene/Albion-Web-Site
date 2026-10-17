@@ -541,6 +541,15 @@
             >
               <div class="edit-month-name">
                 {{ MONTH_SHORT[month] }}
+                <span
+                  v-if="
+                    editingItem.overridden?.includes(`month:${month}`) ||
+                    changedMonthFields[month]
+                  "
+                  class="field-star"
+                  title="Цена или статус изменены"
+                  >*</span
+                >
               </div>
 
               <q-input
@@ -630,7 +639,7 @@
             color="primary"
             label="Сохранить"
             :loading="savingEdit"
-            :disable="!changedFields.length"
+            :disable="!hasChanges"
             @click="saveEdit"
           />
         </q-card-actions>
@@ -649,8 +658,10 @@ import { useRouter } from 'vue-router'
 import ConstructionMediaPicker from '../components/admin/ConstructionMediaPicker.vue'
 import {
   clearConstructionFieldOverride,
+  clearConstructionMonthOverride,
   clearConstructionPhotoOverride,
   setConstructionFieldOverride,
+  setConstructionMonthOverride,
   setConstructionPhotoOverride
 } from '../services/constructionMedia'
 import { isDynamicSide } from '../utils/constructionGroups'
@@ -897,7 +908,8 @@ function mapConstruction(item) {
     mappedMonths[monthName] = {
       price: parsePrice(rawPrice),
       status: statusMap[rawStatus] || 'free',
-      statusLabel: rawStatus.toLowerCase()
+      statusLabel: rawStatus.toLowerCase(),
+      year: Number(item.month_years?.[monthName]) || Number(item.year) || null
     }
   }
 
@@ -1211,8 +1223,31 @@ function showStar(key) {
   return overridden.includes(key) || fieldChanged(key)
 }
 
+function changedMonths() {
+  if (!editingItem.value || !originalItem.value) return {}
+  const changed = {}
+  for (const month of editingMonthColumns.value) {
+    const current = editingItem.value.months?.[month]
+    const original = originalItem.value.months?.[month]
+    if (!current || !original) continue
+    const values = { year: current.year || original.year }
+    if (Number(current.price || 0) !== Number(original.price || 0)) {
+      values.price = current.price === '' ? '' : Number(current.price)
+    }
+    if (current.status !== original.status) values.status = current.status
+    if (Object.keys(values).length > 1) changed[month] = values
+  }
+  return changed
+}
+
+const changedMonthFields = computed(changedMonths)
 const changedFields = computed(() =>
   Object.keys(FIELD_GETTERS).filter(fieldChanged)
+)
+const hasChanges = computed(
+  () =>
+    changedFields.value.length > 0 ||
+    Object.keys(changedMonthFields.value).length > 0
 )
 
 function fieldLabel(key) {
@@ -1295,8 +1330,9 @@ async function saveEdit() {
 
   const fields = collectOverrideFields()
 
-  if (!Object.keys(fields).length) {
-    // Нечего сохранять — кнопка «Сохранить» для этого и заблокирована.
+  const months = changedMonthFields.value
+
+  if (!Object.keys(fields).length && !Object.keys(months).length) {
     return
   }
 
@@ -1310,10 +1346,18 @@ async function saveEdit() {
   constructionsError.value = ''
 
   try {
-    await setConstructionFieldOverride({
-      surface_hash: target.surface_hash,
-      fields
-    })
+    if (Object.keys(fields).length) {
+      await setConstructionFieldOverride({
+        surface_hash: target.surface_hash,
+        fields
+      })
+    }
+    if (Object.keys(months).length) {
+      await setConstructionMonthOverride({
+        surface_hash: target.surface_hash,
+        months
+      })
+    }
 
     editDialog.value = false
     await loadConstructions()
@@ -1341,6 +1385,7 @@ async function resetToDefault() {
 
   try {
     await clearConstructionFieldOverride({ surface_hash: hash })
+    await clearConstructionMonthOverride({ surface_hash: hash })
 
     for (const mediaType of ['photo', 'map']) {
       await clearConstructionPhotoOverride({

@@ -88,7 +88,14 @@ def _int(
     minimum: int | None = None,
     maximum: int | None = None,
 ) -> int | None:
-    if value is None or value == "":
+    if value is None:
+        return None
+
+    if isinstance(value, str):
+        text = value.strip().lower()
+        if text in {"", "null", "none", "нет", "не указано"}:
+            return None
+    elif value == "":
         return None
 
     if isinstance(value, bool):
@@ -97,8 +104,13 @@ def _int(
     if isinstance(value, (int, float)):
         number = float(value)
     else:
-        text = str(value).strip().replace(" ", "").replace(",", ".")
-        number = float(text)
+        import re
+
+        # Accept «90%», «90 процентов», «до 90».
+        match = re.search(r"-?\d+(?:[.,]\d+)?", str(value))
+        if not match:
+            raise ValueError(f"не число: {value!r}")
+        number = float(match.group(0).replace(",", "."))
 
     result = int(round(number))
 
@@ -119,7 +131,28 @@ def _canonical_city(
     if not text:
         return None
 
-    return dictionary.find_city(text) or text
+    canonical = dictionary.find_city(text)
+    if canonical:
+        return canonical
+
+    # LLM often returns an inflected form («Таганроге», «Шахтах»), while the
+    # dictionary stores the nominative alias. Match by a long common prefix.
+    normalized = " ".join(
+        text.casefold().replace("ё", "е").split()
+    )
+    best: tuple[int, str] | None = None
+
+    for alias, city in dictionary.city_map.items():
+        prefix = 0
+        limit = min(len(alias), len(normalized))
+
+        while prefix < limit and alias[prefix] == normalized[prefix]:
+            prefix += 1
+
+        if prefix >= 4 and (best is None or prefix > best[0]):
+            best = (prefix, city)
+
+    return best[1] if best else text
 
 
 def _canonical_type(
@@ -265,6 +298,15 @@ def validate_llm_entities(
         clean.pop("min_load", None)
         clean.pop("max_load", None)
 
+    # «До 90%» models often return min_load=max_load=90. Treat equal bounds
+    # as an upper limit, otherwise the search requires exactly 90%.
+    if (
+        clean.get("min_load") is not None
+        and clean.get("max_load") is not None
+        and clean["min_load"] == clean["max_load"]
+    ):
+        clean.pop("min_load", None)
+
     if raw.get("limit") is not None:
         try:
             clean["limit"] = _int(raw["limit"], minimum=1, maximum=1000)
@@ -275,9 +317,19 @@ def validate_llm_entities(
 
     if sort_by is not None:
         value = str(sort_by).strip().lower()
+        aliases = {
+            "price": "price_asc",
+            "price_asc": "price_asc",
+            "дешевле": "price_asc",
+            "дешёвые": "price_asc",
+            "дешевые": "price_asc",
+            "load": "load_asc",
+            "load_asc": "load_asc",
+            "загрузка": "load_asc",
+        }
 
-        if value in {"price_asc", "load_asc"}:
-            clean["sort_by"] = value
+        if value in aliases:
+            clean["sort_by"] = aliases[value]
         elif value:
             warnings.append(f"sort_by «{sort_by}» отброшен")
 

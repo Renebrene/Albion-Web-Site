@@ -189,6 +189,21 @@ CREATE TABLE IF NOT EXISTS construction_imports (
     finished_at TIMESTAMPTZ
 );
 
+CREATE TABLE IF NOT EXISTS construction_month_overrides (
+    id BIGSERIAL PRIMARY KEY,
+    import_id BIGINT NOT NULL,
+    surface_hash TEXT NOT NULL,
+    year INTEGER NOT NULL CHECK (year BETWEEN 2000 AND 2100),
+    month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+    price TEXT,
+    status TEXT CHECK (
+        status IS NULL OR status IN ('free', 'reserved', 'pending', 'busy')
+    ),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (import_id, surface_hash, year, month)
+);
+
 CREATE TABLE IF NOT EXISTS construction_media (
     id BIGSERIAL PRIMARY KEY,
     uuid UUID NOT NULL DEFAULT gen_random_uuid(),

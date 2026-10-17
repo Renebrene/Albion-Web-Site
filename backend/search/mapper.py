@@ -154,6 +154,8 @@ class SiteSurfaceMapper:
 
             if field_override:
                 for key, value in field_override.items():
+                    if key == "__months":
+                        continue
                     if key == "type":
                         data["type"] = value
                         data["media_type"] = value

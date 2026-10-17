@@ -110,7 +110,13 @@ class SearchV2Service:
 
         return date.today().year
 
+    def search_with_meta(
+        self,
+        query: SearchQuery,
+    ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        """Chat-compatible entry point retaining v2 warnings/metadata."""
+        return self.search(query, strict=True)
+
     def search_rich(self, query: SearchQuery) -> list[dict[str, Any]]:
-        """Chat-compatible entry point."""
-        items, _meta = self.search(query, strict=True)
+        items, _meta = self.search_with_meta(query)
         return items

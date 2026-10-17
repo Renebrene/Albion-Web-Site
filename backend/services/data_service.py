@@ -178,6 +178,7 @@ def get_data():
             s.light,
             s.material,
 
+            a.year,
             a.month,
             a.raw_value,
             a.status,
@@ -219,11 +220,13 @@ def get_data():
     # Переопределения фото конструкций (медиатека конструкций), активного импорта.
     from backend.services.construction_overrides import (
         get_fields_map,
+        get_month_fields_map,
         get_overrides_map,
     )
 
     overrides = get_overrides_map()
     field_overrides = get_fields_map()
+    month_field_overrides = get_month_fields_map()
 
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -253,6 +256,7 @@ def get_data():
                     media_type,
                     light,
                     material,
+                    availability_year,
                     month,
                     raw_value,
                     db_status,
@@ -271,6 +275,8 @@ def get_data():
                         "map": _text(map_url),
                         "months": {},
                         "month_prices": {},
+                        "month_years": {},
+
                         "name": _text(name),
                         "number": _text(external_number),
                         # Абсолютный путь от корня сайта: /storage/... —
@@ -358,7 +364,11 @@ def get_data():
 
                         item["overridden"] = sorted(
                             set(item.get("overridden") or [])
-                            | set(field_override.keys())
+                            | {
+                                key
+                                for key in field_override
+                                if key != "__months"
+                            }
                         )
 
                 if month is not None and month in MONTHS:
@@ -366,12 +376,41 @@ def get_data():
                     records[surface_id]["months"][month_name] = _text(
                         raw_value
                     )
+                    records[surface_id]["month_years"][month_name] = int(
+                        availability_year
+                    )
                     records[surface_id]["statuses"][month_name] = _status(
                         db_status
                     )
                     records[surface_id].setdefault("month_prices", {})[
                         month_name
                     ] = _text(month_price)
+
+                    month_override = month_field_overrides.get(
+                        (
+                            surface_hash,
+                            int(availability_year),
+                            int(month),
+                        ),
+                        {},
+                    )
+                    if "price" in month_override:
+                        records[surface_id]["month_prices"][month_name] = str(
+                            month_override["price"]
+                        )
+                    if "status" in month_override:
+                        records[surface_id]["statuses"][month_name] = (
+                            {
+                                "free": "Свободно",
+                                "reserved": "В резерве",
+                                "pending": "На утверждении",
+                                "busy": "Занято",
+                            }.get(str(month_override["status"]), "Свободно")
+                        )
+                    if month_override:
+                        records[surface_id].setdefault("overridden", []).append(
+                            f"month:{month_name}"
+                        )
 
     result = []
 

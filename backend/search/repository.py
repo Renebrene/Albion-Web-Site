@@ -229,6 +229,15 @@ class SitePostgreSQLSearchRepository:
             sql += """
                 JOIN surface_availability sa
                   ON sa.surface_id = s.id
+                LEFT JOIN construction_month_overrides mo
+                  ON mo.import_id = (
+                      SELECT ci_active.id FROM construction_imports ci_active
+                      WHERE ci_active.status = 'active'
+                      ORDER BY ci_active.id DESC LIMIT 1
+                  )
+                 AND mo.surface_hash = s.surface_hash
+                 AND mo.year = sa.year
+                 AND mo.month = sa.month
             """
 
         if year is not None:
@@ -240,8 +249,13 @@ class SitePostgreSQLSearchRepository:
             params["month"] = month
 
         if status is not None:
-            conditions.append("sa.status = :status")
-            params["status"] = status
+            conditions.append(
+                "COALESCE(mo.status, CASE sa.status "
+                "WHEN 'FREE' THEN 'free' WHEN 'SOLD' THEN 'busy' "
+                "WHEN 'RESERVED' THEN 'reserved' WHEN 'PENDING' THEN 'pending' "
+                "ELSE LOWER(sa.status) END) = :status"
+            )
+            params["status"] = str(status).lower()
 
         if city:
             conditions.append(
@@ -699,8 +713,13 @@ class SitePostgreSQLSearchRepository:
         ]
 
         if status is not None:
-            conditions.append("sa.status = :status")
-            params["status"] = status
+            conditions.append(
+                "COALESCE(mo.status, CASE sa.status "
+                "WHEN 'FREE' THEN 'free' WHEN 'SOLD' THEN 'busy' "
+                "WHEN 'RESERVED' THEN 'reserved' WHEN 'PENDING' THEN 'pending' "
+                "ELSE LOWER(sa.status) END) = :status"
+            )
+            params["status"] = str(status).lower()
 
         if city:
             conditions.append(
@@ -720,6 +739,15 @@ class SitePostgreSQLSearchRepository:
         sql += """
             JOIN surface_availability sa
               ON sa.surface_id = s.id
+            LEFT JOIN construction_month_overrides mo
+              ON mo.import_id = (
+                  SELECT ci_active.id FROM construction_imports ci_active
+                  WHERE ci_active.status = 'active'
+                  ORDER BY ci_active.id DESC LIMIT 1
+              )
+             AND mo.surface_hash = s.surface_hash
+             AND mo.year = sa.year
+             AND mo.month = sa.month
         """
 
         sql += "\nWHERE " + "\n  AND ".join(conditions)
@@ -904,14 +932,30 @@ class SitePostgreSQLSearchRepository:
                 sa.surface_id,
                 sa.year,
                 sa.month,
-                sa.status,
-                sa.price,
+                CASE COALESCE(mo.status, CASE sa.status
+                    WHEN 'FREE' THEN 'free' WHEN 'SOLD' THEN 'busy'
+                    WHEN 'RESERVED' THEN 'reserved' WHEN 'PENDING' THEN 'pending'
+                    ELSE LOWER(sa.status) END)
+                    WHEN 'free' THEN 'FREE' WHEN 'busy' THEN 'SOLD'
+                    WHEN 'reserved' THEN 'RESERVED' WHEN 'pending' THEN 'PENDING'
+                    ELSE sa.status END AS status,
+                COALESCE(mo.price, sa.price) AS price,
                 sa.load_percent,
                 sa.raw_value,
                 sa.created_at,
                 sa.updated_at,
                 sa.is_active
             FROM surface_availability sa
+            JOIN surfaces s ON s.id = sa.surface_id
+            LEFT JOIN construction_month_overrides mo
+              ON mo.import_id = (
+                  SELECT ci_active.id FROM construction_imports ci_active
+                  WHERE ci_active.status = 'active'
+                  ORDER BY ci_active.id DESC LIMIT 1
+              )
+             AND mo.surface_hash = s.surface_hash
+             AND mo.year = sa.year
+             AND mo.month = sa.month
             WHERE {' AND '.join(conditions)}
             ORDER BY
                 sa.surface_id,

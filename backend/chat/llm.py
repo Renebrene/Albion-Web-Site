@@ -15,11 +15,35 @@ class EntityExtraction:
     warning: str | None = None
 
 
-# Ollama/GGUF модели на одной GPU не любят параллельные запросы: очередь
-# растягивает ответ. Ограничиваем одновременные вызовы в процессе.
-_semaphore = threading.BoundedSemaphore(
-    max(1, int(os.getenv("ALBION_CHAT_LLM_MAX_CONCURRENCY", "1")))
-)
+@dataclass(frozen=True)
+class ProviderConfig:
+    provider: str
+    base_url: str
+    model: str
+    api_key: str
+    timeout: float
+    concurrency: int
+    queue_timeout: float
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.getenv(name, str(default))))
+    except ValueError:
+        return default
+
+
+# Ollama/GGUF на одной GPU не любит параллельные запросы; для облака
+# параллелизм можно поднять. Семафоры раздельные, чтобы облачные ответы не
+# ждали локальное извлечение.
+_semaphores = {
+    "extract": threading.BoundedSemaphore(
+        _env_int("ALBION_CHAT_LLM_MAX_CONCURRENCY", 1)
+    ),
+    "answer": threading.BoundedSemaphore(
+        _env_int("ALBION_CHAT_LLM_ANSWER_MAX_CONCURRENCY", 1)
+    ),
+}
 
 
 def enabled() -> bool:
@@ -34,15 +58,104 @@ def answers_enabled() -> bool:
     ).strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _model(default: str = "qwen3:14b") -> str:
-    return os.getenv("ALBION_CHAT_LLM_MODEL", default).strip() or default
+def _stage_config(stage: str = "extract") -> ProviderConfig:
+    """Provider settings for one stage.
 
+    Priority: admin selection (``site_settings['chat_llm']``) → base
+    ``ALBION_CHAT_LLM_*`` env → answer-specific ``..._ANSWER_*`` overrides.
+    """
+    prefix = "ALBION_CHAT_LLM_ANSWER_" if stage == "answer" else ""
 
-def _timeout(name: str, default: float) -> float:
+    def get(name: str, default: str = "") -> str:
+        return os.getenv(prefix + name, "").strip() or os.getenv(
+            "ALBION_CHAT_LLM_" + name, default
+        ).strip()
+
     try:
-        return float(os.getenv(name, str(default)))
+        timeout = float(
+            get("TIMEOUT", "20" if stage == "answer" else "10")
+        )
     except ValueError:
-        return default
+        timeout = 20.0 if stage == "answer" else 10.0
+
+    concurrency_name = (
+        "ALBION_CHAT_LLM_ANSWER_MAX_CONCURRENCY"
+        if stage == "answer"
+        else "ALBION_CHAT_LLM_MAX_CONCURRENCY"
+    )
+    concurrency = _env_int(concurrency_name, 1)
+
+    try:
+        queue_timeout = float(get("QUEUE_TIMEOUT", "5"))
+    except ValueError:
+        queue_timeout = 5.0
+
+    selected = None
+
+    try:
+        from backend.services.chat_llm_settings import resolve_stage
+
+        selected = resolve_stage(stage)
+    except Exception:  # noqa: BLE001 — настройки не должны ломать чат
+        selected = None
+
+    if selected and selected.get("model"):
+        provider = str(selected.get("provider") or "ollama").lower()
+        base_url = str(selected.get("base_url") or "").rstrip("/")
+
+        if not base_url and provider == "ollama":
+            base_url = "http://127.0.0.1:11434"
+
+        return ProviderConfig(
+            provider=provider,
+            base_url=base_url,
+            model=str(selected["model"]),
+            api_key=str(selected.get("api_key") or ""),
+            timeout=timeout,
+            concurrency=concurrency,
+            queue_timeout=queue_timeout,
+        )
+
+    provider = (get("PROVIDER", "ollama") or "ollama").lower()
+    default_base = (
+        "http://127.0.0.1:11434" if provider == "ollama" else ""
+    )
+    base_url = (get("BASE_URL", default_base) or default_base).rstrip("/")
+
+    default_model = "qwen3:14b" if provider == "ollama" else ""
+    model = get("MODEL", default_model) or default_model
+    api_key = get("API_KEY", "")
+
+    return ProviderConfig(
+        provider=provider,
+        base_url=base_url,
+        model=model,
+        api_key=api_key,
+        timeout=timeout,
+        concurrency=concurrency,
+        queue_timeout=queue_timeout,
+    )
+
+
+def describe() -> dict[str, Any]:
+    """Safe diagnostics for the admin UI (keys are never returned)."""
+    def safe(stage: str) -> dict[str, Any]:
+        config = _stage_config(stage)
+        return {
+            "provider": config.provider,
+            "base_url": config.base_url,
+            "model": config.model,
+            "has_api_key": bool(config.api_key),
+            "timeout": config.timeout,
+            "concurrency": config.concurrency,
+        }
+
+    return {
+        "enabled": enabled(),
+        "answers_enabled": answers_enabled(),
+        "extract": safe("extract"),
+        "answer": safe("answer"),
+    }
 
 
 def _redact(text: str) -> str:
@@ -75,10 +188,7 @@ def _json_request(
         headers={"Content-Type": "application/json", **(headers or {})},
         method="POST",
     )
-    with urlopen(
-        request,
-        timeout=timeout or _timeout("ALBION_CHAT_LLM_TIMEOUT", 10),
-    ) as response:
+    with urlopen(request, timeout=timeout or 10) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -136,21 +246,21 @@ def _extract_json(value: Any) -> dict[str, Any]:
 def _complete(
     messages: list[dict[str, str]],
     *,
+    stage: str = "extract",
     json_mode: bool = False,
     temperature: float = 0.0,
     num_predict: int = 300,
-    timeout: float | None = None,
 ) -> str:
-    provider = os.getenv("ALBION_CHAT_LLM_PROVIDER", "ollama").strip().lower()
+    config = _stage_config(stage)
 
-    if provider == "ollama":
-        base = os.getenv(
-            "ALBION_CHAT_LLM_BASE_URL", "http://127.0.0.1:11434"
-        ).rstrip("/")
+    if config.provider == "ollama":
         payload: dict[str, Any] = {
-            "model": _model(),
+            "model": config.model,
             "stream": False,
             "think": False,
+            # Keep the model warm during the idle window configured by the
+            # operator; Ollama unloads it automatically after that period.
+            "keep_alive": os.getenv("ALBION_CHAT_LLM_KEEP_ALIVE", "10m"),
             "options": {
                 "temperature": temperature,
                 "num_predict": num_predict,
@@ -161,42 +271,41 @@ def _complete(
             payload["format"] = "json"
 
         raw = _json_request(
-            f"{base}/api/chat",
+            f"{config.base_url}/api/chat",
             payload,
-            timeout=timeout,
+            timeout=config.timeout,
         )
-    elif provider in {"openai", "openai_compatible"}:
-        base = os.getenv("ALBION_CHAT_LLM_BASE_URL", "").rstrip("/")
-        if not base:
+    elif config.provider in {"openai", "openai_compatible"}:
+        if not config.base_url:
             raise ValueError("ALBION_CHAT_LLM_BASE_URL не задан")
 
         headers = {}
-        api_key = os.getenv("ALBION_CHAT_LLM_API_KEY", "").strip()
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+        if config.api_key:
+            headers["Authorization"] = f"Bearer {config.api_key}"
 
         raw = _json_request(
-            f"{base}/chat/completions",
+            f"{config.base_url}/chat/completions",
             {
-                "model": _model(""),
+                "model": config.model,
                 "temperature": temperature,
                 "max_tokens": num_predict,
                 "messages": messages,
             },
             headers=headers,
-            timeout=timeout,
+            timeout=config.timeout,
         )
     else:
-        raise ValueError(f"Неизвестный LLM provider: {provider}")
+        raise ValueError(f"Неизвестный LLM provider: {config.provider}")
 
     return _content(raw)
 
 
-def _acquire() -> bool:
+def _acquire(stage: str = "extract") -> bool:
     try:
-        timeout = _timeout("ALBION_CHAT_LLM_QUEUE_TIMEOUT", 5)
-        return _semaphore.acquire(timeout=timeout)
-    except ValueError:
+        return _semaphores[stage].acquire(
+            timeout=_stage_config(stage).queue_timeout
+        )
+    except (KeyError, ValueError):
         return False
 
 
@@ -206,30 +315,43 @@ def extract(text: str) -> EntityExtraction:
         return EntityExtraction({}, "LLM отключена")
 
     schema_hint = (
-        '{"city":null,"district":null,"address":null,"media_type":null,'
-        '"size":null,"month":null,"months":[],"year":null,"availability":null,'
-        '"min_price":null,"max_price":null,"min_load":null,'
-        '"max_load":null,"sort_by":null,"limit":null}'
+        '{"city":null,"district":null,"address":null,'
+        '"media_type":"Щит|Призматрон|Сити-формат|Сити-борд|Пиллар|Видеоэкран|null",'
+        '"size":null,"month":"1..12 или null","months":[1,2],"year":null,'
+        '"availability":"FREE|null","min_price":null,"max_price":null,'
+        '"min_load":null,"max_load":null,'
+        '"sort_by":"price_asc|load_asc|null","limit":null}'
     )
     system = (
         "Извлеки только поисковые сущности из запроса пользователя. "
         "Не придумывай значения, SQL, URL или идентификаторы. "
+        "media_type — канонический тип конструкции из списка. "
+        "month — номер месяца 1..12; months — массив номеров. "
+        "availability = FREE только если просят свободные. "
+        "sort_by = price_asc для «дешевле/самые дешёвые», "
+        "load_asc для «наименее загруженные». "
+        "Для загрузки: «до/не более/максимум N%» → только max_load=N; "
+        "«от N%» → только min_load=N; "
+        "«от N% до M%» → min_load=N и max_load=M. "
         f"Верни JSON строго такой формы: {schema_hint}"
     )
 
-    if not _acquire():
+    if not _acquire("extract"):
         return EntityExtraction({}, "LLM занята, попробуйте ещё раз")
+
+    config = _stage_config("extract")
+    payload_text = _redact(text) if config.provider != "ollama" else text
 
     try:
         content = _complete(
             [
                 {"role": "system", "content": system},
-                {"role": "user", "content": text},
+                {"role": "user", "content": payload_text},
             ],
+            stage="extract",
             json_mode=True,
             temperature=0,
             num_predict=250,
-            timeout=_timeout("ALBION_CHAT_LLM_TIMEOUT", 10),
         )
         values = _extract_json(content)
         allowed = {
@@ -244,7 +366,61 @@ def extract(text: str) -> EntityExtraction:
             json.JSONDecodeError) as exc:
         return EntityExtraction({}, f"LLM недоступна: {exc}")
     finally:
-        _semaphore.release()
+        _semaphores["extract"].release()
+
+
+_MONTHS_RU = {
+    1: "январь", 2: "февраль", 3: "март", 4: "апрель",
+    5: "май", 6: "июнь", 7: "июль", 8: "август",
+    9: "сентябрь", 10: "октябрь", 11: "ноябрь", 12: "декабрь",
+}
+
+_STATUS_RU = {
+    "FREE": "Свободно",
+    "SOLD": "Занято",
+    "RESERVED": "В резерве",
+    "PENDING": "На утверждении",
+    "LOAD": "Доступность",
+}
+
+
+def _status_ru(value: Any) -> str | None:
+    if value is None:
+        return None
+
+    text = str(value).strip()
+    return _STATUS_RU.get(text.upper(), text)
+
+
+def _months_with_status(
+    item: dict[str, Any],
+    statuses_to_include: set[str],
+) -> list[str]:
+    statuses = item.get("monthly_statuses") or {}
+    result = []
+
+    for key, value in statuses.items():
+        if str(value or "").upper() not in statuses_to_include:
+            continue
+
+        try:
+            month = int(key)
+        except (TypeError, ValueError):
+            continue
+
+        name = _MONTHS_RU.get(month)
+        if name:
+            result.append(name)
+
+    return result
+
+
+def _free_months(item: dict[str, Any]) -> list[str]:
+    return _months_with_status(item, {"FREE"})
+
+
+def _busy_months(item: dict[str, Any]) -> list[str]:
+    return _months_with_status(item, {"SOLD", "RESERVED", "PENDING"})
 
 
 def answer(
@@ -262,8 +438,8 @@ def answer(
     if not answers_enabled() or not items:
         return None
 
-    provider = os.getenv("ALBION_CHAT_LLM_PROVIDER", "ollama").strip().lower()
-    user_question = _redact(question) if provider != "ollama" else question
+    config = _stage_config("answer")
+    user_question = _redact(question) if config.provider != "ollama" else question
 
     # Keep the context small: top results only, compact fields only.
     facts = [
@@ -274,8 +450,9 @@ def answer(
             "side": item.get("side"),
             "size": item.get("size"),
             "price": item.get("price"),
-            "status": item.get("status"),
-            "available_months": item.get("month_texts") or {},
+            "status": _status_ru(item.get("status")),
+            "free_months": _free_months(item),
+            "busy_months": _busy_months(item),
         }
         for item in items[:8]
     ]
@@ -298,7 +475,9 @@ def answer(
         "Не придумывай адреса, цены, размеры и статусы. "
         "Не называй количество найденных вариантов и не начинай ответ со "
         "слова «Найдено» — точное число добавит система. "
-        "Не утверждай, что вариант свободен, если status не «Свободно». "
+        "Если у варианта есть busy_months, не называй его свободным в эти месяцы. "
+        "Если есть free_months, говори, что он свободен именно в эти месяцы; "
+        "не обобщай на весь год и не называй занятый месяц свободным. "
         "Если цены в данных различаются, назови диапазон; если одинаковы — "
         "скажи «от» и эту цену. Не выдавай цену одного варианта за цену всех. "
         "Не используй markdown-таблицы. Если данных мало, предложи уточнить "
@@ -312,7 +491,7 @@ def answer(
         f"{json.dumps(facts, ensure_ascii=False)}"
     )
 
-    if not _acquire():
+    if not _acquire("answer"):
         return None
 
     try:
@@ -321,10 +500,10 @@ def answer(
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
+            stage="answer",
             json_mode=False,
             temperature=0.4,
             num_predict=220,
-            timeout=_timeout("ALBION_CHAT_LLM_ANSWER_TIMEOUT", 20),
         )
         text = " ".join(str(text or "").split())
 
@@ -337,7 +516,7 @@ def answer(
             json.JSONDecodeError):
         return None
     finally:
-        _semaphore.release()
+        _semaphores["answer"].release()
 
 
 def _variants_word(count: int) -> str:

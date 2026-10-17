@@ -36,14 +36,30 @@ def _load_availability(repository) -> dict[int, dict[int, dict[int, Availability
             sa.surface_id,
             sa.year,
             sa.month,
-            sa.status,
-            sa.price,
+            CASE COALESCE(mo.status, CASE sa.status
+                WHEN 'FREE' THEN 'free' WHEN 'SOLD' THEN 'busy'
+                WHEN 'RESERVED' THEN 'reserved' WHEN 'PENDING' THEN 'pending'
+                ELSE LOWER(sa.status) END)
+                WHEN 'free' THEN 'FREE' WHEN 'busy' THEN 'SOLD'
+                WHEN 'reserved' THEN 'RESERVED' WHEN 'pending' THEN 'PENDING'
+                ELSE sa.status END AS status,
+            COALESCE(mo.price, sa.price) AS price,
             sa.load_percent,
             sa.raw_value,
             sa.created_at,
             sa.updated_at,
             sa.is_active
         FROM surface_availability sa
+        JOIN surfaces s ON s.id = sa.surface_id
+        LEFT JOIN construction_month_overrides mo
+          ON mo.import_id = (
+              SELECT ci_active.id FROM construction_imports ci_active
+              WHERE ci_active.status = 'active'
+              ORDER BY ci_active.id DESC LIMIT 1
+          )
+         AND mo.surface_hash = s.surface_hash
+         AND mo.year = sa.year
+         AND mo.month = sa.month
         WHERE sa.is_active = TRUE
         ORDER BY sa.surface_id, sa.year, sa.month
     """
@@ -92,6 +108,32 @@ def _entry(
     )
 
 
+def _apply_month_overrides(surfaces, availability, month_overrides) -> None:
+    status_codes = {
+        "free": "FREE",
+        "reserved": "RESERVED",
+        "pending": "PENDING",
+        "busy": "SOLD",
+    }
+    for surface in surfaces:
+        if surface.id is None or not surface.metadata.get("surface_hash"):
+            continue
+        surface_hash = surface.metadata["surface_hash"]
+        for year, by_month in availability.get(surface.id, {}).items():
+            for month, record in by_month.items():
+                override = month_overrides.get((surface_hash, year, month))
+                if not override:
+                    continue
+                if "price" in override:
+                    raw_price = str(override["price"] or "")
+                    try:
+                        record.price = int(float(raw_price.replace(",", ".")))
+                    except (TypeError, ValueError):
+                        record.price = None
+                if "status" in override:
+                    record.status = status_codes.get(override["status"], record.status)
+
+
 def load_snapshot(repository, stamp: str = "") -> CatalogSnapshot:
     """Load all active surfaces and availability in a few queries."""
     from backend.search.repository import SitePostgreSQLSearchRepository
@@ -110,6 +152,10 @@ def load_snapshot(repository, stamp: str = "") -> CatalogSnapshot:
     )
 
     availability = _load_availability(repository)
+    from backend.services.construction_overrides import get_month_fields_map
+
+    month_overrides = get_month_fields_map()
+    _apply_month_overrides(surfaces, availability, month_overrides)
 
     entries: list[CatalogEntry] = []
     size_failures = 0

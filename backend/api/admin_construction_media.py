@@ -27,6 +27,11 @@ class FieldsPayload(BaseModel):
     fields: dict = {}
 
 
+class MonthFieldsPayload(BaseModel):
+    surface_hash: str
+    months: dict = {}
+
+
 @router.post("/media/override")
 async def set_media_override(
     surface_hash: str = Form(...),
@@ -107,6 +112,30 @@ def set_fields_override(
         "success": True,
         "override": svc.save_fields(surface_hash, payload.fields),
     }
+
+
+@router.post("/media/months")
+def set_month_fields_override(
+    payload: MonthFieldsPayload,
+    auth=Depends(require_admin),
+):
+    surface_hash = payload.surface_hash.strip()
+    if not surface_hash:
+        raise HTTPException(status_code=400, detail="surface_hash обязателен")
+    try:
+        override = svc.save_month_fields(surface_hash, payload.months)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"success": True, "override": override}
+
+
+@router.delete("/media/months")
+def clear_month_fields_override(
+    surface_hash: str = Query(...),
+    auth=Depends(require_admin),
+):
+    svc.clear_month_fields(surface_hash)
+    return {"success": True}
 
 
 @router.delete("/media/fields")

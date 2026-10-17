@@ -119,7 +119,12 @@ surface_hash, availability, медиа-файлы, ≤1 active). Режим dry-
 `cities`, `constructions` (geometry Point 4326), `surfaces` (side, surface_hash,
 type, size, price, photo, map, location), `surface_availability` (по месяцам),
 `construction_imports` (статусы active/staging/obsolete/failed), `construction_media`,
+`construction_month_overrides` (временные админские цены/статусы по месяцам),
 `media_import_registry`.
+
+После обновления приложения один раз выполнить идемпотентную миграцию:
+`.venv/bin/python -m backend.migrations.migrate_construction_month_overrides`.
+Она нужна до запуска поиска/каталога, потому что overrides применяются к `/api/constructions`, v1 и v2 поиску.
 
 ## Пути на диске
 

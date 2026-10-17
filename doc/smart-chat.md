@@ -40,6 +40,8 @@ bridge**, а не отдельная поисковая система: осно
    поля отбрасываются, проверяются месяцы 1…12, год 2000…2100, лимит 1…1000,
    цены/загрузка, `sort_by` и `availability`. Ответ, где все поля `null`, считается
    неуспешным — иначе поиск без ограничений вернул бы весь каталог.
+   «До 90%»/«не более 90%» трактуется как `max_load=90` (а не
+   `min_load=max_load=90`); «от 20% до 90%» — как диапазон.
 6. **Контекст из UI** — `context.year` переопределяет год, `context.selected_months`
    подставляется, если в запросе нет периода.
 7. **Ветка уточнения** — сохраняем `PendingSearchQuery`, отвечаем `pending=true` с
@@ -78,7 +80,9 @@ bridge**, а не отдельная поисковая система: осно
 - Env: `ALBION_CHAT_LLM_PROVIDER`, `ALBION_CHAT_LLM_BASE_URL`, `ALBION_CHAT_LLM_MODEL`
   (default `qwen3:14b`), `ALBION_CHAT_LLM_API_KEY`, `ALBION_CHAT_LLM_TIMEOUT`
   (default 10 с), `ALBION_CHAT_LLM_ANSWER_TIMEOUT` (20 с),
-  `ALBION_CHAT_LLM_MAX_CONCURRENCY` (1), `ALBION_CHAT_LLM_QUEUE_TIMEOUT` (5 с).
+  `ALBION_CHAT_LLM_MAX_CONCURRENCY` (1), `ALBION_CHAT_LLM_QUEUE_TIMEOUT` (5 с),
+  `ALBION_CHAT_LLM_KEEP_ALIVE` (`10m` — держать модель после последнего запроса и
+  выгрузить после 10 минут простоя; значение `0` отключает удержание).
 - **Два режима:** извлечение сущностей (`extract`, JSON) и живые ответы
   (`answer`, 2–4 предложения строго по найденным результатам). Второй отключается
   `ALBION_CHAT_LLM_ANSWERS=false`; при любой ошибке/таймауте используется
@@ -90,6 +94,39 @@ bridge**, а не отдельная поисковая система: осно
 - Для локального запуска на RTX 3060 12 ГБ проверены `qwen3:14b`
   (извлечение ≈2.5 с, ответ ≈3–4 с) и `qwen3:8b` (ответ ≈2 с, но JSON-извлечение
   ненадёжно). `qwen3:1.7b` быстрее, но хуже понимает русские формулировки.
+- **Гибрид:** извлечение можно оставить локальным, а ответы отдать облаку.
+  Базовые `ALBION_CHAT_LLM_*` задают извлечение; `ALBION_CHAT_LLM_ANSWER_*`
+  переопределяют провайдера/URL/модель/ключ только для ответов:
+
+  ```env
+  ALBION_CHAT_LLM_PROVIDER=ollama
+  ALBION_CHAT_LLM_MODEL=qwen3:14b
+
+  ALBION_CHAT_LLM_ANSWER_PROVIDER=openai_compatible
+  ALBION_CHAT_LLM_ANSWER_BASE_URL=https://openrouter.ai/api/v1
+  ALBION_CHAT_LLM_ANSWER_MODEL=qwen/qwen-2.5-7b-instruct
+  ALBION_CHAT_LLM_ANSWER_API_KEY=...
+  ALBION_CHAT_LLM_ANSWER_MAX_CONCURRENCY=4
+  ```
+
+  Для облачных провайдеров телефоны и e-mail вырезаются из запроса до отправки.
+  Активные провайдеры/модели (без ключей): `GET /api/admin/chat/llm`.
+  Облачные профили для меню задаются JSON-переменной (ключи — только через
+  `api_key_env`, в БД и ответах API их нет):
+
+  ```env
+  ALBION_LLM_PROFILES={"yandex-cloud":{"label":"YandexGPT Lite","provider":"openai_compatible","base_url":"https://llm.api.cloud.yandex.net/v1","model":"gpt://<folder>/yandexgpt-lite/latest","api_key_env":"YANDEX_API_KEY"},"openrouter-qwen25":{"label":"Qwen2.5 7B (OpenRouter)","provider":"openai_compatible","base_url":"https://openrouter.ai/api/v1","model":"qwen/qwen-2.5-7b-instruct","api_key_env":"OPENROUTER_API_KEY"}}
+  ```
+- **Выбор модели в админке:** `Администрация → Журнал умного чата`
+  (`/administration/chat-log`) — два селектора «Разбор запросов» и «Живые ответы».
+  В списке: установленные модели Ollama и облачные профили. Выбор хранится в
+  `site_settings['chat_llm']`; API — `GET/PUT /api/admin/chat/llm`.
+  Облачные профили задаются оператором в `ALBION_LLM_PROFILES` (JSON), ключи —
+  только через `api_key_env`, в БД не попадают.
+- Проверена локальная **YandexGPT-5-Lite-8B-instruct Q4_K_M** (GGUF, 4.6 ГБ,
+  контекст 32k): извлечение ≈2.2 с, ответ ≈1 с, хороший русский. Лицензия
+  кастомная (`yandexgpt-5-lite-8b`) — перед коммерческим использованием
+  проверьте условия LICENSE.
 
 ## UI
 

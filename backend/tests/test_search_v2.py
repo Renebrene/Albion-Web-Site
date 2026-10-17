@@ -8,6 +8,7 @@ import pytest
 
 import engine
 from engine.dictionary.synonym_dictionary import SynonymDictionary
+from engine.query.parser import QueryParser
 from engine.query.query import SearchQuery
 from engine.storage.models import AvailabilityRecord, SurfaceRecord
 
@@ -121,6 +122,48 @@ def service_with(entries: list[CatalogEntry]) -> SearchV2Service:
         catalog=FakeCatalog(snapshot(entries)),
         dictionary=dictionary(),
     )
+
+
+def test_parser_and_chat_guard_unresolved_location_cues():
+    parser = QueryParser(dictionary())
+    query = parser.parse("нужен щит в Азове").query
+
+    assert query.media_type == "Щит"
+    assert query.city is None
+    assert ChatService._unresolved_location_cue(
+        "нужен щит в Азове", query
+    ) == "локация «азове»"
+
+    assert ChatService._unresolved_location_cue(
+        "свободные щиты на ноябрь", query
+    ) is None
+
+    assert ChatService._unresolved_location_cue(
+        "что посоветуешь у вокзала в Ростове?", query
+    ) == "ориентир (вокзал/станция)"
+
+    cheap = parser.parse("подбери что-нибудь недорогое в Ростове").query
+    assert cheap.sort_by == "price_asc"
+
+
+def test_parser_does_not_turn_size_into_address_and_scales_price_ranges():
+    parser = QueryParser(dictionary())
+
+    query = parser.parse(
+        "свободные щиты 6 на 3 в Ростове на ноябрь до 20 тысяч"
+    ).query
+    assert query.size == "6 X 3 Метр"
+    assert query.address is None
+    assert query.max_price == 20000
+    assert query.month == 11
+
+    query = parser.parse("щиты от 15 до 25 тысяч в Ростове").query
+    assert query.min_price == 15000
+    assert query.max_price == 25000
+
+    query = parser.parse("пиллары 1,4 на 3 в Ростове на октябрь").query
+    assert query.size == "3 X 1,4 Метр"
+    assert query.address is None
 
 
 def test_size_dimensions_ignore_separator_and_order():
@@ -321,6 +364,139 @@ def test_v2_search_over_large_catalog_is_fast():
 
     assert meta["total"] > 0
     assert meta["took_ms"] < 200
+
+
+def test_llm_load_limits_accept_percent_and_equal_bounds():
+    clean, _warnings = validate_llm_entities(
+        {"max_load": "90%", "min_load": "90%"},
+        dictionary(),
+    )
+
+    assert clean["max_load"] == 90
+    assert "min_load" not in clean
+
+    clean, _warnings = validate_llm_entities(
+        {"min_load": "20%", "max_load": "90 процентов"},
+        dictionary(),
+    )
+
+    assert clean["min_load"] == 20
+    assert clean["max_load"] == 90
+
+
+def test_llm_stage_config_supports_cloud_answers(monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.chat_llm_settings.resolve_stage",
+        lambda stage: None,
+    )
+    monkeypatch.setenv("ALBION_CHAT_LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("ALBION_CHAT_LLM_MODEL", "qwen3:14b")
+    monkeypatch.setenv(
+        "ALBION_CHAT_LLM_ANSWER_PROVIDER", "openai_compatible"
+    )
+    monkeypatch.setenv(
+        "ALBION_CHAT_LLM_ANSWER_BASE_URL", "https://example.test/v1"
+    )
+    monkeypatch.setenv(
+        "ALBION_CHAT_LLM_ANSWER_MODEL", "qwen/qwen-2.5-7b-instruct"
+    )
+    monkeypatch.setenv("ALBION_CHAT_LLM_ANSWER_API_KEY", "secret")
+
+    extract = llm._stage_config("extract")
+    answer = llm._stage_config("answer")
+
+    assert extract.provider == "ollama"
+    assert extract.model == "qwen3:14b"
+    assert answer.provider == "openai_compatible"
+    assert answer.base_url == "https://example.test/v1"
+    assert answer.model == "qwen/qwen-2.5-7b-instruct"
+    assert answer.api_key == "secret"
+
+
+def test_llm_complete_uses_ten_minute_ollama_keepalive(monkeypatch):
+    captured = {}
+
+    def fake_request(url, payload, headers=None, timeout=None):
+        captured.update(url=url, payload=payload)
+        return {"message": {"content": "готово"}}
+
+    monkeypatch.setattr(
+        "backend.services.chat_llm_settings.resolve_stage",
+        lambda stage: None,
+    )
+    monkeypatch.setenv("ALBION_CHAT_LLM_PROVIDER", "ollama")
+    monkeypatch.setenv("ALBION_CHAT_LLM_MODEL", "yandexgpt5-lite:8b")
+    monkeypatch.setenv("ALBION_CHAT_LLM_KEEP_ALIVE", "10m")
+    monkeypatch.setattr(llm, "_json_request", fake_request)
+
+    assert llm._complete([{"role": "user", "content": "привет"}]) == "готово"
+    assert captured["payload"]["keep_alive"] == "10m"
+
+
+def test_llm_complete_routes_answer_to_cloud_provider(monkeypatch):
+    monkeypatch.setattr(
+        "backend.services.chat_llm_settings.resolve_stage",
+        lambda stage: None,
+    )
+    captured = {}
+
+    def fake_request(url, payload, headers=None, timeout=None):
+        captured.update(
+            url=url,
+            payload=payload,
+            headers=headers or {},
+            timeout=timeout,
+        )
+        return {"choices": [{"message": {"content": "готово"}}]}
+
+    monkeypatch.setenv(
+        "ALBION_CHAT_LLM_ANSWER_PROVIDER", "openai_compatible"
+    )
+    monkeypatch.setenv(
+        "ALBION_CHAT_LLM_ANSWER_BASE_URL", "https://example.test/v1"
+    )
+    monkeypatch.setenv(
+        "ALBION_CHAT_LLM_ANSWER_MODEL", "qwen/qwen-2.5-7b-instruct"
+    )
+    monkeypatch.setenv("ALBION_CHAT_LLM_ANSWER_API_KEY", "secret")
+    monkeypatch.setattr(llm, "_json_request", fake_request)
+
+    result = llm._complete(
+        [{"role": "user", "content": "привет"}],
+        stage="answer",
+    )
+
+    assert result == "готово"
+    assert captured["url"] == "https://example.test/v1/chat/completions"
+    assert captured["payload"]["model"] == "qwen/qwen-2.5-7b-instruct"
+    assert captured["headers"]["Authorization"] == "Bearer secret"
+
+
+def test_llm_extract_redacts_pii_for_cloud(monkeypatch):
+    captured = {}
+
+    def fake_request(url, payload, headers=None, timeout=None):
+        captured.update(payload)
+        return {
+            "choices": [
+                {"message": {"content": '{"city":"Ростов-на-Дону"}'}}
+            ]
+        }
+
+    monkeypatch.setenv("ALBION_CHAT_LLM_ENABLED", "true")
+    monkeypatch.setenv("ALBION_CHAT_LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv(
+        "ALBION_CHAT_LLM_BASE_URL", "https://example.test/v1"
+    )
+    monkeypatch.setenv("ALBION_CHAT_LLM_MODEL", "qwen2.5-7b-instruct")
+    monkeypatch.setattr(llm, "_json_request", fake_request)
+
+    result = llm.extract("позвоните +7 900 123-45-67, нужен щит в Ростове")
+
+    assert result.values["city"] == "Ростов-на-Дону"
+    user_text = captured["messages"][-1]["content"]
+    assert "[телефон]" in user_text
+    assert "123-45-67" not in user_text
 
 
 def test_llm_answer_uses_grounded_results(monkeypatch):

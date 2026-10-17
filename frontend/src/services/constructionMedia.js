@@ -148,3 +148,26 @@ export async function clearConstructionFieldOverride({ surface_hash }) {
 
   return true
 }
+
+export async function setConstructionMonthOverride({ surface_hash, months }) {
+  const response = await fetch('/api/admin/constructions/media/months', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...adminAuthHeaders() },
+    body: JSON.stringify({ surface_hash, months })
+  })
+  const data = await response.json().catch(() => null)
+  if (!response.ok) {
+    throw new Error(data?.detail || 'Не удалось сохранить цены и статусы')
+  }
+  return data?.override || null
+}
+
+export async function clearConstructionMonthOverride({ surface_hash }) {
+  const params = new URLSearchParams({ surface_hash })
+  const response = await fetch(
+    `/api/admin/constructions/media/months?${params}`,
+    { method: 'DELETE', headers: adminAuthHeaders() }
+  )
+  if (!response.ok) throw new Error('Не удалось сбросить цены и статусы')
+  return true
+}

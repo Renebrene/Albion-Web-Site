@@ -453,17 +453,73 @@ def _insert_variant(
     }
 
 
+def _media_filter_sql(
+    *,
+    category_id: int | None = None,
+    category_ids: list[int] | None = None,
+    search: str | None = None,
+    media_type: str = "all",
+    date_from=None,
+    date_to=None,
+) -> tuple[str, list]:
+    """Build parameterized filters shared by media rows and exact count."""
+    clauses = []
+    params = []
+    if category_ids:
+        clauses.append("m.category_id && %s::bigint[]")
+        params.append(category_ids)
+    elif category_id is not None:
+        clauses.append("%s::bigint = ANY(m.category_id)")
+        params.append(category_id)
+    if search and search.strip():
+        clauses.append(
+            "(m.original_name ILIKE %s OR COALESCE(m.alt, '') ILIKE %s "
+            "OR COALESCE(m.title, '') ILIKE %s)"
+        )
+        term = f"%{search.strip()}%"
+        params.extend((term, term, term))
+    if media_type == "photo":
+        clauses.append("m.mime_type LIKE 'image/%'")
+    elif media_type == "video":
+        clauses.append("m.mime_type LIKE 'video/%'")
+    elif media_type == "document":
+        clauses.append("m.mime_type NOT LIKE 'image/%' AND m.mime_type NOT LIKE 'video/%'")
+    if date_from is not None:
+        clauses.append("m.created_at >= %s")
+        params.append(date_from)
+    if date_to is not None:
+        from datetime import timedelta
+        clauses.append("m.created_at < %s")
+        params.append(date_to + timedelta(days=1))
+    return ("WHERE " + " AND ".join(clauses) if clauses else "", params)
+
+
 def list_media(
     limit: int = 30,
     offset: int = 0,
     category_id: int | None = None,
-) -> list[dict]:
+    *,
+    category_ids: list[int] | None = None,
+    search: str | None = None,
+    media_type: str = "all",
+    date_from=None,
+    date_to=None,
+    include_total: bool = False,
+) -> list[dict] | tuple[list[dict], int]:
+    where, filter_params = _media_filter_sql(
+        category_id=category_id,
+        category_ids=category_ids,
+        search=search,
+        media_type=media_type,
+        date_from=date_from,
+        date_to=date_to,
+    )
     with get_connection() as conn:
         with conn.cursor() as cur:
-            where = ""
-
-            if category_id is not None:
-                where = "WHERE %s::bigint = ANY(m.category_id)"
+            total = None
+            if include_total:
+                cur.execute(f"SELECT COUNT(*) FROM media m {where}", tuple(filter_params))
+                total = cur.fetchone()[0]
 
             cur.execute(
                 f"""
@@ -518,11 +574,7 @@ def list_media(
                 ORDER BY m.created_at DESC, m.id DESC
                 LIMIT %s OFFSET %s
                 """,
-                (
-                    *( (category_id,) if category_id is not None else () ),
-                    limit,
-                    offset,
-                ),
+                (*filter_params, limit, offset),
             )
 
             rows = cur.fetchall()
@@ -597,7 +649,7 @@ def list_media(
                     }
                 )
 
-            return result
+            return (result, total) if include_total else result
 
 
 # Фактическое использование медиа → раздел, тег которого снять нельзя.

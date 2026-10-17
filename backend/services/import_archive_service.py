@@ -22,6 +22,7 @@ CONSTRUCTIONS_TABLES = (
     "surfaces",
     "surface_availability",
     "construction_media",
+    "construction_month_overrides",
     "media_import_registry",
 )
 

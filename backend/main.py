@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import date
 from collections import defaultdict, deque
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
@@ -49,7 +50,10 @@ from backend.api.search_v2 import (
     admin_router as admin_search_v2_router,
     router as search_v2_router,
 )
-from backend.api.chat import router as chat_router
+from backend.api.chat import (
+    admin_router as admin_chat_router,
+    router as chat_router,
+)
 
 from backend.services.auth_api import (
     LoginRequest,
@@ -137,6 +141,7 @@ from backend.api.admin_construction_media import router as admin_construction_me
 app.include_router(admin_construction_media_router)
 
 app.include_router(chat_router)
+app.include_router(admin_chat_router)
 
 from backend.api.info import (
     router as admin_info_router,
@@ -619,16 +624,61 @@ def admin_list_media(
     limit: int = 30,
     offset: int = 0,
     category_id: int | None = None,
+    search: str | None = None,
+    media_type: str = "all",
+    date_from: str | None = None,
+    date_to: str | None = None,
+    category_ids: str | None = None,
     auth=Depends(require_admin),
 ):
-
     limit = max(1, min(limit, 100))
     offset = max(0, offset)
 
-    media = list_media(
+    if media_type not in {"all", "photo", "video", "document"}:
+        raise HTTPException(status_code=422, detail="Некорректный тип медиа")
+
+    def parse_date(value: str | None, parameter: str) -> date | None:
+        if value is None or not value.strip():
+            return None
+        try:
+            return date.fromisoformat(value.strip())
+        except ValueError:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Параметр {parameter} должен быть датой в формате ГГГГ-ММ-ДД",
+            ) from None
+
+    parsed_from = parse_date(date_from, "date_from")
+    parsed_to = parse_date(date_to, "date_to")
+    if parsed_from is not None and parsed_to is not None and parsed_from > parsed_to:
+        raise HTTPException(status_code=422, detail="date_from не может быть позже date_to")
+
+    parsed_category_ids = None
+    if category_ids is not None:
+        parts = [part.strip() for part in category_ids.split(",")]
+        if any(not part for part in parts):
+            raise HTTPException(status_code=422, detail="category_ids должен содержать целые числа")
+        try:
+            parsed_category_ids = [int(part) for part in parts]
+        except ValueError:
+            raise HTTPException(status_code=422, detail="category_ids должен содержать целые числа") from None
+        if not parsed_category_ids or any(
+            value <= 0 or value > 9_223_372_036_854_775_807
+            for value in parsed_category_ids
+        ):
+            raise HTTPException(status_code=422, detail="category_ids должен содержать положительные ID")
+        parsed_category_ids = list(dict.fromkeys(parsed_category_ids))
+
+    media, total = list_media(
         limit=limit + 1,
         offset=offset,
         category_id=category_id,
+        category_ids=parsed_category_ids,
+        search=search,
+        media_type=media_type,
+        date_from=parsed_from,
+        date_to=parsed_to,
+        include_total=True,
     )
     has_more = len(media) > limit
 
@@ -636,6 +686,7 @@ def admin_list_media(
         "success": True,
         "media": media[:limit],
         "has_more": has_more,
+        "total": total,
     }
 
 

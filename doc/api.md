@@ -2,7 +2,7 @@
 
 # API — справочник эндпоинтов
 
-Сгенерировано из OpenAPI (`/openapi.json`). Версия приложения: `1.0.0`. Путей: 116, операций: 148.
+Сгенерировано из OpenAPI (`/openapi.json`). Версия приложения: `1.0.0`. Путей: 117, операций: 150.
 
 Регенерация: `.venv/bin/python scripts/gen_api_doc.py`.
 
@@ -72,6 +72,13 @@
 | Метод | Путь | Описание |
 |---|---|---|
 | GET | `/api/admin/cabinet-users` | Admin List Cabinet Users |
+
+## admin-chat
+
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/api/admin/chat/llm` | Chat Llm Info |
+| PUT | `/api/admin/chat/llm` | Chat Llm Save |
 
 ## admin-chat-log
 
