@@ -556,6 +556,34 @@ function normalizeSides(input) {
  * давал широкую обёртку/балон), хотя popupContent схлопывает их в одну
  * карточку → попап шире контента, пустое поле.
  */
+const THREE_SIDE_SHIELD = {
+  city: 'ростов-на-дону',
+  address: 'стадионная ул.- фрунзе панно',
+  number: '801'
+}
+
+function hasThreeSideShieldException(items) {
+  return items.some(item => {
+    const city = String(item?.city || '')
+      .trim()
+      .toLowerCase()
+    const address = String(item?.address || '')
+      .trim()
+      .toLowerCase()
+    const number = String(item?.number || '').trim()
+
+    return (
+      city === THREE_SIDE_SHIELD.city &&
+      address === THREE_SIDE_SHIELD.address &&
+      number === THREE_SIDE_SHIELD.number
+    )
+  })
+}
+
+function maxPopupBlocks(items) {
+  return hasThreeSideShieldException(items) ? 3 : maxBlocksFor(familyOf(items))
+}
+
 export function popupLayout(input) {
   const items = normalizeSides(input)
 
@@ -564,7 +592,7 @@ export function popupLayout(input) {
   }
 
   const sides = dedupeSides(items)
-  const maxBlocks = maxBlocksFor(familyOf(sides))
+  const maxBlocks = maxPopupBlocks(sides)
   const count = Math.min(groupSides(sides).length, maxBlocks)
 
   return count === 3 ? 'triple' : count > 1 ? 'double' : 'single'
@@ -585,10 +613,9 @@ function prepare(input) {
   // одна и та же буква у разных форматов — это разные блоки.
   const sides = dedupeSides(items)
 
-  // Семейство определяет число блоков:
-  // пиллар — до 3, пилон/скроллер — 2,
-  // адреса с щитом/призматроном/видеоэкраном — 2 (или 1, если одна сторона).
-  const maxBlocks = maxBlocksFor(familyOf(sides))
+  // Семейство определяет число блоков; для конструкции 801 есть узкое
+  // исключение, позволяющее показать все три отдельные стороны щита.
+  const maxBlocks = maxPopupBlocks(sides)
 
   // Группируем по ФОРМАТУ и родительской стороне:
   // «Призматрон A(1)+A(2)+A(3)» → один блок, «Щит B» → отдельный.

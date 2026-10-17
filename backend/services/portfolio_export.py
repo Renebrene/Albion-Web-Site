@@ -691,6 +691,7 @@ def _export_docx_full(portfolio: dict) -> bytes:
     """
     from docx import Document
     from docx.enum.section import WD_ORIENT
+    from docx.enum.text import WD_BREAK
     from docx.shared import Cm, Pt
 
     document = Document()
@@ -712,7 +713,15 @@ def _export_docx_full(portfolio: dict) -> bytes:
     with_photos = bool(portfolio.get("with_photos"))
     with_maps = bool(portfolio.get("with_maps"))
 
-    for row in portfolio["rows"]:
+    for row_index, row in enumerate(portfolio["rows"]):
+        # Каждая пара начинается с новой страницы; позиции удерживаются
+        # целиком и вместе, если обе помещаются в доступную высоту листа.
+        if row_index and row_index % 2 == 0:
+            page_break = document.add_paragraph()
+            page_break.add_run().add_break(WD_BREAK.PAGE)
+
+        first_item_paragraph = len(document.paragraphs)
+        first_item = row_index % 2 == 0
         place = ", ".join(
             part for part in (row["city"], row["address"]) if part
         ) or "Адрес не указан"
@@ -765,6 +774,17 @@ def _export_docx_full(portfolio: dict) -> bytes:
         sum_run.bold = True
 
         document.add_paragraph()
+
+        paragraphs = document.paragraphs[first_item_paragraph:]
+        for paragraph in paragraphs:
+            paragraph.paragraph_format.keep_together = True
+            paragraph.paragraph_format.keep_with_next = True
+
+        if paragraphs:
+            paragraphs[-1].paragraph_format.keep_with_next = not first_item
+
+        if first_item and row_index + 1 < len(portfolio["rows"]):
+            paragraphs[-1].paragraph_format.keep_with_next = True
 
     summary_paragraph = document.add_paragraph()
     summary_run = summary_paragraph.add_run(portfolio["summary"])
@@ -1003,6 +1023,8 @@ def _export_pdf_full(portfolio: dict) -> bytes:
     from reportlab.lib.units import cm, mm
     from reportlab.platypus import (
         Image as RLImage,
+        KeepTogether,
+        PageBreak,
         SimpleDocTemplate,
         Spacer,
         Table,
@@ -1045,10 +1067,14 @@ def _export_pdf_full(portfolio: dict) -> bytes:
         spaceAfter=6,
     )
 
-    story = [_pdf_paragraph(portfolio["title"], title_style)]
+    title_flowable = _pdf_paragraph(portfolio["title"], title_style)
+    title_flowable.keepWithNext = True
+    story = [title_flowable]
 
-    for label, value in portfolio.get("requisites") or []:
-        story.append(_pdf_paragraph(f"{label}: {value}", requisites_style))
+    for index, (label, value) in enumerate(portfolio.get("requisites") or []):
+        requisite = _pdf_paragraph(f"{label}: {value}", requisites_style)
+        requisite.keepWithNext = index < len(portfolio.get("requisites") or []) - 1
+        story.append(requisite)
 
     if portfolio.get("requisites"):
         story.append(Spacer(1, 6))
@@ -1058,12 +1084,17 @@ def _export_pdf_full(portfolio: dict) -> bytes:
 
     photo_buffers: list[io.BytesIO] = []
 
-    for row in portfolio["rows"]:
+    for row_index, row in enumerate(portfolio["rows"]):
+        if row_index and row_index % 2 == 0:
+            story.append(PageBreak())
+
+        first_page = row_index == 0
         place = ", ".join(
             part for part in (row["city"], row["address"]) if part
         ) or "Адрес не указан"
 
-        story.append(
+        item_story = []
+        item_story.append(
             _pdf_paragraph(
                 f'{row["index"]}. {row["type"] or "Формат не указан"} — {place}',
                 head_style,
@@ -1076,7 +1107,7 @@ def _export_pdf_full(portfolio: dict) -> bytes:
         if row["size"]:
             meta_parts.append(f'Размер: {row["size"]}')
         if meta_parts:
-            story.append(_pdf_paragraph(" · ".join(meta_parts), line_style))
+            item_story.append(_pdf_paragraph(" · ".join(meta_parts), line_style))
 
         image_cells = []
         candidates = []
@@ -1116,11 +1147,17 @@ def _export_pdf_full(portfolio: dict) -> bytes:
                     ]
                 )
             )
-            story.append(images_table)
+            item_story.append(images_table)
 
-        story.append(_pdf_paragraph(f'Месяцы: {row["months"]}', months_style))
-        story.append(_pdf_paragraph(f'Сумма: {row["sum"]}', sum_style))
-        story.append(Spacer(1, 10))
+        item_story.append(_pdf_paragraph(f'Месяцы: {row["months"]}', months_style))
+        item_story.append(_pdf_paragraph(f'Сумма: {row["sum"]}', sum_style))
+        item_story.append(Spacer(1, 10))
+        grouped_item = KeepTogether(item_story)
+        if first_page:
+            # Группа стартует сразу после заголовка и реквизитов.
+            for flowable in story:
+                flowable.keepWithNext = True
+        story.append(grouped_item)
 
     story.append(
         _pdf_paragraph(portfolio["summary"], summary_style)

@@ -497,59 +497,56 @@ function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
         .join('')}</div>`
     : ''
 
-  const blocks = items
-    .map((item, index) => {
-      const months = selectedMonths(item)
+  const itemBlocks = items.map((item, index) => {
+    const months = selectedMonths(item)
 
-      const monthText = months.length
-        ? months
-            .map(month => {
-              const price =
-                month.price === null ? '' : ` (${formatPrice(month.price)} ₽)`
-              const stale = month.stale ? ' ⚠' : ''
+    const monthText = months.length
+      ? months
+          .map(month => {
+            const price =
+              month.price === null ? '' : ` (${formatPrice(month.price)} ₽)`
+            const stale = month.stale ? ' ⚠' : ''
 
-              return `${escapeHtml(month.full)}${escapeHtml(price)}${stale}`
-            })
-            .join(', ')
-        : 'ничего не выбрано'
+            return `${escapeHtml(month.full)}${escapeHtml(price)}${stale}`
+          })
+          .join(', ')
+      : 'ничего не выбрано'
 
-      const metaParts = []
+    const metaParts = []
 
-      if (item.side) {
-        metaParts.push(`Сторона: ${escapeHtml(item.side)}`)
-      }
+    if (item.side) {
+      metaParts.push(`Сторона: ${escapeHtml(item.side)}`)
+    }
 
-      if (item.size) {
-        metaParts.push(`Размер: ${escapeHtml(item.size)}`)
-      }
+    if (item.size) {
+      metaParts.push(`Размер: ${escapeHtml(item.size)}`)
+    }
 
-      /* Крупные варианты — для печати в 7.5 см; фолбэк на обычные. */
-      const photoUrl =
-        withPhotos && (item.photo_large || item.photo_thumb || item.photo || '')
-      const mapUrl =
-        withMaps && (item.map_large || item.map_card || item.map_thumb || '')
+    /* Крупные варианты — для печати в 7.5 см; фолбэк на обычные. */
+    const photoUrl =
+      withPhotos && (item.photo_large || item.photo_thumb || item.photo || '')
+    const mapUrl =
+      withMaps && (item.map_large || item.map_card || item.map_thumb || '')
 
-      /* Фото шире карты (9 см против 7.5), высота у обоих одна. */
-      const images = [
-        photoUrl
-          ? `<img class="full-thumb full-thumb--photo" src="${escapeHtml(photoUrl)}" alt="">`
-          : '',
-        mapUrl
-          ? `<img class="full-thumb full-thumb--map" src="${escapeHtml(mapUrl)}" alt="">`
-          : ''
-      ]
-        .filter(Boolean)
-        .join('')
-
-      const imagesBlock = images
-        ? `<div class="full-images">${images}</div>`
+    /* Фото шире карты (9 см против 7.5), высота у обоих одна. */
+    const images = [
+      photoUrl
+        ? `<img class="full-thumb full-thumb--photo" src="${escapeHtml(photoUrl)}" alt="">`
+        : '',
+      mapUrl
+        ? `<img class="full-thumb full-thumb--map" src="${escapeHtml(mapUrl)}" alt="">`
         : ''
+    ]
+      .filter(Boolean)
+      .join('')
 
-      const metaBlock = metaParts.length
-        ? `<div class="full-meta">${metaParts.join(' · ')}</div>`
-        : ''
+    const imagesBlock = images ? `<div class="full-images">${images}</div>` : ''
 
-      return `
+    const metaBlock = metaParts.length
+      ? `<div class="full-meta">${metaParts.join(' · ')}</div>`
+      : ''
+
+    return `
         <div class="full-item">
           <div class="full-head">${index + 1}. ${escapeHtml(
             item.type || 'Формат не указан'
@@ -562,8 +559,15 @@ function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
           )} ₽</div>
         </div>
       `
-    })
-    .join('')
+  })
+
+  const blocks = []
+
+  for (let index = 0; index < itemBlocks.length; index += 2) {
+    blocks.push(
+      `<section class="full-page">${itemBlocks.slice(index, index + 2).join('')}</section>`
+    )
+  }
 
   return `<!DOCTYPE html>
 <html lang="ru">
@@ -592,6 +596,15 @@ function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
     }
     .req { white-space: nowrap; }
     .req-label { color: #71808c; }
+    .full-page {
+      display: block;
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    .full-page + .full-page {
+      break-before: page;
+      page-break-before: always;
+    }
     .full-item {
       padding: 12px 0;
       border-bottom: 1px solid #e5e9ec;
