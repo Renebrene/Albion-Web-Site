@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json as jsonlib
+import shutil
 import zipfile
 from io import BytesIO
 
@@ -69,6 +70,53 @@ def test_full_docx_starts_each_pair_on_new_page(count: int):
     assert page_break_count == (count - 1) // 2
     for index in range(1, count + 1):
         assert f"Ленина пр-кт {index}" in xml
+
+
+def test_full_docx_pdf_keeps_each_pair_on_its_page(tmp_path, monkeypatch):
+    soffice = shutil.which("soffice") or shutil.which("libreoffice")
+    if not soffice:
+        pytest.skip("LibreOffice is required to test rendered pagination")
+
+    pypdf = pytest.importorskip("pypdf")
+    Image = pytest.importorskip("PIL.Image")
+    import subprocess
+
+    import backend.services.portfolio_export as export_service
+
+    monkeypatch.setattr(export_service, "STORAGE_ROOT", tmp_path)
+    image_path = tmp_path / "sample.jpg"
+    Image.new("RGB", (800, 500), "#4677a8").save(image_path)
+
+    items = [
+        {
+            **ITEMS[0],
+            "address": f"Ленина пр-кт {index}",
+            "photo_large": "/storage/sample.jpg",
+            "map_large": "/storage/sample.jpg",
+        }
+        for index in range(1, 4)
+    ]
+    portfolio = build_portfolio(
+        items,
+        title="Мой выбор",
+        with_photos=True,
+        with_maps=True,
+        full_output=True,
+        requisites={"organization": "Альбион", "inn": "6164001234"},
+    )
+    docx = export_docx(portfolio)
+    converted = export_service.libreoffice_convert(docx, "docx", "pdf")
+    pages = pypdf.PdfReader(BytesIO(converted)).pages
+
+    assert len(pages) == 2
+    first_page = pages[0].extract_text()
+    second_page = pages[1].extract_text()
+    assert "Ленина пр-кт 1" in first_page
+    assert "Ленина пр-кт 2" in first_page
+    assert "Ленина пр-кт 3" not in first_page
+    assert "Ленина пр-кт 3" in second_page
+    assert first_page.count("Сумма:") == 2
+    assert second_page.count("Сумма:") == 1
 
 
 def test_full_reportlab_pdf_keeps_two_item_groups_on_distinct_pages():

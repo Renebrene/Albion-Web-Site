@@ -121,13 +121,11 @@ PDF_PHOTO_BOX = (240, 240)
 PDF_PHOTO_WIDTH_MM = 18.0
 DOCX_PHOTO_WIDTH_CM = 1.8
 
-# «Полный вывод»: фото и карта встают в один ряд по ширине A4.
-# Оба — 8 × 5 см (пропорция 8:5), поэтому ширины и высоты совпадают и
-# ряд ровный. Картинка НЕ растягивается: PIL-овский cover-кроп по центру
-# приводит её к точному боксу, задание width/height в docx/pdf её не искажает.
-FULL_IMAGE_BOX = (800, 500)
-FULL_IMAGE_WIDTH_CM = 8.0
-FULL_IMAGE_HEIGHT_CM = 5.0
+# «Полный вывод»: изображения компактнее, чтобы пара карточек помещалась
+# на портретной A4 вместе с заголовком и коротким блоком реквизитов.
+FULL_IMAGE_BOX = (640, 400)
+FULL_IMAGE_WIDTH_CM = 6.4
+FULL_IMAGE_HEIGHT_CM = 4.0
 
 CONTENT_TYPES = {
     "xls": "application/vnd.ms-excel",
@@ -781,10 +779,7 @@ def _export_docx_full(portfolio: dict) -> bytes:
             paragraph.paragraph_format.keep_with_next = True
 
         if paragraphs:
-            paragraphs[-1].paragraph_format.keep_with_next = not first_item
-
-        if first_item and row_index + 1 < len(portfolio["rows"]):
-            paragraphs[-1].paragraph_format.keep_with_next = True
+            paragraphs[-1].paragraph_format.keep_with_next = first_item
 
     summary_paragraph = document.add_paragraph()
     summary_run = summary_paragraph.add_run(portfolio["summary"])
