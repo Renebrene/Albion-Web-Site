@@ -16,6 +16,20 @@
 | `ALBION_SMTP_TLS` | `0` — отключить STARTTLS (по умолчанию включён) |
 | `ALBION_DB_POOL_SIZE` | SQLAlchemy-пул поиска на один worker; по умолчанию `1` |
 | `ALBION_DB_MAX_OVERFLOW` | Дополнительные search-соединения на worker; по умолчанию `0` |
+| `ALBION_ACCOUNT_ADMIN_PASSWORD` | Первичный пароль provisioned-аккаунта `user_accounts` (только при первом создании) |
+| `ALBION_ACCOUNT_ADMIN_SECRET` | Legacy: первичная фраза `user_accounts` (кабинет, не панель) |
+| `ALBION_PANEL_ADMIN_LOGIN` | Новый логин панели `admin_users` при bootstrap |
+| `ALBION_PANEL_ADMIN_PASSWORD` | Пароль панели `admin_users` при bootstrap |
+| `ALBION_PANEL_ADMIN_NAME` | Отображаемое имя panel admin при bootstrap |
+
+Для создания нового администратора панели после backup:
+`.venv/bin/python -m backend.migrations.migrate_admin_user`.
+Секреты admin-аккаунта задаются только в окружении/.env с правами файла `600`.
+Миграция `migrate_accounts_admin` не печатает их и при обычном повторном запуске
+не перезаписывает существующие credentials. Для явной ротации существующего
+активного аккаунта после backup используйте `--reset-existing`. Эти переменные
+относятся к `user_accounts`, а не к отдельной системе `admin_users` для панели
+управления.
 
 Пул поиска ограничен отдельно в каждом uvicorn worker. Максимум его соединений
 считается так: `workers × (ALBION_DB_POOL_SIZE + ALBION_DB_MAX_OVERFLOW)`.

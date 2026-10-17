@@ -37,7 +37,13 @@
 | `client_requests` | заявки клиентов | `account_id`, `title`, `surface_id`, `payload` (JSONB), `status` |
 
 Миграция схемы — `backend/migrations/migrate_accounts.py`; сид-миграция
-аккаунта администратора — отдельная (см. `doc/database.md`).
+аккаунта администратора — `backend/migrations/migrate_accounts_admin.py`.
+Legacy seed `migrate_accounts_admin.py` относится только к историческому
+`user_accounts` и не создаёт доступ к панели. Для рабочей панели используется
+`admin_users`; нового panel admin создавайте после backup командой:
+`.venv/bin/python -m backend.migrations.migrate_admin_user` с переменными
+`ALBION_PANEL_ADMIN_LOGIN`, `ALBION_PANEL_ADMIN_PASSWORD` и
+`ALBION_PANEL_ADMIN_NAME`. Учётки панели и legacy user_accounts не смешиваются.
 
 ## Админка
 
