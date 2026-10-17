@@ -1705,22 +1705,37 @@ watch(
       query.address = address
     }
 
+    /* Режим чата не должен теряться при изменении фильтров. */
+    if (route.query.chat) {
+      query.chat = route.query.chat
+    }
+
+    if (route.query.mode) {
+      query.mode = route.query.mode
+    }
+
     const currentQuery = {
       city: route.query.city,
       type: route.query.type,
-      address: route.query.address
+      address: route.query.address,
+      chat: route.query.chat,
+      mode: route.query.mode
     }
 
     const nextQuery = {
       city: query.city,
       type: query.type,
-      address: query.address
+      address: query.address,
+      chat: query.chat,
+      mode: query.mode
     }
 
     if (
       currentQuery.city === nextQuery.city &&
       currentQuery.type === nextQuery.type &&
-      currentQuery.address === nextQuery.address
+      currentQuery.address === nextQuery.address &&
+      currentQuery.chat === nextQuery.chat &&
+      currentQuery.mode === nextQuery.mode
     ) {
       return
     }
@@ -1928,6 +1943,16 @@ function onDocumentClick(event) {
   // Кнопки и pf-mode корня — по актуальному состоянию стора.
   refreshPopupState(popupRoot)
 }
+
+/* Ссылка из чата уже на открытой странице: переключаем режим без F5. */
+watch(
+  () => [route.query.chat, route.query.mode],
+  ([chat, mode]) => {
+    if (chat !== '1') return
+
+    workspaceMode.value = mode === 'map' ? 'map' : 'list'
+  }
+)
 
 onMounted(async () => {
   document.addEventListener('click', onDocumentClick)

@@ -9,7 +9,7 @@
 import { reactive } from 'vue'
 
 /* Полный календарный порядок месяцев — для сортировки. */
-const MONTH_ORDER = [
+export const MONTH_ORDER = [
   'Январь',
   'Февраль',
   'Март',

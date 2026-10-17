@@ -29,10 +29,33 @@ const { isAuthenticated, loadMe } = useAccount()
  * показывает на карте/в списке ровно эти результаты (см. AdvertisingPage).
  * Синглтон, как и остальное состояние рабочего пространства.
  */
-const resultIds = ref([])
+const RESULT_IDS_KEY = 'albion_chat_result_ids'
+
+function readStoredResultIds() {
+  try {
+    const parsed = JSON.parse(
+      window.sessionStorage.getItem(RESULT_IDS_KEY) || '[]'
+    )
+
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+const resultIds = ref(readStoredResultIds())
 
 function setResultIds(ids) {
   resultIds.value = Array.isArray(ids) ? ids.slice() : []
+
+  try {
+    window.sessionStorage.setItem(
+      RESULT_IDS_KEY,
+      JSON.stringify(resultIds.value)
+    )
+  } catch {
+    /* приватный режим/переполнение — фильтрация всё равно работает */
+  }
 }
 
 /* Новый чат: свой ключ и порядковый номер (номер не теряется при сохранении). */
@@ -265,6 +288,7 @@ async function clearChats() {
   savedAt.value = ''
   saveError.value = ''
   disarmClear()
+  setResultIds([])
 
   if (isAuthenticated.value) {
     try {

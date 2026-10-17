@@ -342,6 +342,7 @@ import { useSmartChat } from '../../composables/useSmartChat'
 import { copyToClipboard } from '../../services/portfolioExport'
 import {
   MONTHS,
+  MONTH_ORDER,
   buildMonthList,
   monthsFromItems,
   dedupeSides,
@@ -413,9 +414,27 @@ const { messages, loading, lastResponse, send, reset } = useSmartChat(
  * берём глобальный список (может быть пустым).
  */
 const chatMonths = computed(() => {
+  const names = new Set()
   const items = []
 
+  const addNumber = value => {
+    const number = Number(value)
+
+    if (Number.isInteger(number) && number >= 1 && number <= 12) {
+      names.add(MONTH_ORDER[number - 1])
+    }
+  }
+
   for (const message of messages.value || []) {
+    /* Backend query uses numeric months; rich items use numeric keys. */
+    const query = message?.query
+
+    if (query?.month) addNumber(query.month)
+
+    if (Array.isArray(query?.months)) {
+      query.months.forEach(addNumber)
+    }
+
     const results = message?.results?.items
 
     if (Array.isArray(results)) {
@@ -423,9 +442,21 @@ const chatMonths = computed(() => {
     }
   }
 
-  const names = monthsFromItems(items)
+  if (!names.size) {
+    for (const item of items) {
+      const monthly = item?.monthly_prices || item?.monthly || {}
 
-  return names.length ? buildMonthList(names) : MONTHS
+      Object.keys(monthly).forEach(addNumber)
+    }
+  }
+
+  if (names.size) {
+    return buildMonthList([...names])
+  }
+
+  const fallback = monthsFromItems(items)
+
+  return fallback.length ? buildMonthList(fallback) : MONTHS
 })
 const { openPhoto } = usePhotoViewer()
 const router = useRouter()

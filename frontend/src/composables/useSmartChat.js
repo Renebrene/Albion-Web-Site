@@ -95,6 +95,7 @@ function createStore(key) {
         results: response.results,
         suggestions: response.suggestions,
         actions: response.actions,
+        query: response.query,
         warnings: response.warnings
       })
       persist()
