@@ -161,7 +161,7 @@ def main() -> None:
     lines.append(INTRO)
     lines.append("Регенерация: `.venv/bin/python scripts/gen_db_doc.py`.")
     lines.append("")
-    lines.append(f"> Всего таблиц: {len(tables)}, представлений: {len(views)}. ")
+    lines.append(f"> Всего таблиц: {len(tables)}, представлений: {len(views)}.")
     lines.append("> 🔑 — колонка первичного ключа.")
     lines.append("")
 

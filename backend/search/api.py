@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -15,17 +16,17 @@ class SearchRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    city: str | None = None
-    district: str | None = None
-    address: str | None = None
+    city: str | None = Field(default=None, max_length=100)
+    district: str | None = Field(default=None, max_length=100)
+    address: str | None = Field(default=None, max_length=300)
 
-    media_type: str | None = None
-    size: str | None = None
+    media_type: str | None = Field(default=None, max_length=100)
+    size: str | None = Field(default=None, max_length=50)
 
-    year: int = 2026
+    year: int | None = Field(default=None, ge=2000, le=2100)
 
     month: int | None = Field(default=None, ge=1, le=12)
-    months: list[int] = Field(default_factory=list)
+    months: list[int] = Field(default_factory=list, max_length=12)
 
     period_mode: str = "ANY"
 
@@ -38,7 +39,7 @@ class SearchRequest(BaseModel):
     max_price: int | None = Field(default=None, ge=0)
 
     sort_by: str | None = None
-    limit: int | None = Field(default=None, gt=0)
+    limit: int | None = Field(default=None, gt=0, le=1000)
 
     @model_validator(mode="after")
     def validate_period(self) -> "SearchRequest":
@@ -233,13 +234,37 @@ class SearchResponse(BaseModel):
         )
 
 
+_default_bridge: AlbionSearchBridge | None = None
+_default_bridge_lock = threading.Lock()
+
+
+def get_default_bridge() -> AlbionSearchBridge:
+    """One bridge/engine per worker instead of one per HTTP request."""
+    global _default_bridge
+
+    if _default_bridge is None:
+        with _default_bridge_lock:
+            if _default_bridge is None:
+                _default_bridge = AlbionSearchBridge()
+
+    return _default_bridge
+
+
+def reset_default_bridge() -> None:
+    """Drop the cached bridge (tests/configuration changes)."""
+    global _default_bridge
+
+    with _default_bridge_lock:
+        _default_bridge = None
+
+
 def execute_search(
     request: SearchRequest,
     bridge: AlbionSearchBridge | None = None,
 ) -> SearchResponse:
     """Execute one HTTP search request through the bridge."""
 
-    search_bridge = bridge or AlbionSearchBridge()
+    search_bridge = bridge or get_default_bridge()
 
     query = request.to_search_query()
 

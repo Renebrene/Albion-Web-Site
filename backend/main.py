@@ -45,6 +45,10 @@ from backend.services.upload_limits import (
 )
 
 from backend.search.api import SearchRequest, SearchResponse, execute_search
+from backend.api.search_v2 import (
+    admin_router as admin_search_v2_router,
+    router as search_v2_router,
+)
 from backend.api.chat import router as chat_router
 
 from backend.services.auth_api import (
@@ -161,6 +165,8 @@ from backend.api.public_requests import (
 # Заявки с сайта — без личного кабинета (см. doc/account-cabinet.md).
 app.include_router(public_requests_router)
 app.include_router(admin_requests_router)
+app.include_router(search_v2_router)
+app.include_router(admin_search_v2_router)
 
 
 from backend.services.site_backup_service import start_scheduler
@@ -243,24 +249,51 @@ app.add_middleware(
 # Простой in-memory лимит запросов для чувствительных эндпоинтов.
 # В пределах одного worker достаточно против простейшего брутфорса на этапе
 # разработки/туннеля; на VDS это выносится на nginx/Traefik.
+def _env_limit(name: str, default: int) -> int:
+    try:
+        return max(1, int(os.getenv(name, str(default))))
+    except ValueError:
+        return default
+
+
 _RATE_RULES = {
     "/api/admin/login": (10, 60),
     "/api/account/login": (10, 60),
     "/api/account/recover": (5, 300),
     "/api/feedback": (20, 60),
+    # Поиск и чат могут выполнять тяжёлые запросы; ограничиваем публично.
+    "/api/search": (_env_limit("ALBION_RATE_SEARCH_PER_MIN", 30), 60),
+    "/api/chat": (_env_limit("ALBION_RATE_CHAT_PER_MIN", 60), 60),
 }
 _rate_buckets: dict[tuple[str, str], deque] = defaultdict(deque)
 
 
+def _rate_rule(path: str) -> tuple[str, int, int] | None:
+    """Longest matching rule; prefixes also cover sub-paths."""
+    best_key = None
+
+    for key in _RATE_RULES:
+        if path == key or path.startswith(key + "/"):
+            if best_key is None or len(key) > len(best_key):
+                best_key = key
+
+    if not best_key:
+        return None
+
+    limit, window = _RATE_RULES[best_key]
+    return best_key, limit, window
+
+
 @app.middleware("http")
 async def _rate_limit(request: Request, call_next):
-    rule = _RATE_RULES.get(request.url.path)
+    rule = _rate_rule(request.url.path)
 
     if rule:
-        limit, window = rule
+        rule_key, limit, window = rule
         ip = request.client.host if request.client else "unknown"
         now = time.monotonic()
-        bucket = _rate_buckets[(ip, request.url.path)]
+        bucket_key = (ip, rule_key)
+        bucket = _rate_buckets[bucket_key]
 
         while bucket and now - bucket[0] > window:
             bucket.popleft()
@@ -273,6 +306,11 @@ async def _rate_limit(request: Request, call_next):
             )
 
         bucket.append(now)
+
+        if len(_rate_buckets) > 10000:
+            for key, values in list(_rate_buckets.items()):
+                if not values:
+                    _rate_buckets.pop(key, None)
 
     return await call_next(request)
 

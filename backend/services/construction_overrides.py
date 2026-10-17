@@ -16,7 +16,11 @@ import os
 
 from psycopg.types.json import Json
 
-from backend.services.data_service import PROJECT_DIR, get_connection
+from backend.services.data_service import (
+    PROJECT_DIR,
+    _read_cache_stamp,
+    get_connection,
+)
 
 
 OVERRIDE_DIR = PROJECT_DIR / "storage" / "constructions" / "overrides"
@@ -25,11 +29,12 @@ OVERRIDE_DIR = PROJECT_DIR / "storage" / "constructions" / "overrides"
 _OVERRIDE_REL = "storage/constructions/overrides"
 
 # Небольшой кэш карты переопределений активного импорта.
-_CACHE: dict = {"key": None, "map": {}}
+_CACHE: dict = {"key": None, "stamp": None, "map": {}}
 
 
 def invalidate() -> None:
     _CACHE["key"] = None
+    _CACHE["stamp"] = None
     _CACHE["map"] = {}
 
 
@@ -62,13 +67,29 @@ def _url(rel_path: str | None) -> str:
 
 def get_overrides_map(force: bool = False) -> dict:
     """{(surface_hash, media_type): {large, card, thumb}} активного импорта."""
+    stamp = _read_cache_stamp()
+
+    # Быстрый путь: пока метка версии данных не менялась, в БД не ходим.
+    # Импорт и правки медиа вызывают invalidate_data_cache(), который
+    # перезаписывает метку.
+    if (
+        not force
+        and _CACHE["key"] is not None
+        and _CACHE["stamp"] == stamp
+    ):
+        return _CACHE["map"]
+
     with get_connection() as conn:
         import_id, _key = _active_import(conn)
 
         if import_id is None:
+            _CACHE["key"] = None
+            _CACHE["stamp"] = stamp
+            _CACHE["map"] = {}
             return {}
 
         if not force and _CACHE["key"] == import_id:
+            _CACHE["stamp"] = stamp
             return _CACHE["map"]
 
         rows = conn.execute(
@@ -90,6 +111,7 @@ def get_overrides_map(force: bool = False) -> dict:
         }
 
     _CACHE["key"] = import_id
+    _CACHE["stamp"] = stamp
     _CACHE["map"] = result
 
     return result
@@ -291,23 +313,37 @@ FIELD_KEYS = (
     "number",
 )
 
-_FIELD_CACHE: dict = {"key": None, "map": {}}
+_FIELD_CACHE: dict = {"key": None, "stamp": None, "map": {}}
 
 
 def _invalidate_fields() -> None:
     _FIELD_CACHE["key"] = None
+    _FIELD_CACHE["stamp"] = None
     _FIELD_CACHE["map"] = {}
 
 
 def get_fields_map(force: bool = False) -> dict:
     """{surface_hash: {поле: значение}} переопределений активного импорта."""
+    stamp = _read_cache_stamp()
+
+    if (
+        not force
+        and _FIELD_CACHE["key"] is not None
+        and _FIELD_CACHE["stamp"] == stamp
+    ):
+        return _FIELD_CACHE["map"]
+
     with get_connection() as conn:
         import_id, _key = _active_import(conn)
 
         if import_id is None:
+            _FIELD_CACHE["key"] = None
+            _FIELD_CACHE["stamp"] = stamp
+            _FIELD_CACHE["map"] = {}
             return {}
 
         if not force and _FIELD_CACHE["key"] == import_id:
+            _FIELD_CACHE["stamp"] = stamp
             return _FIELD_CACHE["map"]
 
         rows = conn.execute(
@@ -326,6 +362,7 @@ def get_fields_map(force: bool = False) -> dict:
             result[surface_hash] = fields
 
     _FIELD_CACHE["key"] = import_id
+    _FIELD_CACHE["stamp"] = stamp
     _FIELD_CACHE["map"] = result
 
     return result

@@ -783,7 +783,7 @@ class QueryParser:
             text,
         )
 
-    def _find_year(self, text: str) -> int:
+    def _find_year(self, text: str) -> int | None:
         match = re.search(
             r"\b(20\d{2})\b",
             text,
@@ -792,7 +792,9 @@ class QueryParser:
         if match:
             return int(match.group(1))
 
-        return 2026
+        # Год кампании определяется по активному импорту/настройке, а не
+        # литералом: см. resolve_default_year() и repository.default_year().
+        return None
 
     def _find_size(self, text: str) -> str | None:
         match = re.search(

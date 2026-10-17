@@ -14,6 +14,7 @@
 | [`map.md`](map.md) | Интерактивная карта: движки Leaflet/Яндекс, попапы, статусы |
 | [`portfolio-export.md`](portfolio-export.md) | Портфель и выгрузка: форматы, LibreOffice |
 | [`smart-chat.md`](smart-chat.md) | Умный чат: парсер, LLM-fallback, сессии |
+| [`search-v2.md`](search-v2.md) | Поиск 2.0: каталог в памяти, типы/размеры/локации, `/api/search/v2` |
 | [`account-cabinet.md`](account-cabinet.md) | Личный кабинет и авторизация — **сейчас скрыты**, бэкенд сохранён |
 | [`frontend.md`](frontend.md) | Обзор фронтенда: роутер, страницы, boot, компоненты |
 | [`glossary.md`](glossary.md) | Термины: конструкция, сторона, поверхность, статусы, портфель |

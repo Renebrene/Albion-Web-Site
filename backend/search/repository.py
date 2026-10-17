@@ -8,6 +8,7 @@ from sqlalchemy import create_engine, text
 
 from backend.services.data_service import load_env_file
 from backend.search.mapper import SiteSurfaceMapper, _price
+from backend.search.normalization import same_size
 from engine.house_number.matcher import HouseNumberMatcher
 from engine.storage.models import AvailabilityRecord, SurfaceRecord
 
@@ -27,24 +28,77 @@ class SitePostgreSQLSearchRepository:
 
     def __init__(self, engine=None):
         self.engine = engine or self._create_engine()
+        self._default_year_value: int | None = None
+        self._default_year_ts: float = 0.0
 
     @staticmethod
     def _create_engine():
+        from urllib.parse import quote_plus
+
         host = os.getenv("ALBION_DB_HOST", "127.0.0.1")
         port = os.getenv("ALBION_DB_PORT", "5432")
         dbname = os.getenv("ALBION_DB_NAME", "albion")
         user = os.getenv("ALBION_DB_USER", "albion_app")
-        password = os.getenv("ALBION_DB_PASSWORD")
+        password = os.getenv("ALBION_DB_PASSWORD") or ""
 
+        # Спецсимволы в пароле (@, :, /, %) должны быть экранированы,
+        # иначе URL подключения ломается.
         url = (
-            f"postgresql+psycopg://{user}:{password}"
+            f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}"
             f"@{host}:{port}/{dbname}"
         )
+
+        pool_size = int(os.getenv("ALBION_DB_POOL_SIZE", "5"))
+        max_overflow = int(os.getenv("ALBION_DB_MAX_OVERFLOW", "10"))
 
         return create_engine(
             url,
             echo=False,
+            pool_pre_ping=True,
+            pool_size=pool_size,
+            max_overflow=max_overflow,
+            pool_recycle=1800,
+            connect_args={"connect_timeout": 5},
         )
+
+    def default_year(self) -> int:
+        """Campaign year: env override → max availability year → current year."""
+        import time
+        from datetime import date
+
+        configured = os.getenv("ALBION_SEARCH_DEFAULT_YEAR", "").strip()
+
+        if configured:
+            try:
+                return int(configured)
+            except ValueError:
+                pass
+
+        now = time.monotonic()
+        ttl = float(os.getenv("ALBION_SEARCH_YEAR_CACHE_TTL", "60"))
+
+        if (
+            self._default_year_value is not None
+            and (now - self._default_year_ts) < ttl
+        ):
+            return self._default_year_value
+
+        year: int | None = None
+
+        try:
+            with self.engine.connect() as conn:
+                row = conn.execute(
+                    text("SELECT MAX(year) FROM surface_availability")
+                ).fetchone()
+                if row and row[0]:
+                    year = int(row[0])
+        except Exception:  # noqa: BLE001 — поиск не должен падать из-за года
+            year = None
+
+        value = year or date.today().year
+        self._default_year_value = value
+        self._default_year_ts = now
+        return value
 
     # ------------------------------------------------------------------
     # SQL / mapping
@@ -81,72 +135,6 @@ class SitePostgreSQLSearchRepository:
                 s.material,
                 c.address_key,
                 s.surface_hash,
-                (
-                    SELECT cm.card_path
-                    FROM construction_media cm
-                    JOIN construction_imports ci2
-                      ON ci2.id = cm.import_id
-                    WHERE cm.surface_hash = s.surface_hash
-                      AND cm.media_type = 'photo'
-                      AND ci2.status = 'active'
-                    ORDER BY ci2.id DESC, cm.id DESC
-                    LIMIT 1
-                ) AS photo_card,
-                (
-                    SELECT cm.thumb_path
-                    FROM construction_media cm
-                    JOIN construction_imports ci2
-                      ON ci2.id = cm.import_id
-                    WHERE cm.surface_hash = s.surface_hash
-                      AND cm.media_type = 'photo'
-                      AND ci2.status = 'active'
-                    ORDER BY ci2.id DESC, cm.id DESC
-                    LIMIT 1
-                ) AS photo_thumb,
-                (
-                    SELECT cm.large_path
-                    FROM construction_media cm
-                    JOIN construction_imports ci2
-                      ON ci2.id = cm.import_id
-                    WHERE cm.surface_hash = s.surface_hash
-                      AND cm.media_type = 'photo'
-                      AND ci2.status = 'active'
-                    ORDER BY ci2.id DESC, cm.id DESC
-                    LIMIT 1
-                ) AS photo_large,
-                (
-                    SELECT cm.card_path
-                    FROM construction_media cm
-                    JOIN construction_imports ci2
-                      ON ci2.id = cm.import_id
-                    WHERE cm.surface_hash = s.surface_hash
-                      AND cm.media_type = 'map'
-                      AND ci2.status = 'active'
-                    ORDER BY ci2.id DESC, cm.id DESC
-                    LIMIT 1
-                ) AS map_card,
-                (
-                    SELECT cm.thumb_path
-                    FROM construction_media cm
-                    JOIN construction_imports ci2
-                      ON ci2.id = cm.import_id
-                    WHERE cm.surface_hash = s.surface_hash
-                      AND cm.media_type = 'map'
-                      AND ci2.status = 'active'
-                    ORDER BY ci2.id DESC, cm.id DESC
-                    LIMIT 1
-                ) AS map_thumb,
-                (
-                    SELECT cm.large_path
-                    FROM construction_media cm
-                    JOIN construction_imports ci2
-                      ON ci2.id = cm.import_id
-                    WHERE cm.surface_hash = s.surface_hash
-                      AND cm.media_type = 'map'
-                      AND ci2.status = 'active'
-                    ORDER BY ci2.id DESC, cm.id DESC
-                    LIMIT 1
-                ) AS map_large,
                 s.is_active,
                 s.created_at,
                 s.updated_at
@@ -156,6 +144,57 @@ class SitePostgreSQLSearchRepository:
             JOIN cities ci
               ON ci.id = c.city_id
         """
+
+    def _load_active_media_map(self) -> dict:
+        """Активные медиа конструкций одной выборкой.
+
+        Раньше на каждую поверхность выполнялось шесть коррелированных
+        подзапросов; здесь — один ``DISTINCT ON`` на весь поиск.
+        """
+        sql = """
+            SELECT DISTINCT ON (cm.surface_hash, cm.media_type)
+                cm.surface_hash,
+                cm.media_type,
+                cm.card_path,
+                cm.thumb_path,
+                cm.large_path
+            FROM construction_media cm
+            JOIN construction_imports ci
+              ON ci.id = cm.import_id
+            WHERE ci.status = 'active'
+            ORDER BY
+                cm.surface_hash,
+                cm.media_type,
+                ci.id DESC,
+                cm.id DESC
+        """
+
+        with self.engine.connect() as conn:
+            rows = conn.execute(text(sql)).mappings().all()
+
+        result: dict[tuple[str, str], dict[str, str | None]] = {}
+
+        for row in rows:
+            result[(row["surface_hash"], row["media_type"])] = {
+                "card": row.get("card_path"),
+                "thumb": row.get("thumb_path"),
+                "large": row.get("large_path"),
+            }
+
+        return result
+
+    def _load_lookup_maps(self) -> tuple[dict, dict, dict]:
+        """Three lookup maps loaded once per search request."""
+        from backend.services.construction_overrides import (
+            get_fields_map,
+            get_overrides_map,
+        )
+
+        return (
+            get_fields_map(),
+            get_overrides_map(),
+            self._load_active_media_map(),
+        )
 
     def _load_surfaces(
         self,
@@ -216,11 +255,9 @@ class SitePostgreSQLSearchRepository:
             )
             params["media_type"] = f"%{media_type.strip()}%"
 
-        if size:
-            conditions.append(
-                "LOWER(s.size) LIKE LOWER(:size)"
-            )
-            params["size"] = f"%{size.strip()}%"
+        # Site sizes are TEXT with inconsistent order/separator
+        # («1,2 X 1,8» vs «6 X 3», comma or dot). Compare numerically in
+        # Python after mapping instead of using fragile LIKE.
 
         # Site price is TEXT, therefore price limits are applied after
         # mapping to SurfaceRecord instead of comparing TEXT in SQL.
@@ -240,15 +277,26 @@ class SitePostgreSQLSearchRepository:
                 params,
             ).mappings().all()
 
-        # Joining availability can produce one row per month. Keep one
-        # canonical surface before applying in-memory price/load predicates.
-        mapped: dict[int, SurfaceRecord] = {}
-        for row in rows:
-            surface = SiteSurfaceMapper.map(row)
-            if surface.id is not None:
-                mapped[surface.id] = surface
+        if not rows:
+            return []
 
-        surfaces = list(mapped.values())
+        fields_map, overrides_map, media_map = self._load_lookup_maps()
+
+        # Joining availability can produce one row per month. map_many
+        # collapses duplicates by surface id and does not touch the DB.
+        surfaces = SiteSurfaceMapper.map_many(
+            rows,
+            fields_map=fields_map,
+            overrides_map=overrides_map,
+            media_map=media_map,
+        )
+
+        if size:
+            surfaces = [
+                surface
+                for surface in surfaces
+                if same_size(surface.size, size)
+            ]
 
         if min_price is not None:
             surfaces = [
@@ -275,7 +323,7 @@ class SitePostgreSQLSearchRepository:
 
             availability = self.get_availabilities_for_surfaces(
                 surface_ids=surface_ids,
-                year=year if year is not None else 2026,
+                year=year if year is not None else self.default_year(),
                 months=[month] if month is not None else None,
             )
 
@@ -666,11 +714,7 @@ class SitePostgreSQLSearchRepository:
             )
             params["media_type"] = f"%{media_type.strip()}%"
 
-        if size:
-            conditions.append(
-                "LOWER(s.size) = LOWER(:size)"
-            )
-            params["size"] = size.strip()
+        # Size is compared numerically after mapping (see _load_surfaces).
 
         sql = self._surface_select()
         sql += """
@@ -694,16 +738,26 @@ class SitePostgreSQLSearchRepository:
                 params,
             ).mappings().all()
 
-        # The same surface can occur once per requested month.
-        mapped: dict[int, SurfaceRecord] = {}
+        if not rows:
+            return []
 
-        for row in rows:
-            surface = SiteSurfaceMapper.map(row)
+        fields_map, overrides_map, media_map = self._load_lookup_maps()
 
-            if surface.id is not None:
-                mapped[surface.id] = surface
+        # The same surface can occur once per requested month; map_many
+        # collapses duplicates by id.
+        surfaces = SiteSurfaceMapper.map_many(
+            rows,
+            fields_map=fields_map,
+            overrides_map=overrides_map,
+            media_map=media_map,
+        )
 
-        surfaces = list(mapped.values())
+        if size:
+            surfaces = [
+                surface
+                for surface in surfaces
+                if same_size(surface.size, size)
+            ]
 
         if min_price is not None:
             surfaces = [

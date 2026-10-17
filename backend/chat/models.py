@@ -3,15 +3,25 @@ from __future__ import annotations
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ChatContext(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     year: int | None = Field(default=None, ge=2000, le=2100)
-    selected_months: list[int] = Field(default_factory=list)
-    portfolio_surface_ids: list[int] = Field(default_factory=list)
+    selected_months: list[int] = Field(default_factory=list, max_length=12)
+    portfolio_surface_ids: list[int] = Field(
+        default_factory=list, max_length=500
+    )
+
+    @field_validator("selected_months")
+    @classmethod
+    def validate_months(cls, value: list[int]) -> list[int]:
+        for month in value:
+            if not 1 <= month <= 12:
+                raise ValueError(f"Некорректный месяц: {month}")
+        return list(dict.fromkeys(value))
 
 
 class ChatMessageRequest(BaseModel):
@@ -23,6 +33,14 @@ class ChatMessageRequest(BaseModel):
     context: ChatContext | None = None
     # Идентификатор чатика в интерфейсе (для журнала и группировки).
     chat_key: str | None = Field(default=None, max_length=64)
+
+    @field_validator("message")
+    @classmethod
+    def strip_message(cls, value: str) -> str:
+        text = value.strip()
+        if not text:
+            raise ValueError("Сообщение не может быть пустым")
+        return text
 
 
 class ChatSessionResponse(BaseModel):
@@ -46,7 +64,7 @@ class ChatQuery(BaseModel):
     address: str | None = None
     media_type: str | None = None
     size: str | None = None
-    year: int
+    year: int | None = None
     month: int | None = None
     months: list[int] = Field(default_factory=list)
     period_mode: Literal["ANY", "ALL"] = "ANY"
@@ -105,6 +123,7 @@ class ChatMessageResponse(BaseModel):
     pending: bool
     answer: str
     source: Literal["rules", "llm", "fallback"] = "rules"
+    answer_source: Literal["rules", "llm"] | None = None
     query: ChatQuery | None = None
     clarification: ChatClarification | None = None
     results: ChatResults = Field(default_factory=lambda: ChatResults(count=0))

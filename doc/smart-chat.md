@@ -16,10 +16,14 @@ bridge**, а не отдельная поисковая система: осно
 | POST | `/api/chat/reset` | сбросить сессию |
 
 - Фронтенд create-эндпоинт **не вызывает** — сессия создаётся неявно в `/message`.
-- Ошибки: `400` (не распознан запрос / нет периода для FREE), `410` (сессия не
-  найдена), `404` (reset).
-- Модели — `extra="forbid"`; `message` — 1…2000 символов.
-- **Rate-limit для чата не задан** (в in-memory лимитере `main.py` путей `/api/chat*` нет).
+- Ошибки: `400` (не распознан запрос / нет периода для FREE), `404` (reset).
+  `410` больше не используется: неизвестная сессия прозрачно создаёт новую.
+- Модели — `extra="forbid"`; `message` — 1…2000 символов; `context.selected_months`
+  ограничен 12 значениями 1…12, `portfolio_surface_ids` — 500.
+- **Rate-limit** — prefix-правила `/api/chat` (по умолчанию 60/мин с IP) и
+  `/api/search` (30/мин): `ALBION_RATE_CHAT_PER_MIN`, `ALBION_RATE_SEARCH_PER_MIN`.
+  Лимитер процесс-локальный; за несколькими воркерами дополнительно нужен
+  `limit_req` в nginx.
 
 ## Поток обработки сообщения (`ChatService.message`)
 
@@ -32,7 +36,10 @@ bridge**, а не отдельная поисковая система: осно
    «…район» в поле города, `period_mode="ALL"` для списка/диапазона месяцев.
    Ошибка парсера добавляется в `warnings`, разбор продолжается.
 5. **LLM-fallback** — только если парсер не дал уточнения и ограничений и LLM включена
-   (`llm.extract`); иначе — `ValueError` «Не удалось распознать запрос…».
+   (`llm.extract`). Ответ проходит `backend/chat/query_validation.py`: пустые/`null`
+   поля отбрасываются, проверяются месяцы 1…12, год 2000…2100, лимит 1…1000,
+   цены/загрузка, `sort_by` и `availability`. Ответ, где все поля `null`, считается
+   неуспешным — иначе поиск без ограничений вернул бы весь каталог.
 6. **Контекст из UI** — `context.year` переопределяет год, `context.selected_months`
    подставляется, если в запросе нет периода.
 7. **Ветка уточнения** — сохраняем `PendingSearchQuery`, отвечаем `pending=true` с
@@ -46,26 +53,43 @@ bridge**, а не отдельная поисковая система: осно
 
 ## Состояние сессий
 
-- **По умолчанию — процесс-локальный** `ChatStore`: TTL **45 минут**, кэш до **20**
-  ответов на сессию, `pending` и `last_result_ids`. Просроченные удаляются при обращении.
-- **Опционально — PostgreSQL** (`postgres_store.py`), включается `ALBION_CHAT_PERSIST`
-  (после миграции). `get()` берёт строку `FOR UPDATE`; ответы — upsert по
-  `(session_id, request_id)`. Таблицы: `chat_sessions`, `chat_requests`.
+- **По умолчанию — PostgreSQL** (`ALBION_CHAT_STORE=auto`): при доступной БД и
+  применённой миграции сессии общие для всех воркеров. `ALBION_CHAT_STORE=memory`
+  оставляет процесс-локальный `ChatStore` (только разработка/один воркер),
+  `postgres` требует БД и падает на старте, если схема недоступна.
+- Ходы одной сессии сериализуются: per-session `RLock` в памяти или
+  `pg_advisory_lock` в PostgreSQL. `pending` и `last_result_ids` сохраняются
+  **каждый ход**, независимо от `request_id`.
+- `ChatStore` ограничен: `ALBION_CHAT_MAX_SESSIONS` (1000), до 20 ответов на
+  сессию. PostgreSQL-store чистит истёкшие сессии и старые `chat_requests`
+  (`ALBION_CHAT_REQUEST_RETENTION_DAYS`, по умолчанию 7).
+- Миграции: `python -m backend.migrations.migrate_chat` и
+  `python -m backend.migrations.migrate_chat_v2` (колонка `state_version`,
+  индекс по `chat_requests.created_at`).
 - **Журнал** (всегда, отдельно от сессий) — `chat_turns` (`migrate_chat_log`):
   вопрос/ответ, `chat_key`, признак `selected`. Пишется только текст, без медиа и
   перс. данных. Админ-эндпоинты: `GET /api/admin/chat-log`,
   `POST /api/admin/chat-log/selection`, `GET /api/admin/chat-log/export`.
-- Явного фонового удаления просроченных сессий в коде нет.
 
 ## LLM-fallback (`backend/chat/llm.py`)
 
 - По умолчанию **выключена** (`ALBION_CHAT_LLM_ENABLED`); провайдеры: `ollama`
   (default) и `openai`/`openai_compatible`. HTTP — только stdlib `urllib`.
-- Env: `ALBION_CHAT_LLM_PROVIDER`, `ALBION_CHAT_LLM_BASE_URL`, `ALBION_CHAT_LLM_MODEL`,
-  `ALBION_CHAT_LLM_API_KEY`, `ALBION_CHAT_LLM_TIMEOUT` (default 10 с).
-- Ответ валидируется: только объект JSON, значения — по белому списку ключей
+- Env: `ALBION_CHAT_LLM_PROVIDER`, `ALBION_CHAT_LLM_BASE_URL`, `ALBION_CHAT_LLM_MODEL`
+  (default `qwen3:14b`), `ALBION_CHAT_LLM_API_KEY`, `ALBION_CHAT_LLM_TIMEOUT`
+  (default 10 с), `ALBION_CHAT_LLM_ANSWER_TIMEOUT` (20 с),
+  `ALBION_CHAT_LLM_MAX_CONCURRENCY` (1), `ALBION_CHAT_LLM_QUEUE_TIMEOUT` (5 с).
+- **Два режима:** извлечение сущностей (`extract`, JSON) и живые ответы
+  (`answer`, 2–4 предложения строго по найденным результатам). Второй отключается
+  `ALBION_CHAT_LLM_ANSWERS=false`; при любой ошибке/таймауте используется
+  детерминированный `format_answer`. Точное число найденных вариантов добавляет
+  сервер, а не модель.
+- Ответ LLM валидируется: только объект JSON, значения — по белому списку ключей
   (LLM не может задать SQL/URL/идентификаторы). Ошибка/timeout → возврат пустого
   результата; сервис либо использует правила, либо отдаёт `400`. **500 не отдаётся.**
+- Для локального запуска на RTX 3060 12 ГБ проверены `qwen3:14b`
+  (извлечение ≈2.5 с, ответ ≈3–4 с) и `qwen3:8b` (ответ ≈2 с, но JSON-извлечение
+  ненадёжно). `qwen3:1.7b` быстрее, но хуже понимает русские формулировки.
 
 ## UI
 
@@ -80,22 +104,27 @@ bridge**, а не отдельная поисковая система: осно
 - `frontend/src/components/chat/SmartChatPanel.vue` — варианты `compact` (шапка) и
   `page`; результаты группируются как на карте (`groupByPoint`/`groupSides`); клик по
   фото открывает общий `usePhotoViewer`; портфель — через `usePortfolio`.
+- В ответе есть `answer_source` (`rules` или `llm`): UI может показывать, что текст
+  переформулирован моделью, сохраняя тот же блок результатов.
 - Страница `/chat` (`SmartChatPage.vue`) — сетка из 1–4 независимых чатов.
 
 ## Грабли
 
-- **Мультиворкер:** store по умолчанию процесс-локальный — сессии не общие, пока не
-  включён `ALBION_CHAT_PERSIST` (+ миграция).
+- **Мультиворкер:** PostgreSQL-store включается автоматически (`ALBION_CHAT_STORE=auto`)
+  после миграции; `memory` годится только для одного воркера.
 - **Районы хранятся как города** (например, «ОКТЯБРЬСКИЙ РАЙОН» — это `city`); сервис
   восстанавливает район из фразы «<прилагательное> район».
 - **Доступность берётся за все месяцы года**, а не только за запрошенный; фильтры по
   цене/загрузке применяются в Python (цена в БД — TEXT).
 - `source="fallback"` объявлен в модели, но сервисом не выставляется (реально
   `rules`/`llm`).
-- Поле `message.actions` (map/list/media/portfolio/export) формируется, но **UI его не
-  использует** — экспорт/карта из чата через него не подключены.
-- **Несогласованность `chat=1`:** `AdvertisingPage.vue` при `route.query.chat === '1'`
-  читает `resultIds` из `useChatWorkspace`, но этот композабл его не экспортирует, и
-  саму ссылку `/vozmozhnosti?chat=1` никто не формирует — требует починки.
+- `message.actions.map/list` UI использует для перехода на карту/список;
+  `media/portfolio/export` пока только формируются на бэкенде.
+- **`chat=1`:** `resultIds` сохраняются в `sessionStorage` (`albion_chat_result_ids`) и
+  переживают F5; `chat`/`mode` не теряются при изменении фильтров, а смена `mode` на
+  уже открытой странице применяется watcher-ом.
+- Месяцы в чате берутся из `query.month/months` ответа и `monthly_*` результатов, а
+  не из глобального списка карты.
 - Env-флаги чата читаются при импорте `backend/api/chat.py` → выставлять до старта процесса.
-- Миграции: `python -m backend.migrations.migrate_chat` и `…migrate_chat_log`.
+- Миграции: `python -m backend.migrations.migrate_chat`,
+  `…migrate_chat_v2` и `…migrate_chat_log`.

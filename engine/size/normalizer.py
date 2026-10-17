@@ -11,8 +11,7 @@ class QuerySizeNormalizer:
     PATTERN = re.compile(
         r"(?<!\d)"
         r"(\d+(?:[.,]\d+)?)"
-        r"\s*[xх×*]"
-        r"\s*"
+        r"\s*(?:[xXхХ×*]|на)\s*"
         r"(\d+(?:[.,]\d+)?)"
         r"(?!\d)",
         re.IGNORECASE,
@@ -47,7 +46,9 @@ class QuerySizeNormalizer:
         def format_number(number: float) -> str:
             if number.is_integer():
                 return str(int(number))
-            return str(number).rstrip("0").rstrip(".")
+
+            # Site data stores decimal sizes with a comma («3,77 X 2,8 Метр»).
+            return str(number).rstrip("0").rstrip(".").replace(".", ",")
 
         return (
             f"{format_number(first)} X "

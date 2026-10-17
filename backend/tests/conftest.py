@@ -25,3 +25,13 @@ def db_available() -> bool:
 requires_db = pytest.mark.skipif(
     not db_available(), reason="нет подключения к PostgreSQL"
 )
+
+
+@pytest.fixture(autouse=True)
+def _disable_chat_llm(monkeypatch):
+    """Tests must not call a real local/cloud LLM from ``.env``.
+
+    Individual tests can override this env var when they explicitly exercise
+    the LLM layer (usually with a mocked provider).
+    """
+    monkeypatch.setenv("ALBION_CHAT_LLM_ENABLED", "false")

@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.resources
 import re
 from dataclasses import replace
+from datetime import date
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -14,6 +15,10 @@ from engine.search.postgresql_chat_engine import PendingSearchQuery
 
 from backend.chat import llm
 from backend.chat.formatting import actions_for, format_answer
+from backend.chat.query_validation import (
+    meaningful,
+    validate_llm_entities,
+)
 from backend.chat.models import (
     ChatActions,
     ChatClarification,
@@ -55,6 +60,16 @@ class ChatService:
 
             path = Path(engine.__file__).parent / "dictionary" / "synonyms.json"
             return SynonymDictionary(path)
+
+    def _default_year(self) -> int:
+        for candidate in (
+            getattr(self.bridge, "default_year", None),
+            getattr(getattr(self.bridge, "repository", None), "default_year", None),
+        ):
+            if callable(candidate):
+                return int(candidate())
+
+        return date.today().year
 
     def _session(self, session_id: UUID | None) -> ChatSession:
         if session_id is None:
@@ -128,35 +143,27 @@ class ChatService:
         return value
 
     def _query_from_llm(self, text: str, values: dict[str, Any]) -> SearchQuery:
-        months = values.get("months") or []
-        if not isinstance(months, list):
-            months = []
-        months = [int(month) for month in months if str(month).isdigit()]
+        """Build a query from already-validated LLM entities."""
+        months = list(values.get("months") or [])
         month = values.get("month")
-        if len(months) == 1 and month is None:
+
+        if month is not None:
+            months = [month]
+
+        if len(months) == 1:
             month, months = months[0], []
 
-        availability = values.get("availability")
-        if availability:
-            availability = str(availability).upper()
-            if availability in {"FREE", "СВОБОДНО", "СВОБОДНЫЕ"}:
-                availability = "FREE"
-            else:
-                availability = None
-
         return SearchQuery(
-            city=self._canonical(self.dictionary, "city", values.get("city")),
+            city=values.get("city"),
             district=values.get("district"),
             address=values.get("address"),
-            media_type=self._canonical(
-                self.dictionary, "media_type", values.get("media_type")
-            ),
+            media_type=values.get("media_type"),
             size=values.get("size"),
-            year=int(values.get("year") or 2026),
-            month=int(month) if month is not None else None,
+            year=values.get("year"),
+            month=month,
             months=months,
             period_mode="ALL" if len(months) > 1 else "ANY",
-            availability=availability,
+            availability=values.get("availability"),
             load_threshold=values.get("min_load"),
             max_load=values.get("max_load"),
             min_price=values.get("min_price"),
@@ -229,13 +236,25 @@ class ChatService:
             return query, "rules", warnings, clarification
 
         extracted = llm.extract(text)
-        if extracted.values:
-            return (
-                self._query_from_llm(text, extracted.values),
-                "llm",
-                warnings,
-                None,
-            )
+        clean, llm_warnings = validate_llm_entities(
+            extracted.values,
+            self.dictionary,
+        )
+        warnings.extend(llm_warnings)
+
+        # A dict full of nulls is NOT a successful extraction: without this
+        # check SearchQuery has no constraints and returns the whole catalog.
+        if meaningful(clean):
+            try:
+                return (
+                    self._query_from_llm(text, clean),
+                    "llm",
+                    warnings,
+                    None,
+                )
+            except (TypeError, ValueError) as exc:
+                warnings.append(f"LLM-разбор отброшен: {exc}")
+
         if extracted.warning:
             warnings.append(extracted.warning)
 
@@ -267,6 +286,7 @@ class ChatService:
         items: list[dict[str, Any]] | None = None,
         suggestions: list[ChatSuggestion] | None = None,
         warnings: list[str] | None = None,
+        answer_source: str | None = None,
     ) -> ChatMessageResponse:
         items = items or []
         return ChatMessageResponse(
@@ -275,6 +295,11 @@ class ChatService:
             pending=pending,
             answer=answer,
             source=source if source in {"rules", "llm", "fallback"} else "rules",
+            answer_source=(
+                answer_source
+                if answer_source in {"rules", "llm"}
+                else None
+            ),
             query=ChatQuery.from_query(query) if query else None,
             clarification=clarification,
             results=ChatResults(count=len(items), items=items),
@@ -382,7 +407,26 @@ class ChatService:
         return result
 
     def message(self, payload: ChatMessageRequest) -> ChatMessageResponse:
-        session = self._session(payload.session_id)
+        # Serialize turns of the same session. In PostgreSQL mode the lock is
+        # an advisory lock, so it also works across uvicorn workers.
+        if payload.session_id is None:
+            session = self.store.create()
+            lock = self.store.session_lock(session.id)
+        else:
+            session = None
+            lock = self.store.session_lock(payload.session_id)
+
+        with lock:
+            if session is None:
+                session = self._session(payload.session_id)
+
+            return self._message_locked(payload, session)
+
+    def _message_locked(
+        self,
+        payload: ChatMessageRequest,
+        session: ChatSession,
+    ) -> ChatMessageResponse:
         cached = self.store.response_for(session, payload.request_id)
         if cached is not None:
             return ChatMessageResponse.model_validate(cached)
@@ -423,6 +467,9 @@ class ChatService:
                     query.months = list(context.selected_months)
                     query.period_mode = "ALL"
 
+        if query.year is None:
+            query.year = self._default_year()
+
         if clarification_text:
             session.pending = PendingSearchQuery(
                 query=query,
@@ -447,11 +494,27 @@ class ChatService:
             suggestions = self._suggestions(query, items)
 
             answer = format_answer(query, items)
+            answer_source = "rules"
+
             if not items and suggestions:
                 answer = (
                     "По заданным условиям ничего не найдено. "
                     "Ниже — похожие варианты."
                 )
+
+            # Optional "live" phrasing over the already found results.
+            # llm.answer() never queries the DB and returns None on failure.
+            if items:
+                generated = llm.answer(
+                    payload.message,
+                    query,
+                    items,
+                    total=len(items),
+                )
+
+                if generated:
+                    answer = generated
+                    answer_source = "llm"
 
             response = self._response(
                 session,
@@ -461,9 +524,14 @@ class ChatService:
                 items=items,
                 suggestions=suggestions,
                 warnings=warnings,
+                answer_source=answer_source,
             )
             session.pending = None
             session.last_result_ids = [int(item["id"]) for item in items]
+
+        # Save pending/last_result_ids regardless of request_id: a follow-up
+        # clarification must survive even when the client did not send one.
+        self.store.save_state(session)
 
         if payload.request_id is not None:
             self.store.remember_response(

@@ -62,21 +62,95 @@ def _media_path(value: Any) -> str | None:
 class SiteSurfaceMapper:
     """Map site PostgreSQL rows to albion-search SurfaceRecord objects."""
 
-    @staticmethod
-    def map(row: Any) -> SurfaceRecord:
+    @classmethod
+    def map(cls, row: Any) -> SurfaceRecord:
+        """Map one row (compatibility path for direct callers/tests)."""
         from backend.services.construction_overrides import (
             get_fields_map,
             get_overrides_map,
         )
 
-        data = dict(row)
+        return cls._map_row(
+            dict(row),
+            fields_map=get_fields_map(),
+            overrides_map=get_overrides_map(),
+        )
 
+    @classmethod
+    def map_many(
+        cls,
+        rows: Any,
+        *,
+        fields_map: dict | None = None,
+        overrides_map: dict | None = None,
+        media_map: dict | None = None,
+    ) -> list[SurfaceRecord]:
+        """Map many rows without per-row DB lookups.
+
+        ``fields_map``/``overrides_map`` are loaded once by the repository;
+        ``media_map`` contains active ``construction_media`` paths keyed by
+        ``(surface_hash, media_type)``. Duplicate rows (the availability join
+        yields one row per month) are collapsed by surface id, preserving the
+        first-seen order — the same behaviour as the previous loop.
+        """
+        from backend.services.construction_overrides import (
+            get_fields_map,
+            get_overrides_map,
+        )
+
+        fields = (
+            fields_map if fields_map is not None else get_fields_map()
+        )
+        overrides = (
+            overrides_map if overrides_map is not None else get_overrides_map()
+        )
+
+        mapped: dict[int, SurfaceRecord] = {}
+
+        for row in rows:
+            data = dict(row)
+            surface_hash = _optional_text(data.get("surface_hash"))
+
+            if surface_hash and media_map:
+                for media_type, prefix in (("photo", "photo"), ("map", "map")):
+                    paths = media_map.get((surface_hash, media_type))
+
+                    if not paths:
+                        continue
+
+                    for variant, suffix in (
+                        ("card", "card"),
+                        ("thumb", "thumb"),
+                        ("large", "large"),
+                    ):
+                        key = f"{prefix}_{suffix}"
+                        data[key] = data.get(key) or paths.get(variant)
+
+            surface = cls._map_row(
+                data,
+                fields_map=fields,
+                overrides_map=overrides,
+            )
+
+            if surface.id is not None:
+                mapped[surface.id] = surface
+
+        return list(mapped.values())
+
+    @classmethod
+    def _map_row(
+        cls,
+        data: dict,
+        *,
+        fields_map: dict,
+        overrides_map: dict,
+    ) -> SurfaceRecord:
         surface_hash = _optional_text(data.get("surface_hash"))
 
         # Временное переопределение основных полей (раздел «Конструкции»)
         # применяем до разбора адреса, чтобы поиск/чат видели новые значения.
         if surface_hash:
-            field_override = get_fields_map().get(surface_hash)
+            field_override = fields_map.get(surface_hash)
 
             if field_override:
                 for key, value in field_override.items():
@@ -121,9 +195,7 @@ class SiteSurfaceMapper:
 
         # Переопределение фото/карты из медиатеки конструкций (активный импорт).
         if surface_hash:
-            overrides = get_overrides_map()
-
-            photo_override = overrides.get((surface_hash, "photo"))
+            photo_override = overrides_map.get((surface_hash, "photo"))
 
             if photo_override:
                 metadata["photo"] = (
@@ -144,7 +216,7 @@ class SiteSurfaceMapper:
                     or photo_url
                 )
 
-            map_override = overrides.get((surface_hash, "map"))
+            map_override = overrides_map.get((surface_hash, "map"))
 
             if map_override:
                 metadata["map"] = map_override.get("card") or metadata["map"]

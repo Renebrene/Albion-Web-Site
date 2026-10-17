@@ -11,6 +11,12 @@ from engine.storage.models import (
     SurfaceRecord,
 )
 
+from backend.search.presenter import (
+    alphabetical,
+    primary_month,
+    rich_item,
+    sort_and_limit,
+)
 from backend.search.repository import SitePostgreSQLSearchRepository
 
 
@@ -126,15 +132,7 @@ class AlbionSearchBridge:
         query: SearchQuery,
         availability: Iterable[AvailabilityRecord],
     ) -> int | None:
-        records = list(availability)
-        if query.month is not None:
-            return query.month
-
-        months = query.get_months()
-        if len(months) == 1:
-            return months[0]
-
-        return min((item.month for item in records), default=None)
+        return primary_month(query, availability)
 
     @classmethod
     def _rich_item(
@@ -143,85 +141,11 @@ class AlbionSearchBridge:
         availability: list[AvailabilityRecord],
         query: SearchQuery,
     ) -> dict[str, Any]:
-        monthly: dict[str, dict[str, Any]] = {}
-        monthly_prices: dict[int, int | None] = {}
-        monthly_statuses: dict[int, str | None] = {}
-        monthly_loads: dict[int, int | None] = {}
-        month_texts: dict[int, str | None] = {}
-
-        for item in availability:
-            monthly[item.month] = {
-                "price": item.price,
-                "status": item.status,
-                "load_percent": item.load_percent,
-                "raw_value": item.raw_value,
-            }
-            monthly_prices[item.month] = item.price
-            monthly_statuses[item.month] = item.status
-            monthly_loads[item.month] = item.load_percent
-            month_texts[item.month] = item.raw_value
-
-        primary_month = cls._primary_month(query, availability)
-        selected = next(
-            (item for item in availability if item.month == primary_month),
-            None,
-        )
-        metadata = surface.metadata or {}
-        price = selected.price if selected and selected.price is not None else surface.price
-
-        selected_load = selected.load_percent if selected else None
-        if query.sort_by == "load_asc" and len(query.get_months()) > 1:
-            loads = [
-                item.load_percent
-                for item in availability
-                if item.month in query.get_months()
-                and item.load_percent is not None
-            ]
-            selected_load = round(sum(loads) / len(loads)) if loads else None
-
-        return {
-            "id": surface.id or 0,
-            "external_id": surface.external_id,
-            "city": surface.city,
-            "district": surface.district,
-            "address": surface.address,
-            "name": surface.title,
-            "title": surface.title,
-            "side": surface.side,
-            "type": metadata.get("type") or surface.media_type,
-            "media_type": surface.media_type,
-            "size": surface.size,
-            "lat": surface.latitude,
-            "lng": surface.longitude,
-            "latitude": surface.latitude,
-            "longitude": surface.longitude,
-            "light": surface.light,
-            "material": surface.material,
-            "price": price,
-            "load_percent": selected_load,
-            "status": selected.status if selected else None,
-            "raw_value": selected.raw_value if selected else None,
-            "monthly": monthly,
-            "monthly_prices": monthly_prices,
-            "monthly_statuses": monthly_statuses,
-            "monthly_loads": monthly_loads,
-            "month_texts": month_texts,
-            "photo": metadata.get("photo") or surface.photo_url,
-            "photo_url": surface.photo_url,
-            "photo_thumb": metadata.get("photo_thumb"),
-            "photo_large": metadata.get("photo_large") or surface.photo_url,
-            "map": metadata.get("map") or surface.map_url,
-            "map_thumb": metadata.get("map_thumb"),
-            "map_card": metadata.get("map_card"),
-            "map_large": metadata.get("map_large") or surface.map_url,
-        }
+        return rich_item(surface, availability, query)
 
     @staticmethod
     def _alphabetical(value: Any) -> str:
-        """Case-insensitive, whitespace-collapsed key for tie ordering."""
-        return " ".join(
-            str(value or "").casefold().replace("ё", "е").split()
-        )
+        return alphabetical(value)
 
     @classmethod
     def _sort_and_limit(
@@ -229,39 +153,16 @@ class AlbionSearchBridge:
         items: list[dict[str, Any]],
         query: SearchQuery,
     ) -> list[dict[str, Any]]:
-        # Equal percentage/price items must fall back to alphabetical order.
-        def tail(item: dict[str, Any]):
-            return (
-                cls._alphabetical(item.get("city")),
-                cls._alphabetical(item.get("address")),
-                cls._alphabetical(item.get("side")),
-                item.get("id") or 0,
-            )
-
-        if query.sort_by == "price_asc":
-            items.sort(
-                key=lambda item: (
-                    item["price"] is None,
-                    item["price"] if item["price"] is not None else 0,
-                    *tail(item),
-                )
-            )
-        elif query.sort_by == "load_asc":
-            items.sort(
-                key=lambda item: (
-                    item["load_percent"] is None,
-                    item["load_percent"]
-                    if item["load_percent"] is not None
-                    else 101,
-                    *tail(item),
-                )
-            )
-
-        if query.limit is not None:
-            return items[: query.limit]
-        return items
+        return sort_and_limit(items, query)
 
     def search_rich(self, query: SearchQuery) -> list[dict[str, Any]]:
+        if query.year is None:
+            from datetime import date
+
+            resolver = getattr(self.repository, "default_year", None)
+            year = resolver() if callable(resolver) else date.today().year
+            query = replace(query, year=year)
+
         surfaces = self._surfaces(query)
         availability = self._availability(surfaces, query)
         items = [

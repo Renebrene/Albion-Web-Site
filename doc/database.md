@@ -14,7 +14,7 @@
 
 Регенерация: `.venv/bin/python scripts/gen_db_doc.py`.
 
-> Всего таблиц: 55, представлений: 2. 
+> Всего таблиц: 57, представлений: 2.
 > 🔑 — колонка первичного ключа.
 
 ## Расширения
@@ -153,6 +153,7 @@
 | created_at | timestamp with time zone | нет | `now()` |
 | updated_at | timestamp with time zone | нет | `now()` |
 | expires_at | timestamp with time zone | нет |  |
+| state_version | bigint | нет | `1` |
 
 ### chat_turns
 
@@ -184,12 +185,21 @@
 | Колонка | Тип | NULL | По умолчанию |
 |---|---|---|---|
 | 🔑 id | bigint | нет | `nextval('client_requests_id_seq'::regclass)` |
-| account_id | bigint | нет |  |
+| account_id | bigint | да |  |
 | title | text | нет | `''::text` |
 | surface_id | bigint | да |  |
 | payload | jsonb | нет | `'{}'::jsonb` |
 | status | text | нет | `'new'::text` |
 | created_at | timestamp with time zone | нет | `now()` |
+| updated_at | timestamp with time zone | нет | `now()` |
+
+### construction_field_overrides
+
+| Колонка | Тип | NULL | По умолчанию |
+|---|---|---|---|
+| 🔑 surface_hash | text | нет |  |
+| import_id | bigint | да |  |
+| fields | jsonb | нет | `'{}'::jsonb` |
 | updated_at | timestamp with time zone | нет | `now()` |
 
 ### construction_imports
@@ -223,6 +233,21 @@
 | updated_at | timestamp with time zone | нет | `now()` |
 | surface_hash | text | да |  |
 | import_id | bigint | да |  |
+
+### construction_media_overrides
+
+| Колонка | Тип | NULL | По умолчанию |
+|---|---|---|---|
+| 🔑 id | bigint | нет | `nextval('construction_media_overrides_id_seq'::regclass)` |
+| import_id | bigint | да |  |
+| surface_hash | text | нет |  |
+| media_type | text | нет | `'photo'::text` |
+| large_path | text | да |  |
+| card_path | text | да |  |
+| thumb_path | text | да |  |
+| original_name | text | да |  |
+| created_at | timestamp with time zone | нет | `now()` |
+| updated_at | timestamp with time zone | нет | `now()` |
 
 ### constructions
 

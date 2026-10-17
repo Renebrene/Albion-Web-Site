@@ -16,7 +16,7 @@ class SearchQuery:
     media_type: str | None = None
     size: str | None = None
 
-    year: int = 2026
+    year: int | None = None
     month: int | None = None
     months: list[int] = field(default_factory=list)
 
@@ -34,6 +34,9 @@ class SearchQuery:
     limit: int | None = None
 
     def __post_init__(self):
+        if self.year is not None and not 2000 <= self.year <= 2100:
+            raise ValueError("year должен быть от 2000 до 2100")
+
         if self.period_mode not in {"ANY", "ALL"}:
             raise ValueError(
                 "period_mode должен быть ANY или ALL"
@@ -80,9 +83,9 @@ class SearchQuery:
                 "max_load должен быть от 0 до 100"
             )
 
-        if self.limit is not None and self.limit <= 0:
+        if self.limit is not None and not 1 <= self.limit <= 1000:
             raise ValueError(
-                "limit должен быть больше 0"
+                "limit должен быть от 1 до 1000"
             )
 
     def get_months(self) -> list[int]:

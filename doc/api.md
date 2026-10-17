@@ -2,7 +2,7 @@
 
 # API — справочник эндпоинтов
 
-Сгенерировано из OpenAPI (`/openapi.json`). Версия приложения: `1.0.0`. Путей: 113, операций: 145.
+Сгенерировано из OpenAPI (`/openapi.json`). Версия приложения: `1.0.0`. Путей: 116, операций: 148.
 
 Регенерация: `.venv/bin/python scripts/gen_api_doc.py`.
 
@@ -171,6 +171,13 @@
 | PATCH | `/api/admin/requests/{request_id}` | Admin Set Request Status |
 | DELETE | `/api/admin/requests/{request_id}` | Admin Delete Request |
 
+## admin-search
+
+| Метод | Путь | Описание |
+|---|---|---|
+| GET | `/api/admin/search/catalog` | Catalog Info |
+| POST | `/api/admin/search/catalog/reload` | Catalog Reload |
+
 ## admin-seo
 
 | Метод | Путь | Описание |
@@ -242,6 +249,12 @@
 | Метод | Путь | Описание |
 |---|---|---|
 | POST | `/api/requests` | Create Public Request |
+
+## search-v2
+
+| Метод | Путь | Описание |
+|---|---|---|
+| POST | `/api/search/v2` | Search V2 |
 
 ## seo
 
