@@ -17,6 +17,17 @@ PROJECT_DIR = Path(__file__).resolve().parents[2]
 load_env_file(PROJECT_DIR / ".env")
 
 
+def _pool_setting(name: str, default: int, *, minimum: int) -> int:
+    raw = os.getenv(name, str(default)).strip()
+    try:
+        value = int(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} должен быть целым числом") from exc
+    if value < minimum:
+        raise ValueError(f"{name} должен быть не меньше {minimum}")
+    return value
+
+
 class SitePostgreSQLSearchRepository:
     """
     Read-only repository adapter for the existing site PostgreSQL schema.
@@ -48,8 +59,8 @@ class SitePostgreSQLSearchRepository:
             f"@{host}:{port}/{dbname}"
         )
 
-        pool_size = int(os.getenv("ALBION_DB_POOL_SIZE", "5"))
-        max_overflow = int(os.getenv("ALBION_DB_MAX_OVERFLOW", "10"))
+        pool_size = _pool_setting("ALBION_DB_POOL_SIZE", 1, minimum=1)
+        max_overflow = _pool_setting("ALBION_DB_MAX_OVERFLOW", 0, minimum=0)
 
         return create_engine(
             url,

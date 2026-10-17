@@ -156,13 +156,22 @@ def get_news():
 
             result = []
 
+            media_by_news: dict[int, list] = {}
+            news_ids = [row[0] for row in news_rows]
+            if news_ids:
+                batch_media_sql = media_sql.replace(
+                    "SELECT\n            m.id,",
+                    "SELECT\n            nm.news_id,\n            m.id,",
+                ).replace(
+                    "WHERE nm.news_id = %s",
+                    "WHERE nm.news_id = ANY(%s)",
+                )
+                cur.execute(batch_media_sql, (news_ids,))
+                for media_row in cur.fetchall():
+                    media_by_news.setdefault(media_row[0], []).append(media_row[1:])
+
             for news_row in news_rows:
-                news_id = news_row[0]
-
-                cur.execute(media_sql, (news_id,))
-                media_rows = cur.fetchall()
-
-                result.append(_news_item(news_row, media_rows))
+                result.append(_news_item(news_row, media_by_news.get(news_row[0], [])))
 
     return result
 

@@ -1,0 +1,8 @@
+# Подключите этот файл внутри блока http {} основного nginx.conf:
+# include /etc/nginx/snippets/albion-rate-limit.conf;
+#
+# Лимиты общие для всех uvicorn workers и не зависят от их количества.
+# Лимиты backend остаются вторым защитным слоем для прямого доступа к :8000.
+
+limit_req_zone $binary_remote_addr zone=albion_search:10m rate=30r/m;
+limit_req_zone $binary_remote_addr zone=albion_chat:10m rate=60r/m;

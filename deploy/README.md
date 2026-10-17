@@ -14,6 +14,14 @@
 | `ALBION_SERVE_SPA` | `1` — backend сам отдаёт собранный `frontend/dist/spa` с history-fallback (если нет nginx) |
 | `ALBION_SMTP_HOST/PORT/USER/PASSWORD/FROM` | SMTP для уведомлений о заявках (адрес получателя задаётся в админке: Пользователи → Заявки) |
 | `ALBION_SMTP_TLS` | `0` — отключить STARTTLS (по умолчанию включён) |
+| `ALBION_DB_POOL_SIZE` | SQLAlchemy-пул поиска на один worker; по умолчанию `1` |
+| `ALBION_DB_MAX_OVERFLOW` | Дополнительные search-соединения на worker; по умолчанию `0` |
+
+Пул поиска ограничен отдельно в каждом uvicorn worker. Максимум его соединений
+считается так: `workers × (ALBION_DB_POOL_SIZE + ALBION_DB_MAX_OVERFLOW)`.
+При стандартных 6 workers это 6 соединений. Прямые подключения сервисов через
+`data_service.get_connection()` в этот расчёт не входят и будут оптимизироваться
+отдельным этапом.
 
 Запуск: `.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000`
 
@@ -33,6 +41,13 @@
 Готовый пример — `deploy/nginx.conf.example`: history-fallback SPA
 (`try_files … /index.html`), прокси `/api` и `/storage`, кэш ассетов и
 CSP-заголовок для боевого домена.
+
+Для production подключите в `http {}` также `deploy/nginx-rate-limit.conf.example`.
+Он задаёт общие для всех uvicorn workers лимиты `/api/search` (30 запросов/минуту
+на IP) и `/api/chat` (60 запросов/минуту на IP). В server-блоке эти зоны
+применяются к соответствующим regex-location с небольшим burst. Backend-лимит
+остаётся дополнительной защитой при прямом доступе к uvicorn; порт 8000 не следует
+публиковать наружу.
 
 ## Тесты
 
