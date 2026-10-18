@@ -478,14 +478,17 @@ onMounted(async () => {
 
 <style scoped>
 .header {
-  height: 78px;
+  /* Высота минимальная, а не фиксированная: при нехватке ширины
+     навигация переносится на следующую строку, а не наезжает на телефон. */
+  min-height: 78px;
+  height: auto;
 
   display: flex;
   align-items: center;
 
   gap: 20px;
 
-  padding: 0 24px;
+  padding: 8px 24px;
 
   background: #fff;
 
@@ -496,6 +499,18 @@ onMounted(async () => {
   top: 0;
   z-index: 1000;
 
+  /* Переносим целые пункты, а не текст внутри них */
+  white-space: normal;
+}
+
+/* Элементы, которые должны оставаться одной строкой */
+.address,
+.emails,
+.header-nav a,
+.header-nav .nav-portfolio,
+.phone,
+.socials,
+.smart-chat {
   white-space: nowrap;
 }
 
@@ -577,8 +592,10 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
 
-  gap: 22px;
+  /* Нижний отступ ряда вмещает подчёркивание активного пункта */
+  gap: 12px 22px;
 
   min-width: 0;
 }
@@ -896,7 +913,7 @@ onMounted(async () => {
 @media (max-width: 1450px) {
   .header {
     gap: 14px;
-    padding: 0 18px;
+    padding: 8px 18px;
   }
 
   .header-contact {
@@ -904,7 +921,7 @@ onMounted(async () => {
   }
 
   .header-nav {
-    gap: 14px;
+    gap: 12px 14px;
   }
 
   .header-nav a {
@@ -992,6 +1009,7 @@ onMounted(async () => {
 
 @media (max-width: 900px) {
   .header {
+    min-height: 64px;
     height: 64px;
   }
 
