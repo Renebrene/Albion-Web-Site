@@ -13,6 +13,23 @@ from psycopg.types.json import Json
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 DEFAULT_STAGING_DB = PROJECT_DIR / "tmp" / "import"
 
+# Таблицы, которые полностью пересоздаются импортом. После COMMIT
+# autovacuum может обновить статистику не сразу, поэтому ANALYZE выполняем
+# явно, пока транзакция импорта ещё открыта: планировщик получает свежие
+# оценки сразу после загрузки.
+ANALYZE_TABLES = (
+    "construction_imports",
+    "cities",
+    "constructions",
+    "surfaces",
+    "surface_availability",
+    "construction_media",
+)
+
+
+def analyze_loaded_tables(conn) -> None:
+    conn.execute("ANALYZE " + ", ".join(ANALYZE_TABLES))
+
 
 def db_connection():
     return psycopg.connect(
@@ -864,6 +881,12 @@ def main() -> None:
                 print("PostgreSQL: НЕ ИЗМЕНЁН")
                 print("DRY-RUN: PASS")
             else:
+                print()
+                print("ANALYZE")
+                print("-" * 70)
+                analyze_loaded_tables(pg_conn)
+                print("planner statistics updated")
+
                 pg_conn.commit()
                 write_load_result(
                     staging_path.parent.name,
