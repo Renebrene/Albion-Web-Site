@@ -62,7 +62,18 @@ def _url(rel_path: str | None) -> str:
     if not rel_path:
         return ""
 
-    return "/" + str(rel_path).lstrip("/")
+    url = "/" + str(rel_path).lstrip("/")
+    path = PROJECT_DIR / str(rel_path)
+
+    try:
+        # Override-файлы перезаписываются под тем же именем; версия по
+        # mtime заставляет браузер запросить новое фото после замены.
+        path.resolve().relative_to(PROJECT_DIR.resolve())
+        version = int(path.stat().st_mtime)
+    except (OSError, ValueError):
+        return url
+
+    return f"{url}?v={version}"
 
 
 def get_overrides_map(force: bool = False) -> dict:
@@ -88,9 +99,10 @@ def get_overrides_map(force: bool = False) -> dict:
             _CACHE["map"] = {}
             return {}
 
-        if not force and _CACHE["key"] == import_id:
-            _CACHE["stamp"] = stamp
-            return _CACHE["map"]
+        # Важно: при смене stamp нельзя возвращать старый map только потому,
+        # что import_id не изменился. Правка медиа в админке не создаёт новый
+        # импорт, поэтому такой shortcut оставлял другие worker'ы со старыми
+        # путями до перезапуска процесса.
 
         rows = conn.execute(
             """
@@ -342,9 +354,8 @@ def get_fields_map(force: bool = False) -> dict:
             _FIELD_CACHE["map"] = {}
             return {}
 
-        if not force and _FIELD_CACHE["key"] == import_id:
-            _FIELD_CACHE["stamp"] = stamp
-            return _FIELD_CACHE["map"]
+        # См. комментарий в get_overrides_map: смена stamp должна всегда
+        # приводить к перечитыванию БД, даже если import_id тот же.
 
         rows = conn.execute(
             """

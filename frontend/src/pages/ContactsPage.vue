@@ -1,8 +1,36 @@
 <template>
   <q-page class="contacts-page">
-    <ContactsOffices :offices="activeOffices" />
+    <h1 class="sr-only">Контакты</h1>
 
-    <ContactsEmployees :departments="activeDepartments" />
+    <div v-if="loading" class="contacts-state" role="status">
+      Загрузка контактов…
+    </div>
+
+    <div
+      v-else-if="loadError"
+      class="contacts-state contacts-state--error"
+      role="alert"
+    >
+      <p>{{ loadError }}</p>
+      <button type="button" class="contacts-retry" @click="reloadContacts">
+        Повторить
+      </button>
+    </div>
+
+    <div
+      v-else-if="!activeOffices.length && !activeDepartments.length"
+      class="contacts-state"
+    >
+      <p
+        >Контакты временно недоступны. Позвоните нам по телефону из шапки
+        сайта.</p
+      >
+    </div>
+
+    <template v-else>
+      <ContactsOffices :offices="activeOffices" />
+      <ContactsEmployees :departments="activeDepartments" />
+    </template>
   </q-page>
 </template>
 
@@ -18,18 +46,32 @@ const contacts = ref({
   offices: [],
   departments: []
 })
+const loading = ref(true)
+const loadError = ref('')
 
-onMounted(async () => {
+async function reloadContacts() {
+  loading.value = true
+  loadError.value = ''
+
   try {
     const data = await getContacts()
 
-    if (data && typeof data === 'object') {
-      contacts.value = data
+    if (!data || typeof data !== 'object') {
+      throw new Error('Некорректный ответ /api/contacts')
     }
+
+    contacts.value = data
   } catch (error) {
+    contacts.value = { offices: [], departments: [] }
+    loadError.value =
+      'Не удалось загрузить контакты. Проверьте соединение и повторите.'
     console.error('Не удалось загрузить контакты:', error)
+  } finally {
+    loading.value = false
   }
-})
+}
+
+onMounted(reloadContacts)
 
 const activeOffices = computed(() =>
   (contacts.value.offices || [])
@@ -54,5 +96,42 @@ const activeDepartments = computed(() =>
 .contacts-page {
   background: #f4f6f7;
   color: #17212b;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.contacts-state {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 90px 24px;
+  color: #52606a;
+  font-size: 15px;
+  text-align: center;
+}
+
+.contacts-state--error {
+  color: #8f1d16;
+}
+
+.contacts-retry {
+  margin-top: 14px;
+  padding: 10px 18px;
+  border: 1px solid var(--albion-accent, #e12a1f);
+  border-radius: 8px;
+  background: var(--albion-accent, #e12a1f);
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
 }
 </style>

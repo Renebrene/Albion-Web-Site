@@ -302,11 +302,10 @@ def _format_body(request: dict) -> str:
     return "\n".join(lines)
 
 
-def notify_new_request(request: dict) -> dict:
-    """Отправляет уведомление о новой заявке.
+def _send_notification(subject: str, body: str) -> dict:
+    """Общая отправка на адрес(а) из настроек админки.
 
-    Возвращает результат отправки: ``{"sent": bool, ...}``. Никогда не
-    бросает исключение — заявка важнее уведомления.
+    Никогда не бросает исключение — сохранение заявки важнее уведомления.
     """
     try:
         settings = get_notify_settings()
@@ -337,10 +336,10 @@ def notify_new_request(request: dict) -> dict:
     password = os.getenv("ALBION_SMTP_PASSWORD", "")
 
     message = EmailMessage()
-    message["Subject"] = f"Заявка с сайта: {request.get('title') or 'новая'}"
+    message["Subject"] = subject
     message["From"] = _smtp_from()
     message["To"] = ", ".join(recipients)
-    message.set_content(_format_body(request))
+    message.set_content(body)
 
     try:
         with smtplib.SMTP(host, port, timeout=15) as smtp:
@@ -355,3 +354,33 @@ def notify_new_request(request: dict) -> dict:
         return {"sent": False, "reason": str(exc)}
 
     return {"sent": True, "to": recipients}
+
+
+def _format_feedback(feedback: dict) -> str:
+    return "\n".join(
+        [
+            "Новое сообщение с формы обратной связи",
+            "",
+            f"Имя:      {feedback.get('name') or '—'}",
+            f"Телефон:  {feedback.get('phone') or '—'}",
+            f"Сообщение: {feedback.get('message') or '—'}",
+            "",
+            f"Получено: {feedback.get('created_at') or ''}",
+        ]
+    )
+
+
+def notify_new_request(request: dict) -> dict:
+    """Отправляет уведомление о новой заявке."""
+    return _send_notification(
+        f"Заявка с сайта: {request.get('title') or 'новая'}",
+        _format_body(request),
+    )
+
+
+def notify_new_feedback(feedback: dict) -> dict:
+    """Отправляет сообщение формы обратной связи на почту из админки."""
+    return _send_notification(
+        "Сообщение с формы обратной связи",
+        _format_feedback(feedback),
+    )

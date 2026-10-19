@@ -1,5 +1,18 @@
 <template>
   <section ref="rootRef" class="home-slider">
+    <div v-if="loading" class="home-state" role="status">
+      Загрузка главной страницы…
+    </div>
+
+    <div
+      v-else-if="loadError"
+      class="home-state home-state--error"
+      role="alert"
+    >
+      <p>{{ loadError }}</p>
+      <button type="button" class="slide-btn" @click="load"> Повторить </button>
+    </div>
+
     <div
       class="slides-track"
       :style="{ transform: `translateY(${-index * 100}%)` }"
@@ -594,6 +607,8 @@ import { safeCmsUrl } from '../../utils/safeCmsUrl'
 const rootRef = ref(null)
 const slides = ref([])
 const index = ref(0)
+const loading = ref(true)
+const loadError = ref('')
 
 /*
  * Ленивая загрузка фонов слайдов.
@@ -918,14 +933,27 @@ let wheelLock = 0
 let deckWheelLock = 0
 
 async function load() {
+  loading.value = true
+  loadError.value = ''
+
   try {
     const res = await fetch('/api/home')
+
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`)
+    }
+
     const data = await res.json()
     slides.value = Array.isArray(data.slides) ? data.slides : []
   } catch (exc) {
     slides.value = []
+    loadError.value =
+      'Не удалось загрузить главную страницу. Проверьте соединение и повторите.'
+    loading.value = false
     return
   }
+
+  loading.value = false
 
   const kinds = new Set(slides.value.map(s => s.kind))
 
@@ -1111,19 +1139,39 @@ function fanStyle(i) {
 }
 
 async function submitFeedback() {
+  formError.value = ''
+
+  if (!form.value.name.trim()) {
+    formError.value = 'Укажите имя.'
+    return
+  }
+
+  const phoneDigits = form.value.phone.replace(/\D/g, '')
+
+  if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+    formError.value = 'Укажите телефон в формате +7 (999) 123-45-67.'
+    return
+  }
+
   sending.value = true
   sent.value = false
-  formError.value = ''
 
   try {
     const res = await fetch('/api/feedback', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form.value)
+      body: JSON.stringify({
+        name: form.value.name.trim(),
+        phone: form.value.phone.trim(),
+        message: form.value.message.trim()
+      })
     })
 
     if (!res.ok) {
-      throw new Error('Не удалось отправить')
+      const data = await res.json().catch(() => ({}))
+      throw new Error(
+        data?.detail || `Не удалось отправить (HTTP ${res.status})`
+      )
     }
 
     sent.value = true
@@ -1299,6 +1347,28 @@ onBeforeUnmount(() => {
   z-index: 1;
   overflow: hidden;
   background: #2a2e34;
+}
+
+.home-state {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-content: center;
+  gap: 16px;
+  padding: 24px;
+  color: #fff;
+  font-size: 15px;
+  text-align: center;
+  background: rgba(20, 24, 29, 0.92);
+}
+
+.home-state--error {
+  color: #ffd7d2;
+}
+
+.home-state .slide-btn {
+  justify-self: center;
 }
 
 .slides-track {
@@ -2364,6 +2434,11 @@ onBeforeUnmount(() => {
   color: #fff;
   font-size: 14px;
   outline: none;
+}
+
+.fb-input:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .fb-input::placeholder {

@@ -309,7 +309,7 @@ watch([filteredNews, loading], async () => {
   border: 0;
   border-radius: 7px;
   background: transparent;
-  color: #71808c;
+  color: #5b6873;
   cursor: pointer;
   font-size: 10px;
   font-weight: 750;

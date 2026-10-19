@@ -552,14 +552,16 @@ def load_media(
     из media_plan.json.
 
     - REUSE переносит записи старой ACTIVE версии;
-    - DOWNLOAD берёт только успешно скачанные media;
-    - media с ошибкой скачивания пропускаются
-      (без fallback на старое медиа).
+    - DOWNLOAD берёт успешно скачанные media;
+    - если скачивание/превью не удалось, preview-стадия копирует старые
+      превью в новый импорт и помечает запись `fallback=True`;
+    - media без старой версии и с ошибкой пропускаются.
     """
     plan = read_media_plan(staging_path)
     entries: list[dict] = plan["entries"]
 
     inserted = 0
+    fallbacks = 0
     skipped_errors = 0
     skipped_no_surface = 0
 
@@ -622,8 +624,12 @@ def load_media(
 
             inserted += 1
 
+            if entry.get("fallback"):
+                fallbacks += 1
+
     return {
         "inserted": inserted,
+        "fallbacks": fallbacks,
         "skipped_errors": skipped_errors,
         "skipped_no_surface": skipped_no_surface,
     }
@@ -758,6 +764,7 @@ def perform_load(
         "surfaces": surfaces,
         "availability": availability,
         "media": media_result["inserted"],
+        "media_fallbacks": media_result["fallbacks"],
         "media_skipped_errors": (
             media_result["skipped_errors"]
         ),
@@ -868,6 +875,10 @@ def main() -> None:
             print(
                 f"{'new media':24} "
                 f"{result['media']}"
+            )
+            print(
+                f"{'media fallbacks':24} "
+                f"{result['media_fallbacks']}"
             )
             print(
                 f"{'media errors skipped':24} "

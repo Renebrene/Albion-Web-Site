@@ -580,10 +580,22 @@ def create_feedback(data: dict) -> dict:
                 (name, phone, message),
             ).fetchone()
 
-    return {
+    feedback = {
         "id": row[0],
         "created_at": row[1].isoformat() if row[1] else None,
+        "name": name,
+        "phone": phone,
+        "message": message,
     }
+
+    try:
+        from backend.services.requests_service import notify_new_feedback
+
+        feedback["notify"] = notify_new_feedback(feedback)
+    except Exception as exc:  # noqa: BLE001 — уведомление не ломает форму
+        feedback["notify"] = {"sent": False, "reason": str(exc)}
+
+    return feedback
 
 
 def list_feedback() -> list[dict]:

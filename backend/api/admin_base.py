@@ -195,7 +195,7 @@ def site_backup_restore(
 
 
 @router.post("/upload")
-async def upload(
+def upload(
     file: UploadFile = File(...),
     auth=Depends(require_admin),
 ):

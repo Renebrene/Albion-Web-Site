@@ -15,7 +15,7 @@ from pathlib import Path
 
 from backend.services.data_service import (
     get_base_stats,
-    get_connection,
+    get_raw_connection,
     invalidate_data_cache,
 )
 from typing import Optional
@@ -154,6 +154,11 @@ _LOCK_CONN = None
 # Пользователь запросил остановку — чтобы монитор пометил прогон как
 # «остановлен», а не «ошибка».
 _STOP_REQUESTED = False
+
+# Межпроцессное состояние прогона: PID нужен, чтобы «Стоп» и проверка
+# занятости работали из любого uvicorn worker, а не только из запустившего.
+RUN_STATE_FILE = TMP_DIR / "update_run.json"
+STOP_FILE = TMP_DIR / "update_stop_requested"
 
 
 # ---------------------------------------------------------------- утилиты
@@ -527,6 +532,72 @@ def _is_running() -> bool:
     return _PROCESS is not None and _PROCESS.poll() is None
 
 
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    except (TypeError, ValueError, OSError):
+        return False
+
+    return True
+
+
+def _read_run_state() -> dict:
+    try:
+        payload = json.loads(
+            RUN_STATE_FILE.read_text(encoding="utf-8")
+        )
+    except (OSError, ValueError):
+        return {}
+
+    return payload if isinstance(payload, dict) else {}
+
+
+def _write_run_state(pid: int, dry_run: bool) -> None:
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+    temporary = RUN_STATE_FILE.with_suffix(".tmp")
+    temporary.write_text(
+        json.dumps(
+            {
+                "pid": int(pid),
+                "dry_run": bool(dry_run),
+                "started_at": _now(),
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    os.replace(temporary, RUN_STATE_FILE)
+
+
+def _clear_run_state() -> None:
+    try:
+        RUN_STATE_FILE.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def _external_run_pid() -> int | None:
+    """PID живого импорта из другого worker или None."""
+    state = _read_run_state()
+    pid = state.get("pid")
+
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        _clear_run_state()
+        return None
+
+    if not _pid_alive(pid):
+        _clear_run_state()
+        return None
+
+    return pid
+
+
 def _acquire_update_lock() -> bool:
     """Взять advisory-lock обновления (межпроцессная защита).
 
@@ -539,7 +610,7 @@ def _acquire_update_lock() -> bool:
     if _LOCK_CONN is not None:
         return True
 
-    conn = get_connection()
+    conn = get_raw_connection()
 
     try:
         with conn.cursor() as cur:
@@ -585,12 +656,16 @@ def start_update(
     global _PROCESS, _STOP_REQUESTED
 
     with _LOCK:
-        if _is_running():
+        if _is_running() or _external_run_pid() is not None:
             raise RuntimeError(
                 "Обновление уже выполняется"
             )
 
         _STOP_REQUESTED = False
+        try:
+            STOP_FILE.unlink(missing_ok=True)
+        except OSError:
+            pass
 
         # В input/ должен быть ровно один Excel
         sources = [
@@ -699,6 +774,8 @@ def start_update(
                 start_new_session=True,
             )
 
+            _write_run_state(_PROCESS.pid, dry_run)
+
             threading.Thread(
                 target=_monitor,
                 args=(_PROCESS, dry_run, log_handle),
@@ -732,12 +809,26 @@ def stop_update() -> dict:
 
     with _LOCK:
         process = _PROCESS
+        pid = None
 
-        if process is None or process.poll() is not None:
+        if process is not None and process.poll() is None:
+            pid = process.pid
+        else:
+            pid = _external_run_pid()
+
+        if pid is None:
             return {"success": False, "state": "not_running"}
 
         _STOP_REQUESTED = True
-        pid = process.pid
+
+        try:
+            TMP_DIR.mkdir(parents=True, exist_ok=True)
+            STOP_FILE.write_text(
+                _dt.datetime.now().isoformat(timespec="seconds"),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
 
     try:
         os.killpg(os.getpgid(pid), signal.SIGTERM)
@@ -1094,7 +1185,9 @@ def _finish(
 
         collected = True
 
-    if _STOP_REQUESTED:
+    stop_requested = _STOP_REQUESTED or STOP_FILE.exists()
+
+    if stop_requested:
         # Прогон остановлен пользователем — это не ошибка.
         status["state"] = "stopped"
         status["errors"] = []
@@ -1159,7 +1252,14 @@ def _finish(
     except Exception:
         pass
 
-    # Прогон завершён — снимаем межпроцессную блокировку.
+    # Прогон завершён — снимаем межпроцессную блокировку и состояние.
+    _clear_run_state()
+
+    try:
+        STOP_FILE.unlink(missing_ok=True)
+    except OSError:
+        pass
+
     _release_update_lock()
 
 
@@ -1169,8 +1269,9 @@ def _finish(
 def get_update_status() -> dict:
     """Текущий статус обновления (для индикаторов фронта)."""
     status = _read_status()
+    running = _is_running() or _external_run_pid() is not None
 
-    if _is_running() and status.get("state") != "running":
+    if running and status.get("state") != "running":
         status["state"] = "running"
 
     # Файл, ожидающий обновления (в input/). Показываем его присутствие,

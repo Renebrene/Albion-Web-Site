@@ -584,7 +584,7 @@ function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
       color: #17212b;
     }
     h1 { margin: 0 0 4px; font-size: 22px; }
-    .meta { margin: 0 0 20px; color: #71808c; font-size: 12px; }
+    .meta { margin: 0 0 20px; color: #5b6873; font-size: 12px; }
     .requisites {
       display: flex;
       flex-wrap: wrap;
@@ -595,7 +595,7 @@ function buildFullPrintHtml(items, withPhotos, withMaps, title, requisites) {
       line-height: 1.5;
     }
     .req { white-space: nowrap; }
-    .req-label { color: #71808c; }
+    .req-label { color: #5b6873; }
     .full-page {
       display: block;
       break-inside: avoid;
@@ -764,7 +764,7 @@ export function buildPrintHtml(
       color: #17212b;
     }
     h1 { margin: 0 0 4px; font-size: 22px; }
-    .meta { margin: 0 0 20px; color: #71808c; font-size: 12px; }
+    .meta { margin: 0 0 20px; color: #5b6873; font-size: 12px; }
     .requisites {
       display: flex;
       flex-wrap: wrap;
@@ -775,7 +775,7 @@ export function buildPrintHtml(
       line-height: 1.5;
     }
     .req { white-space: nowrap; }
-    .req-label { color: #71808c; }
+    .req-label { color: #5b6873; }
     table { width: 100%; border-collapse: collapse; }
     th, td {
       border-bottom: 1px solid #e5e9ec;
@@ -784,8 +784,8 @@ export function buildPrintHtml(
       vertical-align: top;
       font-size: 13px;
     }
-    th { font-size: 11px; text-transform: uppercase; color: #71808c; }
-    .num { width: 32px; color: #71808c; font-weight: 700; }
+    th { font-size: 11px; text-transform: uppercase; color: #5b6873; }
+    .num { width: 32px; color: #5b6873; font-weight: 700; }
     .format { font-weight: 700; }
     .address { margin-top: 2px; }
     .side, .months, .photo {

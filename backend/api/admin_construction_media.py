@@ -33,7 +33,7 @@ class MonthFieldsPayload(BaseModel):
 
 
 @router.post("/media/override")
-async def set_media_override(
+def set_media_override(
     surface_hash: str = Form(...),
     media_type: str = Form(default="photo"),
     file: UploadFile | None = File(default=None),

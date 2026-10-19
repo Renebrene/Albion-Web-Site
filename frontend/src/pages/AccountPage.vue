@@ -1198,7 +1198,7 @@ async function handleLogout() {
 
 .page-head p {
   margin: 0;
-  color: #71808c;
+  color: #5b6873;
   font-size: 14px;
 }
 
@@ -1575,7 +1575,7 @@ async function handleLogout() {
 
 .saved-desc {
   margin-top: 3px;
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
   line-height: 1.4;
 }
@@ -1632,7 +1632,7 @@ async function handleLogout() {
 .portfolio-item-num {
   flex: 0 0 auto;
 
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
   font-weight: 900;
   line-height: 1.4;
@@ -1650,7 +1650,7 @@ async function handleLogout() {
 
 .portfolio-item-address {
   margin-top: 3px;
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
   line-height: 1.4;
 }
@@ -1710,7 +1710,7 @@ async function handleLogout() {
 
 .confirm-note {
   margin-top: 8px;
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
   line-height: 1.45;
 }
@@ -1723,7 +1723,7 @@ async function handleLogout() {
 
 .requisites-note {
   margin: 0 0 16px;
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
   line-height: 1.5;
 }

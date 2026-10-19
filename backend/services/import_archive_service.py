@@ -1,8 +1,12 @@
 from pathlib import Path
+from contextlib import contextmanager
 import datetime
+import json
+import os
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
+MAINTENANCE_FILE = PROJECT_DIR / "tmp" / ".maintenance.json"
 
 ARCHIVE_ROOT = PROJECT_DIR / "archive"
 
@@ -151,7 +155,7 @@ def _dump_tables(dump_file: Path, env: dict) -> set[str]:
     return tables
 
 
-def restore_archive(import_key: str, dry_run: bool = False) -> dict:
+def _restore_archive_impl(import_key: str, dry_run: bool = False) -> dict:
     """Восстановить из архива данные, пришедшие из XLS.
 
     Затрагивает только таблицы конструкций и их медиа. Новости, настройки,
@@ -250,22 +254,18 @@ def restore_archive(import_key: str, dry_run: bool = False) -> dict:
         else list(CONSTRUCTIONS_TABLES)
     )
 
-    from backend.services.data_service import get_connection
-
-    with get_connection() as conn:
-        with conn.transaction():
-            conn.execute(
-                "DROP TABLE IF EXISTS "
-                + ", ".join(f'public."{table}"' for table in tables)
-                + " CASCADE"
-            )
-
     # Восстанавливаем ТОЛЬКО таблицы конструкций. Архив может быть ПОЛНЫМ
     # дампом базы — без фильтра `-t` мы бы перезаписали данные сайта
-    # (новости, настройки, пользователи, медиа). `-t` берёт таблицу и её
-    # данные, но пропускает отдельные записи DEFAULT/CONSTRAINT — их
-    # дотягивает repair_schema() после восстановления.
-    restore_args = ["pg_restore", "--no-owner"]
+    # (новости, настройки, пользователи, медиа). `--clean --if-exists`
+    # пересоздаёт только выбранные таблицы, а `--single-transaction` делает
+    # DROP + restore атомарными: при ошибке старые таблицы остаются.
+    restore_args = [
+        "pg_restore",
+        "--no-owner",
+        "--clean",
+        "--if-exists",
+        "--single-transaction",
+    ]
 
     for table in tables:
         restore_args += ["-t", table]
@@ -373,3 +373,100 @@ def restore_archive(import_key: str, dry_run: bool = False) -> dict:
         "steps": steps,
         "verify": verify,
     }
+
+
+def _set_maintenance(active: bool, import_key: str = "") -> None:
+    """Межпроцессный флаг: API не должно читать таблицы во время restore."""
+    try:
+        if active:
+            MAINTENANCE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            temporary = MAINTENANCE_FILE.with_suffix(".tmp")
+            temporary.write_text(
+                json.dumps(
+                    {
+                        "kind": "restore",
+                        "import_key": import_key,
+                        "started_at": datetime.datetime.now().isoformat(
+                            timespec="seconds"
+                        ),
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            os.replace(temporary, MAINTENANCE_FILE)
+        else:
+            MAINTENANCE_FILE.unlink(missing_ok=True)
+    except OSError:
+        # Флаг не должен ломать само восстановление.
+        pass
+
+
+@contextmanager
+def _restore_guard(import_key: str):
+    """Тот же advisory-lock, что у импорта, плюс maintenance-флаг."""
+    from backend.services.data_service import get_raw_connection
+    from backend.services.update_service import _UPDATE_LOCK_ID
+
+    conn = get_raw_connection()
+
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT pg_try_advisory_lock(%s)",
+                (_UPDATE_LOCK_ID,),
+            )
+            locked = cur.fetchone()[0]
+
+        if not locked:
+            raise RuntimeError(
+                "Импорт или восстановление уже выполняется"
+            )
+
+        _set_maintenance(True, import_key)
+
+        try:
+            yield
+        finally:
+            _set_maintenance(False)
+    finally:
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT pg_advisory_unlock(%s)",
+                    (_UPDATE_LOCK_ID,),
+                )
+        except Exception:
+            pass
+        conn.close()
+
+
+def _process_holds_update_lock() -> bool:
+    """True, если этот процесс уже держит advisory-lock импорта.
+
+    Нужно для авто-отката: он вызывается из monitor-потока до
+    `_release_update_lock()`, и повторный `pg_try_advisory_lock` на другом
+    соединении всегда вернул бы False.
+    """
+    try:
+        from backend.services.update_service import _LOCK_CONN
+
+        return _LOCK_CONN is not None
+    except Exception:
+        return False
+
+
+def restore_archive(import_key: str, dry_run: bool = False) -> dict:
+    """Публичная точка входа: план без изменений или restore под guard."""
+    if dry_run:
+        return _restore_archive_impl(import_key, dry_run=True)
+
+    if _process_holds_update_lock():
+        _set_maintenance(True, import_key)
+        try:
+            return _restore_archive_impl(import_key, dry_run=False)
+        finally:
+            _set_maintenance(False)
+
+    with _restore_guard(import_key):
+        return _restore_archive_impl(import_key, dry_run=False)

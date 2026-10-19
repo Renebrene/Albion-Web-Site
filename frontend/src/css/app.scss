@@ -22,6 +22,12 @@
   --albion-radius-buttons: 10px;
 }
 
+/* Единый видимый фокус для клавиатурной навигации. */
+:where(a, button, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--albion-accent);
+  outline-offset: 2px;
+}
+
 body {
   font-family: var(--albion-font-family);
   font-size: var(--albion-font-size);
@@ -186,7 +192,7 @@ h6 {
 }
 
 .popup-meta span {
-  color: #8a959c;
+  color: #5f6c76;
 
   font-size: 9px;
   line-height: 1;
@@ -437,7 +443,7 @@ h6 {
 }
 
 .promo-price-note {
-  color: #8a959c;
+  color: #5f6c76;
   font-size: 9px;
   font-weight: 600;
 }
@@ -876,12 +882,20 @@ h6 {
   justify-content: center;
   width: 36px;
   height: 21px;
+  padding: 0;
+  border: 0;
   border-radius: 5px;
+  background: transparent;
   color: #fff;
+  font-family: inherit;
   font-size: 8px;
   line-height: 1;
   font-weight: 850;
   letter-spacing: 0.1px;
+}
+
+.popup-month:disabled {
+  cursor: not-allowed;
 }
 
 .popup-month.free {
@@ -1239,7 +1253,12 @@ h6 {
   width: 36px;
   height: 22px;
 
+  padding: 0;
+  border: 0;
   border-radius: 5px;
+
+  background: transparent;
+  font-family: inherit;
 
   color: #fff;
 

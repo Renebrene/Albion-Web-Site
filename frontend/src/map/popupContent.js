@@ -69,12 +69,14 @@ function monthCell(item, month) {
       : ''
 
   return `
-    <div
+    <button
+      type="button"
       class="popup-month ${monthState(item, month.full)}${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"
+      aria-pressed="${selected ? 'true' : 'false'}"
       title="${escapeHtml(getMonthStatusLabel(item, month.full))}"${pfAttrs}
     >
       ${escapeHtml(month.short)}
-    </div>
+    </button>
   `
 }
 
@@ -137,12 +139,14 @@ function videoMonthBlock(item) {
             : ''
 
         return `
-          <div
+          <button
+            type="button"
             class="popup-month ${state} popup-month--video${selected ? ' is-selected' : ''}"
+            aria-pressed="${selected ? 'true' : 'false'}"
             title="${escapeHtml(title)}"${pfAttrs}
           >
             ${escapeHtml(month.short)}
-          </div>
+          </button>
         `
       }).join('')}
     </div>
@@ -410,12 +414,14 @@ function sideAggMonthCell(group, month) {
     : ''
 
   return `
-    <div
+    <button
+      type="button"
       class="popup-month ${state}${selected ? ' is-selected' : ''}${freeIds.length ? '' : ' is-locked'}"
+      aria-pressed="${selected ? 'true' : 'false'}"
       title="${escapeHtml(title)}"${pfAttrs}
     >
       ${escapeHtml(month.short)}
-    </div>
+    </button>
   `
 }
 

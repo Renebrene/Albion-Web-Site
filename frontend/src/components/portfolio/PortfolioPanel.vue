@@ -1016,7 +1016,7 @@ function handleClear() {
 }
 
 .portfolio-title-hint {
-  color: #8b98a3;
+  color: #5f6c76;
 
   font-size: 11px;
   line-height: 1.4;
@@ -1031,7 +1031,7 @@ function handleClear() {
 .portfolio-empty {
   padding: 16px 4px;
 
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 13px;
   line-height: 1.45;
@@ -1105,7 +1105,7 @@ function handleClear() {
 }
 
 .portfolio-row-num {
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 12px;
   font-weight: 900;
@@ -1135,7 +1135,7 @@ function handleClear() {
 
   margin-top: 4px;
 
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 11px;
   font-weight: 700;
@@ -1163,7 +1163,7 @@ function handleClear() {
   border-radius: 6px;
 
   background: #eef1f3;
-  color: #8b98a3;
+  color: #5f6c76;
 
   font-family: inherit;
   font-size: 9px;

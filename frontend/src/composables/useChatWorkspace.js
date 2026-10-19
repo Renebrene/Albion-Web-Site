@@ -12,9 +12,54 @@ import { chatSnapshot, disposeChat, hydrateChat } from './useSmartChat'
  * оформление (variant). Поэтому информация и количество чатов совпадают.
  */
 
-const chats = ref([])
-let sequence = 0
+const CHATS_KEY = 'albion_chat_workspace_chats'
+
+function readStoredChats() {
+  try {
+    const parsed = JSON.parse(sessionStorage.getItem(CHATS_KEY) || 'null')
+    const stored = Array.isArray(parsed?.chats) ? parsed.chats : []
+
+    const chats = stored
+      .filter(chat => chat && chat.key)
+      .map((chat, index) => ({
+        key: String(chat.key),
+        number: Number(chat.number) || index + 1,
+        draft: ''
+      }))
+
+    const sequence = Math.max(
+      Number(parsed?.sequence) || 0,
+      ...chats.map(chat => chat.number),
+      0
+    )
+
+    return { chats, sequence }
+  } catch {
+    return { chats: [], sequence: 0 }
+  }
+}
+
+const storedChats = readStoredChats()
+const chats = ref(storedChats.chats)
+let sequence = storedChats.sequence
 let loaded = false
+
+function persistChats() {
+  try {
+    sessionStorage.setItem(
+      CHATS_KEY,
+      JSON.stringify({
+        chats: chats.value.map(chat => ({
+          key: chat.key,
+          number: chat.number
+        })),
+        sequence
+      })
+    )
+  } catch {
+    /* приватный режим/переполнение — список проживёт до reload */
+  }
+}
 
 const saving = ref(false)
 const savedAt = ref('')
@@ -61,11 +106,19 @@ function setResultIds(ids) {
 /* Новый чат: свой ключ и порядковый номер (номер не теряется при сохранении). */
 function addChat(draft = '') {
   sequence += 1
+
+  // Уникальный ключ, а не chat-1: после reload старый чат с тем же ключом
+  // не должен «подхватываться» новым чатом.
+  const unique = globalThis.crypto?.randomUUID?.()
+  const key = unique ? `chat-${unique}` : `chat-${Date.now()}-${sequence}`
+
   chats.value.push({
-    key: `chat-${sequence}`,
+    key,
     number: sequence,
     draft
   })
+
+  persistChats()
 }
 
 /* Гарантирует хотя бы один чат — нужно маленькому окну с полем ввода. */
@@ -147,6 +200,7 @@ async function loadChats() {
     }))
 
     sequence = chats.value.reduce((max, chat) => Math.max(max, chat.number), 0)
+    persistChats()
 
     saved.forEach((chat, index) => {
       hydrateChat(chats.value[index].key, {
@@ -285,6 +339,7 @@ async function clearChats() {
 
   chats.value = []
   sequence = 0
+  persistChats()
   savedAt.value = ''
   saveError.value = ''
   disarmClear()

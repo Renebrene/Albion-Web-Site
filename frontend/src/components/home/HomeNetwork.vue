@@ -282,7 +282,7 @@ h2 span {
 .network-heading > p {
   margin: 0;
 
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 16px;
   line-height: 1.6;

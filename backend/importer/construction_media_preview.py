@@ -285,6 +285,13 @@ def main() -> None:
         if entry["decision"] == "download"
         and entry["status"] == "error"
     ]
+    # Ошибка скачивания не должна удалять рабочее фото/карту: если для
+    # поверхности есть старая версия, копируем её превью в новый импорт.
+    fallback_entries = [
+        entry
+        for entry in failed_entries
+        if entry.get("old_paths")
+    ]
 
     print("=" * 70)
     print("CONSTRUCTION MEDIA PREVIEW (INCREMENTAL)")
@@ -295,6 +302,7 @@ def main() -> None:
     print(f"Preview tasks:  {len(download_entries)}")
     print(f"REUSE copies:   {len(reuse_entries)}")
     print(f"Failed skip:    {len(failed_entries)}")
+    print(f"Fallback copies:{len(fallback_entries)}")
     print(f"Workers:        {WORKERS}")
     print(f"Copy workers:   {COPY_WORKERS}")
 
@@ -352,6 +360,24 @@ def main() -> None:
             for future in as_completed(futures):
                 position, result = future.result()
                 reuse_entries[position].update(result)
+
+    if fallback_entries:
+        print()
+        print("Fallback copy started (failed downloads)...")
+
+        for entry in fallback_entries:
+            reason = entry.get("error")
+
+            try:
+                result = reuse_one(entry, import_key)
+                entry.update(result)
+                entry["fallback"] = True
+                entry["fallback_reason"] = reason
+            except Exception as exc:
+                entry["status"] = "error"
+                entry["error"] = (
+                    f"fallback: {exc}; original: {reason}"
+                )
 
     write_plan(staging_path, plan)
 

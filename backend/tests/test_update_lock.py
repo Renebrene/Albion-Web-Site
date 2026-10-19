@@ -7,13 +7,13 @@
 from __future__ import annotations
 
 from backend.services import update_service as us
-from backend.services.data_service import get_connection
+from backend.services.data_service import get_raw_connection
 from backend.tests.conftest import requires_db
 
 
 def _try_lock_on_new_connection() -> bool:
     """Пытается взять тот же advisory-lock на отдельном соединении."""
-    conn = get_connection()
+    conn = get_raw_connection()
 
     try:
         with conn.cursor() as cur:

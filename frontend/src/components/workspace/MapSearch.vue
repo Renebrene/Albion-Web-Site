@@ -81,8 +81,8 @@ function onSearch() {
 .search-card {
   position: static;
 
-  width: 400px;
-  max-width: calc(100vw - 420px);
+  width: min(400px, 100%);
+  max-width: 100%;
 
   height: 44px;
 
@@ -99,6 +99,11 @@ function onSearch() {
   border-radius: 12px;
 
   box-shadow: 0 10px 35px rgba(25, 35, 45, 0.15);
+}
+
+.search-card:focus-within {
+  border-color: #17212b;
+  box-shadow: 0 0 0 3px rgba(23, 33, 43, 0.07);
 }
 
 /* счётчик — слева */
@@ -187,7 +192,7 @@ function onSearch() {
 
   background: transparent;
 
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 23px;
 

@@ -930,7 +930,7 @@ function loadLabel(row) {
 }
 /* Подсказка-заглушка в шапке чата. */
 .chat-title-hint {
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0;
@@ -940,7 +940,7 @@ function loadLabel(row) {
 /* Кнопка разворота — прижата вправо. */
 .chat-expand {
   margin-left: auto;
-  color: #8b98a3;
+  color: #5f6c76;
 }
 .chat-expand:hover {
   color: var(--albion-accent);
@@ -1002,7 +1002,7 @@ function loadLabel(row) {
 }
 .chat-empty,
 .chat-warning {
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
 }
 .chat-message-user {
@@ -1043,7 +1043,7 @@ function loadLabel(row) {
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: #8b98a3;
+  color: #5f6c76;
   cursor: pointer;
   opacity: 0.6;
   transition: 0.15s ease;
@@ -1074,7 +1074,7 @@ function loadLabel(row) {
 }
 .chat-block-title {
   margin: 4px 0 2px;
-  color: #71808c;
+  color: #5b6873;
   font-size: 11px;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -1092,7 +1092,7 @@ function loadLabel(row) {
   background: #fafbfc;
 }
 .chat-result-num {
-  color: #71808c;
+  color: #5b6873;
   font-size: 12px;
   font-weight: 900;
   line-height: 1.4;
@@ -1136,13 +1136,13 @@ function loadLabel(row) {
 }
 /* ГОРОД */
 .chat-result-city {
-  color: #71808c;
+  color: #5b6873;
   font-size: 12px;
   font-weight: 400;
 }
 /* СТОРОНА */
 .chat-result-side {
-  color: #71808c;
+  color: #5b6873;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
@@ -1213,7 +1213,7 @@ function loadLabel(row) {
   gap: 8px;
 }
 .chat-side-load {
-  color: #8b98a3;
+  color: #5f6c76;
   font-size: 10px;
   font-weight: 700;
 }
@@ -1230,7 +1230,7 @@ function loadLabel(row) {
   border: 0;
   border-radius: 6px;
   background: #eef1f3;
-  color: #8b98a3;
+  color: #5f6c76;
   font-family: inherit;
   font-size: 9px;
   font-weight: 900;

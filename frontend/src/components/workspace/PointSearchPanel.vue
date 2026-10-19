@@ -785,7 +785,7 @@ function toggleType(value) {
 
   background: transparent;
 
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 22px;
 
@@ -934,7 +934,7 @@ function toggleType(value) {
   border-radius: 7px;
 
   background: #fff;
-  color: #71808c;
+  color: #5b6873;
 
   cursor: pointer;
 

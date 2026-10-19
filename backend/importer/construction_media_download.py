@@ -226,6 +226,7 @@ def plan_media_tasks(
                         variant: old[f"{variant}_path"]
                         for variant in VARIANT_NAMES
                     },
+                    "old_original_url": old.get("original_url"),
                     "file_size": old.get("file_size"),
                     "mime_type": old.get("mime_type"),
                     "width": old.get("width"),
@@ -244,16 +245,33 @@ def plan_media_tasks(
                     **task,
                     "decision": "download",
                     "status": "pending",
-                    "old_paths": None,
-                    "file_size": None,
-                    "mime_type": None,
-                    "width": None,
-                    "height": None,
+                    # Даже при решении download сохраняем старые пути:
+                    # если загрузка/превью не удастся, preview-стадия
+                    # скопирует старый файл в новый импорт (fallback).
+                    "old_paths": (
+                        {
+                            variant: old[f"{variant}_path"]
+                            for variant in VARIANT_NAMES
+                        }
+                        if old
+                        else None
+                    ),
+                    "old_original_url": (
+                        old.get("original_url") if old else None
+                    ),
+                    "file_size": old.get("file_size") if old else None,
+                    "mime_type": old.get("mime_type") if old else None,
+                    "width": old.get("width") if old else None,
+                    "height": old.get("height") if old else None,
                     "original_name": (
-                        f'{task["address"]} '
-                        f'{task["side"]} '
-                        f'{task["media_type"]}'
-                    ).strip(),
+                        old.get("original_name")
+                        if old
+                        else (
+                            f'{task["address"]} '
+                            f'{task["side"]} '
+                            f'{task["media_type"]}'
+                        ).strip()
+                    ),
                     "source_path": None,
                     "error": None,
                 }

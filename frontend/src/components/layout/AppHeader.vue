@@ -571,7 +571,7 @@ onMounted(async () => {
 }
 
 .emails a {
-  color: #71808c;
+  color: #5b6873;
 
   font-weight: 700;
 
@@ -901,7 +901,7 @@ onMounted(async () => {
 
   padding: 32px 12px;
 
-  color: #8b98a3;
+  color: #5f6c76;
   font-size: 13px;
   text-align: center;
 }
@@ -1216,7 +1216,7 @@ onMounted(async () => {
   }
 
   .mobile-contact-link {
-    color: #71808c;
+    color: #5b6873;
 
     font-size: 13px;
     font-weight: 700;
@@ -1323,7 +1323,7 @@ onMounted(async () => {
 }
 
 .auth-user-role {
-  color: #71808c;
+  color: #5b6873;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.06em;

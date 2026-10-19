@@ -35,6 +35,21 @@
       />
 
       <main class="workspace">
+        <div v-if="loading" class="workspace-state" role="status">
+          Загрузка конструкций…
+        </div>
+
+        <div
+          v-else-if="loadError"
+          class="workspace-state workspace-state--error"
+          role="alert"
+        >
+          <p>{{ loadError }}</p>
+          <button type="button" class="slide-btn" @click="reloadConstructions">
+            Повторить
+          </button>
+        </div>
+
         <!-- Плавающий блок: переключатель (слева) + поиск (справа) -->
         <div class="workspace-float">
           <div class="workspace-mode-switch">
@@ -403,9 +418,10 @@
                             class="card-dynamic-row"
                           >
                             <div class="card-months card-months--inline">
-                              <div
+                              <button
                                 v-for="month in MONTHS"
                                 :key="month.full"
+                                type="button"
                                 class="card-month"
                                 :class="[
                                   sideMonthState(block, month.full),
@@ -419,11 +435,18 @@
                                       !isSideFree(block, month.full)
                                   }
                                 ]"
+                                :disabled="
+                                  !isBlockActive(block) ||
+                                  isSideMonthLocked(block, month.full)
+                                "
+                                :aria-pressed="
+                                  isSideMonthSelected(block, month.full)
+                                "
                                 :title="sideMonthLabel(block, month.full)"
                                 @click="onSideMonthClick(block, month)"
                               >
                                 {{ month.short }}
-                              </div>
+                              </button>
                             </div>
                           </div>
 
@@ -440,9 +463,10 @@
                               </span>
 
                               <div class="card-months card-months--inline">
-                                <div
+                                <button
                                   v-for="month in MONTHS"
                                   :key="month.full"
+                                  type="button"
                                   class="card-month"
                                   :class="[
                                     getCardMonthState(row, month.full),
@@ -455,11 +479,19 @@
                                         isMonthLocked(row, month.full)
                                     }
                                   ]"
+                                  :disabled="
+                                    !isBlockActive(block) ||
+                                    isMonthLocked(row, month.full)
+                                  "
+                                  :aria-pressed="
+                                    surfaceIdOf(row) !== null &&
+                                    isMonthSelected(row.id, month.full)
+                                  "
                                   :title="getMonthStatusLabel(row, month.full)"
                                   @click="onCardMonthClick(block, row, month)"
                                 >
                                   {{ month.short }}
-                                </div>
+                                </button>
                               </div>
                             </div>
                           </template>
@@ -467,9 +499,10 @@
 
                         <!-- Статика и видеоэкран: одна строка месяцев -->
                         <div v-else class="card-months">
-                          <div
+                          <button
                             v-for="month in MONTHS"
                             :key="month.full"
+                            type="button"
                             class="card-month"
                             :class="[
                               getCardMonthState(
@@ -488,6 +521,17 @@
                                   isMonthLocked(blockPrimary(block), month.full)
                               }
                             ]"
+                            :disabled="
+                              !isBlockActive(block) ||
+                              isMonthLocked(blockPrimary(block), month.full)
+                            "
+                            :aria-pressed="
+                              surfaceIdOf(blockPrimary(block)) !== null &&
+                              isMonthSelected(
+                                blockPrimary(block).id,
+                                month.full
+                              )
+                            "
                             :title="
                               getMonthStatusLabel(
                                 blockPrimary(block),
@@ -503,7 +547,7 @@
                             "
                           >
                             {{ month.short }}
-                          </div>
+                          </button>
                         </div>
 
                         <!-- Портфель: кнопка (два состояния) + кликабельные месяцы -->
@@ -1029,6 +1073,15 @@ function toggleBlockPfMode(block) {
   }
 }
 
+/* Месяц стороны: выбранный можно снять, остальные — только свободные. */
+function isSideMonthLocked(block, monthFull) {
+  if (isSideMonthSelected(block, monthFull)) {
+    return false
+  }
+
+  return !isSideFree(block, monthFull)
+}
+
 /* Месяц можно ВЫБРАТЬ только если он свободен (снять — всегда можно). */
 function isMonthLocked(surface, monthFull) {
   const id = surfaceIdOf(surface)
@@ -1063,6 +1116,8 @@ function onCardMonthClick(block, surface, month) {
 const route = useRoute()
 const router = useRouter()
 const constructions = ref([])
+const loading = ref(true)
+const loadError = ref('')
 const { resultIds: chatResultIds } = useChatWorkspace()
 
 const mapViewRef = ref(null)
@@ -1342,9 +1397,14 @@ const displayedConstructions = computed(() => {
     return source
   }
 
+  /*
+   * Результаты чата — самостоятельная выборка. Активные фильтры сайта
+   * (город/формат/поиск/точка) не должны пересекаться с ней: иначе чат
+   * нашёл 146 щитов, а карта показывает 0 из-за старого фильтра.
+   */
   const ids = new Set(chatResultIds.value.map(value => String(value)))
 
-  return source.filter(item => ids.has(String(item?.id)))
+  return constructions.value.filter(item => ids.has(String(item?.id)))
 })
 
 /* Из панели точки: открыть закладку «Список» с найденными результатами. */
@@ -1798,6 +1858,14 @@ function refreshPopupState(popupRoot) {
         .querySelectorAll('.popup-month.is-selected')
         .forEach(monthEl => monthEl.classList.remove('is-selected'))
     }
+
+    section.querySelectorAll('.popup-month').forEach(monthEl => {
+      const unavailable =
+        !sectionActive || monthEl.classList.contains('is-locked')
+
+      monthEl.disabled = unavailable
+      monthEl.setAttribute('aria-disabled', String(unavailable))
+    })
   })
 }
 
@@ -1954,12 +2022,18 @@ watch(
   }
 )
 
-onMounted(async () => {
-  document.addEventListener('click', onDocumentClick)
+async function reloadConstructions() {
+  loading.value = true
+  loadError.value = ''
 
   try {
     const data = await getConstructions()
-    constructions.value = Array.isArray(data) ? data : []
+
+    if (!Array.isArray(data)) {
+      throw new Error('Некорректный ответ /api/constructions')
+    }
+
+    constructions.value = data
 
     // Месяцы берём из данных новой базы (а не жёсткого списка).
     setMonthsFromItems(constructions.value)
@@ -1978,10 +2052,22 @@ onMounted(async () => {
      * попапов: тот же id поверхности мог прийти с новыми ценой/фото/статусом.
      */
     clearPopupContentCache()
-
-    console.log('Albion page: загружено', constructions.value.length)
   } catch (error) {
+    constructions.value = []
+    loadError.value =
+      'Не удалось загрузить конструкции. Проверьте соединение и повторите.'
     console.error('Albion page: ошибка загрузки конструкций:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(async () => {
+  document.addEventListener('click', onDocumentClick)
+  await reloadConstructions()
+
+  if (!loadError.value) {
+    console.log('Albion page: загружено', constructions.value.length)
   }
 })
 
@@ -2027,6 +2113,28 @@ onBeforeUnmount(() => {
   min-width: 0;
 
   background: #e9edef;
+}
+
+.workspace-state {
+  position: absolute;
+  inset: 0;
+  z-index: 1600;
+  display: grid;
+  place-content: center;
+  gap: 16px;
+  padding: 24px;
+  color: #17212b;
+  font-size: 15px;
+  text-align: center;
+  background: rgba(233, 237, 239, 0.94);
+}
+
+.workspace-state--error {
+  color: #8f1d16;
+}
+
+.workspace-state .slide-btn {
+  justify-self: center;
 }
 
 /* Переключатель режимов */
@@ -2076,7 +2184,7 @@ onBeforeUnmount(() => {
   border-radius: 9px;
 
   background: transparent;
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 11px;
   font-weight: 800;
@@ -2175,7 +2283,7 @@ onBeforeUnmount(() => {
   border-radius: 8px;
 
   background: transparent;
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 12px;
   font-weight: 800;
@@ -2409,7 +2517,7 @@ onBeforeUnmount(() => {
 }
 
 .card-price-inline .price-period {
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 9px;
   line-height: 1;
@@ -2437,7 +2545,7 @@ onBeforeUnmount(() => {
 }
 
 .card-promo-price .promo-price-note {
-  color: #8a959c;
+  color: #5f6c76;
   font-size: 9px;
   font-weight: 600;
 }
@@ -2729,7 +2837,7 @@ onBeforeUnmount(() => {
 }
 
 .card-meta span {
-  color: #8a959c;
+  color: #5f6c76;
 
   font-size: 9px;
   text-transform: uppercase;
@@ -2758,7 +2866,7 @@ onBeforeUnmount(() => {
 
   margin-bottom: 5px;
 
-  color: #8a959c;
+  color: #5f6c76;
 
   font-size: 9px;
   line-height: 1;
@@ -2798,7 +2906,7 @@ onBeforeUnmount(() => {
 
   margin-top: 5px;
 
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 10px;
   line-height: 1;
@@ -2835,7 +2943,7 @@ onBeforeUnmount(() => {
 
   background: #e9edef;
 
-  color: #71808c;
+  color: #5b6873;
 
   font-weight: 800;
 }
@@ -2851,7 +2959,7 @@ onBeforeUnmount(() => {
 .empty-state p {
   margin: 0 0 18px;
 
-  color: #71808c;
+  color: #5b6873;
 
   font-size: 12px;
 }
@@ -3181,7 +3289,7 @@ onBeforeUnmount(() => {
 }
 
 .point-radius-marks span {
-  color: #b3bcc2;
+  color: #66727c;
   font-size: 8px;
   font-weight: 700;
 }

@@ -34,6 +34,6 @@ h1 {
 }
 
 p {
-  color: #71808c;
+  color: #5b6873;
 }
 </style>

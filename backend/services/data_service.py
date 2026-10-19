@@ -1,10 +1,13 @@
 import hashlib
 import json
 import os
+import threading
 import time
 from pathlib import Path
 
 import psycopg
+from psycopg.conninfo import make_conninfo
+from psycopg_pool import ConnectionPool
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -75,14 +78,66 @@ _OVERRIDABLE_FIELDS = frozenset(
 )
 
 
+def _connection_kwargs() -> dict:
+    kwargs = {
+        "host": os.getenv("ALBION_DB_HOST", "127.0.0.1"),
+        "port": int(os.getenv("ALBION_DB_PORT", "5432")),
+        "dbname": os.getenv("ALBION_DB_NAME", "albion"),
+        "user": os.getenv("ALBION_DB_USER", "albion_app"),
+        "password": os.getenv("ALBION_DB_PASSWORD"),
+    }
+
+    if not kwargs["password"]:
+        kwargs.pop("password")
+
+    return kwargs
+
+
+# Один bounded-пул на процесс. Иначе каждый get_connection() открывал новый
+# backend PostgreSQL, а один HTTP-запрос мог открыть 3–4 соединения. При
+# 6 workers и threadpool это упиралось в max_connections.
+_pool: ConnectionPool | None = None
+_pool_lock = threading.Lock()
+
+
+def _get_pool() -> ConnectionPool:
+    global _pool
+
+    if _pool is None:
+        with _pool_lock:
+            if _pool is None:
+                try:
+                    max_size = int(os.getenv("ALBION_DB_POOL_MAX", "4"))
+                except ValueError:
+                    max_size = 4
+
+                try:
+                    timeout = float(
+                        os.getenv("ALBION_DB_POOL_TIMEOUT", "10")
+                    )
+                except ValueError:
+                    timeout = 10.0
+
+                _pool = ConnectionPool(
+                    conninfo=make_conninfo(**_connection_kwargs()),
+                    min_size=1,
+                    max_size=max(1, max_size),
+                    timeout=max(0.1, timeout),
+                    open=True,
+                    name="albion",
+                )
+
+    return _pool
+
+
 def get_connection():
-    return psycopg.connect(
-        host=os.getenv("ALBION_DB_HOST", "127.0.0.1"),
-        port=int(os.getenv("ALBION_DB_PORT", "5432")),
-        dbname=os.getenv("ALBION_DB_NAME", "albion"),
-        user=os.getenv("ALBION_DB_USER", "albion_app"),
-        password=os.getenv("ALBION_DB_PASSWORD"),
-    )
+    """Соединение из пула; используйте через `with get_connection() as conn`."""
+    return _get_pool().connection()
+
+
+def get_raw_connection():
+    """Отдельное соединение для advisory-lock/диагностики, вне пула."""
+    return psycopg.connect(**_connection_kwargs())
 
 
 def _text(value):

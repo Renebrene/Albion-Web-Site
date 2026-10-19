@@ -636,7 +636,7 @@ h1 {
 }
 .page-header p {
   margin: 0;
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
 }
 .header-actions {
@@ -662,7 +662,7 @@ h1 {
 }
 .llm-head p {
   margin: 0;
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
 }
 .llm-grid {
@@ -707,7 +707,7 @@ h1 {
   min-width: 160px;
 }
 .field label {
-  color: #8b98a3;
+  color: #5f6c76;
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
@@ -726,7 +726,7 @@ h1 {
 }
 .total-hint {
   margin-left: auto;
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
 }
 .total-hint .dot {
@@ -741,7 +741,7 @@ h1 {
   margin-bottom: 16px;
 }
 .export-hint {
-  color: #71808c;
+  color: #5b6873;
   font-size: 12px;
   line-height: 1.4;
 }
@@ -764,7 +764,7 @@ h1 {
 }
 .empty-text {
   padding: 24px 0;
-  color: #71808c;
+  color: #5b6873;
   font-size: 13px;
 }
 .table-wrap {
@@ -777,7 +777,7 @@ h1 {
 .chat-table th {
   padding: 8px 10px;
   border-bottom: 1px solid #eef1f3;
-  color: #8b98a3;
+  color: #5f6c76;
   font-size: 10px;
   font-weight: 900;
   text-align: left;
@@ -803,7 +803,7 @@ h1 {
 }
 .col-date {
   white-space: nowrap;
-  color: #71808c;
+  color: #5b6873;
   font-size: 12px;
 }
 .col-question {
@@ -821,7 +821,7 @@ h1 {
   margin-top: 14px;
 }
 .page-info {
-  color: #71808c;
+  color: #5b6873;
   font-size: 12px;
 }
 </style>

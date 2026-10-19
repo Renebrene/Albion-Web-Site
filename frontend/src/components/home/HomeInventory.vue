@@ -212,7 +212,7 @@ function openType(type) {
 }
 
 .inventory-types-title {
-  color: #71808c;
+  color: #5b6873;
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 1.2px;
@@ -294,7 +294,7 @@ function openType(type) {
 }
 
 .inventory-footer > span {
-  color: #71808c;
+  color: #5b6873;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;

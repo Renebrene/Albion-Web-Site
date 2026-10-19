@@ -223,7 +223,31 @@ def get_active_import(conn) -> tuple[int, str]:
     return int(row[0]), str(row[1])
 
 
+def is_yandex_disk_url(url: str) -> bool:
+    """Публичная ссылка Яндекс.Диска требует вызова download API."""
+    try:
+        host = (urlparse(url).hostname or "").lower()
+    except ValueError:
+        return False
+
+    return host == "yadi.sk" or host.startswith("disk.yandex.")
+
+
 def get_direct_link(public_url: str) -> str:
+    """Вернуть прямой URL файла.
+
+    Для Яндекс.Диска сначала запрашиваем временный href через публичный
+    API. Для остальных http(s)-ссылок используем URL как есть — это
+    поддерживает прямые ссылки с других хостингов.
+    """
+    parsed = urlparse(public_url)
+
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        raise ValueError(f"Некорректная ссылка на медиа: {public_url}")
+
+    if not is_yandex_disk_url(public_url):
+        return public_url
+
     query = urlencode({"public_key": public_url})
     request = Request(
         f"{API_URL}?{query}",

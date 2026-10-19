@@ -15,7 +15,7 @@ Group=alexice
 WorkingDirectory=/home/alexice/albion
 
 # .env читается приложением из корня проекта; секреты в юните не храним.
-ExecStart=/home/alexice/albion/.venv/bin/python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --workers 6
+ExecStart=/home/alexice/albion/.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --workers 6
 
 Restart=always
 RestartSec=5

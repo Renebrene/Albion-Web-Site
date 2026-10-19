@@ -137,11 +137,11 @@
 
 ### Приоритет 2 — при росте нагрузки
 
-4. **Пул соединений.** `backend/services/data_service.py` открывает новое
-   соединение на каждый `get_connection()`. Под нагрузкой это даёт churn
-   backend-процессов. `psycopg_pool.ConnectionPool` (1–2 постоянных соединения
-   на worker, максимум 4–8) снизит накладные расходы. После этого
-   `max_connections` можно уменьшить до 40–60.
+4. **Пул соединений — реализован.** `backend/services/data_service.py`
+   использует `psycopg_pool.ConnectionPool`: `min_size=1`,
+   `max_size=ALBION_DB_POOL_MAX` (по умолчанию 4) на worker. Отдельное
+   соединение для advisory-lock/диагностики — `get_raw_connection()`.
+   После этого `max_connections` можно уменьшить до 40–60.
 
 5. **Кэш статистики главной.** `/api/home` считает несколько агрегатов на
    каждый запрос. Если появятся жалобы на latency под нагрузкой, кэшировать

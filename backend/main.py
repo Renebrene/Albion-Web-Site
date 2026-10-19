@@ -219,6 +219,10 @@ def feedback_submit(payload: dict):
 STORAGE_ROOT = PROJECT_DIR / "storage"
 STORAGE_ROOT.mkdir(parents=True, exist_ok=True)
 
+# Флаг восстановления из архива: таблицы конструкций на время DROP+restore
+# недоступны, поэтому публичные read-эндпоинты отвечают 503.
+MAINTENANCE_FILE = PROJECT_DIR / "tmp" / ".maintenance.json"
+
 app.mount("/storage", StaticFiles(directory=STORAGE_ROOT), name="storage")
 
 
@@ -320,6 +324,42 @@ async def _rate_limit(request: Request, call_next):
     return await call_next(request)
 
 
+_MAINTENANCE_PATHS = (
+    "/api/constructions",
+    "/api/home",
+    "/api/search",
+    "/api/chat",
+)
+
+
+def _maintenance_active() -> bool:
+    try:
+        age = time.time() - MAINTENANCE_FILE.stat().st_mtime
+    except OSError:
+        return False
+
+    # Защита от «вечного» флага после падения worker'а во время restore.
+    return age < 1800
+
+
+@app.middleware("http")
+async def _maintenance_guard(request: Request, call_next):
+    """Не отдавать данные конструкций, пока идёт restore архива."""
+    if request.url.path.startswith(_MAINTENANCE_PATHS) and _maintenance_active():
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "Идёт восстановление базы конструкций. "
+                    "Повторите запрос через минуту."
+                )
+            },
+            headers={"Retry-After": "30"},
+        )
+
+    return await call_next(request)
+
+
 # Отсекаем слишком большие тела запросов ДО разбора multipart: иначе файл
 # успевает попасть во временное хранилище Starlette. Промежуточный слой
 # (nginx) на VDS тоже должен ограничивать client_max_body_size.
@@ -396,7 +436,11 @@ async def cache_storage_assets(request, call_next):
     """
     response = await call_next(request)
 
-    if request.url.path.startswith("/storage/"):
+    if request.url.path.startswith("/storage/constructions/overrides/"):
+        # Override-файлы перезаписываются при повторной загрузке под тем же
+        # именем, поэтому immutable-кэш здесь недопустим.
+        response.headers["Cache-Control"] = "no-cache, max-age=0, must-revalidate"
+    elif request.url.path.startswith("/storage/"):
         response.headers["Cache-Control"] = (
             "public, max-age=31536000, immutable"
         )
@@ -519,7 +563,7 @@ def admin_login(
 
 
 @app.post("/api/admin/media")
-async def admin_upload_media(
+def admin_upload_media(
     file: UploadFile = File(...),
     alt: str | None = Form(default=None),
     original_name: str | None = Form(default=None),

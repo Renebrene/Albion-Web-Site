@@ -319,7 +319,7 @@ onMounted(load)
   padding: 0 2px 12px;
   border: 0;
   background: transparent;
-  color: #7b8790;
+  color: #5b6873;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -359,7 +359,7 @@ onMounted(load)
   align-items: center;
   justify-content: center;
   padding: 80px 20px;
-  color: #71808c;
+  color: #5b6873;
   font-size: 14px;
   text-align: center;
 }

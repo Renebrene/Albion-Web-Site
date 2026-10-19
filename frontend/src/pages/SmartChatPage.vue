@@ -130,7 +130,7 @@ onMounted(init)
   margin-left: auto;
 }
 .chat-columns-label {
-  color: #8b98a3;
+  color: #5f6c76;
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
@@ -183,7 +183,7 @@ onMounted(init)
   border: 2px dashed #cfd6db;
   background: transparent;
   box-shadow: none;
-  color: #8b98a3;
+  color: #5f6c76;
   cursor: pointer;
   transition: 0.15s ease;
 }
@@ -210,7 +210,7 @@ h1 {
   line-height: 1;
 }
 .intro {
-  color: #71808c;
+  color: #5b6873;
   font-size: 14px;
 }
 

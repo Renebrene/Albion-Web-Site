@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
+import os
 from pathlib import Path
 import shutil
 from subprocess import CompletedProcess, run

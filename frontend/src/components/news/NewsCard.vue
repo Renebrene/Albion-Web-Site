@@ -2,7 +2,12 @@
   <article
     class="news-card"
     :class="[`news-card-${size}`, { 'has-slider': mediaItems.length > 1 }]"
+    role="link"
+    tabindex="0"
+    :aria-label="`Читать: ${news.title}`"
     @click="openNews"
+    @keydown.enter.prevent="openNews"
+    @keydown.space.prevent="openNews"
   >
     <div
       class="news-media"
@@ -30,8 +35,18 @@
           decoding="async"
         />
 
-        <div v-if="mediaItems.length > 1" class="news-slider" @click.stop>
-          <button type="button" class="slider-arrow" @click="prevSlide">
+        <div
+          v-if="mediaItems.length > 1"
+          class="news-slider"
+          @click.stop
+          @keydown.stop
+        >
+          <button
+            type="button"
+            class="slider-arrow"
+            aria-label="Предыдущий слайд"
+            @click="prevSlide"
+          >
             ‹
           </button>
 
@@ -42,11 +57,17 @@
               type="button"
               class="slider-dot"
               :class="{ active: index === currentSlide }"
+              :aria-label="`Слайд ${index + 1}`"
               @click="currentSlide = index"
             />
           </div>
 
-          <button type="button" class="slider-arrow" @click="nextSlide">
+          <button
+            type="button"
+            class="slider-arrow"
+            aria-label="Следующий слайд"
+            @click="nextSlide"
+          >
             ›
           </button>
         </div>
