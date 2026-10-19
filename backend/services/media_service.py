@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
+import math
 import os
 from pathlib import Path
 import shutil
-from subprocess import CompletedProcess, run
+from subprocess import CompletedProcess, TimeoutExpired, run
 from uuid import uuid4
+import warnings
 import psutil
 
 import pillow_heif
@@ -41,6 +43,12 @@ VIDEO_PRESET = "medium"
 VIDEO_CRF = 23
 VIDEO_AUDIO_BITRATE = "128k"
 VIDEO_PREVIEW_QUALITY = 82
+VIDEO_MAX_DURATION_SECONDS = 600
+VIDEO_MAX_SOURCE_SIDE = 8192
+VIDEO_MAX_SOURCE_PIXELS = 50_000_000
+VIDEO_PROBE_TIMEOUT_SECONDS = 10
+VIDEO_ENCODE_TIMEOUT_SECONDS = 120
+VIDEO_PREVIEW_TIMEOUT_SECONDS = 30
 MAX_PIXELS = 50_000_000
 
 VARIANT_SIZES = {
@@ -106,14 +114,75 @@ def is_document_name(original_name: str | None) -> bool:
     return extension in DOCUMENT_MIME_TYPES
 
 
+def _validate_image_header(image: Image.Image) -> None:
+    width, height = image.size
+    if width <= 0 or height <= 0 or width * height > MAX_PIXELS:
+        raise MediaValidationError(
+            "Изображение содержит слишком большое количество пикселей"
+        )
+
+    if (image.format or "").upper() != "GIF" or not getattr(image, "is_animated", False):
+        return
+
+    frame_limit = int(os.getenv("ALBION_MEDIA_GIF_MAX_FRAMES", "100"))
+    total_pixels_limit = int(
+        os.getenv("ALBION_MEDIA_GIF_MAX_TOTAL_PIXELS", str(MAX_PIXELS * 2))
+    )
+    duration_limit_ms = int(os.getenv("ALBION_MEDIA_GIF_MAX_DURATION_MS", "60000"))
+
+    if frame_limit < 1 or total_pixels_limit < 1 or duration_limit_ms < 1:
+        raise MediaValidationError("Некорректные лимиты обработки GIF")
+
+    total_duration_ms = 0
+    total_frame_pixels = 0
+    frame_count = 0
+    try:
+        # Do not ask Pillow for n_frames: some plugins scan the complete file
+        # to compute it. Stop seeking as soon as the configured frame cap is hit.
+        while frame_count <= frame_limit:
+            try:
+                image.seek(frame_count)
+            except EOFError:
+                break
+            frame_count += 1
+            frame_width, frame_height = image.size
+            frame_pixels = frame_width * frame_height
+            if frame_pixels > MAX_PIXELS:
+                raise MediaValidationError(
+                    "Кадр GIF содержит слишком много пикселей"
+                )
+            total_frame_pixels += frame_pixels
+            if total_frame_pixels > total_pixels_limit:
+                raise MediaValidationError("GIF превышает лимит суммарных пикселей")
+            duration_ms = int(image.info.get("duration") or 0)
+            if duration_ms < 0:
+                raise ValueError("negative frame duration")
+            total_duration_ms += duration_ms
+            if total_duration_ms > duration_limit_ms:
+                raise MediaValidationError("GIF слишком длинный")
+        if frame_count > frame_limit:
+            raise MediaValidationError("GIF содержит слишком много кадров")
+    except MediaValidationError:
+        raise
+    except (OSError, ValueError) as exc:
+        raise MediaValidationError("Не удалось проверить кадры GIF") from exc
+
+    image.seek(0)
+
+
 def _open_image(file_bytes: bytes) -> Image.Image:
     try:
-        image = Image.open(BytesIO(file_bytes))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            image = Image.open(BytesIO(file_bytes))
+            # Check dimensions before verify/load so oversized compressed images
+            # never get fully decoded into memory.
+            _validate_image_header(image)
+            image.verify()
 
-        image.verify()
-
-        image = Image.open(BytesIO(file_bytes))
-        image.load()
+            image = Image.open(BytesIO(file_bytes))
+            _validate_image_header(image)
+            image.load()
 
         return image
 
@@ -121,6 +190,12 @@ def _open_image(file_bytes: bytes) -> Image.Image:
         raise MediaValidationError(
             "Изображение содержит слишком большое количество пикселей"
         ) from exc
+    except (Image.DecompressionBombWarning, Image.DecompressionBombError) as exc:
+        raise MediaValidationError(
+            "Изображение содержит слишком большое количество пикселей"
+        ) from exc
+    except MediaValidationError:
+        raise
     except (UnidentifiedImageError, OSError, ValueError) as exc:
         raise MediaValidationError(
             "Файл не является корректным изображением"
@@ -987,6 +1062,21 @@ def delete_media(media_id: int) -> dict:
         "deleted": True,
     }
 
+def _run_video_command(args: list[str], *, timeout: int):
+    try:
+        return run(
+            args,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except TimeoutExpired as exc:
+        raise MediaValidationError(
+            "Обработка видео превысила допустимое время"
+        ) from exc
+
+
 def save_video(
     file_bytes: bytes,
     original_name: str,
@@ -1023,7 +1113,7 @@ def save_video(
     try:
         input_path.write_bytes(file_bytes)
 
-        probe = run(
+        probe = _run_video_command(
             [
                 "ffprobe",
                 "-v", "error",
@@ -1032,12 +1122,10 @@ def save_video(
                 "-of", "default=noprint_wrappers=1:nokey=1",
                 str(input_path),
             ],
-            capture_output=True,
-            text=True,
-            check=False,
+            timeout=VIDEO_PROBE_TIMEOUT_SECONDS,
         )
 
-        duration_probe = run(
+        duration_probe = _run_video_command(
             [
                 "ffprobe",
                 "-v", "error",
@@ -1045,9 +1133,7 @@ def save_video(
                 "-of", "default=noprint_wrappers=1:nokey=1",
                 str(input_path),
             ],
-            capture_output=True,
-            text=True,
-            check=False,
+            timeout=VIDEO_PROBE_TIMEOUT_SECONDS,
         )
 
         if probe.returncode != 0:
@@ -1075,8 +1161,23 @@ def save_video(
                 "Некорректные размеры видео"
             ) from exc
 
-        if source_width <= 0 or source_height <= 0 or duration <= 0:
+        if (
+            source_width <= 0
+            or source_height <= 0
+            or not math.isfinite(duration)
+            or duration <= 0
+        ):
             raise MediaValidationError("Некорректные параметры видео")
+        if (
+            source_width > VIDEO_MAX_SOURCE_SIDE
+            or source_height > VIDEO_MAX_SOURCE_SIDE
+            or source_width * source_height > VIDEO_MAX_SOURCE_PIXELS
+        ):
+            raise MediaValidationError("Разрешение исходного видео слишком велико")
+        if duration > VIDEO_MAX_DURATION_SECONDS:
+            raise MediaValidationError(
+                f"Длительность видео превышает {VIDEO_MAX_DURATION_SECONDS // 60} минут"
+            )
 
         if preview_time is None:
             selected_preview_time = duration * 0.10
@@ -1096,6 +1197,7 @@ def save_video(
             [
                 "ffmpeg",
                 "-y",
+                "-threads", "2",
                 "-i", str(input_path),
                 "-vf", f"scale={output_width}:{output_height}:flags=lanczos",
                 "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264",
@@ -1110,6 +1212,7 @@ def save_video(
             capture_output=True,
             text=True,
             check=False,
+            timeout=VIDEO_ENCODE_TIMEOUT_SECONDS,
         )
 
         if encode.returncode != 0 or not output_path.exists():
@@ -1134,6 +1237,7 @@ def save_video(
             capture_output=True,
             text=True,
             check=False,
+            timeout=VIDEO_PREVIEW_TIMEOUT_SECONDS,
         )
 
         if preview.returncode != 0 or not preview_path.exists():
@@ -1171,7 +1275,13 @@ def save_video(
 
         return result
 
-    except Exception as exc:
+    except TimeoutExpired as exc:
+        for file_path in created_files:
+            file_path.unlink(missing_ok=True)
+        raise MediaValidationError(
+            "Обработка видео превысила допустимое время"
+        ) from exc
+    except Exception:
         for file_path in created_files:
             file_path.unlink(missing_ok=True)
         raise

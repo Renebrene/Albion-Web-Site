@@ -23,6 +23,10 @@ def test_rate_rule_matches_chat_and_search_prefixes():
     assert main._rate_rule("/api/search/v2")[0] == "/api/search"
     assert main._rate_rule("/api/chat/message")[0] == "/api/chat"
     assert main._rate_rule("/api/news") is None
+    assert main._rate_rule("/api/requests")[0] == "/api/requests"
+    assert main._rate_rule("/api/account/register")[0] == "/api/account/register"
+    assert main._rate_rule("/api/portfolio/export")[0] == "/api/portfolio/export"
+    assert main._rate_rule("/api/track")[0] == "/api/track"
 
 
 def test_rate_limiter_uses_client_address_and_returns_429(monkeypatch):

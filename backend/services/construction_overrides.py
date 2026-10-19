@@ -13,6 +13,8 @@
 from __future__ import annotations
 
 import os
+import re
+from pathlib import Path
 
 from psycopg.types.json import Json
 
@@ -27,6 +29,26 @@ OVERRIDE_DIR = PROJECT_DIR / "storage" / "constructions" / "overrides"
 
 # Релятивный префикс путей (совпадает с construction_media.*_path).
 _OVERRIDE_REL = "storage/constructions/overrides"
+_SURFACE_HASH_RE = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def validate_surface_hash(value: str) -> str:
+    """Validate the identifier before it can influence a filesystem path."""
+    normalized = str(value or "").strip()
+    if not _SURFACE_HASH_RE.fullmatch(normalized):
+        raise ValueError("Некорректный surface_hash")
+    return normalized
+
+
+def _contained_path(root: Path, relative: str) -> Path:
+    root_resolved = root.resolve()
+    candidate = (root_resolved / relative).resolve()
+    try:
+        candidate.relative_to(root_resolved)
+    except ValueError as exc:
+        raise ValueError("Путь выходит за пределы разрешённого каталога") from exc
+    return candidate
+
 
 # Небольшой кэш карты переопределений активного импорта.
 _CACHE: dict = {"key": None, "stamp": None, "map": {}}
@@ -138,12 +160,26 @@ def get_override(surface_hash: str | None, media_type: str) -> dict | None:
 
 def _write_variants(surface_hash: str, media_type: str, data: bytes, original_name):
     """Строит варианты превью и складывает их в каталог переопределений."""
+    surface_hash = validate_surface_hash(surface_hash)
+    if media_type not in {"photo", "map"}:
+        raise ValueError("Некорректный media_type")
     from backend.services.media_service import (
+        MAX_PIXELS,
+        MediaValidationError,
         _build_static_variants,
+        _is_animated_gif,
         _open_image,
     )
 
     image = _open_image(data)
+    if image.width * image.height > MAX_PIXELS:
+        raise MediaValidationError(
+            "Изображение содержит слишком большое количество пикселей"
+        )
+    if _is_animated_gif(image, str(image.format or "").upper()):
+        raise MediaValidationError(
+            "Анимированный GIF нельзя использовать для фото конструкции"
+        )
     preserve_png = str(original_name or "").lower().endswith(".png")
     variants = _build_static_variants(image, preserve_png)
 
@@ -153,7 +189,7 @@ def _write_variants(surface_hash: str, media_type: str, data: bytes, original_na
 
     for variant, (payload, _mime, extension) in variants.items():
         name = f"{surface_hash}_{media_type}_{variant}{extension}"
-        target = OVERRIDE_DIR / name
+        target = _contained_path(OVERRIDE_DIR, name)
         tmp = target.with_suffix(target.suffix + ".tmp")
 
         tmp.write_bytes(payload)
@@ -171,6 +207,7 @@ def save_override(
     original_name: str | None = None,
 ) -> dict:
     """Сохраняет переопределение фото конструкции для активного импорта."""
+    surface_hash = validate_surface_hash(surface_hash)
     media_type = media_type or "photo"
 
     paths = _write_variants(surface_hash, media_type, data, original_name)
@@ -217,7 +254,7 @@ def save_override(
 
 
 def _read_storage_file(url: str) -> tuple[bytes, str]:
-    """Читает файл из хранилища по сохранённому пути (/storage/... или storage/...)."""
+    """Read only an existing file below the local storage root."""
     value = str(url or "").strip()
 
     if value.startswith("/storage/"):
@@ -225,14 +262,21 @@ def _read_storage_file(url: str) -> tuple[bytes, str]:
     elif value.startswith("storage/"):
         rel = value[len("storage/") :]
     else:
-        rel = value.lstrip("/")
+        raise ValueError("source_url должен указывать на локальный /storage/ файл")
 
-    target = PROJECT_DIR / "storage" / rel
-
+    target = _contained_path(PROJECT_DIR / "storage", rel)
     if not target.is_file():
         raise FileNotFoundError(f"Файл не найден: {url}")
 
-    return target.read_bytes(), target.name
+    from backend.services.media_service import MAX_INPUT_FILE_SIZE, MediaValidationError
+
+    if target.stat().st_size > MAX_INPUT_FILE_SIZE:
+        raise MediaValidationError("Исходное изображение превышает лимит 40 МБ")
+    with target.open("rb") as source:
+        data = source.read(MAX_INPUT_FILE_SIZE + 1)
+    if len(data) > MAX_INPUT_FILE_SIZE:
+        raise MediaValidationError("Исходное изображение превышает лимит 40 МБ")
+    return data, target.name
 
 
 def save_override_from_url(
@@ -248,7 +292,11 @@ def save_override_from_url(
 
 
 def clear_override(surface_hash: str, media_type: str = "photo") -> bool:
-    """Снимает переопределение и удаляет его файлы из каталога."""
+    """Снимает переопределение и удаляет только файлы из OVERRIDE_DIR."""
+    surface_hash = validate_surface_hash(surface_hash)
+    if media_type not in {"photo", "map"}:
+        raise ValueError("Некорректный media_type")
+
     with get_connection() as conn:
         row = conn.execute(
             """
@@ -273,8 +321,11 @@ def clear_override(surface_hash: str, media_type: str = "photo") -> bool:
                 continue
 
             try:
-                (PROJECT_DIR / str(rel)).unlink(missing_ok=True)
-            except OSError:
+                _contained_path(OVERRIDE_DIR, str(rel).removeprefix(_OVERRIDE_REL + "/")).unlink(
+                    missing_ok=True
+                )
+            except (OSError, ValueError):
+                # Legacy/malformed database paths must never escape the override root.
                 pass
 
     invalidate()

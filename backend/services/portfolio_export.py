@@ -65,6 +65,16 @@ SUPPORTED_FORMATS = (
 TEXT_FORMATS = ("csv", "txt", "md", "json")
 
 MAX_ITEMS = 500
+_FORMULA_PREFIXES = ("=", "+", "-", "@")
+
+
+def _spreadsheet_text(value: Any) -> str:
+    """Neutralize formula-like prefixes in values opened by spreadsheets."""
+    text = "" if value is None else str(value)
+    if text.startswith(_FORMULA_PREFIXES):
+        return "'" + text
+    return text
+
 
 DEFAULT_TITLE = "Портфель Albion"
 
@@ -541,7 +551,7 @@ def export_xlsx(portfolio: dict) -> bytes:
     sheet.title = "Портфель"
 
     # Заголовок документа (строка 1, объединён по всем колонкам).
-    sheet.append([portfolio["title"]])
+    sheet.append([_spreadsheet_text(portfolio["title"])])
     sheet.merge_cells(
         start_row=1, start_column=1, end_row=1, end_column=len(columns)
     )
@@ -553,7 +563,7 @@ def export_xlsx(portfolio: dict) -> bytes:
     requisites = portfolio.get("requisites") or []
 
     for label, value in requisites:
-        sheet.append([f"{label}: {value}"])
+        sheet.append([_spreadsheet_text(f"{label}: {value}")])
         req_row = sheet.max_row
         sheet.merge_cells(
             start_row=req_row,
@@ -566,7 +576,7 @@ def export_xlsx(portfolio: dict) -> bytes:
         req_cell.alignment = Alignment(vertical="center")
 
     # Шапка таблицы — сразу после заголовка и блока реквизитов.
-    sheet.append(list(columns))
+    sheet.append([_spreadsheet_text(value) for value in columns])
     header_row = sheet.max_row
 
     for col in range(1, len(columns) + 1):
@@ -582,13 +592,13 @@ def export_xlsx(portfolio: dict) -> bytes:
         sheet.append(
             [
                 row["index"],
-                row["city"],
-                row["address"],
-                row["side"],
-                row["type"],
-                row["size"],
-                row["months"],
-                row["sum"],
+                _spreadsheet_text(row["city"]),
+                _spreadsheet_text(row["address"]),
+                _spreadsheet_text(row["side"]),
+                _spreadsheet_text(row["type"]),
+                _spreadsheet_text(row["size"]),
+                _spreadsheet_text(row["months"]),
+                _spreadsheet_text(row["sum"]),
             ]
         )
 
@@ -600,7 +610,11 @@ def export_xlsx(portfolio: dict) -> bytes:
 
     # Итоговая строка.
     total_row = last_data_row + 1
-    total_cell = sheet.cell(row=total_row, column=1, value=portfolio["summary"])
+    total_cell = sheet.cell(
+        row=total_row,
+        column=1,
+        value=_spreadsheet_text(portfolio["summary"]),
+    )
     total_cell.font = Font(bold=True)
     total_cell.alignment = Alignment(vertical="center")
     sheet.merge_cells(
@@ -1462,24 +1476,27 @@ def export_csv(portfolio: dict) -> bytes:
     buffer = io.StringIO()
     writer = csv.writer(buffer, delimiter=";", lineterminator="\r\n")
 
-    writer.writerow(TEXT_COLUMNS)
+    writer.writerow([_spreadsheet_text(value) for value in TEXT_COLUMNS])
 
     for row in portfolio["rows"]:
         writer.writerow(
             [
                 row["index"],
-                row["city"],
-                row["address"],
-                row["side"],
-                row["type"],
-                row["size"],
-                row["months"],
-                row["sum"],
+                _spreadsheet_text(row["city"]),
+                _spreadsheet_text(row["address"]),
+                _spreadsheet_text(row["side"]),
+                _spreadsheet_text(row["type"]),
+                _spreadsheet_text(row["size"]),
+                _spreadsheet_text(row["months"]),
+                _spreadsheet_text(row["sum"]),
             ]
         )
 
     writer.writerow([])
-    writer.writerow(["", "", "", "", "", "", "ИТОГО", format_money(portfolio["total"])])
+    writer.writerow(
+        ["", "", "", "", "", "", _spreadsheet_text("ИТОГО"),
+         _spreadsheet_text(format_money(portfolio["total"]))]
+    )
 
     # BOM — чтобы Excel распознал UTF-8.
     return buffer.getvalue().encode("utf-8-sig")

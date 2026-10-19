@@ -6,3 +6,7 @@
 
 limit_req_zone $binary_remote_addr zone=albion_search:10m rate=30r/m;
 limit_req_zone $binary_remote_addr zone=albion_chat:10m rate=60r/m;
+limit_req_zone $binary_remote_addr zone=albion_export:10m rate=10r/m;
+limit_req_zone $binary_remote_addr zone=albion_requests:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=albion_register:10m rate=5r/m;
+limit_req_zone $binary_remote_addr zone=albion_track:10m rate=120r/m;

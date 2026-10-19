@@ -14,6 +14,7 @@ from io import BytesIO
 import pytest
 
 from backend.services.portfolio_export import (
+    _spreadsheet_text,
     CONTENT_TYPES,
     SUPPORTED_FORMATS,
     PortfolioExportError,
@@ -33,6 +34,12 @@ ITEMS = [
         "month_prices": {"Август": 1000},
     }
 ]
+
+
+def test_spreadsheet_values_neutralize_formula_prefixes():
+    for value in ("=SUM(A1)", "+cmd", "-1+1", "@A1"):
+        assert _spreadsheet_text(value).startswith("'")
+    assert _spreadsheet_text("обычный текст") == "обычный текст"
 
 
 def test_content_types_cover_all_supported_formats():

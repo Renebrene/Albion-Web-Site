@@ -46,6 +46,11 @@ def set_media_override(
     if not surface_hash:
         raise HTTPException(status_code=400, detail="surface_hash обязателен")
 
+    try:
+        surface_hash = svc.validate_surface_hash(surface_hash)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     if media_type not in ("photo", "map"):
         raise HTTPException(status_code=400, detail="media_type: photo или map")
 
@@ -75,6 +80,8 @@ def set_media_override(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {"success": True, "override": result}
 
@@ -86,7 +93,11 @@ def clear_media_override(
     auth=Depends(require_admin),
 ):
     """Снимает переопределение фото конструкции."""
-    svc.clear_override(surface_hash, media_type)
+    try:
+        surface_hash = svc.validate_surface_hash(surface_hash)
+        svc.clear_override(surface_hash, media_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     return {"success": True}
 

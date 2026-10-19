@@ -1,6 +1,10 @@
 # Secrets / local environment
 .env
 .env.*
+# Backup/export files with credentials (e.g. 202610180134.env)
+*.env
+# Экспорт диалога с паролем/командами входа
+ChatGPT-*.md
 
 # Python
 __pycache__/

@@ -63,27 +63,70 @@ def write_plan(staging_path: Path, plan: dict) -> None:
     )
 
 
+PREVIEW_MAX_INPUT_BYTES = 40 * 1024 * 1024
+PREVIEW_MAX_ZIP_ENTRIES = 1000
+PREVIEW_MAX_MEMBER_BYTES = 40 * 1024 * 1024
+PREVIEW_MAX_COMPRESSION_RATIO = 100
+
+
+def _read_bounded(stream, limit: int) -> bytes:
+    chunks = []
+    total = 0
+    while total <= limit:
+        chunk = stream.read(min(1024 * 1024, limit + 1 - total))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total += len(chunk)
+        if total > limit:
+            raise RuntimeError("Файл превышает допустимый размер preview")
+    return b"".join(chunks)
+
+
 def load_preview_bytes(source_path: Path) -> bytes:
-    data = source_path.read_bytes()
+    try:
+        source_size = source_path.stat().st_size
+    except OSError as exc:
+        raise RuntimeError(f"Не удалось прочитать preview-файл: {exc}") from exc
+    if source_size > PREVIEW_MAX_INPUT_BYTES:
+        raise RuntimeError("Файл preview превышает лимит 40 МБ")
 
-    if data.startswith(b"PK\x03\x04"):
-        with ZipFile(source_path) as archive:
-            candidates = [
-                info
-                for info in archive.infolist()
-                if not info.is_dir()
-                and "карта" in Path(info.filename).name.lower()
-                and "фото+карта" not in Path(info.filename).name.lower()
-            ]
+    with source_path.open("rb") as source:
+        signature = source.read(4)
+    if signature != b"PK\x03\x04":
+        with source_path.open("rb") as source:
+            return _read_bounded(source, PREVIEW_MAX_INPUT_BYTES)
 
-            if len(candidates) != 1:
-                raise RuntimeError(
-                    f"ZIP: найдено карт-кандидатов: {len(candidates)}"
-                )
+    with ZipFile(source_path) as archive:
+        infos = archive.infolist()
+        if len(infos) > PREVIEW_MAX_ZIP_ENTRIES:
+            raise RuntimeError("ZIP содержит слишком много записей")
 
-            return archive.read(candidates[0])
+        candidates = [
+            info
+            for info in infos
+            if not info.is_dir()
+            and "карта" in Path(info.filename).name.lower()
+            and "фото+карта" not in Path(info.filename).name.lower()
+        ]
+        if len(candidates) != 1:
+            raise RuntimeError(f"ZIP: найдено карт-кандидатов: {len(candidates)}")
 
-    return data
+        candidate = candidates[0]
+        if candidate.file_size > PREVIEW_MAX_MEMBER_BYTES:
+            raise RuntimeError("ZIP preview member превышает лимит 40 МБ")
+        if candidate.file_size and candidate.compress_size == 0:
+            raise RuntimeError("Некорректный размер ZIP preview member")
+        if candidate.compress_size and (
+            candidate.file_size / candidate.compress_size > PREVIEW_MAX_COMPRESSION_RATIO
+        ):
+            raise RuntimeError("Слишком высокая степень сжатия ZIP preview member")
+
+        with archive.open(candidate, "r") as member:
+            data = _read_bounded(member, PREVIEW_MAX_MEMBER_BYTES)
+        if len(data) != candidate.file_size:
+            raise RuntimeError("Размер ZIP preview member не совпадает с заголовком")
+        return data
 
 
 def variant_paths(

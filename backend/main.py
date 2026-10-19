@@ -269,7 +269,11 @@ _RATE_RULES = {
     "/api/admin/login": (10, 60),
     "/api/account/login": (10, 60),
     "/api/account/recover": (5, 300),
+    "/api/account/register": (_env_limit("ALBION_RATE_REGISTER_PER_MIN", 5), 60),
+    "/api/requests": (_env_limit("ALBION_RATE_REQUESTS_PER_MIN", 5), 60),
+    "/api/track": (_env_limit("ALBION_RATE_TRACK_PER_MIN", 120), 60),
     "/api/feedback": (20, 60),
+    "/api/portfolio/export": (_env_limit("ALBION_RATE_EXPORT_PER_MIN", 10), 60),
     # Поиск и чат могут выполнять тяжёлые запросы; ограничиваем публично.
     "/api/search": (_env_limit("ALBION_RATE_SEARCH_PER_MIN", 30), 60),
     "/api/chat": (_env_limit("ALBION_RATE_CHAT_PER_MIN", 60), 60),
@@ -805,6 +809,17 @@ def admin_logout(auth=Depends(require_admin)):
 #
 # Все API-роуты и /storage объявлены выше, поэтому имеют приоритет: этот
 # catch-all срабатывает только для путей, не совпавших с ними.
+def _safe_spa_candidate(spa_dir, full_path: str):
+    """Resolve an SPA asset only if it stays inside the built SPA root."""
+    root = spa_dir.resolve()
+    candidate = (root / str(full_path or "")).resolve()
+    try:
+        candidate.relative_to(root)
+    except ValueError:
+        return None
+    return candidate
+
+
 if os.getenv("ALBION_SERVE_SPA", "").strip() == "1":
     from fastapi.responses import FileResponse
 
@@ -819,9 +834,9 @@ if os.getenv("ALBION_SERVE_SPA", "").strip() == "1":
             if full_path.startswith(("api/", "storage/")):
                 raise HTTPException(status_code=404, detail="Not found")
 
-            candidate = _spa_dir / full_path
+            candidate = _safe_spa_candidate(_spa_dir, full_path)
 
-            if full_path and candidate.is_file():
+            if candidate is not None and full_path and candidate.is_file():
                 return FileResponse(candidate)
 
             return FileResponse(_spa_index)
