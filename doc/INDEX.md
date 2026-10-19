@@ -8,6 +8,7 @@
 | Документ | О чём |
 |---|---|
 | [`technical-overview.md`](technical-overview.md) | Назначение проекта, возможности, архитектура и требования к развёртыванию |
+| [`postgresql-tuning.md`](postgresql-tuning.md) | Замеры PostgreSQL: память, CPU, кэш, буферы, настройки и рекомендации |
 | [`architecture.md`](architecture.md) | Как устроено: слои, потоки данных, состояние |
 | [`api.md`](api.md) | Справочник эндпоинтов — **генерируется** |
 | [`database.md`](database.md) | Схема БД: таблицы, ключи, расширения — **генерируется** |

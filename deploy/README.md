@@ -39,6 +39,26 @@
 
 Запуск: `.venv/bin/python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000`
 
+## PostgreSQL: тюнинг и профилирование
+
+Замеры и обоснование настроек — в [`doc/postgresql-tuning.md`](../doc/postgresql-tuning.md).
+Для применения безопасного набора параметров есть идемпотентный скрипт:
+
+```bash
+# из корня проекта
+sudo ./deploy/postgresql-tuning.sh
+```
+
+Он включает `pg_stat_statements`, задаёт `idle_in_transaction_session_timeout`,
+`maintenance_work_mem` и `effective_cache_size`. `shared_buffers` (128 МБ) и
+`max_connections` (100) намеренно не меняются: база небольшая и уже полностью
+кэшируется, а пик соединений под нагрузкой не требует снижения лимита.
+Скрипт перезапускает кластер PostgreSQL (нужно для `shared_preload_libraries`),
+поэтому в кластере с другими базами запускайте его в окно обслуживания.
+
+После импорта каталога статистика планировщика обновляется автоматически:
+`backend/importer/staging_to_postgres.py` выполняет `ANALYZE` перед `COMMIT`.
+
 ## Frontend (Quasar + Vite)
 
 Сборка: `npm ci && npm run build` → `frontend/dist/spa`.
