@@ -10,6 +10,24 @@ async function request(url) {
   return response.json()
 }
 
+export async function postJson(url, body) {
+  const response = await fetch(`${API_URL}${url}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    const error = new Error(data?.detail || `API error: ${response.status}`)
+    error.status = response.status
+    throw error
+  }
+
+  return data
+}
+
 export function getHealth() {
   return request('/health')
 }

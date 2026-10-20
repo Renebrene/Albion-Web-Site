@@ -27,8 +27,10 @@
         :results="pointFilteredConstructions"
         :coordinates="pointCoordinates"
         :address="pointAddress"
+        :address-loading="addressLoading"
+        :address-error="addressError"
         @update:coordinates="pointCoordinates = $event"
-        @update:address="pointAddress = $event"
+        @update:address="onPointAddressInput"
         @search="executePointSearch"
         @search-address="executeAddressSearch"
         @open-list="openListFromPoint"
@@ -702,6 +704,7 @@ import MapView from '../map/MapView.vue'
 import { clearPopupContentCache } from '../map/popupContent'
 
 import { getConstructions } from '../services/api'
+import { geocodeAddress, reverseGeocode } from '../services/geoApi'
 
 import { useConstructionsFilter } from '../composables/useConstructionsFilter'
 
@@ -1138,6 +1141,8 @@ function onMapSearch() {
 
 const pointCoordinates = ref('47.2357, 39.7015')
 const pointAddress = ref('')
+const addressLoading = ref(false)
+const addressError = ref('')
 const pointRadius = ref(1000)
 
 /* Шаги радиуса поиска (метры). */
@@ -1329,6 +1334,8 @@ function fixSelectedPoint() {
   }
 
   pointSelectionState.value = 'fixed'
+  pointAddress.value = ''
+  void fillAddressForPoint(parts[0], parts[1])
 }
 
 function changeSelectedPoint() {
@@ -1485,17 +1492,61 @@ function executePointSearch() {
     lng
   }
 
+  pointSelectionState.value = 'fixed'
+  pointAddress.value = ''
   mapViewRef.value?.setMapCenter(lat, lng, 14)
+  void fillAddressForPoint(lat, lng)
 }
 
-function executeAddressSearch() {
+function onPointAddressInput(value) {
+  pointAddress.value = value
+  addressError.value = ''
+}
+
+async function fillAddressForPoint(lat, lng) {
+  try {
+    const result = await reverseGeocode(lat, lng)
+
+    if (result?.address && !String(pointAddress.value || '').trim()) {
+      pointAddress.value = result.address
+    }
+  } catch (error) {
+    /* Обратный геокодер не должен мешать поиску по точке. */
+    console.warn('Albion reverse geocode:', error)
+  }
+}
+
+async function executeAddressSearch() {
   const address = String(pointAddress.value || '').trim()
 
   if (!address) {
+    addressError.value = 'Введите адрес.'
     return
   }
 
-  console.log('Albion address search:', address)
+  addressLoading.value = true
+  addressError.value = ''
+
+  try {
+    const result = await geocodeAddress(address)
+    const lat = Number(result.lat)
+    const lng = Number(result.lon)
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new Error('Геокодер вернул некорректные координаты')
+    }
+
+    pointAddress.value = result.address || address
+    pointCoordinates.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+    fixedSearchPoint.value = { lat, lng }
+    pointSelectionState.value = 'fixed'
+    mapViewRef.value?.setMapCenter(lat, lng, 14)
+  } catch (error) {
+    addressError.value =
+      error?.message || 'Не удалось найти адрес в Ростовской области.'
+  } finally {
+    addressLoading.value = false
+  }
 }
 
 const {

@@ -18,6 +18,8 @@
 | `ALBION_DB_MAX_OVERFLOW` | Дополнительные search-соединения на worker; по умолчанию `0` |
 | `ALBION_DB_POOL_MAX` | Максимум соединений общего psycopg-пула на worker; по умолчанию `4` |
 | `ALBION_DB_POOL_TIMEOUT` | Ожидание свободного соединения пула, секунды; по умолчанию `10` |
+| `ALBION_YANDEX_GEOCODER_KEY` | Серверный ключ Yandex Geocoder для поиска по адресу и reverse geocode |
+| `ALBION_YANDEX_SUGGEST_KEY` | Серверный ключ Yandex Geosuggest для подсказок адреса |
 | `ALBION_ACCOUNT_ADMIN_PASSWORD` | Первичный пароль provisioned-аккаунта `user_accounts` (только при первом создании) |
 | `ALBION_ACCOUNT_ADMIN_SECRET` | Legacy: первичная фраза `user_accounts` (кабинет, не панель) |
 | `ALBION_PANEL_ADMIN_LOGIN` | Новый логин панели `admin_users` при bootstrap |

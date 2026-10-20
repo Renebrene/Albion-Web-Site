@@ -116,7 +116,37 @@
         </button>
       </div>
 
-      <div class="input-hint">
+      <div
+        v-if="searchMode === 'address' && suggestions.length"
+        class="address-suggestions"
+      >
+        <button
+          v-for="suggestion in suggestions"
+          :key="suggestion.id"
+          type="button"
+          class="address-suggestion"
+          @click="selectSuggestion(suggestion)"
+        >
+          <span class="address-suggestion-title">
+            {{ suggestion.title }}
+          </span>
+          <span v-if="suggestion.subtitle" class="address-suggestion-sub">
+            {{ suggestion.subtitle }}
+          </span>
+        </button>
+      </div>
+
+      <div v-if="addressLoading" class="input-hint" role="status">
+        Ищем адрес…
+      </div>
+      <div
+        v-else-if="addressError"
+        class="input-hint input-hint--error"
+        role="alert"
+      >
+        {{ addressError }}
+      </div>
+      <div v-else class="input-hint">
         {{ searchHint }}
       </div>
     </section>
@@ -204,11 +234,12 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 
 import { MONTHS } from '../../utils/constructionGroups'
 import { getMonthStatusLabel, isFree } from '../../utils/availability'
 import { usePortfolio } from '../../composables/usePortfolio'
+import { suggestAddress } from '../../services/geoApi'
 
 const props = defineProps({
   active: {
@@ -259,6 +290,16 @@ const props = defineProps({
   address: {
     type: String,
     default: ''
+  },
+
+  addressLoading: {
+    type: Boolean,
+    default: false
+  },
+
+  addressError: {
+    type: String,
+    default: ''
   }
 })
 
@@ -287,26 +328,88 @@ const searchPlaceholder = computed(() =>
 const searchHint = computed(() =>
   searchMode.value === 'coords'
     ? 'Широта и долгота через запятую'
-    : 'Поиск по адресу подключим позже (по геокодеру)'
+    : 'Начните вводить адрес — появятся подсказки'
 )
+
+const suggestions = ref([])
+let suggestTimer = null
+let suggestSeq = 0
+
+function clearSuggestions() {
+  suggestions.value = []
+  suggestSeq += 1
+
+  if (suggestTimer) {
+    clearTimeout(suggestTimer)
+    suggestTimer = null
+  }
+}
+
+async function loadSuggestions(query) {
+  const value = String(query || '').trim()
+
+  if (value.length < 3) {
+    suggestions.value = []
+    return
+  }
+
+  const seq = ++suggestSeq
+
+  try {
+    const result = await suggestAddress(value)
+
+    if (seq !== suggestSeq) {
+      return
+    }
+
+    suggestions.value = Array.isArray(result?.suggestions)
+      ? result.suggestions
+      : []
+  } catch (error) {
+    if (seq === suggestSeq) {
+      suggestions.value = []
+    }
+  }
+}
 
 function setMode(mode) {
   searchMode.value = mode
+  clearSuggestions()
 }
 
 function onInput(event) {
   const value = event.target.value
 
   if (searchMode.value === 'coords') {
+    clearSuggestions()
     emit('update:coordinates', value)
-  } else {
-    emit('update:address', value)
+    return
   }
+
+  emit('update:address', value)
+  clearSuggestions()
+
+  suggestTimer = setTimeout(() => {
+    suggestTimer = null
+    void loadSuggestions(value)
+  }, 300)
+}
+
+function selectSuggestion(suggestion) {
+  emit('update:address', suggestion.display_name || suggestion.query)
+  clearSuggestions()
+  emit('search-address')
 }
 
 function onSearch() {
+  clearSuggestions()
   emit(searchMode.value === 'coords' ? 'search' : 'search-address')
 }
+
+onBeforeUnmount(() => {
+  clearSuggestions()
+  suggestSeq += 1
+})
 
 const constructionLabel = computed(() => {
   const value = Number(props.count) || 0
@@ -801,10 +904,67 @@ function toggleType(value) {
 .input-hint {
   margin-top: 6px;
 
-  color: #8b98a1;
+  color: #5f6c76;
 
   font-size: 10px;
   line-height: 1.4;
+}
+
+.input-hint--error {
+  color: #a8281f;
+}
+
+.address-suggestions {
+  display: flex;
+  flex-direction: column;
+
+  margin-top: 6px;
+  overflow: hidden;
+
+  border: 1px solid #dce2e6;
+  border-radius: 10px;
+
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(25, 35, 45, 0.12);
+}
+
+.address-suggestion {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+
+  padding: 9px 11px;
+
+  border: 0;
+  border-bottom: 1px solid #eef1f3;
+
+  background: transparent;
+  color: #17212b;
+
+  font-family: inherit;
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.address-suggestion:last-child {
+  border-bottom: 0;
+}
+
+.address-suggestion:hover,
+.address-suggestion:focus-visible {
+  background: #f4f6f7;
+}
+
+.address-suggestion-title {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.address-suggestion-sub {
+  color: #5f6c76;
+  font-size: 10px;
 }
 
 .result-count {

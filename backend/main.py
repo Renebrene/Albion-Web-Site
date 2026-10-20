@@ -173,6 +173,10 @@ app.include_router(admin_requests_router)
 app.include_router(search_v2_router)
 app.include_router(admin_search_v2_router)
 
+from backend.api.geocoding import router as geocoding_router
+
+app.include_router(geocoding_router)
+
 
 from backend.services.site_backup_service import start_scheduler
 
@@ -277,6 +281,10 @@ _RATE_RULES = {
     # Поиск и чат могут выполнять тяжёлые запросы; ограничиваем публично.
     "/api/search": (_env_limit("ALBION_RATE_SEARCH_PER_MIN", 30), 60),
     "/api/chat": (_env_limit("ALBION_RATE_CHAT_PER_MIN", 60), 60),
+    # Геокодер/подсказки расходуют квоту внешнего провайдера.
+    "/api/geo/geocode": (_env_limit("ALBION_RATE_GEOCODE_PER_MIN", 30), 60),
+    "/api/geo/reverse": (_env_limit("ALBION_RATE_REVERSE_PER_MIN", 30), 60),
+    "/api/geo/suggest": (_env_limit("ALBION_RATE_SUGGEST_PER_MIN", 120), 60),
 }
 _rate_buckets: dict[tuple[str, str], deque] = defaultdict(deque)
 
