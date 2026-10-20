@@ -12,8 +12,10 @@ from backend.services import geocoding_service as geo
 @pytest.fixture(autouse=True)
 def _clear_geocoding_cache():
     geo._CACHE.clear()
+    _Client.calls.clear()
     yield
     geo._CACHE.clear()
+    _Client.calls.clear()
 
 
 class _Response:
@@ -97,7 +99,11 @@ def test_geocode_parses_and_returns_coordinates(monkeypatch):
     assert result["lon"] == pytest.approx(39.696085)
     assert result["address"].startswith("Ростов-на-Дону")
     assert result["source"] == "Yandex Geocoder"
-    assert "Ростовская область" in client.calls[0][1]["geocode"]
+    params = client.calls[0][1]
+    # Без явного города «Курчатова» находилась в Волгодонске.
+    assert "Ростов-на-Дону" in params["geocode"]
+    assert "bbox" not in params
+    assert "rspn" not in params
 
 
 def test_geocode_rejects_outside_region(monkeypatch):
@@ -122,12 +128,20 @@ def test_geocode_rejects_outside_region(monkeypatch):
 
 def test_suggest_normalizes_yandex_payload(monkeypatch):
     monkeypatch.setenv("ALBION_YANDEX_SUGGEST_KEY", "test-key")
-    monkeypatch.setattr(geo.httpx, "AsyncClient", _Client(SUGGEST_PAYLOAD))
+    client = _Client(SUGGEST_PAYLOAD)
+    monkeypatch.setattr(geo.httpx, "AsyncClient", client)
 
     result = asyncio.run(geo.suggest_address("Большая"))
 
     assert result[0]["title"] == "Ростов-на-Дону, Большая Садовая"
     assert result[0]["display_name"] == "Ростов-на-Дону, Большая Садовая"
+
+    params = client.calls[0][1]
+    assert params["ll"] == geo.ROSTOV_BIAS_LL
+    assert params["spn"] == geo.ROSTOV_BIAS_SPN
+    # Регион в тексте запроса переносил выдачу в Волгодонск/другие города.
+    assert "Ростовская область" not in params["text"]
+    assert "bbox" not in params
 
 
 def test_missing_geocoder_key_returns_unavailable(monkeypatch):

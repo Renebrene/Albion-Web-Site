@@ -22,9 +22,15 @@ ROSTOV_WEST = 38.22075
 ROSTOV_SOUTH = 45.951688
 ROSTOV_EAST = 44.319992
 ROSTOV_NORTH = 50.214477
-ROSTOV_SEARCH_BBOX = (
-    f"{ROSTOV_WEST},{ROSTOV_SOUTH}~{ROSTOV_EAST},{ROSTOV_NORTH}"
-)
+
+# Центр Ростова-на-Дону и охват для ранжирования подсказок. Bbox области
+# как жёсткий фильтр не подходит: на запрос «Курчатова» Яндекс возвращал
+# Волгодонск, а не ростовскую улицу. ll/spn задают приоритет, не отсекая
+# другие города, если пользователь явно указал их в запросе.
+ROSTOV_CENTER_LON = 39.7015
+ROSTOV_CENTER_LAT = 47.2357
+ROSTOV_BIAS_LL = f"{ROSTOV_CENTER_LON},{ROSTOV_CENTER_LAT}"
+ROSTOV_BIAS_SPN = "0.5,0.5"
 
 TIMEOUT_SECONDS = 5.0
 CACHE_TTL_SECONDS = 300.0
@@ -137,17 +143,9 @@ async def suggest_address(query: str, limit: int = 8) -> list[dict[str, str]]:
     if len(query) < 3:
         return []
 
-    # Geosuggest принимает bbox как подсказку, а не жёсткий фильтр: без
-    # региона запрос «Большая Садовая 1» первым отдаёт Москву. Добавляем
-    # регион, если пользователь сам его не указал.
-    normalized = query.casefold().replace("ё", "е")
-    if (
-        "ростовская область" not in normalized
-        and "ростов-на-дону" not in normalized
-        and "ростов на дону" not in normalized
-    ):
-        query = f"{query}, Ростовская область"
-
+    # Ранжируем подсказки вокруг Ростова-на-Дону. Регион в тексте запроса
+    # не дописываем: «Курчатова, Ростовская область» Geosuggest понимает
+    # как поиск по области и первым отдаёт Волгодонск.
     cache_key = f"suggest:{limit}:{query.casefold()}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -158,7 +156,8 @@ async def suggest_address(query: str, limit: int = 8) -> list[dict[str, str]]:
         "apikey": key,
         "lang": "ru_RU",
         "results": max(1, min(10, int(limit))),
-        "bbox": ROSTOV_SEARCH_BBOX,
+        "ll": ROSTOV_BIAS_LL,
+        "spn": ROSTOV_BIAS_SPN,
         "attrs": "uri",
         "print_address": 1,
     }
@@ -243,10 +242,16 @@ async def geocode_address(query: str) -> dict[str, Any]:
     if len(query) < 3:
         raise GeocodingNotFound("Адрес слишком короткий")
 
+    # По умолчанию уточняем городом: запрос «Курчатова» без него Яндекс
+    # находил в Волгодонске. Если пользователь указал другой город
+    # («Ленина, Таганрог»), он имеет приоритет над добавленным Ростовом.
     normalized = query.casefold().replace("ё", "е")
     geocode_query = query
-    if "ростовская область" not in normalized:
-        geocode_query += ", Ростовская область"
+    if (
+        "ростов-на-дону" not in normalized
+        and "ростов на дону" not in normalized
+    ):
+        geocode_query += ", Ростов-на-Дону"
     if "россия" not in normalized:
         geocode_query += ", Россия"
 
@@ -261,8 +266,6 @@ async def geocode_address(query: str) -> dict[str, Any]:
         "format": "json",
         "lang": "ru_RU",
         "results": 1,
-        "bbox": ROSTOV_SEARCH_BBOX,
-        "rspn": 1,
     }
 
     try:
