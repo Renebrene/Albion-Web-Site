@@ -60,30 +60,34 @@
               :class="{ active: workspaceMode === 'map' }"
               @click="workspaceMode = 'map'"
             >
-              Интерактивная карта
+              <span class="mode-label">Интерактивная карта</span>
+              <span class="mode-label-short">Карта</span>
             </button>
             <button
               type="button"
               :class="{ active: workspaceMode === 'point' }"
               @click="workspaceMode = 'point'"
             >
-              Поиск по точке и адресу
+              <span class="mode-label">Поиск по точке и адресу</span>
+              <span class="mode-label-short">Точка</span>
             </button>
             <button
               type="button"
               :class="{ active: workspaceMode === 'list' }"
               @click="workspaceMode = 'list'"
             >
-              Список
+              <span class="mode-label">Список</span>
+              <span class="mode-label-short">Список</span>
             </button>
           </div>
 
           <MapSearch
             v-model="topSearchValue"
-            :count="displayedConstructions.length"
+            :count="toolbarCount"
             :show-mode="workspaceMode === 'point'"
             :mode="topSearchMode"
             @update:mode="topSearchMode = $event"
+            @select-suggestion="onTopSuggestionSelect"
             @search="onTopSearch"
           />
         </div>
@@ -1392,7 +1396,9 @@ const pointFilteredConstructions = computed(() => {
 
 /*
  * Результаты для закладок «Список» и «Интерактивная карта»:
- * если точка зафиксирована — показываем результаты поиска по точке.
+ * если точка зафиксирована — показываем результаты поиска по точке
+ * (например, после «Открыть список»). Ввод текста в строку поиска
+ * в этих режимах снимает фиксацию — см. topSearchValue.
  */
 const displayedConstructions = computed(() => {
   const source =
@@ -1414,6 +1420,13 @@ const displayedConstructions = computed(() => {
   return constructions.value.filter(item => ids.has(String(item?.id)))
 })
 
+/* В точке счётчик показывает найденное вокруг неё, в карте/списке — по базе. */
+const toolbarCount = computed(() =>
+  workspaceMode.value === 'point'
+    ? pointFilteredConstructions.value.length
+    : displayedConstructions.value.length
+)
+
 /* Из панели точки: открыть закладку «Список» с найденными результатами. */
 function openListFromPoint() {
   workspaceMode.value = 'list'
@@ -1421,10 +1434,11 @@ function openListFromPoint() {
 
 /*
  * Поиск в верхней плавающей строке.
- * В режиме точки — координаты/адрес (переключатель на краю поля),
- * в остальных режимах — обычный поиск по адресу/городу/номеру.
+ * В режиме точки — геокодер: подсказки и геокодирование адреса (или
+ * координаты по переключателю). В карте и списке — фильтр по базе:
+ * город, улица, формат.
  */
-const topSearchMode = ref('coords')
+const topSearchMode = ref('address')
 
 const topSearchValue = computed({
   get() {
@@ -1445,6 +1459,12 @@ const topSearchValue = computed({
         pointAddress.value = value
       }
     } else {
+      /* В карте и списке строка поиска — обычный фильтр по базе.
+         Зафиксированная ранее точка не должна сужать его выдачу. */
+      if (pointSelectionState.value === 'fixed') {
+        changeSelectedPoint()
+      }
+
       searchQuery.value = value
     }
   }
@@ -1514,6 +1534,25 @@ async function fillAddressForPoint(lat, lng) {
     /* Обратный геокодер не должен мешать поиску по точке. */
     console.warn('Albion reverse geocode:', error)
   }
+}
+
+/* Выбор подсказки в верхней строке: сразу геокодируем выбранный адрес. */
+function onTopSuggestionSelect(suggestion) {
+  if (workspaceMode.value !== 'point') {
+    return
+  }
+
+  const address = String(
+    suggestion?.display_name || suggestion?.query || ''
+  ).trim()
+
+  if (!address) {
+    return
+  }
+
+  topSearchMode.value = 'address'
+  pointAddress.value = address
+  void executeAddressSearch()
 }
 
 async function executeAddressSearch() {
@@ -2195,15 +2234,16 @@ onBeforeUnmount(() => {
      страницы (absolute уезжал вместе с содержимым). */
   position: sticky;
   top: 18px;
-  left: 18px;
   z-index: 1500;
 
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 10px;
 
-  width: max-content;
+  /* Переключатель и поиск — одна строка на всю ширину рабочей области.
+     Поиск забирает всё оставшееся место (см. MapSearch). */
+  width: calc(100% - 36px);
   max-width: calc(100% - 36px);
 
   margin: 18px 0 0 18px;
@@ -2256,6 +2296,59 @@ onBeforeUnmount(() => {
 .workspace-mode-switch button:hover:not(.active) {
   background: #f0f3f4;
   color: #17212b;
+}
+
+/* Короткие подписи — только на узких экранах, чтобы строка не переносилась. */
+.mode-label-short {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .workspace-mode-switch {
+    padding: 4px;
+  }
+
+  .workspace-mode-switch button {
+    height: 32px;
+    padding: 0 9px;
+    font-size: 10px;
+  }
+
+  /* Короткие подписи освобождают место поиску. */
+  .mode-label {
+    display: none;
+  }
+
+  .mode-label-short {
+    display: inline;
+  }
+}
+
+@media (max-width: 560px) {
+  .workspace-float {
+    width: calc(100% - 24px);
+    max-width: calc(100% - 24px);
+    margin: 12px 0 0 12px;
+    gap: 6px;
+  }
+
+  .workspace-mode-switch {
+    gap: 2px;
+    padding: 3px;
+  }
+
+  .workspace-mode-switch button {
+    height: 30px;
+    padding: 0 7px;
+    font-size: 9px;
+  }
+
+  /* На самых узких экранах счётчик уступает место полю ввода, а
+     переключатель «Координаты/Адрес» дублируется в панели слева. */
+  .workspace-float :deep(.count),
+  .workspace-float :deep(.search-mode) {
+    display: none;
+  }
 }
 
 .map-wrap {
@@ -3089,7 +3182,9 @@ onBeforeUnmount(() => {
   }
 
   .list-view {
-    padding: 30px 16px;
+    /* Отступ под плавающий блок «режимы + поиск», иначе шапка списка
+       уходит под него. */
+    padding: 76px 16px 24px;
   }
 
   /* Переключатель колонок на узком экране не нужен — число колонок

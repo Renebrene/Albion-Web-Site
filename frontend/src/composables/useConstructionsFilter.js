@@ -35,6 +35,7 @@ function normalize(value) {
   return String(value ?? '')
     .trim()
     .toLowerCase()
+    .replace(/ё/g, 'е')
 }
 
 function formatMonth(month) {
