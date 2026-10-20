@@ -35,6 +35,12 @@
 относятся к `user_accounts`, а не к отдельной системе `admin_users` для панели
 управления.
 
+Для медиатеки на Albion перед первым запуском примените аддитивную миграцию
+`.venv/bin/python -m backend.migrations.migrate_media_external_storage`:
+без неё запросы `media`/`media_variants` читают отсутствующие колонки.
+Режим хранения переключается в админке (Настройки → Файлохранилище Albion),
+подробности и откат — `doc/albion-storage.md`.
+
 Пул поиска ограничен отдельно в каждом uvicorn worker. Максимум его соединений
 считается так: `workers × (ALBION_DB_POOL_SIZE + ALBION_DB_MAX_OVERFLOW)`.
 При стандартных 6 workers это 6 соединений. Прямые подключения сервисов через

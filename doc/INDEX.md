@@ -15,6 +15,7 @@
 | [`api.md`](api.md) | Справочник эндпоинтов — **генерируется** |
 | [`database.md`](database.md) | Схема БД: таблицы, ключи, расширения — **генерируется** |
 | [`import-pipeline.md`](import-pipeline.md) | Импорт Excel → PostgreSQL: 7 стадий, медиа, архивы |
+| [`albion-storage.md`](albion-storage.md) | Медиатека на Albion: режимы, миграция, откат, CSP |
 | [`map.md`](map.md) | Интерактивная карта: движки Leaflet/Яндекс, попапы, статусы |
 | [`portfolio-export.md`](portfolio-export.md) | Портфель и выгрузка: форматы, LibreOffice |
 | [`smart-chat.md`](smart-chat.md) | Умный чат: парсер, LLM-fallback, сессии |

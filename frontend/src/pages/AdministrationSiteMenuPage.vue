@@ -211,6 +211,7 @@ import { useRouter } from 'vue-router'
 
 import MediaPicker from '../components/admin/MediaPicker.vue'
 import MediaSourceButtons from '../components/admin/MediaSourceButtons.vue'
+import { mediaUrl } from '../services/adminMedia'
 
 const router = useRouter()
 
@@ -316,7 +317,7 @@ async function onFileChange(event) {
       throw new Error('Сервер не вернул файл')
     }
 
-    item.url = `/storage/${media.storage_path}`
+    item.url = mediaUrl(media)
 
     if (!item.label) {
       item.label = file.name.replace(/\.[^.]+$/, '')

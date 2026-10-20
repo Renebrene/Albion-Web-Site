@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from io import BytesIO
+import logging
 import math
 import os
 from pathlib import Path
@@ -14,7 +15,12 @@ import psutil
 import pillow_heif
 from PIL import Image, ImageCms, ImageOps, UnidentifiedImageError
 
+from backend.services import albion_storage
+from backend.services import storage_backend as storage_backend_service
 from backend.services.data_service import PROJECT_DIR, get_connection
+
+
+logger = logging.getLogger(__name__)
 
 
 pillow_heif.register_heif_opener()
@@ -400,6 +406,10 @@ def _build_gif(
     return output.getvalue(), "image/gif", ".gif"
 
 
+def _record_url(record: dict) -> str:
+    return storage_backend_service.public_url(record)
+
+
 def _insert_media(
     conn,
     *,
@@ -414,6 +424,9 @@ def _insert_media(
     title: str | None,
     category_id: list[int] | None,
     preview_path: Path | None = None,
+    storage_backend: str = "local",
+    external_url: str | None = None,
+    external_key: str | None = None,
 ) -> dict:
     with conn.cursor() as cur:
         cur.execute(
@@ -429,12 +442,18 @@ def _insert_media(
                 alt,
                 title,
                 category_id,
-                preview_path
+                preview_path,
+                storage_backend,
+                external_url,
+                external_key
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (
+                %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            )
             RETURNING id, uuid, original_name, storage_path,
                       mime_type, file_size, width, height,
-                      alt, title, category_id, preview_path, created_at, updated_at
+                      alt, title, category_id, preview_path, created_at, updated_at,
+                      storage_backend, external_url, external_key
             """,
             (
                 media_uuid,
@@ -448,6 +467,9 @@ def _insert_media(
                 title,
                 category_id,
                 str(preview_path) if preview_path else None,
+                storage_backend,
+                external_url,
+                external_key,
             ),
         )
 
@@ -472,6 +494,12 @@ def _insert_media(
         "preview_path": row[11],
         "created_at": row[12].isoformat() if row[12] else None,
         "updated_at": row[13].isoformat() if row[13] else None,
+        "storage_backend": row[14] or "local",
+        "external_url": row[15],
+        "external_key": row[16],
+        "url": _record_url(
+            {"storage_path": row[3], "external_url": row[15]}
+        ),
     }
 
 
@@ -485,6 +513,9 @@ def _insert_variant(
     file_size: int,
     width: int,
     height: int,
+    storage_backend: str = "local",
+    external_url: str | None = None,
+    external_key: str | None = None,
 ) -> dict:
     with conn.cursor() as cur:
         cur.execute(
@@ -496,10 +527,13 @@ def _insert_variant(
                 mime_type,
                 file_size,
                 width,
-                height
+                height,
+                storage_backend,
+                external_url,
+                external_key
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-            RETURNING id
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id, storage_backend, external_url, external_key
             """,
             (
                 media_id,
@@ -509,6 +543,9 @@ def _insert_variant(
                 file_size,
                 width,
                 height,
+                storage_backend,
+                external_url,
+                external_key,
             ),
         )
 
@@ -526,7 +563,133 @@ def _insert_variant(
         "file_size": file_size,
         "width": width,
         "height": height,
+        "storage_backend": row[1] or "local",
+        "external_url": row[2],
+        "external_key": row[3],
+        "url": _record_url(
+            {"storage_path": str(storage_path), "external_url": row[2]}
+        ),
     }
+
+
+def _safe_error(exc: Exception) -> str:
+    return str(exc).strip()[:300] or exc.__class__.__name__
+
+
+def _remote_upload_objects(media_result: dict, objects: list[dict]) -> None:
+    """Дублирует созданные файлы в Albion и обновляет строки БД.
+
+    Никогда не бросает: при ошибке файл остаётся локальным, а ответ
+    загрузки — успешным.
+    """
+    if not objects:
+        return
+
+    try:
+        if not storage_backend_service.should_store_remote():
+            return
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Albion storage: не удалось определить режим хранения: %s",
+            _safe_error(exc),
+        )
+        return
+
+    try:
+        uploaded = storage_backend_service.upload_saved_objects(
+            [
+                (obj["path"], obj["relative_path"], obj["kind"])
+                for obj in objects
+            ]
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Albion storage: загрузка не выполнена: %s",
+            _safe_error(exc),
+        )
+        return
+
+    by_relative = {
+        str(item.get("storage_path")): item
+        for item in uploaded
+        if isinstance(item, dict)
+    }
+
+    updates: list[tuple[dict, dict]] = []
+
+    for obj in objects:
+        remote = by_relative.get(str(obj["relative_path"]))
+
+        if not remote or not remote.get("external_url"):
+            continue
+
+        updates.append((obj, remote))
+
+    if not updates:
+        return
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                for obj, remote in updates:
+                    if obj["kind"] == "media":
+                        cur.execute(
+                            """
+                            UPDATE media
+                            SET storage_backend = 'albion',
+                                external_url = %s,
+                                external_key = %s,
+                                updated_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (
+                                remote["external_url"],
+                                remote.get("external_key"),
+                                obj.get("id"),
+                            ),
+                        )
+                    elif obj["kind"] == "variant":
+                        cur.execute(
+                            """
+                            UPDATE media_variants
+                            SET storage_backend = 'albion',
+                                external_url = %s,
+                                external_key = %s,
+                                updated_at = NOW()
+                            WHERE id = %s
+                            """,
+                            (
+                                remote["external_url"],
+                                remote.get("external_key"),
+                                obj.get("id"),
+                            ),
+                        )
+                    # У preview видео нет отдельной строки в БД: файл
+                    # загружается, но ключ хранить негде.
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Albion storage: не удалось сохранить внешние ссылки: %s",
+            _safe_error(exc),
+        )
+        return
+
+    # Ответ обновляем только после успешной записи в БД.
+    for obj, remote in updates:
+        if obj["kind"] == "media":
+            media_result["storage_backend"] = "albion"
+            media_result["external_url"] = remote["external_url"]
+            media_result["external_key"] = remote.get("external_key")
+            media_result["url"] = remote["external_url"]
+        elif obj["kind"] == "variant":
+            for variant in media_result.get("variants") or []:
+                if variant.get("id") == obj.get("id"):
+                    variant["storage_backend"] = "albion"
+                    variant["external_url"] = remote["external_url"]
+                    variant["external_key"] = remote.get("external_key")
+                    variant["url"] = remote["external_url"]
+                    break
+        elif obj["kind"] == "preview":
+            media_result["preview_url"] = remote["external_url"]
 
 
 def _media_filter_sql(
@@ -644,7 +807,10 @@ def list_media(
                         JOIN page_blocks b ON b.id = pbm.block_id
                         JOIN pages p ON p.id = b.page_id
                         WHERE pbm.media_id = m.id
-                    ), ARRAY[]::text[]) AS page_slugs
+                    ), ARRAY[]::text[]) AS page_slugs,
+                    m.storage_backend,
+                    m.external_url,
+                    m.external_key
                 FROM media m
                 {where}
                 ORDER BY m.created_at DESC, m.id DESC
@@ -668,7 +834,10 @@ def list_media(
                         mime_type,
                         file_size,
                         width,
-                        height
+                        height,
+                        storage_backend,
+                        external_url,
+                        external_key
                     FROM media_variants
                     WHERE media_id = %s
                     ORDER BY
@@ -691,6 +860,15 @@ def list_media(
                         "file_size": variant_row[4],
                         "width": variant_row[5],
                         "height": variant_row[6],
+                        "storage_backend": variant_row[7] or "local",
+                        "external_url": variant_row[8],
+                        "external_key": variant_row[9],
+                        "url": _record_url(
+                            {
+                                "storage_path": variant_row[2],
+                                "external_url": variant_row[8],
+                            }
+                        ),
                     }
                     for variant_row in cur.fetchall()
                 ]
@@ -720,6 +898,15 @@ def list_media(
                             in_news=row[15],
                             in_geo=row[17],
                             page_slugs=row[18],
+                        ),
+                        "storage_backend": row[19] or "local",
+                        "external_url": row[20],
+                        "external_key": row[21],
+                        "url": _record_url(
+                            {
+                                "storage_path": row[5],
+                                "external_url": row[20],
+                            }
                         ),
                         "variants": variants,
                     }
@@ -972,7 +1159,9 @@ def delete_media(media_id: int) -> dict:
                 SELECT
                     id,
                     storage_path,
-                    preview_path
+                    preview_path,
+                    storage_backend,
+                    external_key
                 FROM media
                 WHERE id = %s
                 """,
@@ -986,17 +1175,36 @@ def delete_media(media_id: int) -> dict:
 
             cur.execute(
                 """
-                SELECT storage_path
+                SELECT
+                    storage_path,
+                    storage_backend,
+                    external_key
                 FROM media_variants
                 WHERE media_id = %s
                 """,
                 (media_id,),
             )
 
+            variant_rows = cur.fetchall()
             variant_paths = [
                 Path(variant_row[0])
-                for variant_row in cur.fetchall()
+                for variant_row in variant_rows
             ]
+
+            external_keys = []
+
+            main_backend = row[3] or "local"
+            main_external_key = row[4]
+
+            if main_backend == "albion" and main_external_key:
+                external_keys.append(main_external_key)
+
+            for variant_row in variant_rows:
+                variant_backend = variant_row[1] or "local"
+                variant_external_key = variant_row[2]
+
+                if variant_backend == "albion" and variant_external_key:
+                    external_keys.append(variant_external_key)
 
             cur.execute(
                 """
@@ -1052,6 +1260,25 @@ def delete_media(media_id: int) -> dict:
             file_path.unlink(missing_ok=True)
         except OSError:
             pass
+
+    # Локальные копии удалены. Объекты в Albion удаляем, только если это
+    # разрешено токену; отсутствие права delete не делает операцию неуспешной.
+    for external_key in external_keys:
+        try:
+            deleted = albion_storage.delete_file(external_key)
+        except Exception as exc:  # noqa: BLE001 — локальное удаление важнее
+            logger.warning(
+                "Albion storage: ошибка удаления объекта: %s",
+                _safe_error(exc),
+            )
+            continue
+
+        if not deleted:
+            logger.warning(
+                "Albion storage: объект %s остался в Albion "
+                "(нет права delete или хранилище недоступно)",
+                external_key,
+            )
 
     disk = shutil.disk_usage(STORAGE_ROOT)
     cpu_percent = psutil.cpu_percent(interval=0.1)
@@ -1268,10 +1495,29 @@ def save_video(
 
         result["variants"] = []
 
+        remote_objects = [
+            {
+                "kind": "media",
+                "id": result["id"],
+                "path": output_path,
+                "relative_path": output_path.relative_to(STORAGE_ROOT),
+            }
+        ]
+
         if preview_path.exists():
             result["preview_path"] = str(
                 preview_path.relative_to(STORAGE_ROOT)
             )
+            remote_objects.append(
+                {
+                    "kind": "preview",
+                    "id": None,
+                    "path": preview_path,
+                    "relative_path": preview_path.relative_to(STORAGE_ROOT),
+                }
+            )
+
+        _remote_upload_objects(result, remote_objects)
 
         return result
 
@@ -1356,6 +1602,18 @@ def save_image(
 
             result["variants"] = []
 
+            _remote_upload_objects(
+                result,
+                [
+                    {
+                        "kind": "media",
+                        "id": result["id"],
+                        "path": absolute_path,
+                        "relative_path": relative_path,
+                    }
+                ],
+            )
+
             return result
 
         preserve_png = (
@@ -1386,6 +1644,15 @@ def save_image(
             VARIANT_SIZES["large"],
         ).size
 
+        remote_objects = [
+            {
+                "kind": "media",
+                "id": None,
+                "path": main_absolute_path,
+                "relative_path": main_path,
+            }
+        ]
+
         with get_connection() as conn:
             result = _insert_media(
                 conn,
@@ -1402,6 +1669,7 @@ def save_image(
             )
 
             result["variants"] = []
+            remote_objects[0]["id"] = result["id"]
 
             for variant, (data, mime_type, extension) in variants.items():
                 if variant == "large":
@@ -1434,8 +1702,18 @@ def save_image(
                 )
 
                 result["variants"].append(variant_result)
+                remote_objects.append(
+                    {
+                        "kind": "variant",
+                        "id": variant_result["id"],
+                        "path": variant_absolute_path,
+                        "relative_path": variant_path,
+                    }
+                )
 
-            return result
+        _remote_upload_objects(result, remote_objects)
+
+        return result
 
     except Exception:
         for path in created_files:
@@ -1501,6 +1779,18 @@ def save_document(
             )
 
         result["variants"] = []
+
+        _remote_upload_objects(
+            result,
+            [
+                {
+                    "kind": "media",
+                    "id": result["id"],
+                    "path": absolute_path,
+                    "relative_path": relative_path,
+                }
+            ],
+        )
 
         return result
 

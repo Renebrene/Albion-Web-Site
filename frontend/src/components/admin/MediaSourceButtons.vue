@@ -37,7 +37,7 @@
 <script setup>
 import { ref } from 'vue'
 
-import { uploadAdminMedia } from '../../services/adminMedia'
+import { mediaUrl, uploadAdminMedia } from '../../services/adminMedia'
 import { mediaCategoryId } from '../../composables/useMediaCategory'
 import MediaPicker from './MediaPicker.vue'
 
@@ -70,7 +70,7 @@ function onPicked(media) {
 
   emit('pick', {
     id: media?.id ?? null,
-    url: media?.url || (storagePath ? `/storage/${storagePath}` : ''),
+    url: mediaUrl(media),
     storage_path: storagePath,
     original_name: media?.name || media?.original_name || '',
     media

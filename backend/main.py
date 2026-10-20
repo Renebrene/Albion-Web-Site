@@ -88,6 +88,10 @@ from backend.api.admin_settings import (
 app.include_router(admin_settings_router)
 app.include_router(public_settings_router)
 
+from backend.api.admin_integration import router as admin_integration_router
+
+app.include_router(admin_integration_router)
+
 from backend.api.accounts import router as account_router
 
 app.include_router(account_router)

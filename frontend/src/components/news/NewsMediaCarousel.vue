@@ -83,6 +83,8 @@
 </template>
 
 <script>
+import { mediaUrl as itemMediaUrl, variantUrl } from '../../services/adminMedia'
+
 /*
  * Хелперы для медиа новостей. Живут здесь, чтобы карусель, карточка
  * новости и страницы использовали одну и ту же логику.
@@ -111,13 +113,14 @@ export function mediaUrl(item, preferred) {
     : preferred
       ? [preferred]
       : []
+  const variants = Array.isArray(item.variants) ? item.variants : []
+
   for (const variant of order) {
-    const path = variantPath(item, variant)
-    if (path) return `/storage/${path}`
+    const found = variants.find(entry => entry && entry.variant === variant)
+    if (found) return variantUrl(found)
   }
 
-  if (item.storage_path) return `/storage/${item.storage_path}`
-  return item.src || item.url || ''
+  return itemMediaUrl(item) || item.src || ''
 }
 
 // Тип медиа определяем по mime_type, иначе по старому полю type/расширению.
@@ -143,7 +146,8 @@ export function mediaKind(item) {
 // Постер для видео: готовый URL, абсолютный путь или storage-путь.
 // Для нового формата приоритет — `preview_path` (постер видео из БД).
 function mediaPoster(item) {
-  const poster = item?.poster || item?.preview_path || item?.poster_path
+  const poster =
+    item?.preview_url || item?.poster || item?.preview_path || item?.poster_path
   if (!poster) return ''
   if (/^(https?:)?\/\//.test(poster) || poster.startsWith('/')) return poster
   return `/storage/${poster}`
@@ -183,6 +187,7 @@ export function normalizeMedia(list, preferred) {
         storage_path: item.storage_path || '',
         variants: Array.isArray(item.variants) ? item.variants : [],
         preview_path: item.preview_path || null,
+        preview_url: item.preview_url || '',
         // Реальные размеры исходника — из них считаем пропорцию кадра,
         // чтобы фото вписывалось по ширине без обрезки.
         width: item.width ?? null,

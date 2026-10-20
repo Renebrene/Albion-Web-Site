@@ -118,6 +118,127 @@
         </div>
       </section>
 
+      <!-- ============ ФАЙЛОХРАНИЛИЩЕ ALBION ============ -->
+      <section class="section-card">
+        <div class="section-title">
+          <div>Файлохранилище Albion</div>
+        </div>
+
+        <div v-if="albionError" class="error-text">{{ albionError }}</div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>Режим хранения</label>
+            <q-select
+              v-model="albion.mode"
+              :options="albionModeOptions"
+              option-value="value"
+              option-label="label"
+              emit-value
+              map-options
+              outlined
+              dense
+            />
+          </div>
+
+          <div class="field">
+            <label>URL хранилища</label>
+            <q-input
+              v-model="albion.url"
+              outlined
+              dense
+              placeholder="https://files.example.ru"
+            />
+          </div>
+
+          <div class="field">
+            <label>ID папки</label>
+            <q-input
+              v-model="albion.folder_id"
+              outlined
+              dense
+              placeholder="Необязательно, если папка привязана к токену"
+            />
+          </div>
+
+          <div class="field">
+            <label>TTL, дней</label>
+            <q-input
+              v-model.number="albion.ttl_days"
+              type="number"
+              outlined
+              dense
+            />
+          </div>
+
+          <div class="field">
+            <label>Токен</label>
+            <q-input
+              v-model="albionToken"
+              type="password"
+              outlined
+              dense
+              autocomplete="new-password"
+              :placeholder="
+                albion.token_set
+                  ? 'Токен сохранён — оставьте поле пустым'
+                  : 'Вставьте токен Albion'
+              "
+            />
+            <div v-if="albion.token_set" class="field-hint">
+              Сохранённый токен: {{ albion.token_hint }}
+            </div>
+          </div>
+        </div>
+
+        <div class="albion-warning">
+          В режиме «albion» каждый новый файл сохраняется локально и дублируется
+          в Albion; публичные ссылки ведут на Albion. Уже загруженные файлы не
+          переносятся.
+        </div>
+
+        <div class="albion-actions">
+          <q-btn
+            unelevated
+            no-caps
+            color="primary"
+            label="Сохранить"
+            :loading="albionSaving"
+            @click="saveAlbion()"
+          />
+          <q-btn
+            outline
+            no-caps
+            color="primary"
+            label="Проверить связь"
+            :loading="albionVerifying"
+            @click="verifyAlbion"
+          />
+          <q-btn
+            flat
+            no-caps
+            color="negative"
+            label="Очистить токен"
+            :disable="!albion.token_set"
+            :loading="albionSaving"
+            @click="clearAlbionToken"
+          />
+        </div>
+
+        <div
+          v-if="albionVerifyResult"
+          class="albion-verify"
+          :class="albionVerifyResult.ok ? 'ok' : 'error'"
+        >
+          <template v-if="albionVerifyResult.ok">
+            Связь установлена<template v-if="albionVerifyResult.name">
+              : {{ albionVerifyResult.name }}</template
+            >. Права: {{ (albionVerifyResult.scopes || []).join(', ') || '—' }}.
+          </template>
+          <template v-else>{{ albionVerifyResult.error }}</template>
+        </div>
+      </section>
+
       <!-- ============ НАБОРЫ ============ -->
       <section class="section-card">
         <div class="section-title">
@@ -251,6 +372,112 @@ const presetBusy = ref(false)
 const error = ref('')
 
 const schema = ref([])
+
+/* ---------- Albion: отдельные настройки, секрет не возвращается ---------- */
+const albion = ref({
+  mode: 'local',
+  url: '',
+  folder_id: '',
+  ttl_days: 90,
+  token_set: false,
+  token_hint: ''
+})
+const albionToken = ref('')
+const albionSaving = ref(false)
+const albionVerifying = ref(false)
+const albionError = ref('')
+const albionVerifyResult = ref(null)
+const albionModeOptions = [
+  { label: 'Локально (по умолчанию)', value: 'local' },
+  { label: 'Локально + Albion', value: 'albion' }
+]
+
+function applyAlbion(data) {
+  const config = data || {}
+
+  albion.value = {
+    mode: config.mode === 'albion' ? 'albion' : 'local',
+    url: config.url || '',
+    folder_id: config.folder_id || '',
+    ttl_days: Number(config.ttl_days ?? 90),
+    token_set: Boolean(config.token_set),
+    token_hint: config.token_hint || ''
+  }
+}
+
+async function loadAlbion() {
+  try {
+    const data = await request('/api/admin/integration/albion')
+    applyAlbion(data)
+  } catch (exc) {
+    albionError.value = String(exc.message || exc)
+  }
+}
+
+async function saveAlbion(extra = {}) {
+  if (albionSaving.value) return
+
+  albionSaving.value = true
+  albionError.value = ''
+  albionVerifyResult.value = null
+
+  try {
+    const payload = {
+      mode: albion.value.mode,
+      url: albion.value.url,
+      folder_id: albion.value.folder_id,
+      ttl_days: Number(albion.value.ttl_days) || 90
+    }
+
+    if (albionToken.value) {
+      payload.token = albionToken.value
+    }
+
+    const data = await request('/api/admin/integration/albion', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payload, ...extra })
+    })
+
+    applyAlbion(data)
+    albionToken.value = ''
+    notify('Настройки Albion сохранены.')
+  } catch (exc) {
+    albionError.value = String(exc.message || exc)
+    notify(albionError.value, 'error')
+  } finally {
+    albionSaving.value = false
+  }
+}
+
+async function verifyAlbion() {
+  if (albionVerifying.value) return
+
+  albionVerifying.value = true
+  albionError.value = ''
+  albionVerifyResult.value = null
+
+  try {
+    const data = await request('/api/admin/integration/albion/verify', {
+      method: 'POST'
+    })
+    albionVerifyResult.value = data
+    notify('Связь с Albion установлена.')
+  } catch (exc) {
+    const message = String(exc.message || exc)
+    albionError.value = message
+    albionVerifyResult.value = { ok: false, error: message }
+    notify(message, 'error')
+  } finally {
+    albionVerifying.value = false
+  }
+}
+
+async function clearAlbionToken() {
+  if (!confirm('Очистить сохранённый токен Albion?')) return
+
+  await saveAlbion({ token: '' })
+}
 
 /*
  * Группы полей формы. Заголовки и порядок блоков; неизвестные группы
@@ -470,7 +697,10 @@ async function resetToDefaults() {
   }
 }
 
-onMounted(() => load())
+onMounted(() => {
+  load()
+  loadAlbion()
+})
 </script>
 
 <style scoped>
@@ -634,6 +864,42 @@ onMounted(() => load())
 .reset-hint {
   color: #777;
   font-size: 14px;
+}
+
+.field-hint {
+  margin-top: 4px;
+  color: #8b8b8b;
+  font-size: 12px;
+}
+
+.albion-warning {
+  margin-top: 14px;
+  padding: 10px 12px;
+  background: #fff8e1;
+  border: 1px solid #f2d98a;
+  border-radius: 10px;
+  color: #7a5b00;
+  font-size: 13px;
+}
+
+.albion-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.albion-verify {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.albion-verify.ok {
+  color: #2e7d32;
+}
+
+.albion-verify.error {
+  color: #c62828;
 }
 
 /* всплывающее уведомление */

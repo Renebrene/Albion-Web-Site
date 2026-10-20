@@ -108,7 +108,7 @@
                 v-if="
                   item.mime_type?.startsWith('video/') && thumbnailUrl(item)
                 "
-                :src="storageUrl(item.storage_path)"
+                :src="mediaUrl(item)"
                 :poster="thumbnailUrl(item)"
                 muted
                 preload="metadata"
@@ -171,6 +171,8 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue'
+
+import { mediaUrl, variantUrl } from '../../services/adminMedia'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -249,12 +251,13 @@ function storageUrl(path) {
 }
 
 function thumbnailUrl(item) {
-  if (item.mime_type?.startsWith('video/') && item.preview_path) {
-    return storageUrl(item.preview_path)
+  if (item.mime_type?.startsWith('video/')) {
+    if (item.preview_url) return item.preview_url
+    if (item.preview_path) return storageUrl(item.preview_path)
   }
 
   const thumb = item.variants?.find(variant => variant.variant === 'thumb')
-  return storageUrl(thumb?.storage_path || item.storage_path)
+  return thumb ? variantUrl(thumb) : mediaUrl(item)
 }
 
 async function fetchMedia(limit, offsetValue) {
@@ -341,7 +344,7 @@ function confirm(item) {
     name: item.original_name,
     storage_path: item.storage_path,
     mime_type: item.mime_type,
-    url: storageUrl(item.storage_path)
+    url: mediaUrl(item)
   })
   open.value = false
 }

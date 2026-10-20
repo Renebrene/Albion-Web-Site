@@ -56,7 +56,7 @@
         <div class="nmf-thumb">
           <video
             v-if="isVideo(item)"
-            :src="storageUrl(item.storage_path)"
+            :src="mediaUrl(item)"
             :poster="posterUrl(item) || undefined"
             muted
             preload="metadata"
@@ -140,7 +140,11 @@
 <script setup>
 import { computed, ref } from 'vue'
 
-import { uploadAdminMedia } from '../../services/adminMedia'
+import {
+  mediaUrl,
+  uploadAdminMedia,
+  variantUrl
+} from '../../services/adminMedia'
 import {
   MEDIA_SECTION,
   mediaCategoryId
@@ -174,7 +178,12 @@ function normalize(media) {
     storage_path: media.storage_path || '',
     mime_type: media.mime_type || '',
     preview_path: media.preview_path || null,
-    variants: Array.isArray(media.variants) ? media.variants : []
+    preview_url: media.preview_url || '',
+    storage_backend: media.storage_backend || 'local',
+    external_url: media.external_url || null,
+    external_key: media.external_key || null,
+    variants: Array.isArray(media.variants) ? media.variants : [],
+    url: media.url || ''
   }
 }
 
@@ -199,16 +208,20 @@ function typeLabel(item) {
 }
 
 function posterUrl(item) {
+  if (item?.preview_url) return item.preview_url
   if (item?.preview_path) return storageUrl(item.preview_path)
   return ''
 }
 
 function thumbUrl(item) {
-  if (item?.preview_path && isVideo(item)) return storageUrl(item.preview_path)
+  if (isVideo(item)) {
+    if (item?.preview_url) return item.preview_url
+    if (item?.preview_path) return storageUrl(item.preview_path)
+  }
   const thumb = (item?.variants || []).find(
     variant => variant.variant === 'thumb'
   )
-  return storageUrl(thumb?.storage_path || item?.storage_path)
+  return thumb ? variantUrl(thumb) : mediaUrl(item)
 }
 
 /* ---------- изменение состава / порядка ---------- */

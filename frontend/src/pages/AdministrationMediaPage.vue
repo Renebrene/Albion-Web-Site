@@ -376,7 +376,7 @@
               </div>
 
               <a
-                :href="storageUrl(variant.storage_path)"
+                :href="variantUrl(variant)"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -387,7 +387,7 @@
 
           <div v-if="result.storage_path" class="main-file-link">
             <a
-              :href="storageUrl(result.storage_path)"
+              :href="mediaUrl(result)"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -575,7 +575,7 @@
                 v-if="
                   viewMode === 'medium' && item.mime_type?.startsWith('video/')
                 "
-                :src="storageUrl(item.storage_path)"
+                :src="mediaUrl(item)"
                 :poster="thumbnailUrl(item)"
                 class="media-thumbnail media-thumbnail--video"
                 controls
@@ -678,7 +678,7 @@
                     dense
                     icon="open_in_new"
                     aria-label="Открыть в новой вкладке"
-                    :href="storageUrl(item.storage_path)"
+                    :href="mediaUrl(item)"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -804,6 +804,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { mediaUrl, variantUrl } from '../services/adminMedia'
 
 const router = useRouter()
 
@@ -998,13 +999,14 @@ function mediaTypeSymbol(item) {
 }
 
 function thumbnailUrl(item) {
-  if (item.mime_type?.startsWith('video/') && item.preview_path) {
-    return storageUrl(item.preview_path)
+  if (item.mime_type?.startsWith('video/')) {
+    if (item.preview_url) return item.preview_url
+    if (item.preview_path) return storageUrl(item.preview_path)
   }
 
   const thumb = item.variants?.find(variant => variant.variant === 'thumb')
 
-  return storageUrl(thumb?.storage_path || item.storage_path)
+  return thumb ? variantUrl(thumb) : mediaUrl(item)
 }
 
 function formatFileSize(bytes) {

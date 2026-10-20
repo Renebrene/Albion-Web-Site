@@ -392,7 +392,12 @@ function mapNewsMedia(item) {
     storage_path: media.storage_path || '',
     mime_type: media.mime_type || '',
     preview_path: media.preview_path || null,
-    variants: Array.isArray(media.variants) ? media.variants : []
+    preview_url: media.preview_url || '',
+    storage_backend: media.storage_backend || 'local',
+    external_url: media.external_url || null,
+    external_key: media.external_key || null,
+    variants: Array.isArray(media.variants) ? media.variants : [],
+    url: media.url || ''
   }))
 }
 

@@ -161,12 +161,17 @@ CREATE TABLE IF NOT EXISTS media (
     height INTEGER,
     alt TEXT,
     title TEXT,
+    storage_backend TEXT NOT NULL DEFAULT 'local',
+    external_url TEXT,
+    external_key TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT media_uuid_unique UNIQUE (uuid),
     CONSTRAINT media_file_size_check CHECK (file_size >= 0),
     CONSTRAINT media_width_check CHECK (width IS NULL OR width > 0),
-    CONSTRAINT media_height_check CHECK (height IS NULL OR height > 0)
+    CONSTRAINT media_height_check CHECK (height IS NULL OR height > 0),
+    CONSTRAINT media_storage_backend_check
+        CHECK (storage_backend IN ('local', 'albion'))
 );
 
 
@@ -187,10 +192,15 @@ CREATE TABLE IF NOT EXISTS media_variants (
     file_size BIGINT NOT NULL,
     width INTEGER NOT NULL,
     height INTEGER NOT NULL,
+    storage_backend TEXT NOT NULL DEFAULT 'local',
+    external_url TEXT,
+    external_key TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT media_variants_variant_check
         CHECK (variant IN ('large', 'card', 'thumb')),
+    CONSTRAINT media_variants_storage_backend_check
+        CHECK (storage_backend IN ('local', 'albion')),
     CONSTRAINT media_variants_file_size_check
         CHECK (file_size >= 0),
     CONSTRAINT media_variants_width_check

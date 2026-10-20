@@ -537,7 +537,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
-import { uploadAdminMedia } from '../services/adminMedia'
+import { mediaUrl, uploadAdminMedia } from '../services/adminMedia'
 
 const router = useRouter()
 
@@ -958,15 +958,6 @@ async function saveEditing() {
 
 function isImage(item) {
   return (item.mime_type || '').startsWith('image/')
-}
-
-function mediaUrl(item) {
-  const variants = item.variants || []
-  const thumb = variants.find(v => v.variant === 'thumb')
-  const card = variants.find(v => v.variant === 'card')
-  const chosen = thumb || card
-  const path = chosen ? chosen.storage_path : item.storage_path
-  return path ? `/storage/${path}` : ''
 }
 
 const categoryIdCache = {}
