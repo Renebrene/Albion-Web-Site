@@ -643,7 +643,8 @@ const {
   mergeFromAccount,
   accountTitle,
   accountPortfolioUpdatedAt,
-  clearAccountPortfolio
+  clearAccountPortfolio,
+  clear: clearPortfolio
 } = usePortfolio()
 
 const savedPortfolio = ref([])
@@ -1150,6 +1151,7 @@ async function submitRecover() {
 
 async function handleLogout() {
   await logout()
+  clearPortfolio()
   mode.value = 'login'
   loginForm.value = { login: '', password: '' }
   fieldErrors.value = {}

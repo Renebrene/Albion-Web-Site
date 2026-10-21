@@ -356,7 +356,7 @@ const { account, isAuthenticated, logout, loadMe } = useAccount()
 const { chats, addChat, openWorkspace } = useChatWorkspace()
 
 /* Портфель: счётчик для бейджа и синхронизация с ЛК */
-const { count, mergeFromAccount } = usePortfolio()
+const { count, mergeFromAccount, clear: clearPortfolio } = usePortfolio()
 
 /* Подпись роли в меню аккаунта. */
 const roleLabel = computed(() => {
@@ -373,6 +373,8 @@ const isAdmin = computed(() => account.value?.role === 'admin')
 
 async function handleLogout() {
   await logout()
+  /* Не переносим портфель прошлого пользователя в следующий аккаунт. */
+  clearPortfolio()
   router.push('/account')
 }
 

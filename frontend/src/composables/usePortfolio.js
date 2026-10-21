@@ -1,4 +1,4 @@
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 
 import { useAccount } from './useAccount'
 import { isFree } from '../utils/availability'
@@ -304,10 +304,19 @@ function normalizeItem(raw) {
 
 // ---------------------------------------------------------------- чтение
 
-function findItem(surfaceId) {
-  const key = keyOf(surfaceId)
+/* Индекс по surfaceId: частые isMonthSelected/isInPortfolio больше не O(n). */
+const itemsByKey = computed(() => {
+  const map = new Map()
 
-  return items.value.find(item => keyOf(item.surfaceId) === key) || null
+  for (const item of items.value) {
+    map.set(keyOf(item.surfaceId), item)
+  }
+
+  return map
+})
+
+function findItem(surfaceId) {
+  return itemsByKey.value.get(keyOf(surfaceId)) || null
 }
 
 function isInPortfolio(surfaceId) {
@@ -447,6 +456,7 @@ function removeSurface(surfaceId) {
 
 function clear() {
   items.value = []
+  title.value = ''
 
   Object.keys(selectionMode).forEach(key => {
     delete selectionMode[key]
@@ -635,17 +645,14 @@ async function fetchAccountPortfolio() {
     const data = await response.json()
 
     /*
-     * Заголовок сервера не теряем: если локально пусто — подхватываем.
-     * Возвращаем прежний массив позиций (страница ЛК ждёт именно список).
+     * Функция только читает: не меняем общий title, иначе watch
+     * автосохранения отправит текущий (возможно пустой) портфель поверх
+     * серверного. Возвращаем массив позиций, как ждёт страница ЛК.
      */
     const serverTitle = normalizeTitle(data && data.title)
 
     accountTitle.value = serverTitle
     accountPortfolioUpdatedAt.value = (data && data.updated_at) || ''
-
-    if (serverTitle && !title.value) {
-      title.value = serverTitle
-    }
 
     const list = Array.isArray(data && data.items) ? data.items : []
 
@@ -689,7 +696,7 @@ async function clearAccountPortfolio() {
   }
 }
 
-async function saveToAccount() {
+async function putAccountPortfolio() {
   const token = getToken()
 
   if (!token) {
@@ -718,6 +725,21 @@ async function saveToAccount() {
   } catch {
     return false
   }
+}
+
+/*
+ * Все PUT идут через одну цепочку: и автосохранение, и ручная кнопка
+ * «Сохранить». Иначе два запроса могут завершиться не по порядку и
+ * старый ответ затрёт более новый портфель на сервере.
+ */
+let accountSaveChain = Promise.resolve()
+
+function saveToAccount() {
+  const run = accountSaveChain.then(putAccountPortfolio)
+
+  accountSaveChain = run.catch(() => false)
+
+  return run
 }
 
 /*
@@ -824,13 +846,79 @@ async function mergeFromAccount() {
  */
 loadLocal()
 
+/*
+ * Другая вкладка изменила портфель — подхватываем её состояние и не
+ * пишем его обратно (иначе вкладки затирают друг друга).
+ */
+let applyingExternalStorage = false
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', event => {
+    if (event.key !== STORAGE_KEY || !event.newValue) {
+      return
+    }
+
+    try {
+      applyingExternalStorage = true
+      hydrate(JSON.parse(event.newValue))
+
+      nextTick(() => {
+        applyingExternalStorage = false
+      })
+    } catch {
+      applyingExternalStorage = false
+    }
+  })
+}
+
 // ---------------------------------------------------------------- автосохранение
 
 let saveTimer = null
+let saveInFlight = false
+let saveQueued = false
+
+/*
+ * Последовательная отправка: одновременно выполняется не больше одного
+ * PUT. Иначе при быстрых изменениях более старый запрос мог завершиться
+ * позже нового и затереть актуальный портфель на сервере.
+ */
+async function flushAccountSave() {
+  if (!isAuthenticated.value) {
+    return
+  }
+
+  if (saveInFlight) {
+    saveQueued = true
+    return
+  }
+
+  saveInFlight = true
+
+  try {
+    do {
+      saveQueued = false
+
+      const ok = await saveToAccount()
+
+      /* Ошибку не ретраим в цикле: следующий PUT запланирует изменение. */
+      if (!ok) {
+        saveQueued = false
+        break
+      }
+    } while (saveQueued && isAuthenticated.value)
+  } finally {
+    saveInFlight = false
+  }
+}
 
 watch(
   [items, title],
   () => {
+    /* Состояние из другой вкладки не пересохраняем обратно. */
+    if (applyingExternalStorage) {
+      return
+    }
+
     saveLocal()
 
     if (!isAuthenticated.value) {
@@ -843,7 +931,7 @@ watch(
 
     saveTimer = setTimeout(() => {
       saveTimer = null
-      saveToAccount()
+      void flushAccountSave()
     }, SAVE_DEBOUNCE_MS)
   },
   { deep: true }

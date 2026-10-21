@@ -314,7 +314,11 @@ import {
   sanitizeFileName,
   usePhotoViewer
 } from '../../composables/usePhotoViewer'
-import { MONTHS } from '../../utils/constructionGroups'
+import {
+  MONTHS,
+  MONTH_ORDER,
+  buildMonthList
+} from '../../utils/constructionGroups'
 import { getAvailabilityState } from '../../utils/availability'
 
 /*
@@ -511,9 +515,41 @@ function addressLabel(item) {
 function monthChips(item) {
   const months = (item && item.months) || {}
   const prices = (item && item.prices) || {}
-  const known = new Set(MONTHS.map(month => month.full))
+  const monthTexts = (item && item.monthTexts) || {}
+  const statuses = (item && item.statuses) || {}
 
-  const chips = MONTHS.map(({ full, short }) => {
+  /*
+   * Глобальный MONTHS заполняется только на странице рекламных
+   * возможностей. На главной и /portfolio строим список из самой позиции,
+   * иначе свободные месяцы в панели не отображаются.
+   */
+  const baseNames = new Set(MONTHS.map(month => month.full))
+
+  /*
+   * Fallback нужен только когда глобальный список ещё не заполнен
+   * (главная, прямой заход на /portfolio). На /vozmozhnosti он уже
+   * содержит актуальный календарь, и подмешивать снимок позиции не надо.
+   */
+  if (!baseNames.size) {
+    for (const key of Object.keys(prices)) baseNames.add(key)
+    for (const key of Object.keys(monthTexts)) baseNames.add(key)
+    for (const key of Object.keys(statuses)) baseNames.add(key)
+    for (const key of Object.keys(months)) baseNames.add(key)
+  }
+
+  const sortedNames = [...baseNames].sort((a, b) => {
+    const ia = MONTH_ORDER.indexOf(a)
+    const ib = MONTH_ORDER.indexOf(b)
+
+    if (ia === -1 && ib === -1) return a.localeCompare(b, 'ru')
+    if (ia === -1) return 1
+    if (ib === -1) return -1
+
+    return ia - ib
+  })
+
+  const known = new Set(sortedNames)
+  const chips = buildMonthList(sortedNames).map(({ full, short }) => {
     const value = months[full]
     const selected = Boolean(value)
     const price = selected ? toNumber(value.price) : toNumber(prices[full])
