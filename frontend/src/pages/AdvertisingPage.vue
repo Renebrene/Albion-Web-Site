@@ -25,14 +25,6 @@
         :types="types"
         :count="pointFilteredConstructions.length"
         :results="pointFilteredConstructions"
-        :coordinates="pointCoordinates"
-        :address="pointAddress"
-        :address-loading="addressLoading"
-        :address-error="addressError"
-        @update:coordinates="pointCoordinates = $event"
-        @update:address="onPointAddressInput"
-        @search="executePointSearch"
-        @search-address="executeAddressSearch"
         @open-list="openListFromPoint"
       />
 
@@ -58,7 +50,7 @@
             <button
               type="button"
               :class="{ active: workspaceMode === 'map' }"
-              @click="workspaceMode = 'map'"
+              @click="setWorkspaceMode('map')"
             >
               <span class="mode-label">Интерактивная карта</span>
               <span class="mode-label-short">Карта</span>
@@ -66,7 +58,7 @@
             <button
               type="button"
               :class="{ active: workspaceMode === 'point' }"
-              @click="workspaceMode = 'point'"
+              @click="setWorkspaceMode('point')"
             >
               <span class="mode-label">Поиск по точке и адресу</span>
               <span class="mode-label-short">Точка</span>
@@ -74,7 +66,7 @@
             <button
               type="button"
               :class="{ active: workspaceMode === 'list' }"
-              @click="workspaceMode = 'list'"
+              @click="setWorkspaceMode('list')"
             >
               <span class="mode-label">Список</span>
               <span class="mode-label-short">Список</span>
@@ -236,6 +228,16 @@
                 {{ displayedConstructions.length }}
                 {{ sidesPhrase(displayedConstructions.length) }}
               </h1>
+
+              <div
+                v-if="pointSelectionState === 'fixed'"
+                class="list-point-note"
+              >
+                <span>В радиусе {{ formatRadius(pointRadius) }} от точки</span>
+                <button type="button" @click="changeSelectedPoint">
+                  Показать весь каталог
+                </button>
+              </div>
             </div>
 
             <!-- Ручной выбор числа колонок карточек. -->
@@ -261,7 +263,8 @@
             ref="virtualListRef"
             class="construction-list"
             :items="listRows"
-            :virtual-scroll-item-size="820"
+            :virtual-scroll-item-size="LIST_ROW_HEIGHT"
+            :style="{ '--list-row-height': `${LIST_ROW_HEIGHT}px` }"
             @virtual-scroll="onListScroll"
           >
             <template #default="{ item: row }">
@@ -639,7 +642,7 @@
 
             <p> Измените параметры фильтра или очистите поиск. </p>
 
-            <button type="button" @click="resetFilters">
+            <button type="button" @click="resetAllFilters">
               Сбросить фильтры
             </button>
           </div>
@@ -672,7 +675,11 @@
         </div>
 
         <div class="map-tools">
-          <button class="tool" title="Сбросить фильтры" @click="resetFilters">
+          <button
+            class="tool"
+            title="Сбросить фильтры"
+            @click="resetAllFilters"
+          >
             ↺
           </button>
         </div>
@@ -752,10 +759,37 @@ function isSideMonthSelected(block, month) {
   )
 }
 
-/* Клик по месяцу свёрнутой стороны применяется ко всем её поверхностям. */
+/*
+ * Клик по месяцу свёрнутой стороны применяется ко всем её поверхностям.
+ * Намерение определяем один раз: если сторона уже выбрана (хотя бы одной
+ * поверхностью) — снимаем месяц со всех выбранных; иначе добавляем всем
+ * свободным. Иначе при частичном выборе клик инвертировал состояние.
+ */
 function onSideMonthClick(block, month) {
+  if (!isBlockActive(block)) {
+    return
+  }
+
+  const selected = isSideMonthSelected(block, month.full)
+
   for (const item of block?.items || []) {
-    onCardMonthClick(block, item, month)
+    const id = surfaceIdOf(item)
+
+    if (id === null) {
+      continue
+    }
+
+    if (selected) {
+      if (isMonthSelected(id, month.full)) {
+        toggleMonth(item, month.full, item.month_prices?.[month.full])
+      }
+
+      continue
+    }
+
+    if (!isMonthLocked(item, month.full)) {
+      toggleMonth(item, month.full, item.month_prices?.[month.full])
+    }
   }
 }
 
@@ -1147,6 +1181,8 @@ const pointCoordinates = ref('47.2357, 39.7015')
 const pointAddress = ref('')
 const addressLoading = ref(false)
 const addressError = ref('')
+/* Номер последнего geocode-запроса: старые ответы не должны перезаписывать новые. */
+let addressRequestSeq = 0
 const pointRadius = ref(1000)
 
 /* Шаги радиуса поиска (метры). */
@@ -1187,6 +1223,11 @@ const fixedSearchPoint = ref(null)
 // pending — пользователь отпустил мишень, ждём подтверждения
 // fixed   — точка зафиксирована
 const pointSelectionState = ref('idle')
+
+/* Показываются результаты точки: режим точки или список, открытый из него. */
+const pointResultsActive = computed(
+  () => workspaceMode.value === 'point' || pointSelectionState.value === 'fixed'
+)
 const pointTargetPosition = ref({ x: 0, y: 0 })
 const isDraggingPointTarget = ref(false)
 const pointTargetPointerOffset = ref({ x: 0, y: 0 })
@@ -1427,9 +1468,49 @@ const toolbarCount = computed(() =>
     : displayedConstructions.value.length
 )
 
+/*
+ * Переключение вкладок. Уходя из точки, снимаем фиксацию: иначе карта и
+ * список молча показывают радиус без маркера точки и без возможности
+ * понять, почему выдача сужена.
+ */
+function setWorkspaceMode(mode) {
+  const modeChanged = mode !== workspaceMode.value
+
+  if (
+    modeChanged &&
+    mode !== 'point' &&
+    pointSelectionState.value === 'fixed'
+  ) {
+    changeSelectedPoint()
+  }
+
+  workspaceMode.value = mode
+}
+
 /* Из панели точки: открыть закладку «Список» с найденными результатами. */
 function openListFromPoint() {
   workspaceMode.value = 'list'
+}
+
+/*
+ * Сброс фильтров. В карте/списке дополнительно снимаем фиксацию точки:
+ * иначе скрытый радиус продолжит сужать выдачу. В point-режиме точка
+ * остаётся — там радиус виден и является частью запроса.
+ */
+function resetAllFilters() {
+  /* Сброс отменяет и отложенные фильтры карты/списка. */
+  stashedSearchQuery = ''
+  searchStashed = false
+  stashedCities = []
+  citiesStashed = false
+
+  resetFilters()
+
+  if (workspaceMode.value !== 'point') {
+    changeSelectedPoint()
+    pointAddress.value = ''
+    addressError.value = ''
+  }
 }
 
 /*
@@ -1462,6 +1543,11 @@ const topSearchValue = computed({
       /* В карте и списке строка поиска — обычный фильтр по базе.
          Зафиксированная ранее точка не должна сужать его выдачу. */
       if (pointSelectionState.value === 'fixed') {
+        /* Пользователь начал новый поиск — отложенные старые фильтры не возвращаем. */
+        searchStashed = false
+        stashedSearchQuery = ''
+        citiesStashed = false
+        stashedCities = []
         changeSelectedPoint()
       }
 
@@ -1518,11 +1604,6 @@ function executePointSearch() {
   void fillAddressForPoint(lat, lng)
 }
 
-function onPointAddressInput(value) {
-  pointAddress.value = value
-  addressError.value = ''
-}
-
 async function fillAddressForPoint(lat, lng) {
   try {
     const result = await reverseGeocode(lat, lng)
@@ -1556,9 +1637,11 @@ function onTopSuggestionSelect(suggestion) {
 }
 
 async function executeAddressSearch() {
+  const seq = ++addressRequestSeq
   const address = String(pointAddress.value || '').trim()
 
   if (!address) {
+    addressLoading.value = false
     addressError.value = 'Введите адрес.'
     return
   }
@@ -1568,6 +1651,12 @@ async function executeAddressSearch() {
 
   try {
     const result = await geocodeAddress(address)
+
+    /* Пока ждали ответ, пользователь мог запустить более новый поиск. */
+    if (seq !== addressRequestSeq) {
+      return
+    }
+
     const lat = Number(result.lat)
     const lng = Number(result.lon)
 
@@ -1581,10 +1670,16 @@ async function executeAddressSearch() {
     pointSelectionState.value = 'fixed'
     mapViewRef.value?.setMapCenter(lat, lng, 14)
   } catch (error) {
+    if (seq !== addressRequestSeq) {
+      return
+    }
+
     addressError.value =
       error?.message || 'Не удалось найти адрес в Ростовской области.'
   } finally {
-    addressLoading.value = false
+    if (seq === addressRequestSeq) {
+      addressLoading.value = false
+    }
   }
 }
 
@@ -1604,6 +1699,247 @@ const {
 
   resetFilters
 } = useConstructionsFilter(constructions)
+
+/*
+ * Синхронизация фильтров с URL.
+ *
+ * До завершения гидратации обратная запись выключена: авто-выбор всех
+ * городов/форматов иначе затирает city/type из ссылки раньше, чем они
+ * применятся. После гидратации URL служит источником истины и при
+ * Back/Forward, а изменения фильтров пишутся обратно с debounce.
+ */
+const urlHydrated = ref(false)
+const initialAddressFromUrl = String(route.query.address || '').trim()
+const MANAGED_FILTER_KEYS = [
+  'city',
+  'type',
+  'address',
+  'months',
+  'monthLogic',
+  'mode'
+]
+let urlWriteTimer = null
+/* Состояние карты/списка, отложенное на время point-режима. */
+let stashedSearchQuery = ''
+let searchStashed = false
+let stashedCities = []
+let citiesStashed = false
+let syncingPointCities = false
+
+if (initialAddressFromUrl) {
+  searchQuery.value = initialAddressFromUrl
+}
+
+function queryValues(value) {
+  const list = Array.isArray(value) ? value : value == null ? [] : [value]
+
+  return list.map(item => String(item).trim()).filter(Boolean)
+}
+
+function sameSelection(left, right) {
+  if (left.length !== right.length) {
+    return false
+  }
+
+  const set = new Set(left)
+
+  return right.every(item => set.has(item))
+}
+
+/* Стабильное сравнение query: порядок ключей и мультизначений не важен. */
+function canonicalQuery(query) {
+  const entries = Object.keys(query)
+    .sort()
+    .map(key => {
+      const value = query[key]
+
+      return [
+        key,
+        Array.isArray(value)
+          ? value.map(item => String(item)).sort()
+          : value == null
+            ? ''
+            : String(value)
+      ]
+    })
+
+  return JSON.stringify(entries)
+}
+
+function applyFiltersFromUrl() {
+  /*
+   * Пока показываются результаты точки, город из URL не применяем:
+   * он относится к карте/списку и не должен скрыто сужать выдачу.
+   * Пустой набор = «все города», неизвестный город — тоже без фильтра.
+   */
+  if (!pointResultsActive.value) {
+    const requestedCities = queryValues(route.query.city)
+    const nextCities = requestedCities.length
+      ? cities.value.filter(city => requestedCities.includes(city))
+      : []
+    const citiesChanged = !sameSelection(selectedCities.value, nextCities)
+
+    if (citiesChanged) {
+      selectedCities.value = nextCities
+    }
+
+    if (citiesChanged && nextCities.length === 1) {
+      focusCityWhenReady(nextCities[0])
+    }
+  }
+
+  const requestedTypes = queryValues(route.query.type)
+  const matchedTypes = requestedTypes.length
+    ? types.value.filter(type => requestedTypes.includes(type))
+    : [...types.value]
+  const nextTypes =
+    requestedTypes.length && !matchedTypes.length
+      ? [...types.value]
+      : matchedTypes
+
+  if (!sameSelection(selectedTypes.value, nextTypes)) {
+    selectedTypes.value = nextTypes
+  }
+
+  const availableMonths = months.value.map(month => month.value)
+  const requestedMonths = queryValues(route.query.months).filter(month =>
+    availableMonths.includes(month)
+  )
+
+  if (!sameSelection(selectedMonths.value, requestedMonths)) {
+    selectedMonths.value = requestedMonths
+  }
+
+  const nextLogic =
+    String(route.query.monthLogic || '').toUpperCase() === 'AND' ? 'AND' : 'OR'
+
+  if (monthLogic.value !== nextLogic) {
+    monthLogic.value = nextLogic
+  }
+
+  /*
+   * Пока показываются результаты точки (режим точки или список, открытый
+   * из него), строка поиска по базе не применяется: адрес из URL не
+   * должен скрыто сужать выдачу.
+   */
+  if (!pointResultsActive.value) {
+    const nextAddress = String(route.query.address || '').trim()
+
+    if (String(searchQuery.value || '').trim() !== nextAddress) {
+      searchQuery.value = nextAddress
+    }
+  }
+
+  /*
+   * Режим вкладки. Для chat-ссылок режим по-прежнему задаёт отдельный
+   * watcher (map/list), чтобы не ломать их поведение.
+   */
+  if (route.query.chat !== '1') {
+    const requestedMode = String(route.query.mode || '')
+
+    if (
+      requestedMode === 'map' ||
+      requestedMode === 'point' ||
+      requestedMode === 'list'
+    ) {
+      setWorkspaceMode(requestedMode)
+    } else if (workspaceMode.value !== 'map') {
+      setWorkspaceMode('map')
+    }
+  }
+}
+
+function buildFilterQuery() {
+  /* Сохраняем chat/mode и посторонние параметры (utm и т.п.). */
+  const query = { ...route.query }
+
+  for (const key of MANAGED_FILTER_KEYS) {
+    delete query[key]
+  }
+
+  /*
+   * Пока результаты точки активны, в URL сохраняем городской фильтр
+   * карты/списка из отложенного набора — он вернётся после снятия точки.
+   */
+  const cityValues =
+    pointResultsActive.value && citiesStashed
+      ? stashedCities
+      : selectedCities.value
+
+  if (cityValues.length && cityValues.length < cities.value.length) {
+    query.city = cityValues.length === 1 ? cityValues[0] : [...cityValues]
+  }
+
+  const typeValues = selectedTypes.value
+
+  if (typeValues.length && typeValues.length < types.value.length) {
+    query.type = typeValues.length === 1 ? typeValues[0] : [...typeValues]
+  }
+
+  if (selectedMonths.value.length) {
+    query.months =
+      selectedMonths.value.length === 1
+        ? selectedMonths.value[0]
+        : [...selectedMonths.value]
+  }
+
+  if (selectedMonths.value.length && monthLogic.value === 'AND') {
+    query.monthLogic = 'AND'
+  }
+
+  /*
+   * Пока показываются результаты точки, searchQuery очищен, но адрес
+   * карты/списка сохраняем в URL из отложенной строки — чтобы он
+   * вернулся, когда точка будет снята.
+   */
+  const address = String(
+    pointResultsActive.value ? stashedSearchQuery : searchQuery.value
+  ).trim()
+
+  if (address) {
+    query.address = address
+  }
+
+  /*
+   * Режим вкладки: map — значение по умолчанию. Для chat-ссылок пишем
+   * всегда, чтобы ссылка из чата сохраняла карту/список после reload.
+   */
+  if (workspaceMode.value !== 'map' || route.query.chat === '1') {
+    query.mode = workspaceMode.value
+  }
+
+  return query
+}
+
+function scheduleUrlWrite() {
+  if (!urlHydrated.value) {
+    return
+  }
+
+  if (urlWriteTimer) {
+    clearTimeout(urlWriteTimer)
+  }
+
+  urlWriteTimer = setTimeout(() => {
+    urlWriteTimer = null
+
+    if (!urlHydrated.value) {
+      return
+    }
+
+    const query = buildFilterQuery()
+
+    if (canonicalQuery(route.query) === canonicalQuery(query)) {
+      return
+    }
+
+    router.replace({
+      path: route.path,
+      query,
+      hash: route.hash
+    })
+  }, 200)
+}
 
 /*
  * Список: ОТДЕЛЬНАЯ карточка на сторону конструкции.
@@ -1644,6 +1980,8 @@ const listPoints = computed(() => {
  * от реальной ширины области списка (ResizeObserver ниже).
  */
 const listViewRef = ref(null)
+/* Фиксированная высота виртуальной строки (включая нижний отступ 18px). */
+const LIST_ROW_HEIGHT = 640
 /* Авто-число колонок по ширине области (ResizeObserver). */
 const autoListColumns = ref(3)
 /* Ручной выбор переключателем 4/5/6; null — авто. */
@@ -1753,15 +2091,8 @@ watch(listViewRef, el => {
 })
 
 /*
- * Синхронизация фильтров из URL.
- *
- * useConstructionsFilter после загрузки данных выбирает ВСЕ города,
- * поэтому город/формат из адреса применяем после того, как списки
- * cities/types сформированы — и повторно на следующем тике, чтобы
- * гарантированно перекрыть автоматический «выбор всех».
- *
- * Для города, помимо галочки в фильтре, центрируем карту так же,
- * как при клике по названию в списке городов.
+ * Центрирование карты на городе из URL — после готовности карты и данных.
+ * Галочку в фильтре ставит гидратация ниже.
  */
 function focusCityWhenReady(city) {
   let frames = 0
@@ -1799,105 +2130,123 @@ function focusCityWhenReady(city) {
   requestAnimationFrame(attempt)
 }
 
+/*
+ * Гидратация: применяем URL один раз, после загрузки справочников, и
+ * только затем включаем обратную запись.
+ */
 watch(
   [cities, types],
-  ([cityValues, typeValues]) => {
-    const cityFromUrl = String(route.query.city || '').trim()
-    const typeFromUrl = String(route.query.type || '').trim()
-    const addressFromUrl = String(route.query.address || '').trim()
-
-    const actualCity =
-      cityFromUrl && cityValues.length
-        ? cityValues.find(city => city === cityFromUrl)
-        : null
-
-    const actualType =
-      typeFromUrl && typeValues.length
-        ? typeValues.find(type => type === typeFromUrl)
-        : null
-
-    if (addressFromUrl) {
-      searchQuery.value = addressFromUrl
+  () => {
+    if (urlHydrated.value || !constructions.value.length) {
+      return
     }
 
-    nextTick(() => {
-      if (actualType) {
-        selectedTypes.value = [actualType]
-      }
-
-      if (actualCity) {
-        /* Галочка в фильтре + центровка карты (как клик по названию). */
-        selectedCities.value = [actualCity]
-        focusCityWhenReady(actualCity)
-      }
-    })
+    applyFiltersFromUrl()
+    urlHydrated.value = true
   },
   { immediate: true }
 )
 
-// URL ← фильтры
+/* Back/Forward и любые изменения route.query применяем к фильтрам. */
 watch(
-  [selectedCities, selectedTypes, searchQuery],
-  ([cityValues, typeValues, addressValue]) => {
-    const query = {}
-
-    if (cityValues.length === 1) {
-      query.city = cityValues[0]
-    }
-
-    if (typeValues.length === 1) {
-      query.type = typeValues[0]
-    }
-
-    const address = String(addressValue || '').trim()
-
-    if (address) {
-      query.address = address
-    }
-
-    /* Режим чата не должен теряться при изменении фильтров. */
-    if (route.query.chat) {
-      query.chat = route.query.chat
-    }
-
-    if (route.query.mode) {
-      query.mode = route.query.mode
-    }
-
-    const currentQuery = {
-      city: route.query.city,
-      type: route.query.type,
-      address: route.query.address,
-      chat: route.query.chat,
-      mode: route.query.mode
-    }
-
-    const nextQuery = {
-      city: query.city,
-      type: query.type,
-      address: query.address,
-      chat: query.chat,
-      mode: query.mode
-    }
-
-    if (
-      currentQuery.city === nextQuery.city &&
-      currentQuery.type === nextQuery.type &&
-      currentQuery.address === nextQuery.address &&
-      currentQuery.chat === nextQuery.chat &&
-      currentQuery.mode === nextQuery.mode
-    ) {
+  () => route.query,
+  () => {
+    if (!urlHydrated.value) {
       return
     }
 
-    router.replace({
-      path: '/vozmozhnosti',
-      query
-    })
+    applyFiltersFromUrl()
   },
   { deep: true }
 )
+
+// URL ← фильтры (только после гидратации; запись с debounce)
+watch(
+  [
+    selectedCities,
+    selectedTypes,
+    selectedMonths,
+    monthLogic,
+    searchQuery,
+    workspaceMode
+  ],
+  scheduleUrlWrite,
+  { deep: true }
+)
 // Конец URL ← фильтры
+
+/*
+ * Строка поиска по базе не должна скрыто сужать point-режим.
+ *
+ * При входе в точку запоминаем её и очищаем фильтр. Возвращаем, когда
+ * результаты точки перестали быть активны: при выходе вкладкой или после
+ * снятия точки в списке. «Открыть список» сохраняет точку, поэтому поиск
+ * там остаётся очищенным. Адрес в URL сохраняется (см. buildFilterQuery).
+ */
+watch([workspaceMode, pointSelectionState], ([mode, state], [previousMode]) => {
+  if (mode === 'point' && previousMode !== 'point') {
+    if (!searchStashed) {
+      stashedSearchQuery = String(searchQuery.value || '').trim()
+      searchStashed = true
+    }
+
+    searchQuery.value = ''
+
+    /*
+     * Город в point-режиме определяется адресом/точкой: городской фильтр
+     * карты откладываем и снимаем, чтобы он не сужал выдачу.
+     */
+    if (!citiesStashed) {
+      stashedCities = [...selectedCities.value]
+      citiesStashed = true
+    }
+
+    syncingPointCities = true
+    selectedCities.value = []
+    nextTick(() => {
+      syncingPointCities = false
+    })
+
+    return
+  }
+
+  if (mode !== 'point' && state !== 'fixed') {
+    if (searchStashed) {
+      searchQuery.value = stashedSearchQuery
+      stashedSearchQuery = ''
+      searchStashed = false
+    }
+
+    if (citiesStashed) {
+      syncingPointCities = true
+      selectedCities.value = [...stashedCities]
+      stashedCities = []
+      citiesStashed = false
+      nextTick(() => {
+        syncingPointCities = false
+      })
+    }
+  }
+})
+
+/*
+ * Пользователь изменил города, пока открыт список из точки: его выбор
+ * важнее отложенного фильтра, поэтому восстановление отменяем.
+ */
+watch(
+  selectedCities,
+  () => {
+    if (syncingPointCities) {
+      return
+    }
+
+    if (citiesStashed) {
+      citiesStashed = false
+      stashedCities = []
+    }
+  },
+  { deep: true }
+)
 
 /*
  * Делегирование кликов для попапов карты.
@@ -1943,15 +2292,40 @@ function refreshPopupState(popupRoot) {
 
     section.classList.toggle('pf-mode', sectionActive)
 
-    if (!sectionActive) {
-      section
-        .querySelectorAll('.popup-month.is-selected')
-        .forEach(monthEl => monthEl.classList.remove('is-selected'))
-    }
-
     section.querySelectorAll('.popup-month').forEach(monthEl => {
-      const unavailable =
-        !sectionActive || monthEl.classList.contains('is-locked')
+      const raw = monthEl.getAttribute('data-pf-month') || ''
+      const sep = raw.indexOf('|')
+      let selected = false
+      let canPick = false
+
+      if (sep > 0) {
+        const ids = raw
+          .slice(0, sep)
+          .split(',')
+          .map(value => value.trim())
+          .filter(Boolean)
+        const month = raw.slice(sep + 1)
+
+        selected = ids.some(id => isMonthSelected(id, month))
+
+        /* Занятый месяц нельзя выбрать, но уже выбранный можно снять. */
+        const surfaces = ids
+          .map(id =>
+            constructions.value.find(
+              construction => String(construction?.id) === id
+            )
+          )
+          .filter(Boolean)
+
+        canPick =
+          selected || surfaces.some(surface => !isMonthLocked(surface, month))
+      }
+
+      monthEl.classList.toggle('is-selected', sectionActive && selected)
+      monthEl.classList.toggle('is-locked', !canPick)
+      monthEl.setAttribute('aria-pressed', String(sectionActive && selected))
+
+      const unavailable = !sectionActive || !canPick
 
       monthEl.disabled = unavailable
       monthEl.setAttribute('aria-disabled', String(unavailable))
@@ -2068,16 +2442,33 @@ function onDocumentClick(event) {
   }
 
   /*
-   * Каждую поверхность переключаем независимо — как в списке
-   * (onSideMonthClick): снять можно всегда, добавить — только свободный
-   * месяц. В агрегированном месяце стороны это все её поверхности сразу.
+   * Агрегированный месяц стороны: намерение определяем один раз.
+   * Если месяц уже выбран хотя бы у одной поверхности — снимаем его
+   * со всех выбранных; иначе добавляем всем свободным. Иначе при
+   * частичном выборе клик инвертировал состояние.
    */
+  const selected = surfaces.some(surface =>
+    isMonthSelected(surfaceIdOf(surface), monthFull)
+  )
+
   surfaces.forEach(surface => {
-    if (isMonthLocked(surface, monthFull)) {
+    const id = surfaceIdOf(surface)
+
+    if (id === null) {
       return
     }
 
-    toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
+    if (selected) {
+      if (isMonthSelected(id, monthFull)) {
+        toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
+      }
+
+      return
+    }
+
+    if (!isMonthLocked(surface, monthFull)) {
+      toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
+    }
   })
 
   const popupRoot =
@@ -2167,6 +2558,11 @@ onBeforeUnmount(() => {
   if (listResizeObserver) {
     listResizeObserver.disconnect()
     listResizeObserver = null
+  }
+
+  if (urlWriteTimer) {
+    clearTimeout(urlWriteTimer)
+    urlWriteTimer = null
   }
 })
 </script>
@@ -2404,6 +2800,38 @@ onBeforeUnmount(() => {
   line-height: 1.1;
 }
 
+/* Список открыт из point-режима: показываем, что выдача сужена радиусом. */
+.list-point-note {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+
+  margin-top: 9px;
+
+  color: #5b6873;
+  font-size: 12px;
+}
+
+.list-point-note button {
+  padding: 4px 9px;
+
+  border: 1px solid #d6dde1;
+  border-radius: 7px;
+
+  background: #fff;
+  color: #17212b;
+
+  font-size: 11px;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.list-point-note button:hover {
+  border-color: #17212b;
+}
+
 /* Переключатель числа колонок карточек (4/5/6). */
 .list-columns {
   display: flex;
@@ -2509,7 +2937,13 @@ onBeforeUnmount(() => {
 
   gap: 18px;
 
-  margin-bottom: 18px;
+  /* Фиксированная высота строки: q-virtual-scroll не умеет разную высоту.
+     Нижний отступ входит в высоту, чтобы item-size совпадал с шагом. */
+  height: var(--list-row-height, 640px);
+  padding-bottom: 18px;
+  box-sizing: border-box;
+
+  overflow: hidden;
 }
 
 /* Убираем фоновые «полоски»-заглушки Quasar у элементов-распорок
@@ -2524,9 +2958,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
 
-  /* Высота — по содержимому: в виртуальном скролле контейнер имеет
-     заданную высоту, и height:100% дал бы каждой карточке её всю. */
-  height: auto;
+  /* Высота строки фиксирована — карточки растягиваются на неё. */
+  height: 100%;
+  min-height: 0;
 
   background: #fff;
 
@@ -2696,6 +3130,7 @@ onBeforeUnmount(() => {
 
 .card-content {
   flex: 1;
+  min-height: 0;
 
   display: flex;
   flex-direction: column;
@@ -2789,11 +3224,14 @@ onBeforeUnmount(() => {
   /* Занимаем всю доступную высоту карточки, чтобы блок «Портфель» и
      строка «подсветка/статика/динамика» вставали по нижнему краю. */
   flex: 1;
+  min-height: 0;
 }
 
 .card-block {
   display: flex;
   flex-direction: column;
+
+  min-height: 0;
 
   padding-top: 12px;
 
@@ -2928,6 +3366,9 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 6px;
+
+  min-height: 0;
+  overflow-y: auto;
 
   margin-top: 10px;
   padding-top: 9px;

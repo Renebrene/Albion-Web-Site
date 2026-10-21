@@ -174,6 +174,7 @@ export function parentSide(side, type) {
  */
 export function dedupeSides(items) {
   const sides = []
+  const seen = new Set()
 
   for (const item of items) {
     const side = sideLabel(item)
@@ -181,18 +182,15 @@ export function dedupeSides(items) {
       .trim()
       .toUpperCase()
 
-    const exists = sides.some(existing => {
-      const existingSide = sideLabel(existing)
-      const existingType = String(existing?.type || '')
-        .trim()
-        .toUpperCase()
+    if (!side) {
+      sides.push(item)
+      continue
+    }
 
-      return (
-        side && existingSide && side === existingSide && type === existingType
-      )
-    })
+    const key = `${side}\u0000${type}`
 
-    if (!exists) {
+    if (!seen.has(key)) {
+      seen.add(key)
       sides.push(item)
     }
   }
@@ -243,21 +241,23 @@ export function maxBlocksFor(family) {
  */
 export function groupSides(items) {
   const groups = []
+  const byKey = new Map()
 
   for (const item of items) {
     const type = String(item?.type || '')
       .trim()
       .toLowerCase()
     const parent = parentSide(sideLabel(item), item.type)
-    const group = groups.find(
-      existing => existing.parent === parent && existing.type === type
-    )
+    const key = `${parent}\u0000${type}`
+    let group = byKey.get(key)
 
-    if (group) {
-      group.items.push(item)
-    } else {
-      groups.push({ type, parent, items: [item] })
+    if (!group) {
+      group = { type, parent, items: [] }
+      byKey.set(key, group)
+      groups.push(group)
     }
+
+    group.items.push(item)
   }
 
   return groups.map(group => {
@@ -297,6 +297,7 @@ export function groupSides(items) {
  */
 export function groupByPoint(items) {
   const points = []
+  const byKey = new Map()
 
   for (const item of items) {
     const lat = Number(item?.lat)
@@ -323,10 +324,11 @@ export function groupByPoint(items) {
       key = `noc|${city}|${address}`
     }
 
-    let point = points.find(existing => existing.key === key)
+    let point = byKey.get(key)
 
     if (!point) {
       point = { key, items: [] }
+      byKey.set(key, point)
       points.push(point)
     }
 

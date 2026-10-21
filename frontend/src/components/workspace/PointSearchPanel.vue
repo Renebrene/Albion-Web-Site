@@ -76,81 +76,6 @@
       </div>
     </section>
 
-    <!-- ПОИСК (координаты / адрес) -->
-    <section class="panel-section">
-      <div class="search-card">
-        <input
-          :value="searchValue"
-          type="search"
-          :placeholder="searchPlaceholder"
-          autocomplete="off"
-          @input="onInput"
-          @keydown.enter="onSearch"
-        />
-
-        <div class="search-mode">
-          <button
-            type="button"
-            :class="{ active: searchMode === 'coords' }"
-            @click="setMode('coords')"
-          >
-            Координаты
-          </button>
-
-          <button
-            type="button"
-            :class="{ active: searchMode === 'address' }"
-            @click="setMode('address')"
-          >
-            Адрес
-          </button>
-        </div>
-
-        <button
-          type="button"
-          class="search-icon"
-          title="Найти"
-          @click="onSearch"
-        >
-          ⌕
-        </button>
-      </div>
-
-      <div
-        v-if="searchMode === 'address' && suggestions.length"
-        class="address-suggestions"
-      >
-        <button
-          v-for="suggestion in suggestions"
-          :key="suggestion.id"
-          type="button"
-          class="address-suggestion"
-          @click="selectSuggestion(suggestion)"
-        >
-          <span class="address-suggestion-title">
-            {{ suggestion.title }}
-          </span>
-          <span v-if="suggestion.subtitle" class="address-suggestion-sub">
-            {{ suggestion.subtitle }}
-          </span>
-        </button>
-      </div>
-
-      <div v-if="addressLoading" class="input-hint" role="status">
-        Ищем адрес…
-      </div>
-      <div
-        v-else-if="addressError"
-        class="input-hint input-hint--error"
-        role="alert"
-      >
-        {{ addressError }}
-      </div>
-      <div v-else class="input-hint">
-        {{ searchHint }}
-      </div>
-    </section>
-
     <!-- РЕЗУЛЬТАТ -->
     <div class="result-count">
       <div class="count-value">
@@ -234,12 +159,11 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed } from 'vue'
 
 import { MONTHS } from '../../utils/constructionGroups'
 import { getMonthStatusLabel, isFree } from '../../utils/availability'
 import { usePortfolio } from '../../composables/usePortfolio'
-import { suggestAddress } from '../../services/geoApi'
 
 const props = defineProps({
   active: {
@@ -280,26 +204,6 @@ const props = defineProps({
   results: {
     type: Array,
     default: () => []
-  },
-
-  coordinates: {
-    type: String,
-    default: ''
-  },
-
-  address: {
-    type: String,
-    default: ''
-  },
-
-  addressLoading: {
-    type: Boolean,
-    default: false
-  },
-
-  addressError: {
-    type: String,
-    default: ''
   }
 })
 
@@ -307,109 +211,8 @@ const emit = defineEmits([
   'update:selectedMonths',
   'update:monthLogic',
   'update:selectedTypes',
-  'update:coordinates',
-  'update:address',
-  'search',
-  'search-address',
   'open-list'
 ])
-
-/* Переключатель режима поиска на краю поля. */
-const searchMode = ref('coords')
-
-const searchValue = computed(() =>
-  searchMode.value === 'coords' ? props.coordinates : props.address
-)
-
-const searchPlaceholder = computed(() =>
-  searchMode.value === 'coords' ? '47.2315, 39.7233' : 'Введите адрес'
-)
-
-const searchHint = computed(() =>
-  searchMode.value === 'coords'
-    ? 'Широта и долгота через запятую'
-    : 'Начните вводить адрес — появятся подсказки'
-)
-
-const suggestions = ref([])
-let suggestTimer = null
-let suggestSeq = 0
-
-function clearSuggestions() {
-  suggestions.value = []
-  suggestSeq += 1
-
-  if (suggestTimer) {
-    clearTimeout(suggestTimer)
-    suggestTimer = null
-  }
-}
-
-async function loadSuggestions(query) {
-  const value = String(query || '').trim()
-
-  if (value.length < 3) {
-    suggestions.value = []
-    return
-  }
-
-  const seq = ++suggestSeq
-
-  try {
-    const result = await suggestAddress(value)
-
-    if (seq !== suggestSeq) {
-      return
-    }
-
-    suggestions.value = Array.isArray(result?.suggestions)
-      ? result.suggestions
-      : []
-  } catch (error) {
-    if (seq === suggestSeq) {
-      suggestions.value = []
-    }
-  }
-}
-
-function setMode(mode) {
-  searchMode.value = mode
-  clearSuggestions()
-}
-
-function onInput(event) {
-  const value = event.target.value
-
-  if (searchMode.value === 'coords') {
-    clearSuggestions()
-    emit('update:coordinates', value)
-    return
-  }
-
-  emit('update:address', value)
-  clearSuggestions()
-
-  suggestTimer = setTimeout(() => {
-    suggestTimer = null
-    void loadSuggestions(value)
-  }, 300)
-}
-
-function selectSuggestion(suggestion) {
-  emit('update:address', suggestion.display_name || suggestion.query)
-  clearSuggestions()
-  emit('search-address')
-}
-
-function onSearch() {
-  clearSuggestions()
-  emit(searchMode.value === 'coords' ? 'search' : 'search-address')
-}
-
-onBeforeUnmount(() => {
-  clearSuggestions()
-  suggestSeq += 1
-})
 
 const constructionLabel = computed(() => {
   const value = Number(props.count) || 0
@@ -794,177 +597,6 @@ function toggleType(value) {
   border-color: var(--albion-accent);
   background: var(--albion-accent);
   color: #fff;
-}
-
-/* Поисковая строка — как на закладке «Интерактивная карта» */
-.search-card {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-
-  height: 44px;
-  padding: 0 8px 0 10px;
-
-  border: 1px solid #dce2e6;
-  border-radius: 12px;
-
-  background: #fff;
-
-  transition: 0.2s ease;
-}
-
-.search-card:focus-within {
-  border-color: #17212b;
-  box-shadow: 0 0 0 3px rgba(23, 33, 43, 0.07);
-}
-
-.search-card input {
-  min-width: 0;
-  flex: 1;
-
-  border: 0;
-  outline: 0;
-
-  background: transparent;
-
-  color: #17212b;
-
-  font-size: 13px;
-}
-
-.search-card input::placeholder {
-  color: #9aa5ac;
-}
-
-/* Переключатель координаты/адрес — на краю поля */
-.search-mode {
-  flex: 0 0 auto;
-
-  display: flex;
-  gap: 2px;
-
-  padding: 2px;
-
-  border-radius: 7px;
-  background: #f1f3f4;
-}
-
-.search-mode button {
-  height: 24px;
-  padding: 0 7px;
-
-  border: 0;
-  border-radius: 5px;
-
-  background: transparent;
-  color: #7b878f;
-
-  cursor: pointer;
-
-  font-size: 9px;
-  font-weight: 800;
-
-  white-space: nowrap;
-}
-
-.search-mode button.active {
-  background: #fff;
-  color: #17212b;
-  box-shadow: 0 1px 4px rgba(20, 30, 40, 0.12);
-}
-
-/* Иконка поиска — справа */
-.search-icon {
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
-
-  display: flex;
-  align-items: center;
-  justify-content: center;
-
-  border: 0;
-  border-radius: 8px;
-
-  background: transparent;
-
-  color: #5b6873;
-
-  font-size: 22px;
-
-  cursor: pointer;
-
-  transition: background 0.18s ease;
-}
-
-.search-icon:hover {
-  background: #f0f3f4;
-}
-
-.input-hint {
-  margin-top: 6px;
-
-  color: #5f6c76;
-
-  font-size: 10px;
-  line-height: 1.4;
-}
-
-.input-hint--error {
-  color: #a8281f;
-}
-
-.address-suggestions {
-  display: flex;
-  flex-direction: column;
-
-  margin-top: 6px;
-  overflow: hidden;
-
-  border: 1px solid #dce2e6;
-  border-radius: 10px;
-
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(25, 35, 45, 0.12);
-}
-
-.address-suggestion {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-
-  padding: 9px 11px;
-
-  border: 0;
-  border-bottom: 1px solid #eef1f3;
-
-  background: transparent;
-  color: #17212b;
-
-  font-family: inherit;
-  text-align: left;
-
-  cursor: pointer;
-}
-
-.address-suggestion:last-child {
-  border-bottom: 0;
-}
-
-.address-suggestion:hover,
-.address-suggestion:focus-visible {
-  background: #f4f6f7;
-}
-
-.address-suggestion-title {
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.address-suggestion-sub {
-  color: #5f6c76;
-  font-size: 10px;
 }
 
 .result-count {

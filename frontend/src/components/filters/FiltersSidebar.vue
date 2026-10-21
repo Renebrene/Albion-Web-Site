@@ -72,6 +72,12 @@
           class="chip"
           :class="{ active: selectedTypes.includes(type) }"
           :aria-pressed="selectedTypes.includes(type)"
+          :disabled="selectedTypes.length === 1 && selectedTypes.includes(type)"
+          :title="
+            selectedTypes.length === 1 && selectedTypes.includes(type)
+              ? 'Должен остаться хотя бы один формат'
+              : undefined
+          "
           @click="toggleType(type)"
         >
           {{ type }}
@@ -84,9 +90,14 @@
         <div class="section-label">Города / районы</div>
 
         <div class="city-actions">
-          <button type="button" @click="selectAllCities"> Выбрать все </button>
-
-          <button type="button" @click="clearCities"> Снять все </button>
+          <button
+            type="button"
+            title="Очистить выбор — будут показаны все города"
+            aria-label="Очистить выбор городов"
+            @click="clearCities"
+          >
+            <q-icon name="filter_alt_off" size="16px" />
+          </button>
         </div>
       </div>
 
@@ -222,15 +233,13 @@ function toggleCity(value) {
   emit('update:selectedCities', values)
 }
 
-function selectAllCities() {
-  emit('update:selectedCities', [...props.cities])
-}
-
+/*
+ * Пустой массив = «выбрано всё»: фильтр по городу не применяется,
+ * все чекбоксы сняты. Это же состояние получается после снятия
+ * последнего чекбокса.
+ */
 function clearCities() {
-  emit(
-    'update:selectedCities',
-    props.cities.includes('Ростов-на-Дону') ? ['Ростов-на-Дону'] : []
-  )
+  emit('update:selectedCities', [])
 }
 </script>
 
@@ -404,8 +413,13 @@ function clearCities() {
   transition: 0.12s ease;
 }
 
-.chip:hover {
+.chip:hover:not(:disabled) {
   border-color: #d1d8dc;
+}
+
+.chip:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .chip.active {
@@ -437,18 +451,30 @@ function clearCities() {
 }
 
 .city-actions button {
+  width: 26px;
+  height: 26px;
+
+  display: grid;
+  place-items: center;
+
   padding: 0;
+
   border: 0;
+  border-radius: 7px;
+
   background: transparent;
-  color: var(--albion-accent);
+  color: #68757e;
+
   cursor: pointer;
-  font-size: 9px;
-  font-weight: 800;
-  white-space: nowrap;
+
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
 }
 
 .city-actions button:hover {
-  text-decoration: underline;
+  background: #f0f3f4;
+  color: #17212b;
 }
 
 .cities-list {

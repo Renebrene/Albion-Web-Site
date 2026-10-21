@@ -31,16 +31,21 @@ const MONTH_SHORT = {
   Декабрь: 'дек.'
 }
 
+/*
+ * Нормализация поиска: регистр, «ё», пунктуация и лишние пробелы.
+ * Дефис в «Ростов-на-Дону» становится пробелом, поэтому запрос
+ * «Ростов на Дону» находит город.
+ */
 function normalize(value) {
   return String(value ?? '')
-    .trim()
     .toLowerCase()
     .replace(/ё/g, 'е')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
 }
 
-function formatMonth(month) {
-  const year = new Date().getFullYear()
-  return `${MONTH_SHORT[month] || month} ${year}`
+function formatMonth(month, year) {
+  return `${MONTH_SHORT[month] || month} ${year || new Date().getFullYear()}`
 }
 
 export function useConstructionsFilter(constructions) {
@@ -50,11 +55,10 @@ export function useConstructionsFilter(constructions) {
   const selectedCities = ref([])
   const searchQuery = ref('')
 
-  // Фильтры должны автоматически выбрать всё
-  // только после фактической загрузки данных.
-  // Месяцы по умолчанию СНЯТЫ (без фильтра по свободности).
+  // Форматы выбираются все после загрузки данных.
+  // Месяцы и города по умолчанию СНЯТЫ: пустой набор означает
+  // «фильтр не применяется» (показаны все).
   let typesInitialized = false
-  let citiesInitialized = false
 
   /*
    * Месяцы берём непосредственно из данных.
@@ -62,6 +66,7 @@ export function useConstructionsFilter(constructions) {
    */
   const months = computed(() => {
     const found = new Set()
+    const years = new Map()
 
     for (const item of constructions.value || []) {
       for (const month of Object.keys(item?.statuses || {})) {
@@ -70,6 +75,14 @@ export function useConstructionsFilter(constructions) {
 
       for (const month of Object.keys(item?.months || {})) {
         found.add(month)
+      }
+
+      for (const [month, year] of Object.entries(item?.month_years || {})) {
+        const value = Number(year)
+
+        if (Number.isFinite(value) && value > (years.get(month) || 0)) {
+          years.set(month, value)
+        }
       }
     }
 
@@ -86,7 +99,7 @@ export function useConstructionsFilter(constructions) {
       })
       .map(month => ({
         value: month,
-        label: formatMonth(month)
+        label: formatMonth(month, years.get(month))
       }))
   })
 
@@ -123,30 +136,72 @@ export function useConstructionsFilter(constructions) {
     })
   })
 
-  // После загрузки данных один раз выбираем ВСЕ значения форматов и
-  // городов; месяцы остаются снятыми (фильтр по свободности не активен).
-
+  // После загрузки данных один раз выбираем ВСЕ форматы. Города остаются
+  // снятыми: пустой selectedCities означает «все города».
   watch(
     types,
-    values => {
-      if (!typesInitialized && values.length) {
+    (values, previous) => {
+      if (!values.length) {
+        return
+      }
+
+      if (!typesInitialized) {
         selectedTypes.value = [...values]
         typesInitialized = true
+        return
       }
+
+      /*
+       * Каталог перезагрузили. Если были выбраны все форматы — выбираем
+       * все новые; если подмножество — оставляем только существующие.
+       */
+      const wasAll =
+        !selectedTypes.value.length ||
+        selectedTypes.value.length === (previous?.length || 0)
+
+      if (wasAll) {
+        selectedTypes.value = [...values]
+        return
+      }
+
+      const available = new Set(values)
+      selectedTypes.value = selectedTypes.value.filter(type =>
+        available.has(type)
+      )
     },
     { immediate: true }
   )
 
-  watch(
-    cities,
-    values => {
-      if (!citiesInitialized && values.length) {
-        selectedCities.value = [...values]
-        citiesInitialized = true
-      }
-    },
-    { immediate: true }
-  )
+  /* Города: пустой набор = все, подмножество чистим от исчезнувших. */
+  watch(cities, (values, previous) => {
+    if (!values.length || !selectedCities.value.length) {
+      return
+    }
+
+    if (selectedCities.value.length === (previous?.length || 0)) {
+      selectedCities.value = [...values]
+      return
+    }
+
+    const available = new Set(values)
+    selectedCities.value = selectedCities.value.filter(city =>
+      available.has(city)
+    )
+  })
+
+  /* Месяцы: убираем выбранные, которых больше нет в каталоге. */
+  watch(months, values => {
+    if (!values.length) {
+      return
+    }
+
+    const available = new Set(values.map(month => month.value))
+    const next = selectedMonths.value.filter(month => available.has(month))
+
+    if (next.length !== selectedMonths.value.length) {
+      selectedMonths.value = next
+    }
+  })
 
   const filteredConstructions = computed(() => {
     const query = normalize(searchQuery.value)
@@ -209,7 +264,10 @@ export function useConstructionsFilter(constructions) {
           .map(normalize)
           .join(' ')
 
-        if (!haystack.includes(query)) {
+        /* Порядок слов не важен: «Курчатова Волгодонск» = «Волгодонск Курчатова». */
+        const tokens = query.split(' ').filter(Boolean)
+
+        if (!tokens.every(token => haystack.includes(token))) {
           return false
         }
       }
@@ -224,7 +282,8 @@ export function useConstructionsFilter(constructions) {
     selectedMonths.value = []
     monthLogic.value = 'OR'
     selectedTypes.value = [...types.value]
-    selectedCities.value = [...cities.value]
+    /* Пустой набор городов = «выбраны все». */
+    selectedCities.value = []
     searchQuery.value = ''
   }
 

@@ -9,6 +9,7 @@
         :placeholder="placeholder"
         autocomplete="off"
         @input="onInput"
+        @focus="onFocus"
         @keydown.enter="onSearch"
         @keydown.esc="clearSuggestions"
         @blur="onBlur"
@@ -128,6 +129,14 @@ const suggestLoading = ref(false)
 const suggestError = ref('')
 let suggestTimer = null
 let suggestSeq = 0
+let blurTimer = null
+
+function clearBlurTimer() {
+  if (blurTimer) {
+    clearTimeout(blurTimer)
+    blurTimer = null
+  }
+}
 
 const isAddressMode = computed(() => props.showMode && props.mode === 'address')
 
@@ -142,6 +151,8 @@ function clearSuggestions() {
   suggestError.value = ''
   suggestLoading.value = false
   suggestSeq += 1
+
+  clearBlurTimer()
 
   if (suggestTimer) {
     clearTimeout(suggestTimer)
@@ -212,7 +223,16 @@ function setMode(mode) {
 
 function onBlur() {
   /* Даём сработать клику по подсказке, затем закрываем список. */
-  window.setTimeout(clearSuggestions, 150)
+  clearBlurTimer()
+  blurTimer = window.setTimeout(() => {
+    blurTimer = null
+    clearSuggestions()
+  }, 150)
+}
+
+function onFocus() {
+  /* Вернулись в поле — старый blur-таймер не должен гасить новые подсказки. */
+  clearBlurTimer()
 }
 
 function onSearch() {
