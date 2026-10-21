@@ -23,6 +23,17 @@ function createStore(key) {
   const loading = ref(false)
   const error = ref('')
 
+  /*
+   * Поколение состояния: reset/dispose/hydrate увеличивают его, чтобы
+   * поздний ответ старого запроса не воскресил очищенный чат.
+   */
+  let generation = 0
+
+  function invalidate() {
+    generation += 1
+    loading.value = false
+  }
+
   function restore() {
     try {
       const saved = JSON.parse(sessionStorage.getItem(storageKey) || '{}')
@@ -69,6 +80,8 @@ function createStore(key) {
     const text = String(message || '').trim()
     if (!text || loading.value) return null
 
+    const requestGeneration = generation
+
     error.value = ''
     loading.value = true
     messages.value.push({ role: 'user', text })
@@ -84,6 +97,11 @@ function createStore(key) {
         context,
         chat_key: key
       })
+
+      /* Чат очистили/пересоздали, пока шёл запрос — ответ уже не нужен. */
+      if (generation !== requestGeneration) {
+        return null
+      }
 
       sessionId.value = response.session_id
       lastResponse.value = response
@@ -101,6 +119,10 @@ function createStore(key) {
       persist()
       return response
     } catch (exc) {
+      if (generation !== requestGeneration) {
+        return null
+      }
+
       error.value = exc?.message || 'Не удалось обратиться к помощнику.'
       messages.value.push({
         role: 'assistant',
@@ -110,23 +132,38 @@ function createStore(key) {
       persist()
       return null
     } finally {
-      loading.value = false
+      if (generation === requestGeneration) {
+        loading.value = false
+      }
     }
   }
 
   async function reset() {
-    if (sessionId.value) {
+    generation += 1
+    const resetGeneration = generation
+    const activeSession = sessionId.value
+
+    /* Блокируем новые отправки, пока чистим серверную сессию. */
+    loading.value = true
+
+    if (activeSession) {
       try {
-        await resetChat(sessionId.value)
+        await resetChat(activeSession)
       } catch {
         // Local reset remains useful when the server session has expired.
       }
+    }
+
+    /* Пока ждали сервер, чат могли сбросить/пересоздать ещё раз. */
+    if (generation !== resetGeneration) {
+      return
     }
 
     sessionId.value = null
     messages.value = []
     lastResponse.value = null
     error.value = ''
+    loading.value = false
     persist()
   }
 
@@ -139,7 +176,8 @@ function createStore(key) {
     error,
     send,
     reset,
-    persist
+    persist,
+    invalidate
   }
 }
 
@@ -166,6 +204,9 @@ export function chatSnapshot(key) {
 export function hydrateChat(key, snapshot) {
   const store = useSmartChat(key)
 
+  /* Старый in-flight ответ не должен перезаписать восстановленный чат. */
+  store.invalidate()
+
   store.sessionId.value = snapshot?.sessionId || null
   store.messages.value = Array.isArray(snapshot?.messages)
     ? snapshot.messages
@@ -182,6 +223,9 @@ export function hydrateChat(key, snapshot) {
  */
 export function disposeChat(key) {
   const storageKey = `albion_smart_chat_v${STORAGE_VERSION}_${key}`
+
+  /* Поздний ответ по удалённому чату не должен снова его сохранить. */
+  registry.get(key)?.invalidate()
 
   try {
     sessionStorage.removeItem(storageKey)

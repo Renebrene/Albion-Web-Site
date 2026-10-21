@@ -960,6 +960,11 @@ async function load() {
   if (kinds.has('hero')) {
     try {
       const res = await fetch('/api/about')
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+
       about.value = await res.json()
     } catch (exc) {
       /* ignore */
@@ -967,6 +972,11 @@ async function load() {
 
     try {
       const res = await fetch('/api/constructions/stats')
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+
       netStats.value = await res.json()
     } catch (exc) {
       /* ignore */
@@ -976,6 +986,11 @@ async function load() {
   if (kinds.has('news')) {
     try {
       const res = await fetch('/api/news')
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+
       const data = await res.json()
       news.value = Array.isArray(data) ? data : data.items || []
     } catch (exc) {
@@ -1140,6 +1155,8 @@ function fanStyle(i) {
 
 async function submitFeedback() {
   formError.value = ''
+  /* Новый сабмит всегда снимает прошлое «Спасибо», иначе ошибка не видна. */
+  sent.value = false
 
   if (!form.value.name.trim()) {
     formError.value = 'Укажите имя.'
@@ -1154,7 +1171,6 @@ async function submitFeedback() {
   }
 
   sending.value = true
-  sent.value = false
 
   try {
     const res = await fetch('/api/feedback', {
@@ -1197,6 +1213,9 @@ function gotoFormSlide() {
 
 function onWheel(event) {
   if (geoExpanded.value) return
+
+  /* Горизонтальный трекпад и Ctrl+wheel (zoom) не листают слайды. */
+  if (event.ctrlKey || event.deltaY === 0) return
 
   // Колода geo-слайда может перехватывать колесо (режим задаётся в админке).
   if (handleDeckWheel(event)) return

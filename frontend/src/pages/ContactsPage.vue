@@ -35,7 +35,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { getContacts } from '@/services/api'
 
@@ -48,13 +48,20 @@ const contacts = ref({
 })
 const loading = ref(true)
 const loadError = ref('')
+let contactsRequest = 0
+let isUnmounted = false
 
 async function reloadContacts() {
+  const request = ++contactsRequest
   loading.value = true
   loadError.value = ''
 
   try {
     const data = await getContacts()
+
+    if (isUnmounted || request !== contactsRequest) {
+      return
+    }
 
     if (!data || typeof data !== 'object') {
       throw new Error('Некорректный ответ /api/contacts')
@@ -62,16 +69,27 @@ async function reloadContacts() {
 
     contacts.value = data
   } catch (error) {
+    if (isUnmounted || request !== contactsRequest) {
+      return
+    }
+
     contacts.value = { offices: [], departments: [] }
     loadError.value =
       'Не удалось загрузить контакты. Проверьте соединение и повторите.'
     console.error('Не удалось загрузить контакты:', error)
   } finally {
-    loading.value = false
+    if (!isUnmounted && request === contactsRequest) {
+      loading.value = false
+    }
   }
 }
 
 onMounted(reloadContacts)
+
+onBeforeUnmount(() => {
+  isUnmounted = true
+  contactsRequest += 1
+})
 
 const activeOffices = computed(() =>
   (contacts.value.offices || [])

@@ -61,6 +61,8 @@ import { normalizeMedia } from '../components/news/NewsMediaCarousel.vue'
 const selectedCategory = ref('Все')
 const newsList = ref([])
 const loading = ref(true)
+/* Компонент могли закрыть, пока шёл запрос или nextTick. */
+let isUnmounted = false
 
 /*
  * Приводим новость к единому виду: API отдаёт category-объект и
@@ -93,6 +95,11 @@ function localNews() {
 onMounted(async () => {
   try {
     const data = await getNews()
+
+    if (isUnmounted) {
+      return
+    }
+
     const list = Array.isArray(data) ? data : data?.data || data?.items || []
 
     const published = list.filter(item => item.is_published !== false)
@@ -101,11 +108,17 @@ onMounted(async () => {
       ? published.map(normalizeNews)
       : localNews()
   } catch (error) {
+    if (isUnmounted) {
+      return
+    }
+
     // Если API недоступен — показываем локальные данные, как раньше.
     console.error('Не удалось загрузить новости:', error)
     newsList.value = localNews()
   } finally {
-    loading.value = false
+    if (!isUnmounted) {
+      loading.value = false
+    }
   }
 })
 
@@ -211,6 +224,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  isUnmounted = true
+
   window.removeEventListener('resize', scheduleMasonry)
 
   if (masonryTimer) {
@@ -220,7 +235,10 @@ onBeforeUnmount(() => {
 
 watch([filteredNews, loading], async () => {
   await nextTick()
-  scheduleMasonry()
+
+  if (!isUnmounted) {
+    scheduleMasonry()
+  }
 })
 </script>
 

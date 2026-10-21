@@ -178,7 +178,7 @@
           "
         >
           <q-card
-            v-for="item in visibleConstructions"
+            v-for="item in renderedConstructions"
             :key="item.id"
             flat
             bordered
@@ -339,6 +339,21 @@
               </div>
             </q-card-section>
           </q-card>
+
+          <div v-if="hasMore" ref="loadMoreRef" class="construction-load-more">
+            <q-btn
+              flat
+              no-caps
+              color="primary"
+              icon="expand_more"
+              label="Показать ещё"
+              @click="loadMore"
+            />
+            <span>
+              Показано {{ renderedConstructions.length }} из
+              {{ visibleConstructions.length }}
+            </span>
+          </div>
         </div>
       </q-card-section>
     </q-card>
@@ -652,7 +667,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ConstructionMediaPicker from '../components/admin/ConstructionMediaPicker.vue'
@@ -1029,14 +1044,14 @@ const filterFormatOptions = computed(() =>
   )
 )
 
-const visibleConstructions = computed(() =>
-  displayConstructions.value.filter(item => {
+const visibleConstructions = computed(() => {
+  const query = searchQuery.value.trim().toLowerCase()
+
+  return displayConstructions.value.filter(item => {
     // Фильтр «Показать изменённые» — оставляем только конструкции с правками.
     if (showOnlyChanged.value && !item.overridden?.length) {
       return false
     }
-
-    const query = searchQuery.value.trim().toLowerCase()
 
     if (query) {
       const haystack =
@@ -1057,7 +1072,66 @@ const visibleConstructions = computed(() =>
 
     return true
   })
+})
+
+/*
+ * Ленивая подгрузка каталога: в DOM держим только первые PAGE_SIZE
+ * карточек, остальные добавляем при прокрутке (IntersectionObserver)
+ * или по кнопке «Показать ещё».
+ */
+const PAGE_SIZE = 48
+const visibleLimit = ref(PAGE_SIZE)
+const renderedConstructions = computed(() =>
+  visibleConstructions.value.slice(0, visibleLimit.value)
 )
+const hasMore = computed(
+  () => renderedConstructions.value.length < visibleConstructions.value.length
+)
+const loadMoreRef = ref(null)
+let loadMoreObserver = null
+
+function loadMore() {
+  if (hasMore.value) {
+    visibleLimit.value += PAGE_SIZE
+  }
+}
+
+/* Смена фильтра/поиска начинает список заново. */
+watch(visibleConstructions, () => {
+  visibleLimit.value = PAGE_SIZE
+})
+
+onMounted(() => {
+  if (typeof IntersectionObserver === 'undefined') {
+    return
+  }
+
+  loadMoreObserver = new IntersectionObserver(
+    entries => {
+      if (entries.some(entry => entry.isIntersecting)) {
+        loadMore()
+      }
+    },
+    { rootMargin: '600px 0px' }
+  )
+
+  if (loadMoreRef.value) {
+    loadMoreObserver.observe(loadMoreRef.value)
+  }
+})
+
+/* Кнопка-сенсор появляется/исчезает вместе с hasMore. */
+watch(loadMoreRef, el => {
+  if (!loadMoreObserver) {
+    return
+  }
+
+  loadMoreObserver.disconnect()
+
+  if (el) {
+    loadMoreObserver.observe(el)
+  }
+})
 
 loadConstructions()
 loadBaseStats()
@@ -1417,6 +1491,11 @@ async function resetToDefault() {
 
 onBeforeUnmount(() => {
   releaseAllObjectUrls()
+
+  if (loadMoreObserver) {
+    loadMoreObserver.disconnect()
+    loadMoreObserver = null
+  }
 })
 </script>
 
@@ -1910,6 +1989,20 @@ onBeforeUnmount(() => {
   margin-top: 18px;
   align-content: start;
   align-items: stretch;
+}
+
+.construction-load-more {
+  grid-column: 1 / -1;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+
+  padding: 18px 0 6px;
+
+  color: #68757e;
+  font-size: 12px;
 }
 
 .construction-grid--compact {

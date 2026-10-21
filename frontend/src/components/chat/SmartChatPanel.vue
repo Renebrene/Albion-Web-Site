@@ -332,7 +332,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useChatWorkspace } from '../../composables/useChatWorkspace'
@@ -524,6 +524,7 @@ const exchanges = computed(() => {
 
 /* Ключ сообщения, текст которого только что скопирован (для иконки-галочки). */
 const copiedKey = ref('')
+let copyTimer = null
 
 async function copyMessage(message, key) {
   const ok = await copyToClipboard(message?.text || '')
@@ -533,7 +534,14 @@ async function copyMessage(message, key) {
   }
 
   copiedKey.value = key
-  window.setTimeout(() => {
+
+  if (copyTimer) {
+    clearTimeout(copyTimer)
+  }
+
+  copyTimer = window.setTimeout(() => {
+    copyTimer = null
+
     if (copiedKey.value === key) {
       copiedKey.value = ''
     }
@@ -542,10 +550,28 @@ async function copyMessage(message, key) {
 
 function submit() {
   const text = draft.value.trim()
-  if (!text) return
+
+  /* send() молча вернёт null, если этот чат уже загружается. */
+  if (!text || loading.value) {
+    return
+  }
+
   draft.value = ''
-  send(text)
+
+  void send(text).then(result => {
+    /* Ошибка сети: возвращаем текст, если пользователь ещё ничего не ввёл. */
+    if (result === null && !draft.value) {
+      draft.value = text
+    }
+  })
 }
+
+onBeforeUnmount(() => {
+  if (copyTimer) {
+    clearTimeout(copyTimer)
+    copyTimer = null
+  }
+})
 
 function formatPrice(value) {
   return new Intl.NumberFormat('ru-RU').format(value)

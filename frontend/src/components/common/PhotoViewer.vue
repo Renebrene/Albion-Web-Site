@@ -128,7 +128,9 @@ function triggerDownload(href, name) {
 
   document.body.appendChild(link)
   link.click()
-  document.body.removeChild(link)
+
+  /* Удаляем ссылку следующим тиком: некоторые браузеры ещё читают её. */
+  window.setTimeout(() => link.remove(), 0)
 }
 
 /*
@@ -146,12 +148,19 @@ async function handleDownload() {
   const active = currentImage.value || {}
   const base =
     active.filename || filename.value || active.label || title.value || 'photo'
-  const name = sanitizeFileName(base, url.value)
+
+  /*
+   * Фиксируем ссылку и имя до await: пользователь может переключить
+   * изображение стрелками, пока идёт скачивание. Иначе fallback скачает
+   * уже другое фото под старым именем.
+   */
+  const targetUrl = url.value
+  const targetName = sanitizeFileName(base, targetUrl)
 
   downloading.value = true
 
   try {
-    const response = await fetch(url.value, { credentials: 'same-origin' })
+    const response = await fetch(targetUrl, { credentials: 'same-origin' })
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)
@@ -160,8 +169,8 @@ async function handleDownload() {
     const blob = await response.blob()
     const objectUrl = URL.createObjectURL(blob)
 
-    triggerDownload(objectUrl, name)
-    URL.revokeObjectURL(objectUrl)
+    triggerDownload(objectUrl, targetName)
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
   } catch (error) {
     console.warn(
       '[PhotoViewer] не удалось скачать через fetch, использую прямую ссылку:',
@@ -169,7 +178,7 @@ async function handleDownload() {
     )
 
     try {
-      triggerDownload(url.value, name)
+      triggerDownload(targetUrl, targetName)
     } catch (fallbackError) {
       console.error('[PhotoViewer] скачивание не удалось:', fallbackError)
     }
