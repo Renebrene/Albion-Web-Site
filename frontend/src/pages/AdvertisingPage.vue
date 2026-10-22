@@ -845,7 +845,7 @@ function sidesPhrase(count) {
 
 /*
  * API отдаёт варианты одного фото: photo (card, 1000px),
- * photo_thumb (400px) и photo_large (2400px). Любой из них может
+ * photo_thumb (640px) и photo_large (2400px). Любой из них может
  * отсутствовать — тогда подставляем photo (фолбэк), поэтому код
  * остаётся рабочим до и после правки бэкенда.
  */
@@ -862,7 +862,7 @@ function photoSrcset(item) {
 
   const thumb = item?.photo_thumb
   if (thumb) {
-    parts.push(`${thumb} 400w`)
+    parts.push(`${thumb} 640w`)
   }
 
   const card = item?.photo
@@ -896,8 +896,8 @@ function blockMap(item) {
   return item?.map_large || item?.map_card || item?.map_thumb || ''
 }
 
-/* Для карточки берём наименьший достаточный вариант: 400px хватает
-   при ширине карточки ~200–320 CSS-пикселей. */
+/* Для карточки берём превью 640px: это ~2× реальной ширины карточки
+   (200–320 CSS-пикселей) для retina. */
 function cardMap(item) {
   return item?.map_thumb || item?.map_card || item?.map_large || ''
 }
@@ -906,7 +906,7 @@ function mapSrcset(item) {
   const parts = []
 
   if (item?.map_thumb) {
-    parts.push(`${item.map_thumb} 400w`)
+    parts.push(`${item.map_thumb} 640w`)
   }
 
   if (item?.map_card) {

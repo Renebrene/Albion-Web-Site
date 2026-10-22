@@ -71,20 +71,49 @@ def convert_file(
     quality: int,
     *,
     apply: bool,
+    target_size: int | None = None,
+    output_path: Path | None = None,
+    before_size: int | None = None,
 ) -> tuple[int, int] | None:
-    """Возвращает (было_байт, стало_байт) или None, если пропущено."""
+    """Возвращает (было_байт, стало_байт) или None, если пропущено.
+
+    target_size — ограничение длинной стороны (превью = 2× ширины карточки).
+    output_path — куда писать WebP (по умолчанию рядом с source).
+    Старые thumb 400px не апскейлим: для них источником служит card/large.
+    """
     if source.suffix.lower() not in {".jpg", ".jpeg"} or not source.exists():
         return None
 
-    target = source.with_suffix(".webp")
+    target = output_path or source.with_suffix(".webp")
 
-    if target.exists():
-        return source.stat().st_size, target.stat().st_size
+    original_size = (
+        before_size if before_size is not None else source.stat().st_size
+    )
+
+    if target.exists() and target_size is None:
+        return original_size, target.stat().st_size
 
     try:
         with Image.open(source) as image:
             if image.mode not in ("RGB", "L"):
                 return None
+
+            width, height = image.size
+            longest = max(width, height)
+
+            if target_size is not None:
+                if longest < target_size:
+                    return None
+
+                if longest > target_size:
+                    scale = target_size / longest
+                    image = image.resize(
+                        (
+                            max(1, round(width * scale)),
+                            max(1, round(height * scale)),
+                        ),
+                        Image.Resampling.LANCZOS,
+                    )
 
             data = BytesIO()
             image.save(
@@ -102,7 +131,7 @@ def convert_file(
         tmp.write_bytes(payload)
         tmp.replace(target)
 
-    return source.stat().st_size, len(payload)
+    return original_size, len(payload)
 
 
 def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
@@ -123,7 +152,7 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
 
         rows = conn.execute(
             """
-            SELECT id, media_type, card_path, thumb_path
+            SELECT id, media_type, card_path, thumb_path, large_path
             FROM construction_media
             WHERE (card_path LIKE %s OR thumb_path LIKE %s)
               AND (card_path IS NOT NULL OR thumb_path IS NOT NULL)
@@ -133,11 +162,23 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
         ).fetchall()
 
     pending: list[tuple[int, dict[str, str]]] = []
-    seen: set[str] = set()
-    converted_paths: dict[str, str] = {}
-    converted_files: set[str] = set()
+    converted_files: set[tuple[str, int | None]] = set()
 
-    for index, (row_id, media_type, card_path, thumb_path) in enumerate(rows):
+    def existing_source(value: str | None) -> tuple[str, Path] | None:
+        if not value:
+            return None
+
+        resolved = resolve_construction_path(str(value), active_key)
+        source = absolute_path(resolved)
+
+        if source is None or not source.exists():
+            return None
+
+        return str(value), source
+
+    for index, (row_id, media_type, card_path, thumb_path, large_path) in enumerate(
+        rows
+    ):
         if limit is not None and index >= limit:
             break
 
@@ -145,51 +186,64 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
         quality = WEBP_QUALITY_MAP if str(media_type) == "map" else WEBP_QUALITY_PHOTO
         updates: dict[str, str] = {}
 
-        for column, value in (("card_path", card_path), ("thumb_path", thumb_path)):
-            if not value:
-                continue
+        card = existing_source(card_path)
+        large = existing_source(large_path)
+        thumb = existing_source(thumb_path)
 
-            key = str(value)
+        # card — 1000px WebP.
+        if card:
+            key, source = card
+            marker = (str(source), None)
 
-            if key in converted_paths:
-                updates[column] = converted_paths[key]
-                continue
+            if marker not in converted_files:
+                result = convert_file(source, quality, apply=apply)
 
-            if key in seen:
-                continue
+                if result is not None:
+                    converted_files.add(marker)
+                    before, after = result
+                    stats["before"] += before
+                    stats["after"] += after
+                    stats["converted"] += 1
 
-            seen.add(key)
-            stats["unique_files"] += 1
+            updates["card_path"] = webp_path_for(key)
 
-            # Старые импорты удалены с диска: путь из БД может
-            # указывать на несуществующую папку. Активный ключ
-            # подставляет текущую папку с тем же именем файла.
-            resolved = resolve_construction_path(key, active_key)
-            source = absolute_path(resolved)
+        # thumb — 640px (2× ширины карточки); источник — card, иначе large.
+        thumb_source = card or large
 
-            if source is None or not source.exists():
-                stats["missing"] += 1
-                continue
+        if thumb and thumb_source:
+            key, source = thumb_source
+            marker = (str(source), 640)
 
-            source_key = str(source)
+            if marker not in converted_files:
+                thumb_file = absolute_path(
+                    resolve_construction_path(str(thumb[0]), active_key)
+                )
+                output_path = (
+                    thumb_file.with_suffix(".webp") if thumb_file else None
+                )
 
-            if source_key in converted_files:
-                converted_paths[key] = webp_path_for(key)
-                updates[column] = converted_paths[key]
-                continue
+                result = convert_file(
+                    source,
+                    quality,
+                    apply=apply,
+                    target_size=640,
+                    output_path=output_path,
+                    before_size=(
+                        thumb_file.stat().st_size
+                        if thumb_file and thumb_file.exists()
+                        else None
+                    ),
+                )
 
-            result = convert_file(source, quality, apply=apply)
-
-            if result is None:
-                continue
-
-            converted_files.add(source_key)
-            before, after = result
-            stats["before"] += before
-            stats["after"] += after
-            stats["converted"] += 1
-            converted_paths[key] = webp_path_for(key)
-            updates[column] = converted_paths[key]
+                if result is not None:
+                    converted_files.add(marker)
+                    before, after = result
+                    stats["before"] += before
+                    stats["after"] += after
+                    stats["converted"] += 1
+                    updates["thumb_path"] = webp_path_for(str(thumb[0]))
+            else:
+                updates["thumb_path"] = webp_path_for(str(thumb[0]))
 
         if updates:
             pending.append((row_id, updates))
@@ -218,49 +272,79 @@ def convert_media_variants(*, apply: bool, limit: int | None) -> dict:
     with get_connection() as conn:
         rows = conn.execute(
             """
-            SELECT id, variant, storage_path, mime_type
-            FROM media_variants
-            WHERE variant IN ('card', 'thumb')
-              AND storage_path IS NOT NULL
-            ORDER BY id
+            SELECT v.id, v.variant, v.storage_path, v.mime_type,
+                   m.storage_path AS large_path
+            FROM media_variants v
+            JOIN media m ON m.id = v.media_id
+            WHERE v.variant IN ('card', 'thumb')
+              AND v.storage_path IS NOT NULL
+            ORDER BY v.id
             """
         ).fetchall()
 
-        for index, (row_id, variant, storage_path, mime_type) in enumerate(rows):
-            if limit is not None and index >= limit:
-                break
+    pending: list[tuple[int, str, int, int | None, int | None]] = []
 
-            stats["rows"] += 1
+    for index, (row_id, variant, storage_path, mime_type, large_path) in enumerate(
+        rows
+    ):
+        if limit is not None and index >= limit:
+            break
 
-            if str(mime_type or "").startswith("image/png"):
-                continue
+        stats["rows"] += 1
 
-            source = absolute_path(storage_path)
+        if str(mime_type or "").startswith("image/png"):
+            continue
 
-            if source is None or not source.exists():
-                stats["missing"] += 1
-                continue
+        # Крупный источник даёт лучшее качество при пересборке превью.
+        source = absolute_path(large_path) or absolute_path(storage_path)
 
-            result = convert_file(source, WEBP_QUALITY_PHOTO, apply=apply)
+        if source is None or not source.exists():
+            stats["missing"] += 1
+            continue
 
-            if result is None:
-                continue
+        target_size = 640 if str(variant) == "thumb" else 1000
+        quality = WEBP_QUALITY_PHOTO
+        variant_file = absolute_path(storage_path)
+        output_path = (
+            variant_file.with_suffix(".webp") if variant_file else None
+        )
+        result = convert_file(
+            source,
+            quality,
+            apply=apply,
+            target_size=target_size,
+            output_path=output_path,
+            before_size=(
+                variant_file.stat().st_size
+                if variant_file and variant_file.exists()
+                else None
+            ),
+        )
 
-            before, after = result
-            stats["before"] += before
-            stats["after"] += after
-            stats["converted"] += 1
+        if result is None:
+            continue
 
-            if apply:
-                target = source.with_suffix(".webp")
-                width = height = None
+        before, after = result
+        stats["before"] += before
+        stats["after"] += after
+        stats["converted"] += 1
 
-                try:
-                    with Image.open(target) as image:
-                        width, height = image.size
-                except Exception:
-                    pass
+        width = height = None
 
+        if apply:
+            target = output_path
+
+            try:
+                with Image.open(target) as image:
+                    width, height = image.size
+            except Exception:
+                pass
+
+        pending.append((row_id, str(storage_path), after, width, height))
+
+    if apply and pending:
+        with get_connection() as conn:
+            for row_id, storage_path, file_size, width, height in pending:
                 conn.execute(
                     """
                     UPDATE media_variants
@@ -273,8 +357,8 @@ def convert_media_variants(*, apply: bool, limit: int | None) -> dict:
                     WHERE id = %s
                     """,
                     (
-                        webp_path_for(str(storage_path)),
-                        after,
+                        webp_path_for(storage_path),
+                        file_size,
                         width,
                         height,
                         row_id,
@@ -291,7 +375,7 @@ def report(name: str, stats: dict) -> None:
     percent = (saved / before * 100) if before else 0
 
     print(
-        f"{name}: строк {stats['rows']}, файлов {stats.get('unique_files', stats.get('converted', 0))}, "
+        f"{name}: строк {stats['rows']}, файлов {stats['converted']}, "
         f"сконвертировано {stats['converted']}, нет файла {stats['missing']}"
     )
     print(

@@ -60,7 +60,9 @@ MAX_PIXELS = 50_000_000
 VARIANT_SIZES = {
     "large": 2400,
     "card": 1000,
-    "thumb": 400,
+    # Превью = реальная ширина карточки ×2 (retina): список/попап ~320px,
+    # медиатека ~300px. 400px не хватало на retina, 1000px — избыточно.
+    "thumb": 640,
 }
 
 SUPPORTED_FORMATS = {
@@ -396,6 +398,8 @@ def _build_static_variants(
             mime_type = "image/jpeg"
             extension = ".jpg"
         else:
+            # Оба карточных варианта — WebP q80: замер показал SSIM ~0.96
+            # при экономии ~29% против JPEG q82.
             data = _encode_webp(resized, 80)
             mime_type = "image/webp"
             extension = ".webp"

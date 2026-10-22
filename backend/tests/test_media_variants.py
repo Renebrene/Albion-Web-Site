@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from io import BytesIO
+
 from PIL import Image
 
 from backend.services.media_service import _build_static_variants
@@ -23,6 +25,10 @@ def test_card_and_thumb_are_webp_large_stays_jpeg():
 
     # Все три варианта реально закодированы.
     assert all(data for data, _mime, _ext in variants.values())
+
+    # Превью — 640px по длинной стороне (2× ширины карточки).
+    with Image.open(BytesIO(variants["thumb"][0])) as thumb:
+        assert max(thumb.size) == 640
 
 
 def test_png_with_alpha_keeps_png():

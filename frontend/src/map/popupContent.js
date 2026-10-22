@@ -235,7 +235,7 @@ function typeBlock(item) {
 function photoBlock(item) {
   /*
    * API отдаёт варианты одного фото: photo (card, 1000px),
-   * photo_thumb (400px) и photo_large (2400px). Бэкенд может ещё
+   * photo_thumb (640px) и photo_large (2400px). Бэкенд может ещё
    * не отдавать thumb/large — тогда подставляем photo (фолбэк),
    * поэтому разметка не ломается на любом наборе полей.
    */
@@ -278,7 +278,7 @@ function photoBlock(item) {
   const large = item?.photo_large || card
 
   const srcset = [
-    item?.photo_thumb && `${escapeHtml(item.photo_thumb)} 400w`,
+    item?.photo_thumb && `${escapeHtml(item.photo_thumb)} 640w`,
     item?.photo && `${escapeHtml(item.photo)} 1000w`,
     item?.photo_large && `${escapeHtml(item.photo_large)} 2400w`
   ]
