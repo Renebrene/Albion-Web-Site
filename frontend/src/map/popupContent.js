@@ -313,7 +313,7 @@ function photoBlock(item) {
       <img
         src="${escapeHtml(thumb)}"
         srcset="${srcset}"
-        sizes="(max-width: 480px) 340px, 780px"
+        sizes="(max-width: 760px) 90vw, 280px"
         alt=""
         loading="lazy"
         decoding="async"

@@ -332,9 +332,9 @@ function popupOptions(isDouble) {
       ? 'albion-popup albion-popup-double'
       : 'albion-popup albion-popup-single',
 
-    maxWidth: isDouble ? 760 : 340,
+    maxWidth: isDouble ? 580 : 340,
 
-    minWidth: isDouble ? 700 : 300,
+    minWidth: isDouble ? 540 : 300,
 
     closeButton: true,
 

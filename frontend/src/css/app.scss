@@ -303,14 +303,14 @@ h6 {
 
 .popup {
   box-sizing: border-box;
-  padding: 16px 18px 18px;
+  padding: 8px;
   color: #17212b;
   text-align: center;
 }
 
 .popup-double {
-  width: 720px;
-  max-width: calc(100vw - 50px);
+  width: 560px;
+  max-width: calc(100vw - 60px);
 }
 
 .popup-header {
@@ -335,8 +335,8 @@ h6 {
 .popup-sides {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .popup-side-card {
@@ -347,7 +347,7 @@ h6 {
 
   min-width: 0;
   box-sizing: border-box;
-  padding: 12px 12px 13px;
+  padding: 6px 8px 8px;
   border: 1px solid #e6eaed;
   border-radius: 12px;
   background: #fff;
@@ -557,22 +557,22 @@ h6 {
 /* Двойной popup */
 
 .albion-popup-double .leaflet-popup-content-wrapper {
-  width: 760px !important;
-  max-width: 760px !important;
-  min-width: 700px !important;
+  width: 580px !important;
+  max-width: 580px !important;
+  min-width: 540px !important;
 }
 
 .albion-popup-double .leaflet-popup-content {
-  width: 720px !important;
-  max-width: 720px !important;
-  min-width: 660px !important;
+  width: 550px !important;
+  max-width: 550px !important;
+  min-width: 510px !important;
   margin: 0 !important;
 }
 
 /* Сам контейнер двух сторон */
 
 .albion-popup-double .popup-double {
-  width: 720px !important;
+  width: 550px !important;
   max-width: none !important;
   box-sizing: border-box;
 }
@@ -583,7 +583,7 @@ h6 {
   width: 100%;
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
-  gap: 14px !important;
+  gap: 10px !important;
 }
 
 /* Три стороны (пиллар) — строго в один ряд */
@@ -644,7 +644,7 @@ h6 {
 
 .popup {
   box-sizing: border-box;
-  padding: 10px;
+  padding: 8px;
   color: #17212b;
   text-align: center;
 }
@@ -654,7 +654,7 @@ h6 {
 }
 
 .popup-double {
-  width: 700px;
+  width: 560px;
   max-width: calc(100vw - 60px);
 }
 
@@ -665,7 +665,7 @@ h6 {
  * столбик и попап вырастал по вертикали. Здесь задаём и ширину, и сетку.
  */
 .popup-triple {
-  width: 720px;
+  width: 600px;
   max-width: calc(100vw - 60px);
 }
 
@@ -693,7 +693,7 @@ h6 {
 .popup-sides {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 
 .popup-double .popup-sides {
@@ -706,7 +706,7 @@ h6 {
 
 .popup-side-card {
   min-width: 0;
-  padding: 8px 10px 9px;
+  padding: 6px 8px 8px;
   border: 1px solid #e5e9ec;
   border-radius: 11px;
   background: #fff;
@@ -1073,11 +1073,11 @@ h6 {
    балуна Яндекса (в Leaflet он иной — leaflet-popup-content).
    --------------------------------------------------------- */
 [class*='balloon__content'] .popup-double {
-  width: 500px;
+  width: 540px;
 }
 
 [class*='balloon__content'] .popup-triple {
-  width: 660px;
+  width: 580px;
 }
 
 @media (max-width: 760px) {

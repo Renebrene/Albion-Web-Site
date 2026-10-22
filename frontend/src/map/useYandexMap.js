@@ -332,8 +332,8 @@ function createPlacemark(group) {
        * одиночный — 300px. Иначе балон шире контента и по бокам пусто.
        * На узких экранах не даём балуну выйти за пределы вьюпорта.
        */
-      balloonMaxWidth: narrowViewport ? 320 : isDoublePopup ? 700 : 340,
-      balloonMinWidth: narrowViewport ? 260 : isDoublePopup ? 480 : 280,
+      balloonMaxWidth: narrowViewport ? 320 : isDoublePopup ? 560 : 340,
+      balloonMinWidth: narrowViewport ? 260 : isDoublePopup ? 500 : 280,
       balloonAutoPan: true,
 
       hasBalloon: true,
