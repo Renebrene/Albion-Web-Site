@@ -19,7 +19,9 @@
         @update:model-value="onTitleInput"
         @blur="commitTitle"
       />
-      <div class="portfolio-title-hint">{{ requisitesHint }}</div>
+      <div v-if="requisitesHint" class="portfolio-title-hint">
+        {{ requisitesHint }}
+      </div>
     </div>
 
     <!-- ПУСТОЕ СОСТОЯНИЕ -->
@@ -421,6 +423,15 @@ const requisitesInfo = computed(() => {
 })
 
 const requisitesHint = computed(() => {
+  /*
+   * Кабинет отключён — подсказка про реквизиты ведёт в несуществующий
+   * раздел. Код реквизитов сохранён: при включении ACCOUNT_UI_ENABLED
+   * подсказка вернётся вместе с кабинетом.
+   */
+  if (!ACCOUNT_UI_ENABLED) {
+    return ''
+  }
+
   if (isAuthenticated.value && requisitesInfo.value.hasAny) {
     return `Реквизиты: ${requisitesInfo.value.label}`
   }
