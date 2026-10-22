@@ -844,10 +844,11 @@ function sidesPhrase(count) {
 /* ------------------------------------------------- фото (адаптивные) */
 
 /*
- * API отдаёт варианты одного фото: photo (card, 1000px),
- * photo_thumb (640px) и photo_large (2400px). Любой из них может
- * отсутствовать — тогда подставляем photo (фолбэк), поэтому код
- * остаётся рабочим до и после правки бэкенда.
+ * API отдаёт два превью и large:
+ *   photo       — card 640px (2× ширины карточки),
+ *   photo_thumb — thumb 400px (портфель и узкие сетки),
+ *   photo_large — large 1600px (просмотр/скачивание).
+ * Любой вариант может отсутствовать — подставляем соседний.
  */
 function photoThumb(item) {
   return item?.photo_thumb || item?.photo || item?.photo_large || ''
@@ -862,17 +863,17 @@ function photoSrcset(item) {
 
   const thumb = item?.photo_thumb
   if (thumb) {
-    parts.push(`${thumb} 640w`)
+    parts.push(`${thumb} 400w`)
   }
 
   const card = item?.photo
   if (card) {
-    parts.push(`${card} 1000w`)
+    parts.push(`${card} 640w`)
   }
 
   const large = item?.photo_large
   if (large) {
-    parts.push(`${large} 2400w`)
+    parts.push(`${large} 1600w`)
   }
 
   return parts.join(', ')
@@ -896,25 +897,24 @@ function blockMap(item) {
   return item?.map_large || item?.map_card || item?.map_thumb || ''
 }
 
-/* Для карточки берём превью 640px: это ~2× реальной ширины карточки
-   (200–320 CSS-пикселей) для retina. */
+/* Фото/карта карточки — 640px (2× реальной ширины 200–320 CSS-пикселей). */
 function cardMap(item) {
-  return item?.map_thumb || item?.map_card || item?.map_large || ''
+  return item?.map_card || item?.map_thumb || item?.map_large || ''
 }
 
 function mapSrcset(item) {
   const parts = []
 
   if (item?.map_thumb) {
-    parts.push(`${item.map_thumb} 640w`)
+    parts.push(`${item.map_thumb} 400w`)
   }
 
   if (item?.map_card) {
-    parts.push(`${item.map_card} 1000w`)
+    parts.push(`${item.map_card} 640w`)
   }
 
   if (item?.map_large) {
-    parts.push(`${item.map_large} 2400w`)
+    parts.push(`${item.map_large} 1600w`)
   }
 
   return parts.join(', ')
@@ -954,7 +954,7 @@ function cardImageSrc(point, block, blockIndex) {
 
   return cardImageMode(point, block, blockIndex) === 'map'
     ? cardMap(item)
-    : photoThumb(item)
+    : photoCard(item)
 }
 
 function cardImageSrcset(point, block, blockIndex) {

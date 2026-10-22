@@ -234,13 +234,15 @@ function typeBlock(item) {
 
 function photoBlock(item) {
   /*
-   * API отдаёт варианты одного фото: photo (card, 1000px),
-   * photo_thumb (640px) и photo_large (2400px). Бэкенд может ещё
-   * не отдавать thumb/large — тогда подставляем photo (фолбэк),
-   * поэтому разметка не ломается на любом наборе полей.
+   * API отдаёт два превью и large:
+   *   photo       — card 640px (2× ширины карточки),
+   *   photo_thumb — thumb 400px,
+   *   photo_large — large 1600px.
+   * Любой вариант может отсутствовать — подставляем соседний.
    */
-  const thumb = item?.photo_thumb || item?.photo || ''
+  const thumb = item?.photo_thumb || ''
   const card = item?.photo || thumb
+  const preview = card || thumb
 
   /*
    * Крупный вариант карты-схемы — чтобы окно просмотра (как в портфеле)
@@ -252,7 +254,7 @@ function photoBlock(item) {
     item?.map_large || item?.map_card || item?.map_thumb || ''
   ).trim()
 
-  if (!thumb) {
+  if (!preview) {
     /* Нет фото, но есть карта — по клику откроем карту в общем окне. */
     if (mapLarge) {
       return `
@@ -278,9 +280,9 @@ function photoBlock(item) {
   const large = item?.photo_large || card
 
   const srcset = [
-    item?.photo_thumb && `${escapeHtml(item.photo_thumb)} 640w`,
-    item?.photo && `${escapeHtml(item.photo)} 1000w`,
-    item?.photo_large && `${escapeHtml(item.photo_large)} 2400w`
+    thumb && `${escapeHtml(thumb)} 400w`,
+    item?.photo && `${escapeHtml(item.photo)} 640w`,
+    item?.photo_large && `${escapeHtml(item.photo_large)} 1600w`
   ]
     .filter(Boolean)
     .join(', ')
@@ -311,7 +313,7 @@ function photoBlock(item) {
       data-photo-filename="${escapeHtml(fileName)}"
     >
       <img
-        src="${escapeHtml(thumb)}"
+        src="${escapeHtml(preview)}"
         srcset="${srcset}"
         sizes="(max-width: 760px) 90vw, 280px"
         alt=""

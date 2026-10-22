@@ -35,7 +35,8 @@ export async function fetchConstructionPreviews() {
     result.push({
       id: item.id,
       url,
-      thumb: item.photo_thumb || item.photo || url,
+      /* card 640px — превью ×2; thumb 400 — только если card нет. */
+      thumb: item.photo || item.photo_thumb || url,
       surface_hash: item.surface_hash || '',
       label:
         [item.city, item.address]

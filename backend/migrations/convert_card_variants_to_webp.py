@@ -1,14 +1,14 @@
 """Перевод вариантов изображений в WebP и пересборка превью.
 
 Зачем: замер на 100 реальных фото показал, что WebP q80 даёт ~25–29%
-меньше байт, чем JPEG q82, при SSIM не хуже. Превью собираем под
-реальную ширину карточки ×2 (640px), large — 1600px; оригинал при
-необходимости скачивается отдельно.
+меньше байт, чем JPEG q82, при SSIM не хуже. Держим два превью:
+card 640px (2× ширины карточки) и thumb 400px (узкие сетки/портфель);
+large — 1600px, оригинал при необходимости скачивается отдельно.
 
 Что делает:
 - construction_media: ``large_path`` → 1600px WebP,
-  ``card_path`` → 1000px WebP, ``thumb_path`` → 640px WebP;
-- media_variants: ``card``/``thumb`` → 1000/640px WebP;
+  ``card_path`` → 640px WebP, ``thumb_path`` → 400px WebP;
+- media_variants: ``card``/``thumb`` → 640/400px WebP;
 - рядом с исходным JPEG создаёт ``.webp`` и обновляет путь/MIME/размер в БД;
 - старые JPEG не удаляет (ссылки из старых портфелей продолжают работать).
 
@@ -192,13 +192,30 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
         large = existing_source(large_path)
         thumb = existing_source(thumb_path)
 
-        # card — 1000px WebP.
-        if card:
-            key, source = card
-            marker = (str(source), None)
+        # card — 640px WebP (превью ×2); источник — large, иначе card.
+        card_source = large or card
+
+        if card and card_source:
+            key, source = card_source
+            marker = (str(source), 640)
+            card_file = absolute_path(
+                resolve_construction_path(str(card[0]), active_key)
+            )
+            output_path = card_file.with_suffix(".webp") if card_file else None
 
             if marker not in converted_files:
-                result = convert_file(source, quality, apply=apply)
+                result = convert_file(
+                    source,
+                    quality,
+                    apply=apply,
+                    target_size=640,
+                    output_path=output_path,
+                    before_size=(
+                        card_file.stat().st_size
+                        if card_file and card_file.exists()
+                        else None
+                    ),
+                )
 
                 if result is not None:
                     converted_files.add(marker)
@@ -207,7 +224,7 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
                     stats["after"] += after
                     stats["converted"] += 1
 
-            updates["card_path"] = webp_path_for(key)
+            updates["card_path"] = webp_path_for(str(card[0]))
 
         # large — 1600px WebP (orig 2400px JPEG больше не нужен).
         if large:
@@ -244,12 +261,12 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
             else:
                 updates["large_path"] = webp_path_for(key)
 
-        # thumb — 640px (2× ширины карточки); источник — card, иначе large.
-        thumb_source = card or large
+        # thumb — 400px (портфель/узкие сетки); источник — large, иначе card.
+        thumb_source = large or card
 
         if thumb and thumb_source:
             key, source = thumb_source
-            marker = (str(source), 640)
+            marker = (str(source), 400)
 
             if marker not in converted_files:
                 thumb_file = absolute_path(
@@ -263,7 +280,7 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
                     source,
                     quality,
                     apply=apply,
-                    target_size=640,
+                    target_size=400,
                     output_path=output_path,
                     before_size=(
                         thumb_file.stat().st_size
@@ -339,7 +356,7 @@ def convert_media_variants(*, apply: bool, limit: int | None) -> dict:
             stats["missing"] += 1
             continue
 
-        target_size = 640 if str(variant) == "thumb" else 1000
+        target_size = 400 if str(variant) == "thumb" else 640
         quality = WEBP_QUALITY_PHOTO
         variant_file = absolute_path(storage_path)
         output_path = (

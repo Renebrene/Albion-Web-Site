@@ -256,8 +256,12 @@ function thumbnailUrl(item) {
     if (item.preview_path) return storageUrl(item.preview_path)
   }
 
+  /* card 640px — превью ×2 для сетки; thumb 400 — фолбэк. */
+  const card = item.variants?.find(variant => variant.variant === 'card')
   const thumb = item.variants?.find(variant => variant.variant === 'thumb')
-  return thumb ? variantUrl(thumb) : mediaUrl(item)
+  const chosen = card || thumb
+
+  return chosen ? variantUrl(chosen) : mediaUrl(item)
 }
 
 async function fetchMedia(limit, offsetValue) {

@@ -28,9 +28,12 @@ def test_all_raster_variants_are_webp():
     # Все три варианта реально закодированы.
     assert all(data for data, _mime, _ext in variants.values())
 
-    # Превью — 640px по длинной стороне (2× ширины карточки).
+    # card — 640px (2× ширины карточки), thumb — 400px для узких сеток.
+    with Image.open(BytesIO(variants["card"][0])) as card:
+        assert max(card.size) == 640
+
     with Image.open(BytesIO(variants["thumb"][0])) as thumb:
-        assert max(thumb.size) == 640
+        assert max(thumb.size) == 400
 
 
 def test_png_with_alpha_keeps_png():

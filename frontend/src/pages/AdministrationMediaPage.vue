@@ -1004,9 +1004,12 @@ function thumbnailUrl(item) {
     if (item.preview_path) return storageUrl(item.preview_path)
   }
 
+  /* card 640px — превью ×2 для сетки; thumb 400 — фолбэк. */
+  const card = item.variants?.find(variant => variant.variant === 'card')
   const thumb = item.variants?.find(variant => variant.variant === 'thumb')
+  const chosen = card || thumb
 
-  return thumb ? variantUrl(thumb) : mediaUrl(item)
+  return chosen ? variantUrl(chosen) : mediaUrl(item)
 }
 
 function formatFileSize(bytes) {

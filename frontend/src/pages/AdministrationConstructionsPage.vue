@@ -949,7 +949,8 @@ function mapConstruction(item) {
      * Полноразмерные `photo`/`mapLarge` остаются для диалога
      * редактирования и просмотра.
      */
-    photoThumb: item.photo_thumb || item.photo || '',
+    /* card 640px — 2× ширины карточки; thumb 400 только как фолбэк. */
+    photoThumb: item.photo || item.photo_thumb || '',
     lat: item.lat,
     lng: item.lng,
     map: item.map || '',
