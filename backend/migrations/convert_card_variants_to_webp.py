@@ -224,7 +224,8 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
                     stats["after"] += after
                     stats["converted"] += 1
 
-            updates["card_path"] = webp_path_for(str(card[0]))
+            if output_path and output_path.exists():
+                updates["card_path"] = webp_path_for(str(card[0]))
 
         # large — 1600px WebP (orig 2400px JPEG больше не нужен).
         if large:
@@ -258,7 +259,7 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
                     stats["after"] += after
                     stats["converted"] += 1
                     updates["large_path"] = webp_path_for(key)
-            else:
+            elif output_path and output_path.exists():
                 updates["large_path"] = webp_path_for(key)
 
         # thumb — 400px (портфель/узкие сетки); источник — large, иначе card.
@@ -296,7 +297,7 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
                     stats["after"] += after
                     stats["converted"] += 1
                     updates["thumb_path"] = webp_path_for(str(thumb[0]))
-            else:
+            elif output_path and output_path.exists():
                 updates["thumb_path"] = webp_path_for(str(thumb[0]))
 
         if updates:
