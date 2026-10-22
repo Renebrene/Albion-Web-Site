@@ -256,177 +256,218 @@
           </div>
 
           <!--
-            Виртуальный скролл строками: в DOM рендерятся только видимые
-            строки сетки (плюс буфер), а не весь список целиком.
+            Список рендерится строками сетки без виртуализации: карточки
+            сохраняют естественную высоту. Если на мобильных появятся
+            просадки — вернёмся к «Показать ещё» или DynamicScroller.
           -->
-          <q-virtual-scroll
+          <div
             v-if="listPoints.length"
-            ref="virtualListRef"
+            ref="listScrollerRef"
             class="construction-list"
-            :items="listRows"
-            :virtual-scroll-item-size="LIST_ROW_HEIGHT"
-            :style="{ '--list-row-height': `${LIST_ROW_HEIGHT}px` }"
-            @virtual-scroll="onListScroll"
+            @scroll.passive="onListScroll"
           >
-            <template #default="{ item: row }">
-              <!-- Строка сетки: columns колонок, повторяет прежний auto-fill. -->
-              <div
-                :key="row.key"
-                class="construction-row"
-                :style="{ gridTemplateColumns: `repeat(${listColumns}, 1fr)` }"
+            <!-- Строка сетки: columns колонок, повторяет прежний auto-fill. -->
+            <div
+              v-for="row in listRows"
+              :key="row.key"
+              class="construction-row"
+              :style="{ gridTemplateColumns: `repeat(${listColumns}, 1fr)` }"
+            >
+              <article
+                v-for="point in row.items"
+                :key="point.key"
+                class="construction-card"
               >
-                <article
-                  v-for="point in row.items"
-                  :key="point.key"
-                  class="construction-card"
-                >
-                  <div class="card-content">
-                    <div class="card-blocks">
-                      <div
-                        v-for="(block, blockIndex) in point.blocks"
-                        :key="`${block.type}-${block.parent}-${blockIndex}`"
-                        class="card-block"
-                        :class="[
-                          `card-block--${block.kind}`,
-                          { 'pf-mode': isBlockEditing(block) }
-                        ]"
-                      >
-                        <div class="card-topline">
-                          <div class="card-type">
-                            <strong>
-                              {{ blockType(block) }}
-                            </strong>
-                          </div>
-
-                          <div
-                            v-if="hasPrice(blockPrimary(block))"
-                            class="card-price-inline"
-                          >
-                            <span
-                              v-if="blockPrimary(block).price"
-                              class="price-value"
-                              :class="{
-                                'is-old': promoPriceOf(blockPrimary(block))
-                              }"
-                            >
-                              {{ blockPrimary(block).price }}
-                            </span>
-
-                            <span
-                              v-if="blockPrimary(block).price"
-                              class="price-currency"
-                            >
-                              ₽
-                            </span>
-
-                            <span
-                              v-if="blockPrimary(block).price"
-                              class="price-period"
-                            >
-                              / мес.
-                            </span>
-
-                            <div
-                              v-if="promoPriceOf(blockPrimary(block))"
-                              class="card-promo-price"
-                            >
-                              <span class="promo-price-value">
-                                {{ promoPriceOf(blockPrimary(block)) }}
-                              </span>
-                              <span class="promo-price-currency"> ₽ </span>
-                              <span class="promo-price-note">
-                                акционная цена
-                              </span>
-                            </div>
-                          </div>
+                <div class="card-content">
+                  <div class="card-blocks">
+                    <div
+                      v-for="(block, blockIndex) in point.blocks"
+                      :key="`${block.type}-${block.parent}-${blockIndex}`"
+                      class="card-block"
+                      :class="[
+                        `card-block--${block.kind}`,
+                        { 'pf-mode': isBlockEditing(block) }
+                      ]"
+                    >
+                      <div class="card-topline">
+                        <div class="card-type">
+                          <strong>
+                            {{ blockType(block) }}
+                          </strong>
                         </div>
 
-                        <!-- Пустая строка над городом: формат сверху -->
-                        <div class="card-head">
-                          <div class="card-place">
-                            {{ point.city }}
-                          </div>
-
-                          <div class="card-address-main">
-                            {{ point.address }}
-                          </div>
-
-                          <div v-if="blockSide(block)" class="card-side-line">
-                            СТОРОНА <b>{{ blockSide(block) }}</b>
-                          </div>
-                        </div>
-
-                        <div class="card-photo card-photo--block">
-                          <img
-                            v-if="hasCardImage(point, block, blockIndex)"
-                            :src="cardImageSrc(point, block, blockIndex)"
-                            :srcset="cardImageSrcset(point, block, blockIndex)"
-                            sizes="(max-width: 760px) 92vw, 320px"
-                            :alt="point.address"
-                            loading="lazy"
-                            decoding="async"
-                            width="1000"
-                            height="625"
-                            class="card-photo-clickable"
-                            :title="
-                              cardImageMode(point, block, blockIndex) === 'map'
-                                ? 'Открыть карту и фото'
-                                : 'Открыть фото и карту'
-                            "
-                            @click.stop="openBlockPhoto(point, block)"
-                          />
-
-                          <div v-else class="no-photo"> ALBION </div>
-
-                          <!-- Переключатель: фото ↔ карта -->
-                          <div
-                            v-if="canSwitchCardMedia(block)"
-                            class="media-switch"
-                            @click.stop
-                          >
-                            <button
-                              type="button"
-                              class="media-switch__btn"
-                              :class="{
-                                'is-active':
-                                  cardImageMode(point, block, blockIndex) ===
-                                  'photo'
-                              }"
-                              @click.stop="
-                                setCardMedia(point, blockIndex, 'photo')
-                              "
-                            >
-                              Фото
-                            </button>
-                            <button
-                              type="button"
-                              class="media-switch__btn"
-                              :class="{
-                                'is-active':
-                                  cardImageMode(point, block, blockIndex) ===
-                                  'map'
-                              }"
-                              @click.stop="
-                                setCardMedia(point, blockIndex, 'map')
-                              "
-                            >
-                              Карта
-                            </button>
-                          </div>
-                        </div>
-
-                        <!-- Динамика: строки A(1)/A(2)… либо свёрнуто в сторону A -->
                         <div
-                          v-if="block.kind === 'dynamic'"
-                          class="card-dynamic-rows"
+                          v-if="hasPrice(blockPrimary(block))"
+                          class="card-price-inline"
                         >
-                          <!-- Режим «по сторонам»: одна строка на сторону;
+                          <span
+                            v-if="blockPrimary(block).price"
+                            class="price-value"
+                            :class="{
+                              'is-old': promoPriceOf(blockPrimary(block))
+                            }"
+                          >
+                            {{ blockPrimary(block).price }}
+                          </span>
+
+                          <span
+                            v-if="blockPrimary(block).price"
+                            class="price-currency"
+                          >
+                            ₽
+                          </span>
+
+                          <span
+                            v-if="blockPrimary(block).price"
+                            class="price-period"
+                          >
+                            / мес.
+                          </span>
+
+                          <div
+                            v-if="promoPriceOf(blockPrimary(block))"
+                            class="card-promo-price"
+                          >
+                            <span class="promo-price-value">
+                              {{ promoPriceOf(blockPrimary(block)) }}
+                            </span>
+                            <span class="promo-price-currency"> ₽ </span>
+                            <span class="promo-price-note">
+                              акционная цена
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <!-- Пустая строка над городом: формат сверху -->
+                      <div class="card-head">
+                        <div class="card-place">
+                          {{ point.city }}
+                        </div>
+
+                        <div class="card-address-main">
+                          {{ point.address }}
+                        </div>
+
+                        <div v-if="blockSide(block)" class="card-side-line">
+                          СТОРОНА <b>{{ blockSide(block) }}</b>
+                        </div>
+                      </div>
+
+                      <div class="card-photo card-photo--block">
+                        <img
+                          v-if="hasCardImage(point, block, blockIndex)"
+                          :src="cardImageSrc(point, block, blockIndex)"
+                          :srcset="cardImageSrcset(point, block, blockIndex)"
+                          sizes="(max-width: 760px) 92vw, 320px"
+                          :alt="point.address"
+                          loading="lazy"
+                          decoding="async"
+                          width="1000"
+                          height="625"
+                          class="card-photo-clickable"
+                          :title="
+                            cardImageMode(point, block, blockIndex) === 'map'
+                              ? 'Открыть карту и фото'
+                              : 'Открыть фото и карту'
+                          "
+                          @click.stop="openBlockPhoto(point, block)"
+                        />
+
+                        <div v-else class="no-photo"> ALBION </div>
+
+                        <!-- Переключатель: фото ↔ карта -->
+                        <div
+                          v-if="canSwitchCardMedia(block)"
+                          class="media-switch"
+                          @click.stop
+                        >
+                          <button
+                            type="button"
+                            class="media-switch__btn"
+                            :class="{
+                              'is-active':
+                                cardImageMode(point, block, blockIndex) ===
+                                'photo'
+                            }"
+                            @click.stop="
+                              setCardMedia(point, blockIndex, 'photo')
+                            "
+                          >
+                            Фото
+                          </button>
+                          <button
+                            type="button"
+                            class="media-switch__btn"
+                            :class="{
+                              'is-active':
+                                cardImageMode(point, block, blockIndex) ===
+                                'map'
+                            }"
+                            @click.stop="setCardMedia(point, blockIndex, 'map')"
+                          >
+                            Карта
+                          </button>
+                        </div>
+                      </div>
+
+                      <!-- Динамика: строки A(1)/A(2)… либо свёрнуто в сторону A -->
+                      <div
+                        v-if="block.kind === 'dynamic'"
+                        class="card-dynamic-rows"
+                      >
+                        <!-- Режим «по сторонам»: одна строка на сторону;
                                месяц свободен, если свободна хоть одна
                                поверхность, иначе — продано. -->
+                        <div
+                          v-if="availableMode === 'sides'"
+                          class="card-dynamic-row"
+                        >
+                          <div class="card-months card-months--inline">
+                            <button
+                              v-for="month in MONTHS"
+                              :key="month.full"
+                              type="button"
+                              class="card-month"
+                              :class="[
+                                sideMonthState(block, month.full),
+                                {
+                                  'is-selected': isSideMonthSelected(
+                                    block,
+                                    month.full
+                                  ),
+                                  'is-locked':
+                                    isBlockEditing(block) &&
+                                    !isSideFree(block, month.full)
+                                }
+                              ]"
+                              :disabled="
+                                !isBlockEditing(block) ||
+                                isSideMonthLocked(block, month.full)
+                              "
+                              :aria-pressed="
+                                isSideMonthSelected(block, month.full)
+                              "
+                              :title="sideMonthLabel(block, month.full)"
+                              @click="onSideMonthClick(block, month)"
+                            >
+                              {{ month.short }}
+                            </button>
+                          </div>
+                        </div>
+
+                        <template v-else>
                           <div
-                            v-if="availableMode === 'sides'"
+                            v-for="row in block.items"
+                            :key="sideLabel(row)"
                             class="card-dynamic-row"
                           >
+                            <!-- Подпись поверхности (A(1), A(2)…) — как было
+                                   до появления режима «по сторонам». -->
+                            <span class="card-dynamic-side">
+                              {{ sideLabel(row) }}
+                            </span>
+
                             <div class="card-months card-months--inline">
                               <button
                                 v-for="month in MONTHS"
@@ -434,209 +475,150 @@
                                 type="button"
                                 class="card-month"
                                 :class="[
-                                  sideMonthState(block, month.full),
+                                  getCardMonthState(row, month.full),
                                   {
-                                    'is-selected': isSideMonthSelected(
-                                      block,
-                                      month.full
-                                    ),
+                                    'is-selected':
+                                      surfaceIdOf(row) !== null &&
+                                      isMonthSelected(row.id, month.full),
                                     'is-locked':
                                       isBlockEditing(block) &&
-                                      !isSideFree(block, month.full)
+                                      isMonthLocked(row, month.full)
                                   }
                                 ]"
                                 :disabled="
                                   !isBlockEditing(block) ||
-                                  isSideMonthLocked(block, month.full)
+                                  isMonthLocked(row, month.full)
                                 "
                                 :aria-pressed="
-                                  isSideMonthSelected(block, month.full)
+                                  surfaceIdOf(row) !== null &&
+                                  isMonthSelected(row.id, month.full)
                                 "
-                                :title="sideMonthLabel(block, month.full)"
-                                @click="onSideMonthClick(block, month)"
+                                :title="getMonthStatusLabel(row, month.full)"
+                                @click="onCardMonthClick(block, row, month)"
                               >
                                 {{ month.short }}
                               </button>
                             </div>
                           </div>
+                        </template>
+                      </div>
 
-                          <template v-else>
-                            <div
-                              v-for="row in block.items"
-                              :key="sideLabel(row)"
-                              class="card-dynamic-row"
-                            >
-                              <!-- Подпись поверхности (A(1), A(2)…) — как было
-                                   до появления режима «по сторонам». -->
-                              <span class="card-dynamic-side">
-                                {{ sideLabel(row) }}
-                              </span>
+                      <!-- Статика и видеоэкран: одна строка месяцев -->
+                      <div v-else class="card-months">
+                        <button
+                          v-for="month in MONTHS"
+                          :key="month.full"
+                          type="button"
+                          class="card-month"
+                          :class="[
+                            getCardMonthState(blockPrimary(block), month.full),
+                            {
+                              'is-selected':
+                                surfaceIdOf(blockPrimary(block)) !== null &&
+                                isMonthSelected(
+                                  blockPrimary(block).id,
+                                  month.full
+                                ),
+                              'is-locked':
+                                isBlockEditing(block) &&
+                                isMonthLocked(blockPrimary(block), month.full)
+                            }
+                          ]"
+                          :disabled="
+                            !isBlockEditing(block) ||
+                            isMonthLocked(blockPrimary(block), month.full)
+                          "
+                          :aria-pressed="
+                            surfaceIdOf(blockPrimary(block)) !== null &&
+                            isMonthSelected(blockPrimary(block).id, month.full)
+                          "
+                          :title="
+                            getMonthStatusLabel(blockPrimary(block), month.full)
+                          "
+                          @click="
+                            onCardMonthClick(block, blockPrimary(block), month)
+                          "
+                        >
+                          {{ month.short }}
+                        </button>
+                      </div>
 
-                              <div class="card-months card-months--inline">
-                                <button
-                                  v-for="month in MONTHS"
-                                  :key="month.full"
-                                  type="button"
-                                  class="card-month"
-                                  :class="[
-                                    getCardMonthState(row, month.full),
-                                    {
-                                      'is-selected':
-                                        surfaceIdOf(row) !== null &&
-                                        isMonthSelected(row.id, month.full),
-                                      'is-locked':
-                                        isBlockEditing(block) &&
-                                        isMonthLocked(row, month.full)
-                                    }
-                                  ]"
-                                  :disabled="
-                                    !isBlockEditing(block) ||
-                                    isMonthLocked(row, month.full)
-                                  "
-                                  :aria-pressed="
-                                    surfaceIdOf(row) !== null &&
-                                    isMonthSelected(row.id, month.full)
-                                  "
-                                  :title="getMonthStatusLabel(row, month.full)"
-                                  @click="onCardMonthClick(block, row, month)"
-                                >
-                                  {{ month.short }}
-                                </button>
-                              </div>
-                            </div>
-                          </template>
-                        </div>
+                      <!-- Портфель: кнопка (два состояния) + кликабельные месяцы -->
+                      <div class="card-portfolio">
+                        <button
+                          type="button"
+                          class="card-pf-toggle"
+                          :class="{ 'is-active': isBlockActive(block) }"
+                          :title="
+                            isBlockEditing(block)
+                              ? 'Скрыть выбор месяцев'
+                              : isBlockActive(block)
+                                ? 'Изменить месяцы'
+                                : 'Добавить в портфель'
+                          "
+                          @click="toggleBlockPfMode(block)"
+                        >
+                          <q-icon name="work_outline" size="16px" />
+                          <span>Портфель</span>
+                        </button>
+                      </div>
 
-                        <!-- Статика и видеоэкран: одна строка месяцев -->
-                        <div v-else class="card-months">
-                          <button
-                            v-for="month in MONTHS"
-                            :key="month.full"
-                            type="button"
-                            class="card-month"
-                            :class="[
-                              getCardMonthState(
-                                blockPrimary(block),
-                                month.full
-                              ),
-                              {
-                                'is-selected':
-                                  surfaceIdOf(blockPrimary(block)) !== null &&
-                                  isMonthSelected(
-                                    blockPrimary(block).id,
-                                    month.full
-                                  ),
-                                'is-locked':
-                                  isBlockEditing(block) &&
-                                  isMonthLocked(blockPrimary(block), month.full)
-                              }
-                            ]"
-                            :disabled="
-                              !isBlockEditing(block) ||
-                              isMonthLocked(blockPrimary(block), month.full)
-                            "
-                            :aria-pressed="
-                              surfaceIdOf(blockPrimary(block)) !== null &&
-                              isMonthSelected(
-                                blockPrimary(block).id,
-                                month.full
-                              )
-                            "
-                            :title="
-                              getMonthStatusLabel(
-                                blockPrimary(block),
-                                month.full
-                              )
-                            "
-                            @click="
-                              onCardMonthClick(
-                                block,
-                                blockPrimary(block),
-                                month
-                              )
-                            "
-                          >
-                            {{ month.short }}
-                          </button>
-                        </div>
-
-                        <!-- Портфель: кнопка (два состояния) + кликабельные месяцы -->
-                        <div class="card-portfolio">
-                          <button
-                            type="button"
-                            class="card-pf-toggle"
-                            :class="{ 'is-active': isBlockActive(block) }"
-                            :title="
-                              isBlockEditing(block)
-                                ? 'Скрыть выбор месяцев'
-                                : isBlockActive(block)
-                                  ? 'Изменить месяцы'
-                                  : 'Добавить в портфель'
-                            "
-                            @click="toggleBlockPfMode(block)"
-                          >
-                            <q-icon name="work_outline" size="16px" />
-                            <span>Портфель</span>
-                          </button>
-                        </div>
-
-                        <div class="card-features">
+                      <div class="card-features">
+                        <span
+                          class="card-feature"
+                          :title="
+                            hasLight(blockPrimary(block))
+                              ? 'Подсветка есть'
+                              : 'Без подсветки'
+                          "
+                        >
                           <span
-                            class="card-feature"
-                            :title="
-                              hasLight(blockPrimary(block))
-                                ? 'Подсветка есть'
-                                : 'Без подсветки'
+                            class="feature-picto lightbulb"
+                            :class="
+                              hasLight(blockPrimary(block)) ? 'on' : 'off'
                             "
+                            >💡</span
                           >
+                          <span class="feature-label">подсветка</span>
+                        </span>
+
+                        <span class="card-feature" title="статика/динамика">
+                          <span class="feature-dyn">
                             <span
-                              class="feature-picto lightbulb"
-                              :class="
-                                hasLight(blockPrimary(block)) ? 'on' : 'off'
-                              "
-                              >💡</span
+                              class="dyn-word"
+                              :class="{
+                                'is-active': block.kind === 'static'
+                              }"
+                              >статика</span
                             >
-                            <span class="feature-label">подсветка</span>
-                          </span>
 
-                          <span class="card-feature" title="статика/динамика">
-                            <span class="feature-dyn">
-                              <span
-                                class="dyn-word"
-                                :class="{
-                                  'is-active': block.kind === 'static'
-                                }"
-                                >статика</span
-                              >
+                            <span class="dyn-sep">/</span>
 
-                              <span class="dyn-sep">/</span>
+                            <span
+                              class="dyn-word"
+                              :class="{
+                                'is-active': block.kind !== 'static'
+                              }"
+                              >динамика</span
+                            >
 
-                              <span
-                                class="dyn-word"
-                                :class="{
-                                  'is-active': block.kind !== 'static'
-                                }"
-                                >динамика</span
-                              >
-
-                              <!-- Кол-во поверхностей стороны (для динамики,
+                            <!-- Кол-во поверхностей стороны (для динамики,
                                    кроме видеоэкрана; гасится настройкой
                                    «Показывать количество динамических сторон»). -->
-                              <span
-                                v-if="block.kind === 'dynamic' && showDynCount"
-                                class="dyn-count"
-                                >({{ block.items.length }})</span
-                              >
-                            </span>
+                            <span
+                              v-if="block.kind === 'dynamic' && showDynCount"
+                              class="dyn-count"
+                              >({{ block.items.length }})</span
+                            >
                           </span>
-                        </div>
+                        </span>
                       </div>
                     </div>
                   </div>
-                </article>
-              </div>
-            </template>
-          </q-virtual-scroll>
+                </div>
+              </article>
+            </div>
+          </div>
 
           <div v-else class="empty-state">
             <div class="empty-icon"> 0 </div>
@@ -901,7 +883,7 @@ function photoSrcset(item) {
 /*
  * На карточке можно переключать, что показывать: фото или карту-схему.
  * Выбор запоминается по ключу карточки и блока, чтобы не сбиваться при
- * виртуальном скролле. Если чего-то из двух изображений нет — показываем
+ * при смене строк. Если чего-то из двух изображений нет — показываем
  * то, что есть, без переключателя.
  *
  * `item.map` — ссылка на страницу Яндекс.Диска, а не изображение:
@@ -2273,14 +2255,11 @@ const listPoints = computed(() => {
 })
 
 /*
- * Виртуализация списка строками: q-virtual-scroll одномерный, поэтому
- * виртуализируем не отдельные карточки, а строки сетки. Число колонок
- * повторяет прежний auto-fill minmax(300px, 1fr) с gap 18px и зависит
- * от реальной ширины области списка (ResizeObserver ниже).
+ * Список рендерится строками сетки с естественной высотой карточек.
+ * Число колонок повторяет auto-fill minmax(300px, 1fr) с gap 18px и
+ * зависит от реальной ширины области списка (ResizeObserver ниже).
  */
 const listViewRef = ref(null)
-/* Фиксированная высота виртуальной строки (включая нижний отступ 18px). */
-const LIST_ROW_HEIGHT = 640
 /* Авто-число колонок по ширине области (ResizeObserver). */
 const autoListColumns = ref(3)
 /* Ручной выбор переключателем 4/5/6; null — авто. */
@@ -2303,17 +2282,16 @@ function setListColumns(count) {
   userListColumns.value = count
 }
 
-/* Прокрутка списка: ref на q-virtual-scroll и признак «список прокручен»
-   для кнопки возврата наверх. */
-const virtualListRef = ref(null)
+/* Прокрутка списка: сам контейнер и признак «список прокручен». */
+const listScrollerRef = ref(null)
 const listScrolled = ref(false)
 
-function onListScroll({ index }) {
-  listScrolled.value = index > 0
+function onListScroll(event) {
+  listScrolled.value = event.target.scrollTop > 0
 }
 
 function scrollListToTop() {
-  virtualListRef.value?.scrollTo(0)
+  listScrollerRef.value?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 /* При смене режима список монтируется заново сверху — сбрасываем признак
@@ -3097,8 +3075,8 @@ onBeforeUnmount(() => {
   inset: 0;
 
   /* Колонка: закреплённая шапка + прокручивающийся список. Скроллится
-     не вся область, а сам виртуальный список (см. .construction-list),
-     поэтому шапка не двигается при прокрутке карточек. */
+     не вся область, а сам список (см. .construction-list), поэтому
+     шапка не двигается при прокрутке карточек. */
   display: flex;
   flex-direction: column;
 
@@ -3257,9 +3235,8 @@ onBeforeUnmount(() => {
 }
 
 .construction-list {
-  /* Корень q-virtual-scroll — единственный скроллер списка: занимает всё
-     оставшееся под шапкой место (flex), поэтому прокручивается только
-     область списка, а не страница целиком. */
+  /* Единственный скроллер списка: занимает всё оставшееся под шапкой
+     место (flex), поэтому прокручивается только область списка. */
   flex: 1 1 auto;
   min-height: 0;
 
@@ -3268,7 +3245,7 @@ onBeforeUnmount(() => {
   display: block;
 }
 
-/* Одна виртуальная строка — сетка из listColumns колонок,
+/* Одна строка — сетка из listColumns колонок,
    как прежний auto-fill minmax(300px, 1fr). */
 .construction-row {
   display: grid;
@@ -3277,30 +3254,23 @@ onBeforeUnmount(() => {
 
   gap: 18px;
 
-  /* Фиксированная высота строки: q-virtual-scroll не умеет разную высоту.
-     Нижний отступ входит в высоту, чтобы item-size совпадал с шагом. */
-  height: var(--list-row-height, 640px);
+  /* Строка по высоте самой высокой карточки — без фиксированной высоты. */
   padding-bottom: 18px;
-  box-sizing: border-box;
-
-  overflow: hidden;
-}
-
-/* Убираем фоновые «полоски»-заглушки Quasar у элементов-распорок
-   виртуального скролла. */
-.construction-list :deep(.q-virtual-scroll__padding) {
-  background: none;
 }
 
 .construction-card {
+  /* Кегль внутри карточки зависит от её ширины, а не от вьюпорта:
+     при 5–6 колонках и на узком мониторе текст уменьшается. */
+  container-type: inline-size;
+  container-name: construction-card;
+
   overflow: hidden;
 
   display: flex;
   flex-direction: column;
 
-  /* Высота строки фиксирована — карточки растягиваются на неё. */
-  height: 100%;
-  min-height: 0;
+  /* Высота — по содержимому: блоки не растягиваются на всю строку. */
+  height: auto;
 
   background: #fff;
 
@@ -3360,7 +3330,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 12px;
 
-  margin-bottom: 10px;
+  /* Меньше воздуха между форматом и городом — место уходит адресу. */
+  margin-bottom: 4px;
 
   min-width: 0;
 }
@@ -3489,17 +3460,17 @@ onBeforeUnmount(() => {
 }
 
 .card-address-main {
-  /* Ровно две строки: фото во всех карточках начинаются на одном уровне */
-  min-height: 2.3em;
+  /* Три строки вместо двух: освободили место, уменьшив отступы. */
+  min-height: 3.45em;
 
   display: -webkit-box;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 
   color: #17212b;
 
-  font-size: 17px;
+  font-size: 16px;
   line-height: 1.15;
 
   /* Название адреса — жирным. */
@@ -3593,9 +3564,10 @@ onBeforeUnmount(() => {
   margin-top: 6px;
 }
 
-/* Город/адрес/сторона идут под форматом; над городом — «пустая строка». */
+/* Город/адрес/сторона идут под форматом; отступ уменьшен, чтобы
+   адрес занимал до трёх строк без роста карточки. */
 .card-block .card-head {
-  margin-top: 16px;
+  margin-top: 4px;
 }
 
 .card-photo--block {
@@ -3842,6 +3814,78 @@ onBeforeUnmount(() => {
 .card-meta .size-value {
   color: #34414a;
   font-weight: 600;
+}
+
+/*
+ * Адаптивный кегль карточки. Контейнерные запросы реагируют на реальную
+ * ширину карточки: она меняется при выборе 4/5/6 колонок, изменении
+ * размера окна и на разных мониторах.
+ */
+@container construction-card (max-width: 300px) {
+  .card-content {
+    padding: 12px 13px 13px;
+  }
+
+  .card-address-main {
+    font-size: 15px;
+  }
+
+  .card-type {
+    font-size: 11px;
+  }
+
+  .card-place {
+    font-size: 11px;
+  }
+
+  .card-price-inline .price-value,
+  .card-promo-price .promo-price-value {
+    font-size: 18px;
+  }
+
+  .card-price-inline .price-currency {
+    font-size: 12px;
+  }
+
+  .card-side-line,
+  .card-dynamic-side,
+  .card-pf-toggle,
+  .card-features,
+  .feature-label {
+    font-size: 9px;
+  }
+}
+
+@container construction-card (max-width: 250px) {
+  .card-content {
+    padding: 10px 11px 12px;
+  }
+
+  .card-address-main {
+    font-size: 14px;
+  }
+
+  .card-type {
+    font-size: 10px;
+  }
+
+  .card-price-inline .price-value,
+  .card-promo-price .promo-price-value {
+    font-size: 16px;
+  }
+
+  .card-price-inline .price-currency {
+    font-size: 11px;
+  }
+
+  .card-price-inline .price-period,
+  .card-promo-price .promo-price-note {
+    font-size: 8px;
+  }
+
+  .card-pf-toggle {
+    font-size: 8px;
+  }
 }
 
 .empty-state {
