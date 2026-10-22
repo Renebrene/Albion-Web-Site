@@ -268,7 +268,7 @@
           >
             <!-- Строка сетки: columns колонок, повторяет прежний auto-fill. -->
             <div
-              v-for="row in listRows"
+              v-for="row in visibleListRows"
               :key="row.key"
               class="construction-row"
               :style="{ gridTemplateColumns: `repeat(${listColumns}, 1fr)` }"
@@ -617,6 +617,17 @@
                   </div>
                 </div>
               </article>
+            </div>
+
+            <div v-if="hasMoreRows" class="list-load-more">
+              <button type="button" @click="loadMoreRows">
+                Показать ещё
+              </button>
+
+              <span>
+                показано {{ visibleListRows.length }} из
+                {{ listRows.length }} строк
+              </span>
             </div>
           </div>
 
@@ -2286,8 +2297,47 @@ function setListColumns(count) {
 const listScrollerRef = ref(null)
 const listScrolled = ref(false)
 
+/* Ленивая подгрузка: сначала 12 строк сетки, дальше по 12 при скролле. */
+const INITIAL_LIST_ROWS = 12
+const LIST_ROWS_STEP = 12
+const visibleRowCount = ref(INITIAL_LIST_ROWS)
+
+const visibleListRows = computed(() =>
+  listRows.value.slice(0, visibleRowCount.value)
+)
+
+const hasMoreRows = computed(
+  () => visibleRowCount.value < listRows.value.length
+)
+
+function loadMoreRows() {
+  if (!hasMoreRows.value) {
+    return
+  }
+
+  visibleRowCount.value = Math.min(
+    visibleRowCount.value + LIST_ROWS_STEP,
+    listRows.value.length
+  )
+}
+
 function onListScroll(event) {
-  listScrolled.value = event.target.scrollTop > 0
+  const el = event.target
+
+  listScrolled.value = el.scrollTop > 0
+
+  /* Подгружаем следующую порцию заранее, за ~800px до конца. */
+  if (el.scrollHeight - el.scrollTop - el.clientHeight < 800) {
+    loadMoreRows()
+  }
+}
+
+function resetListWindow() {
+  visibleRowCount.value = INITIAL_LIST_ROWS
+
+  nextTick(() => {
+    listScrollerRef.value?.scrollTo({ top: 0 })
+  })
 }
 
 function scrollListToTop() {
@@ -2296,8 +2346,12 @@ function scrollListToTop() {
 
 /* При смене режима список монтируется заново сверху — сбрасываем признак
    прокрутки, чтобы кнопка «наверх» не висела зря. */
-watch(workspaceMode, () => {
+watch(workspaceMode, mode => {
   listScrolled.value = false
+
+  if (mode === 'list') {
+    resetListWindow()
+  }
 })
 
 function computeListColumns(width) {
@@ -2328,6 +2382,10 @@ const listRows = computed(() => {
 
   return rows
 })
+
+/* Фильтр/поиск или число колонок изменились — начинаем список заново. */
+watch(listPoints, resetListWindow)
+watch(listColumns, resetListWindow)
 
 /*
  * Область списка появляется только в режиме «Список» (v-if), поэтому
@@ -3247,6 +3305,39 @@ onBeforeUnmount(() => {
 
 /* Одна строка — сетка из listColumns колонок,
    как прежний auto-fill minmax(300px, 1fr). */
+.list-load-more {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+
+  gap: 8px;
+
+  padding: 10px 0 28px;
+
+  color: #68757e;
+  font-size: 12px;
+}
+
+.list-load-more button {
+  padding: 10px 20px;
+
+  border: 1px solid #dfe5e9;
+  border-radius: 10px;
+
+  background: #fff;
+  color: #17212b;
+
+  cursor: pointer;
+
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.list-load-more button:hover {
+  border-color: var(--albion-accent);
+  color: var(--albion-accent);
+}
+
 .construction-row {
   display: grid;
 
