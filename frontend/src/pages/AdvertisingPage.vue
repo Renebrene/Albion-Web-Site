@@ -360,7 +360,7 @@
                             v-if="hasCardImage(point, block, blockIndex)"
                             :src="cardImageSrc(point, block, blockIndex)"
                             :srcset="cardImageSrcset(point, block, blockIndex)"
-                            sizes="(max-width: 760px) 100vw, (max-width: 1200px) 70vw, 900px"
+                            sizes="(max-width: 760px) 92vw, 320px"
                             :alt="point.address"
                             loading="lazy"
                             decoding="async"
@@ -851,11 +851,11 @@ function sidesPhrase(count) {
  * остаётся рабочим до и после правки бэкенда.
  */
 function photoThumb(item) {
-  return item?.photo_thumb || item?.photo || ''
+  return item?.photo_thumb || item?.photo || item?.photo_large || ''
 }
 
 function photoCard(item) {
-  return item?.photo || item?.photo_thumb || ''
+  return item?.photo || item?.photo_thumb || item?.photo_large || ''
 }
 
 function photoSrcset(item) {
@@ -882,15 +882,43 @@ function photoSrcset(item) {
 /* ------------------------------------------- карта-схема на карточке */
 
 /*
- * На карточке можно переключать, что показывать: фото или карту-схему
- * (крупный вариант map_large). Выбор запоминается по ключу карточки и
- * блока, чтобы не сбиваться при виртуальном скролле. Если чего-то из
- * двух изображений нет — показываем то, что есть, без переключателя.
+ * На карточке можно переключать, что показывать: фото или карту-схему.
+ * Выбор запоминается по ключу карточки и блока, чтобы не сбиваться при
+ * виртуальном скролле. Если чего-то из двух изображений нет — показываем
+ * то, что есть, без переключателя.
+ *
+ * `item.map` — ссылка на страницу Яндекс.Диска, а не изображение:
+ * в src/srcset она не годится (блокируется CSP и не рендерится), поэтому
+ * работаем только с локальными вариантами map_thumb/map_card/map_large.
  */
 const cardMedia = ref({})
 
 function blockMap(item) {
-  return item?.map_large || item?.map_card || item?.map_thumb || item?.map || ''
+  return item?.map_large || item?.map_card || item?.map_thumb || ''
+}
+
+/* Для карточки берём наименьший достаточный вариант: 400px хватает
+   при ширине карточки ~200–320 CSS-пикселей. */
+function cardMap(item) {
+  return item?.map_thumb || item?.map_card || item?.map_large || ''
+}
+
+function mapSrcset(item) {
+  const parts = []
+
+  if (item?.map_thumb) {
+    parts.push(`${item.map_thumb} 400w`)
+  }
+
+  if (item?.map_card) {
+    parts.push(`${item.map_card} 1000w`)
+  }
+
+  if (item?.map_large) {
+    parts.push(`${item.map_large} 2400w`)
+  }
+
+  return parts.join(', ')
 }
 
 function hasBlockMap(item) {
@@ -926,13 +954,13 @@ function cardImageSrc(point, block, blockIndex) {
   const item = blockPrimary(block)
 
   return cardImageMode(point, block, blockIndex) === 'map'
-    ? blockMap(item)
+    ? cardMap(item)
     : photoThumb(item)
 }
 
 function cardImageSrcset(point, block, blockIndex) {
   if (cardImageMode(point, block, blockIndex) === 'map') {
-    return undefined
+    return mapSrcset(blockPrimary(block)) || undefined
   }
 
   return photoSrcset(blockPrimary(block))
@@ -1008,8 +1036,7 @@ const { openPhoto } = usePhotoViewer()
 function openBlockPhoto(point, block) {
   const item = blockPrimary(block)
   const photoUrl = item?.photo_large || item?.photo || item?.photo_thumb || ''
-  const mapUrl =
-    item?.map_large || item?.map_card || item?.map_thumb || item?.map || ''
+  const mapUrl = item?.map_large || item?.map_card || item?.map_thumb || ''
 
   if (!photoUrl && !mapUrl) {
     return

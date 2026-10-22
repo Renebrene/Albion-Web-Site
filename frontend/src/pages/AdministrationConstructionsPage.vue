@@ -195,7 +195,7 @@
 
               <!-- Переключатель: фото ↔ карта -->
               <div
-                v-if="item.photo && item.mapLarge"
+                v-if="item.photoThumb && item.mapThumb"
                 class="media-switch"
                 @click.stop
               >
@@ -940,6 +940,12 @@ function mapConstruction(item) {
     light: item.light || '',
     material: item.material || '',
     photo: item.photo || '',
+    /*
+     * Уменьшенные варианты — только для сетки карточек админки.
+     * Полноразмерные `photo`/`mapLarge` остаются для диалога
+     * редактирования и просмотра.
+     */
+    photoThumb: item.photo_thumb || item.photo || '',
     lat: item.lat,
     lng: item.lng,
     map: item.map || '',
@@ -949,6 +955,7 @@ function mapConstruction(item) {
      * CSP, поэтому в фолбэк не попадает (нет локальной карты — заглушка).
      */
     mapLarge: item.map_large || item.map_card || item.map_thumb || '',
+    mapThumb: item.map_thumb || item.map_card || item.map_large || '',
     name: item.name || '',
     number: item.number || '',
     district: item.district || '',
@@ -969,11 +976,11 @@ function mediaMode(id) {
 }
 
 function cardImage(item) {
-  if (mediaMode(item.id) === 'map' && item.mapLarge) {
-    return item.mapLarge
+  if (mediaMode(item.id) === 'map' && item.mapThumb) {
+    return item.mapThumb
   }
 
-  return item.photo || item.mapLarge || ''
+  return item.photoThumb || item.photo || item.mapThumb || ''
 }
 
 function setCardMedia(item, mode) {
