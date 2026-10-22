@@ -38,6 +38,11 @@
       </button>
     </div>
 
+    <div v-if="loading" class="search-hint" role="status">Ищем адрес…</div>
+    <div v-else-if="error" class="search-hint search-hint--error" role="alert">
+      {{ error }}
+    </div>
+
     <!-- Подсказки геокодера: только в режиме поиска по точке и адресу. -->
     <div
       v-if="showSuggestions"
@@ -100,6 +105,18 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'coords'
+  },
+
+  /* Ошибка геокодирования/координат — показывается под строкой поиска. */
+  error: {
+    type: String,
+    default: ''
+  },
+
+  /* Идёт поиск адреса на сервере (не подсказки). */
+  loading: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -384,6 +401,30 @@ onBeforeUnmount(clearSuggestions)
 
 .search-icon:hover {
   background: #f0f3f4;
+}
+
+/* Статус геокодирования — под строкой поиска. */
+.search-hint {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 19;
+
+  padding: 8px 12px;
+
+  border: 1px solid rgba(220, 225, 228, 0.9);
+  border-radius: 10px;
+
+  background: rgba(255, 255, 255, 0.99);
+  color: #5f6c76;
+
+  font-size: 12px;
+}
+
+.search-hint--error {
+  border-color: #e0a6a1;
+  color: #8f1d16;
 }
 
 /* Подсказки адреса — под строкой поиска */

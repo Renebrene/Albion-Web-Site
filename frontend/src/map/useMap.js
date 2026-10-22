@@ -507,26 +507,15 @@ function scheduleRender() {
 
 function setConstructions(items, months = []) {
   /*
-   * Фильтрация меняет только набор маркеров.
-   * Центр и масштаб карты сохраняем.
+   * Фильтрация меняет только набор маркеров. Центр и масштаб не трогаем:
+   * setView на каждое изменение отменял flyTo к городу и генерировал
+   * лишние события move.
    */
-  const currentCenter = map ? map.getCenter() : null
-
-  const currentZoom = map ? map.getZoom() : null
-
   constructions = Array.isArray(items) ? items : []
 
   selectedMonths = Array.isArray(months) ? months : []
 
   scheduleRender()
-
-  if (map && currentCenter && Number.isFinite(currentZoom)) {
-    requestAnimationFrame(() => {
-      if (map) {
-        map.setView(currentCenter, currentZoom, { animate: false })
-      }
-    })
-  }
 }
 
 function setCenterChangeHandler(handler) {

@@ -1,5 +1,12 @@
 <template>
-  <div ref="mapElement" class="map"></div>
+  <div class="map-shell">
+    <div ref="mapElement" class="map"></div>
+
+    <div v-if="initError" class="map-error" role="alert">
+      <p>{{ initError }}</p>
+      <button type="button" @click="retryInit">Повторить</button>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -67,9 +74,24 @@ let disposed = false
  */
 const isReady = ref(false)
 let readyResolve = null
-const readyPromise = new Promise(resolve => {
-  readyResolve = resolve
-})
+let readyPromise = createReadyPromise()
+
+/* Текст ошибки инициализации: вместо пустого контейнера показываем
+   сообщение и кнопку повторной попытки. */
+const initError = ref('')
+
+function createReadyPromise() {
+  return new Promise(resolve => {
+    readyResolve = resolve
+  })
+}
+
+function resolveReady() {
+  if (readyResolve) {
+    readyResolve()
+    readyResolve = null
+  }
+}
 
 function whenReady() {
   return isReady.value ? Promise.resolve() : readyPromise
@@ -164,15 +186,23 @@ function syncSearchPoint() {
   }
 }
 
-onMounted(async () => {
-  disposed = false
-
+async function initialize() {
   let api
 
   try {
     api = await initMap()
   } catch (error) {
     console.error('Albion map: не удалось инициализировать карту.', error)
+
+    initError.value =
+      'Не удалось загрузить карту. Проверьте соединение и повторите попытку.'
+
+    /*
+     * Будим всех, кто ждёт whenReady(): иначе focusCityWhenReady и
+     * другие ожидания зависнут навсегда.
+     */
+    isReady.value = true
+    resolveReady()
     return
   }
 
@@ -216,11 +246,34 @@ onMounted(async () => {
   api.invalidateSize()
 
   isReady.value = true
+  resolveReady()
+}
 
-  if (readyResolve) {
-    readyResolve()
-    readyResolve = null
+async function retryInit() {
+  if (disposed) {
+    return
   }
+
+  if (mapApi.value) {
+    try {
+      mapApi.value.destroyMap()
+    } catch (error) {
+      /* карта могла быть уже уничтожена */
+    }
+  }
+
+  mapApi.value = null
+  activeEngine.value = ''
+  initError.value = ''
+  isReady.value = false
+  readyPromise = createReadyPromise()
+
+  await initialize()
+}
+
+onMounted(async () => {
+  disposed = false
+  await initialize()
 })
 
 watch(
@@ -270,9 +323,11 @@ defineExpose({
   getCoordinatesAtScreenPoint,
   setMapDraggingEnabled,
   whenReady,
+  retryInit,
 
-  /* Текущий активный движок — полезно для отладки/UI. */
-  activeEngine
+  /* Текущий активный движок и ошибка инициализации — для отладки/UI. */
+  activeEngine,
+  initError
 })
 
 onBeforeUnmount(() => {
@@ -291,10 +346,54 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.map-shell {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
 .map {
   width: 100%;
   height: 100%;
   min-height: 400px;
+}
+
+.map-error {
+  position: absolute;
+  inset: 0;
+  z-index: 1200;
+
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+
+  gap: 14px;
+  padding: 24px;
+
+  background: rgba(233, 237, 239, 0.94);
+  color: #17212b;
+
+  text-align: center;
+  font-size: 14px;
+}
+
+.map-error p {
+  margin: 0;
+}
+
+.map-error button {
+  padding: 8px 16px;
+
+  border: 0;
+  border-radius: 9px;
+
+  background: var(--albion-accent);
+  color: #fff;
+
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
 }
 </style>
 

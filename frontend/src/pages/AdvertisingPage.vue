@@ -78,143 +78,144 @@
             :count="toolbarCount"
             :show-mode="workspaceMode === 'point'"
             :mode="topSearchMode"
+            :error="topSearchError"
+            :loading="workspaceMode === 'point' && addressLoading"
             @update:mode="topSearchMode = $event"
             @select-suggestion="onTopSuggestionSelect"
             @search="onTopSearch"
           />
         </div>
 
-        <!-- КАРТА -->
-
-        <div v-if="workspaceMode === 'map'" class="map-wrap">
+        <!-- КАРТА И ПОИСК ПО ТОЧКЕ -->
+        <!--
+          Один экземпляр MapView на оба режима: переключение вкладок не
+          размонтирует карту, поэтому центр, зум и загруженный регион
+          сохраняются. В «Списке» карта скрыта через v-show.
+        -->
+        <div
+          v-show="workspaceMode === 'map' || workspaceMode === 'point'"
+          class="map-wrap"
+        >
           <MapView
             ref="mapViewRef"
-            :constructions="displayedConstructions"
+            :constructions="mapConstructions"
             :all-constructions="constructions"
             :selected-months="selectedMonths"
-          />
-        </div>
-
-        <!-- ПОИСК ПО ТОЧКЕ И АДРЕСУ -->
-
-        <div v-else-if="workspaceMode === 'point'" class="map-wrap">
-          <MapView
-            ref="mapViewRef"
-            :constructions="pointFilteredConstructions"
-            :all-constructions="constructions"
-            :selected-months="selectedMonths"
-            :search-point="fixedSearchPoint"
-            :search-radius="pointRadius"
+            :search-point="mapSearchPoint"
+            :search-radius="mapSearchRadius"
             @map-center="updatePointCoordinatesFromMap"
           />
 
-          <div
-            v-if="pointSelectionState !== 'fixed'"
-            class="point-map-crosshair"
-            :class="{
-              dragging: isDraggingPointTarget,
-              pending: pointSelectionState === 'pending'
-            }"
-            :style="
-              pointTargetPosition.x || pointTargetPosition.y
-                ? {
-                    left: `${pointTargetPosition.x}px`,
-                    top: `${pointTargetPosition.y}px`
-                  }
-                : {}
-            "
-            role="button"
-            tabindex="0"
-            aria-label="Перетащить точку поиска"
-            @pointerdown="startPointTargetDrag"
-            @pointermove="movePointTarget"
-            @pointerup="finishPointTargetDrag"
-            @pointercancel="cancelPointTargetDrag"
-          >
-            <span></span>
-          </div>
+          <template v-if="workspaceMode === 'point'">
+            <div
+              v-if="pointSelectionState !== 'fixed'"
+              ref="pointTargetRef"
+              class="point-map-crosshair"
+              :class="{
+                dragging: isDraggingPointTarget,
+                pending: pointSelectionState === 'pending'
+              }"
+              :style="
+                pointTargetPosition.x || pointTargetPosition.y
+                  ? {
+                      left: `${pointTargetPosition.x}px`,
+                      top: `${pointTargetPosition.y}px`
+                    }
+                  : {}
+              "
+              role="button"
+              tabindex="0"
+              aria-label="Перетащить точку поиска"
+              @pointerdown="startPointTargetDrag"
+              @pointermove="movePointTarget"
+              @pointerup="finishPointTargetDrag"
+              @pointercancel="cancelPointTargetDrag"
+            >
+              <span></span>
+            </div>
 
-          <!--
+            <!--
             Панель управления точкой — ОДНА плашка, закреплена внизу
             по центру. Слева — статус точки (подтверждение или бейдж),
             справа — радиус поиска; в один ряд.
           -->
-          <div class="point-controls">
-            <div
-              v-if="pointSelectionState !== 'fixed'"
-              class="point-confirmation"
-            >
-              <div class="point-confirmation-title">
-                Зафиксировать эту точку?
+            <div class="point-controls">
+              <div
+                v-if="pointSelectionState !== 'fixed'"
+                class="point-confirmation"
+              >
+                <div class="point-confirmation-title">
+                  Зафиксировать эту точку?
+                </div>
+
+                <div class="point-confirmation-coordinates">
+                  {{ pointCoordinates }}
+                </div>
+
+                <div class="point-confirmation-actions">
+                  <button
+                    type="button"
+                    class="point-confirm-button"
+                    @click="fixSelectedPoint"
+                  >
+                    ЗАФИКСИРОВАТЬ
+                  </button>
+
+                  <button
+                    type="button"
+                    class="point-change-button"
+                    @click="changeSelectedPoint"
+                  >
+                    ИЗМЕНИТЬ
+                  </button>
+                </div>
               </div>
 
-              <div class="point-confirmation-coordinates">
-                {{ pointCoordinates }}
-              </div>
+              <div
+                v-if="pointSelectionState === 'fixed'"
+                class="point-fixed-badge"
+              >
+                <span>ТОЧКА ЗАФИКСИРОВАНА</span>
 
-              <div class="point-confirmation-actions">
-                <button
-                  type="button"
-                  class="point-confirm-button"
-                  @click="fixSelectedPoint"
-                >
-                  ЗАФИКСИРОВАТЬ
+                <button type="button" @click="changeSelectedPoint">
+                  ИЗМЕНИТЬ ТОЧКУ
                 </button>
-
-                <button
-                  type="button"
-                  class="point-change-button"
-                  @click="changeSelectedPoint"
-                >
-                  ИЗМЕНИТЬ
-                </button>
-              </div>
-            </div>
-
-            <div
-              v-if="pointSelectionState === 'fixed'"
-              class="point-fixed-badge"
-            >
-              <span>ТОЧКА ЗАФИКСИРОВАНА</span>
-
-              <button type="button" @click="changeSelectedPoint">
-                ИЗМЕНИТЬ ТОЧКУ
-              </button>
-            </div>
-
-            <div class="point-radius-float">
-              <div class="point-radius-head">
-                <span>РАДИУС ПОИСКА</span>
-                <strong>{{ formatRadius(pointRadius) }}</strong>
               </div>
 
-              <input
-                class="point-radius-range"
-                type="range"
-                :min="0"
-                :max="RADIUS_STEPS.length - 1"
-                step="1"
-                :value="pointRadiusIndex"
-                @input="onPointRadiusInput"
-              />
+              <div class="point-radius-float">
+                <div class="point-radius-head">
+                  <span>РАДИУС ПОИСКА</span>
+                  <strong>{{ formatRadius(pointRadius) }}</strong>
+                </div>
 
-              <div class="point-radius-marks">
-                <span
-                  v-for="(value, index) in RADIUS_STEPS"
-                  :key="value"
-                  :class="{ active: index === pointRadiusIndex }"
-                >
-                  {{ formatRadius(value) }}
-                </span>
+                <input
+                  class="point-radius-range"
+                  type="range"
+                  :min="0"
+                  :max="RADIUS_STEPS.length - 1"
+                  step="1"
+                  :value="pointRadiusIndex"
+                  @input="onPointRadiusInput"
+                />
+
+                <div class="point-radius-marks">
+                  <span
+                    v-for="(value, index) in RADIUS_STEPS"
+                    :key="value"
+                    :class="{ active: index === pointRadiusIndex }"
+                  >
+                    {{ formatRadius(value) }}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          </template>
         </div>
 
         <!-- СПИСОК -->
 
         <div
-          v-else-if="workspaceMode === 'list'"
+          v-if="workspaceMode === 'list'"
           ref="listViewRef"
           class="list-view"
         >
@@ -1017,9 +1018,12 @@ const portfolioSignature = computed(() => {
 })
 
 function refreshOpenPopups() {
-  document
-    .querySelectorAll('.leaflet-popup .popup, .albion-popup')
-    .forEach(root => refreshPopupState(root))
+  /*
+   * `.popup` — корень разметки из popupContent.js. Он есть и в Leaflet,
+   * и в балуне Яндекс.Карт; селектор с .leaflet-popup не находил
+   * яндексовские попапы, и подсветка портфеля в них устаревала.
+   */
+  document.querySelectorAll('.popup').forEach(root => refreshPopupState(root))
 }
 
 watch(portfolioSignature, refreshOpenPopups)
@@ -1210,6 +1214,8 @@ const addressLoading = ref(false)
 const addressError = ref('')
 /* Номер последнего geocode-запроса: старые ответы не должны перезаписывать новые. */
 let addressRequestSeq = 0
+/* То же для обратного геокодера (адрес по координатам точки). */
+let reverseRequestSeq = 0
 const pointRadius = ref(1000)
 
 /* Шаги радиуса поиска (метры). */
@@ -1258,14 +1264,43 @@ const pointResultsActive = computed(
 const pointTargetPosition = ref({ x: 0, y: 0 })
 const isDraggingPointTarget = ref(false)
 const pointTargetPointerOffset = ref({ x: 0, y: 0 })
+const pointTargetRef = ref(null)
 
 function updatePointCoordinatesFromMap(center) {
-  if (workspaceMode.value !== 'point') {
+  /*
+   * После фиксации точка не должна «уезжать» вместе с картой: результаты
+   * считаются вокруг fixedSearchPoint, а координаты в поле — иначе они
+   * показывали бы уже другую точку.
+   */
+  if (
+    workspaceMode.value !== 'point' ||
+    pointSelectionState.value === 'fixed'
+  ) {
     return
   }
 
-  const lat = Number(center?.lat)
-  const lng = Number(center?.lng)
+  /*
+   * Координаты берём под мишенью, а не в центре карты: после перетаскивания
+   * мишень может стоять в любом месте экрана. Если мишени нет — фолбэк
+   * на центр карты.
+   */
+  let lat = Number(center?.lat)
+  let lng = Number(center?.lng)
+
+  const target = pointTargetRef.value
+
+  if (target && mapViewRef.value) {
+    const rect = target.getBoundingClientRect()
+    const coordinates = mapViewRef.value.getCoordinatesAtScreenPoint(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2
+    )
+
+    if (coordinates) {
+      lat = Number(coordinates.lat)
+      lng = Number(coordinates.lng)
+    }
+  }
 
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
     return
@@ -1397,9 +1432,11 @@ function fixSelectedPoint() {
     !Number.isFinite(parts[0]) ||
     !Number.isFinite(parts[1])
   ) {
+    addressError.value = 'Укажите широту и долготу через запятую.'
     return
   }
 
+  addressError.value = ''
   fixedSearchPoint.value = {
     lat: parts[0],
     lng: parts[1]
@@ -1411,6 +1448,8 @@ function fixSelectedPoint() {
 }
 
 function changeSelectedPoint() {
+  /* Отменяем незавершённый обратный геокодер: его адрес уже неактуален. */
+  reverseRequestSeq += 1
   fixedSearchPoint.value = null
   pointSelectionState.value = 'idle'
 }
@@ -1488,6 +1527,22 @@ const displayedConstructions = computed(() => {
   return constructions.value.filter(item => ids.has(String(item?.id)))
 })
 
+/* Данные для единственного экземпляра MapView: в точке — радиус, иначе фильтр. */
+const mapConstructions = computed(() =>
+  workspaceMode.value === 'point'
+    ? pointFilteredConstructions.value
+    : displayedConstructions.value
+)
+
+/* Круг и маркер точки показываем только в режиме «Точка». */
+const mapSearchPoint = computed(() =>
+  workspaceMode.value === 'point' ? fixedSearchPoint.value : null
+)
+
+const mapSearchRadius = computed(() =>
+  workspaceMode.value === 'point' ? pointRadius.value : 0
+)
+
 /* В точке счётчик показывает найденное вокруг неё, в карте/списке — по базе. */
 const toolbarCount = computed(() =>
   workspaceMode.value === 'point'
@@ -1548,6 +1603,11 @@ function resetAllFilters() {
  */
 const topSearchMode = ref('address')
 
+/* Ошибка поиска показывается только в режиме точки — там работает геокодер. */
+const topSearchError = computed(() =>
+  workspaceMode.value === 'point' ? addressError.value : ''
+)
+
 const topSearchValue = computed({
   get() {
     if (workspaceMode.value === 'point') {
@@ -1561,6 +1621,8 @@ const topSearchValue = computed({
 
   set(value) {
     if (workspaceMode.value === 'point') {
+      addressError.value = ''
+
       if (topSearchMode.value === 'coords') {
         pointCoordinates.value = value
       } else {
@@ -1607,17 +1669,19 @@ function executePointSearch() {
     !Number.isFinite(parts[0]) ||
     !Number.isFinite(parts[1])
   ) {
-    console.warn('Albion point search: некорректные координаты')
+    addressError.value =
+      'Введите две координаты через запятую: широта, долгота.'
     return
   }
 
   const [lat, lng] = parts
 
   if (lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-    console.warn('Albion point search: координаты вне допустимого диапазона')
+    addressError.value = 'Координаты вне допустимого диапазона.'
     return
   }
 
+  addressError.value = ''
   pointCoordinates.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
 
   fixedSearchPoint.value = {
@@ -1632,8 +1696,25 @@ function executePointSearch() {
 }
 
 async function fillAddressForPoint(lat, lng) {
+  const seq = ++reverseRequestSeq
+
   try {
     const result = await reverseGeocode(lat, lng)
+
+    /* Пока ждали ответ, точку могли изменить или снять. */
+    if (seq !== reverseRequestSeq) {
+      return
+    }
+
+    const current = fixedSearchPoint.value
+
+    if (
+      !current ||
+      Math.abs(current.lat - lat) > 1e-6 ||
+      Math.abs(current.lng - lng) > 1e-6
+    ) {
+      return
+    }
 
     if (result?.address && !String(pointAddress.value || '').trim()) {
       pointAddress.value = result.address
@@ -1665,6 +1746,9 @@ function onTopSuggestionSelect(suggestion) {
 
 async function executeAddressSearch() {
   const seq = ++addressRequestSeq
+  /* Новый адресный поиск отменяет незавершённый reverse-geocode. */
+  reverseRequestSeq += 1
+
   const address = String(pointAddress.value || '').trim()
 
   if (!address) {
@@ -1743,7 +1827,11 @@ const MANAGED_FILTER_KEYS = [
   'address',
   'months',
   'monthLogic',
-  'mode'
+  'mode',
+  'lat',
+  'lng',
+  'radius',
+  'addr'
 ]
 let urlWriteTimer = null
 /* Состояние карты/списка, отложенное на время point-режима. */
@@ -1794,6 +1882,48 @@ function canonicalQuery(query) {
 }
 
 function applyFiltersFromUrl() {
+  /*
+   * Точка из URL. Применяем до городов: pointResultsActive должен быть
+   * уже истинным, иначе городской фильтр скроет часть выдачи.
+   */
+  const lat = Number(route.query.lat)
+  const lng = Number(route.query.lng)
+  const hasPoint = Number.isFinite(lat) && Number.isFinite(lng)
+
+  if (hasPoint) {
+    const previous = fixedSearchPoint.value
+    const changed =
+      !previous ||
+      Math.abs(previous.lat - lat) > 1e-6 ||
+      Math.abs(previous.lng - lng) > 1e-6
+
+    fixedSearchPoint.value = { lat, lng }
+    pointCoordinates.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
+    pointSelectionState.value = 'fixed'
+
+    const radius = Number(route.query.radius)
+
+    if (Number.isFinite(radius) && radius > 0) {
+      pointRadius.value = radius
+    }
+
+    const addressFromUrl = String(route.query.addr || '').trim()
+
+    if (addressFromUrl) {
+      pointAddress.value = addressFromUrl
+      topSearchMode.value = 'address'
+    } else if (changed) {
+      pointAddress.value = ''
+    }
+
+    if (changed) {
+      void centerOnPointWhenReady(lat, lng)
+    }
+  } else if (pointSelectionState.value === 'fixed') {
+    fixedSearchPoint.value = null
+    pointSelectionState.value = 'idle'
+  }
+
   /*
    * Пока показываются результаты точки, город из URL не применяем:
    * он относится к карте/списку и не должен скрыто сужать выдачу.
@@ -1935,6 +2065,22 @@ function buildFilterQuery() {
     query.mode = workspaceMode.value
   }
 
+  /* Зафиксированная точка и радиус — часть состояния поиска. */
+  if (fixedSearchPoint.value) {
+    query.lat = Number(fixedSearchPoint.value.lat).toFixed(6)
+    query.lng = Number(fixedSearchPoint.value.lng).toFixed(6)
+
+    if (Number(pointRadius.value) > 0) {
+      query.radius = String(pointRadius.value)
+    }
+
+    const pointAddressText = String(pointAddress.value || '').trim()
+
+    if (pointAddressText) {
+      query.addr = pointAddressText
+    }
+  }
+
   return query
 }
 
@@ -1965,7 +2111,7 @@ function scheduleUrlWrite() {
       query,
       hash: route.hash
     })
-  }, 200)
+  }, 300)
 }
 
 /*
@@ -2118,43 +2264,69 @@ watch(listViewRef, el => {
 })
 
 /*
- * Центрирование карты на городе из URL — после готовности карты и данных.
+ * Центрирование карты на городе/точке — после готовности карты и данных.
  * Галочку в фильтре ставит гидратация ниже.
+ *
+ * Вместо rAF-опроса с жёстким лимитом ждём whenReady(): если карта не
+ * инициализировалась, MapView всё равно разрешает ожидание и показывает
+ * ошибку. Токен отменяет устаревшие запросы (быстрые клики по городам).
  */
-function focusCityWhenReady(city) {
-  let frames = 0
+let pageAlive = true
+let focusRequestToken = 0
 
-  const attempt = () => {
-    const view = mapViewRef.value
-    const hasData =
-      Array.isArray(constructions.value) && constructions.value.length > 0
+async function focusCityWhenReady(city) {
+  const token = ++focusRequestToken
 
-    /*
-     * Ждём И готовности карты, И загрузки конструкций: focusToItems
-     * центрируется по данным, и без них центрировать не по чему.
-     * Клик по названию на уже загруженной карте поэтому работает,
-     * а переход по ссылке из карточки — нет, пока данные не пришли.
-     */
-    if (!view || !hasData) {
-      if (frames++ < 600) {
-        requestAnimationFrame(attempt)
-      }
+  await nextTick()
 
-      return
-    }
+  const view = mapViewRef.value
+  const hasData =
+    Array.isArray(constructions.value) && constructions.value.length > 0
 
-    const ready =
-      typeof view.whenReady === 'function'
-        ? view.whenReady()
-        : Promise.resolve()
-
-    ready.then(() => {
-      /* Даём Vue разложить данные в пропсы карты, затем центрируем. */
-      nextTick(() => view.focusCity(city))
-    })
+  if (!view || !hasData || !pageAlive) {
+    return
   }
 
-  requestAnimationFrame(attempt)
+  await view.whenReady()
+
+  if (!pageAlive || token !== focusRequestToken) {
+    return
+  }
+
+  /* Даём Vue разложить данные в пропсы карты, затем центрируем. */
+  await nextTick()
+
+  if (!pageAlive || token !== focusRequestToken) {
+    return
+  }
+
+  view.focusCity(city)
+}
+
+async function centerOnPointWhenReady(lat, lng) {
+  const token = ++focusRequestToken
+
+  await nextTick()
+
+  const view = mapViewRef.value
+
+  if (!view || !pageAlive) {
+    return
+  }
+
+  await view.whenReady()
+
+  if (!pageAlive || token !== focusRequestToken) {
+    return
+  }
+
+  await nextTick()
+
+  if (!pageAlive || token !== focusRequestToken) {
+    return
+  }
+
+  view.setMapCenter(lat, lng, 14)
 }
 
 /*
@@ -2195,7 +2367,10 @@ watch(
     selectedMonths,
     monthLogic,
     searchQuery,
-    workspaceMode
+    workspaceMode,
+    fixedSearchPoint,
+    pointRadius,
+    pointAddress
   ],
   scheduleUrlWrite,
   { deep: true }
@@ -2580,6 +2755,9 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  pageAlive = false
+  focusRequestToken += 1
+
   document.removeEventListener('click', onDocumentClick)
 
   if (listResizeObserver) {
