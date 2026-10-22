@@ -9,19 +9,21 @@ from PIL import Image
 from backend.services.media_service import _build_static_variants
 
 
-def test_card_and_thumb_are_webp_large_stays_jpeg():
-    image = Image.new("RGB", (1200, 800), "#4677a8")
+def test_all_raster_variants_are_webp():
+    image = Image.new("RGB", (2200, 1200), "#4677a8")
 
     variants = _build_static_variants(image, preserve_png=False)
 
-    assert variants["large"][1] == "image/jpeg"
-    assert variants["large"][2] == ".jpg"
-
-    # Карточные варианты — WebP: экономия ~21–29% при том же SSIM.
+    # large — 1600px WebP, card/thumb — 1000/640px WebP.
+    assert variants["large"][1] == "image/webp"
+    assert variants["large"][2] == ".webp"
     assert variants["card"][1] == "image/webp"
     assert variants["card"][2] == ".webp"
     assert variants["thumb"][1] == "image/webp"
     assert variants["thumb"][2] == ".webp"
+
+    with Image.open(BytesIO(variants["large"][0])) as large:
+        assert max(large.size) == 1600
 
     # Все три варианта реально закодированы.
     assert all(data for data, _mime, _ext in variants.values())

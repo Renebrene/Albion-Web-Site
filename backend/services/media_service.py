@@ -58,7 +58,10 @@ VIDEO_PREVIEW_TIMEOUT_SECONDS = 30
 MAX_PIXELS = 50_000_000
 
 VARIANT_SIZES = {
-    "large": 2400,
+    # 1600 — это 2× ширины карты-схемы (800px) и достаточно для
+    # полноэкранного просмотра; оригинал при необходимости скачивается
+    # отдельно, поэтому 2400 больше не нужен.
+    "large": 1600,
     "card": 1000,
     # Превью = реальная ширина карточки ×2 (retina): список/попап ~320px,
     # медиатека ~300px. 400px не хватало на retina, 1000px — избыточно.
@@ -393,14 +396,9 @@ def _build_static_variants(
             data = _encode_png(resized)
             mime_type = "image/png"
             extension = ".png"
-        elif variant == "large":
-            data = _encode_jpeg(resized, 85)
-            mime_type = "image/jpeg"
-            extension = ".jpg"
         else:
-            # Оба карточных варианта — WebP q80: замер показал SSIM ~0.96
-            # при экономии ~29% против JPEG q82.
-            data = _encode_webp(resized, 80)
+            # large — 1600px WebP q82; card/thumb — WebP q80.
+            data = _encode_webp(resized, 82 if variant == "large" else 80)
             mime_type = "image/webp"
             extension = ".webp"
 

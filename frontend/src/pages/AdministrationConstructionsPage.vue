@@ -385,7 +385,11 @@
 
           <div class="edit-photo">
             <div class="edit-photo-preview">
-              <img v-if="editingItem.photo" :src="editingItem.photo" alt="" />
+              <img
+                v-if="editingItem.photoThumb || editingItem.photo"
+                :src="editingItem.photoThumb || editingItem.photo"
+                alt=""
+              />
               <div v-else class="edit-photo-placeholder"> ALBION </div>
             </div>
 
@@ -1190,6 +1194,7 @@ function clearEditingPhoto() {
 
   releaseObjectUrl(editingItem.value.photo)
   editingItem.value.photo = ''
+  editingItem.value.photoThumb = ''
 }
 
 /* ------------------------------------------------- медиатека конструкций */
@@ -1237,6 +1242,7 @@ async function applyPhotoOverride({ file, sourceUrl }) {
 
     if (result?.photo) {
       target.photo = result.photo
+      target.photoThumb = result.photo_thumb || result.photo
     }
   } catch (exc) {
     constructionsError.value = String(exc?.message || exc)

@@ -1,12 +1,14 @@
-"""Перевод карточных вариантов (card/thumb) в WebP.
+"""Перевод вариантов изображений в WebP и пересборка превью.
 
-Зачем: замер на 100 реальных фото показал, что WebP q78–82 даёт
-~27–29% меньше байт, чем JPEG q82, при SSIM не хуже. Large оставляем
-JPEG — он нужен для печати/экспорта и совместимости.
+Зачем: замер на 100 реальных фото показал, что WebP q80 даёт ~25–29%
+меньше байт, чем JPEG q82, при SSIM не хуже. Превью собираем под
+реальную ширину карточки ×2 (640px), large — 1600px; оригинал при
+необходимости скачивается отдельно.
 
 Что делает:
-- для ``construction_media`` конвертирует ``card_path`` и ``thumb_path``;
-- для ``media_variants`` конвертирует варианты ``card`` и ``thumb``;
+- construction_media: ``large_path`` → 1600px WebP,
+  ``card_path`` → 1000px WebP, ``thumb_path`` → 640px WebP;
+- media_variants: ``card``/``thumb`` → 1000/640px WebP;
 - рядом с исходным JPEG создаёт ``.webp`` и обновляет путь/MIME/размер в БД;
 - старые JPEG не удаляет (ссылки из старых портфелей продолжают работать).
 
@@ -206,6 +208,41 @@ def convert_construction_media(*, apply: bool, limit: int | None) -> dict:
                     stats["converted"] += 1
 
             updates["card_path"] = webp_path_for(key)
+
+        # large — 1600px WebP (orig 2400px JPEG больше не нужен).
+        if large:
+            key, source = large
+            marker = (str(source), 1600)
+
+            if marker not in converted_files:
+                large_file = absolute_path(
+                    resolve_construction_path(str(large[0]), active_key)
+                )
+                output_path = (
+                    large_file.with_suffix(".webp") if large_file else None
+                )
+                result = convert_file(
+                    source,
+                    82,
+                    apply=apply,
+                    target_size=1600,
+                    output_path=output_path,
+                    before_size=(
+                        large_file.stat().st_size
+                        if large_file and large_file.exists()
+                        else None
+                    ),
+                )
+
+                if result is not None:
+                    converted_files.add(marker)
+                    before, after = result
+                    stats["before"] += before
+                    stats["after"] += after
+                    stats["converted"] += 1
+                    updates["large_path"] = webp_path_for(key)
+            else:
+                updates["large_path"] = webp_path_for(key)
 
         # thumb — 640px (2× ширины карточки); источник — card, иначе large.
         thumb_source = card or large
