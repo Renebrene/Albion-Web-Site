@@ -36,6 +36,34 @@ ITEMS = [
 ]
 
 
+def test_empty_position_is_exported_with_zero_sum():
+    """Позиция без выбранных месяцев не выбрасывается: 0 ₽ и пометка."""
+    items = [
+        {
+            **ITEMS[0],
+            "months": {"Август": {"price": 1000}},
+        },
+        {
+            **ITEMS[0],
+            "id": 2,
+            "address": "Пушкинская ул. 2",
+            "months": {},
+            "month_prices": {},
+        },
+    ]
+
+    portfolio = build_portfolio(items)
+
+    assert portfolio["positions"] == 2
+    assert portfolio["total"] == 1000
+
+    empty_row = portfolio["rows"][1]
+    assert empty_row["address"] == "Пушкинская ул. 2"
+    assert empty_row["months"] == "ничего не выбрано"
+    assert empty_row["sum"] == "0 ₽"
+    assert empty_row["sum_value"] == 0
+
+
 def test_spreadsheet_values_neutralize_formula_prefixes():
     for value in ("=SUM(A1)", "+cmd", "-1+1", "@A1"):
         assert _spreadsheet_text(value).startswith("'")

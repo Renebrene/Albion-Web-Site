@@ -123,16 +123,18 @@
                 class="found-pf-toggle"
                 :class="{ 'is-active': isSurfaceActive(entry.item) }"
                 :title="
-                  isSurfaceActive(entry.item)
-                    ? 'Убрать из портфеля'
-                    : 'Добавить в портфель'
+                  isEditing(entry.item)
+                    ? 'Скрыть выбор месяцев'
+                    : isSurfaceActive(entry.item)
+                      ? 'Изменить месяцы'
+                      : 'Добавить в портфель'
                 "
                 @click="toggleFoundPfMode(entry.item)"
               >
                 <q-icon name="inventory_2" size="14px" />
               </button>
 
-              <span v-if="isSurfaceActive(entry.item)" class="found-pf-months">
+              <span v-if="isEditing(entry.item)" class="found-pf-months">
                 <button
                   v-for="month in MONTHS"
                   :key="month.full"
@@ -242,8 +244,7 @@ const {
   isInPortfolio,
   isMonthSelected,
   isSelectionMode,
-  toggleSelectionMode,
-  removeSurface,
+  setSelectionMode,
   // alias: в панели уже есть свой toggleMonth для чипов фильтра
   toggleMonth: togglePortfolioMonth
 } = usePortfolio()
@@ -256,9 +257,8 @@ function surfaceIdOf(item) {
 }
 
 /*
- * Активна (розовая кнопка, видимые месяцы), если поверхность в портфеле
- * или для неё включён режим выбора. Портфель переживает перезагрузку,
- * режим — нет, поэтому учитываем оба условия.
+ * Кнопка активна, если поверхность в портфеле или включён режим выбора.
+ * Мини-месяцы показываем только в режиме выбора.
  */
 function isSurfaceActive(item) {
   const id = surfaceIdOf(item)
@@ -266,9 +266,15 @@ function isSurfaceActive(item) {
   return id !== null && (isInPortfolio(id) || isSelectionMode(id))
 }
 
+function isEditing(item) {
+  const id = surfaceIdOf(item)
+
+  return id !== null && isSelectionMode(id)
+}
+
 /*
- * Клик по кнопке: неактивна -> включаем режим выбора;
- * активна -> removeSurface (убирает и месяцы, и режим из стора).
+ * Кнопка только включает/выключает режим выбора месяцев. Удаление —
+ * явной кнопкой «Убрать» в панели портфеля (с undo).
  */
 function toggleFoundPfMode(item) {
   const id = surfaceIdOf(item)
@@ -277,15 +283,11 @@ function toggleFoundPfMode(item) {
     return
   }
 
-  if (isSurfaceActive(item)) {
-    removeSurface(id)
-  } else {
-    toggleSelectionMode(id)
-  }
+  setSelectionMode(id, !isSelectionMode(id))
 }
 
 function onFoundMonthClick(item, month) {
-  if (!isSurfaceActive(item)) {
+  if (!isEditing(item)) {
     return
   }
 

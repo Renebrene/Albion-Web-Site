@@ -288,7 +288,7 @@
                         class="card-block"
                         :class="[
                           `card-block--${block.kind}`,
-                          { 'pf-mode': isBlockActive(block) }
+                          { 'pf-mode': isBlockEditing(block) }
                         ]"
                       >
                         <div class="card-topline">
@@ -441,12 +441,12 @@
                                       month.full
                                     ),
                                     'is-locked':
-                                      isBlockActive(block) &&
+                                      isBlockEditing(block) &&
                                       !isSideFree(block, month.full)
                                   }
                                 ]"
                                 :disabled="
-                                  !isBlockActive(block) ||
+                                  !isBlockEditing(block) ||
                                   isSideMonthLocked(block, month.full)
                                 "
                                 :aria-pressed="
@@ -485,12 +485,12 @@
                                         surfaceIdOf(row) !== null &&
                                         isMonthSelected(row.id, month.full),
                                       'is-locked':
-                                        isBlockActive(block) &&
+                                        isBlockEditing(block) &&
                                         isMonthLocked(row, month.full)
                                     }
                                   ]"
                                   :disabled="
-                                    !isBlockActive(block) ||
+                                    !isBlockEditing(block) ||
                                     isMonthLocked(row, month.full)
                                   "
                                   :aria-pressed="
@@ -527,12 +527,12 @@
                                     month.full
                                   ),
                                 'is-locked':
-                                  isBlockActive(block) &&
+                                  isBlockEditing(block) &&
                                   isMonthLocked(blockPrimary(block), month.full)
                               }
                             ]"
                             :disabled="
-                              !isBlockActive(block) ||
+                              !isBlockEditing(block) ||
                               isMonthLocked(blockPrimary(block), month.full)
                             "
                             :aria-pressed="
@@ -567,9 +567,11 @@
                             class="card-pf-toggle"
                             :class="{ 'is-active': isBlockActive(block) }"
                             :title="
-                              isBlockActive(block)
-                                ? 'Убрать из портфеля'
-                                : 'Добавить в портфель'
+                              isBlockEditing(block)
+                                ? 'Скрыть выбор месяцев'
+                                : isBlockActive(block)
+                                  ? 'Изменить месяцы'
+                                  : 'Добавить в портфель'
                             "
                             @click="toggleBlockPfMode(block)"
                           >
@@ -678,6 +680,18 @@
         <div class="map-tools">
           <button
             class="tool"
+            :title="
+              linkCopied
+                ? 'Ссылка скопирована'
+                : 'Скопировать ссылку на фильтры'
+            "
+            @click="shareCurrentLink"
+          >
+            {{ linkCopied ? '✓' : '⤴' }}
+          </button>
+
+          <button
+            class="tool"
             title="Сбросить фильтры"
             @click="resetAllFilters"
           >
@@ -706,6 +720,8 @@ import {
 } from '../utils/constructionGroups'
 import { availableMode } from '../config/availableMode'
 import { showDynCount } from '../config/dynCount'
+import { urlStateMode, urlStateTokenFormat } from '../config/urlStateMode'
+import { decodeUrlState, encodeUrlState } from '../utils/urlState'
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -767,7 +783,7 @@ function isSideMonthSelected(block, month) {
  * свободным. Иначе при частичном выборе клик инвертировал состояние.
  */
 function onSideMonthClick(block, month) {
-  if (!isBlockActive(block)) {
+  if (!isBlockEditing(block)) {
     return
   }
 
@@ -984,9 +1000,8 @@ const {
   isInPortfolio,
   isMonthSelected,
   isSelectionMode,
-  toggleSelectionMode,
+  setSelectionMode,
   toggleMonth,
-  removeSurface,
   syncWithConstructions,
   items: portfolioItems,
   selectionMode: portfolioSelectionMode
@@ -1116,8 +1131,8 @@ function blockSurfaceIds(block) {
 }
 
 /*
- * Блок активен (розовая кнопка, кликабельные месяцы), если ЛЮБАЯ его
- * поверхность уже в портфеле или для неё включён режим выбора.
+ * Кнопка «Портфель» активна, если ЛЮБАЯ поверхность блока уже в портфеле
+ * или для неё включён режим выбора.
  */
 function isBlockActive(block) {
   return blockSurfaceIds(block).some(
@@ -1125,11 +1140,15 @@ function isBlockActive(block) {
   )
 }
 
+/* Месяцы кликабельны только в режиме редактирования (не просто «в портфеле»). */
+function isBlockEditing(block) {
+  return blockSurfaceIds(block).some(id => isSelectionMode(id))
+}
+
 /*
- * Клик по кнопке-переключателю (детерминированно, без «слепого» toggle):
- *   неактивна -> включаем режим выбора;
- *   активна   -> сбрасываем ВСЕ поверхности блока, иначе выделение
- *                остаётся на строках, которые кнопка не учитывала.
+ * Клик по кнопке-переключателю никогда не удаляет позиции: удаление —
+ * только явной кнопкой «Убрать» в панели (с undo). Здесь включаем/выключаем
+ * режим выбора месяцев для всех поверхностей блока.
  */
 function toggleBlockPfMode(block) {
   const ids = blockSurfaceIds(block)
@@ -1138,11 +1157,9 @@ function toggleBlockPfMode(block) {
     return
   }
 
-  if (isBlockActive(block)) {
-    ids.forEach(id => removeSurface(id))
-  } else {
-    toggleSelectionMode(ids[0])
-  }
+  const editing = ids.some(id => isSelectionMode(id))
+
+  ids.forEach(id => setSelectionMode(id, !editing))
 }
 
 /* Месяц стороны: выбранный можно снять, остальные — только свободные. */
@@ -1165,9 +1182,9 @@ function isMonthLocked(surface, monthFull) {
   return !isFree(surface, monthFull)
 }
 
-/* Клик по месяцу — только у активного блока. */
+/* Клик по месяцу — только в режиме редактирования блока. */
 function onCardMonthClick(block, surface, month) {
-  if (!isBlockActive(block)) {
+  if (!isBlockEditing(block)) {
     return
   }
 
@@ -1579,6 +1596,53 @@ function openListFromPoint() {
  * иначе скрытый радиус продолжит сужать выдачу. В point-режиме точка
  * остаётся — там радиус виден и является частью запроса.
  */
+/* Обратная связь кнопки «Поделиться» на 2 секунды. */
+const linkCopied = ref(false)
+let linkCopiedTimer = null
+
+function buildShareUrl() {
+  const query = buildFilterQuery()
+  const params = new URLSearchParams()
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach(item => params.append(key, String(item)))
+    } else if (value !== undefined && value !== null && value !== '') {
+      params.set(key, String(value))
+    }
+  })
+
+  const search = params.toString()
+
+  return `${window.location.origin}${route.path}${search ? `?${search}` : ''}`
+}
+
+async function shareCurrentLink() {
+  const url = buildShareUrl()
+
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(url)
+    } else {
+      window.prompt('Скопируйте ссылку:', url)
+      return
+    }
+
+    linkCopied.value = true
+
+    if (linkCopiedTimer) {
+      clearTimeout(linkCopiedTimer)
+    }
+
+    linkCopiedTimer = setTimeout(() => {
+      linkCopied.value = false
+      linkCopiedTimer = null
+    }, 2000)
+  } catch {
+    window.prompt('Скопируйте ссылку:', url)
+  }
+}
+
 function resetAllFilters() {
   /* Сброс отменяет и отложенные фильтры карты/списка. */
   stashedSearchQuery = ''
@@ -1831,7 +1895,8 @@ const MANAGED_FILTER_KEYS = [
   'lat',
   'lng',
   'radius',
-  'addr'
+  'addr',
+  's'
 ]
 let urlWriteTimer = null
 /* Состояние карты/списка, отложенное на время point-режима. */
@@ -1883,11 +1948,18 @@ function canonicalQuery(query) {
 
 function applyFiltersFromUrl() {
   /*
+   * Компактный токен ?s=... и читаемые параметры ?city=... — один и тот
+   * же набор полей. Если токен битый, молча откатываемся к читаемой схеме.
+   */
+  const compactState = route.query.s ? decodeUrlState(route.query.s) : null
+  const source = compactState || {}
+
+  /*
    * Точка из URL. Применяем до городов: pointResultsActive должен быть
    * уже истинным, иначе городской фильтр скроет часть выдачи.
    */
-  const lat = Number(route.query.lat)
-  const lng = Number(route.query.lng)
+  const lat = compactState ? Number(source.point?.lat) : Number(route.query.lat)
+  const lng = compactState ? Number(source.point?.lng) : Number(route.query.lng)
   const hasPoint = Number.isFinite(lat) && Number.isFinite(lng)
 
   if (hasPoint) {
@@ -1901,13 +1973,17 @@ function applyFiltersFromUrl() {
     pointCoordinates.value = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
     pointSelectionState.value = 'fixed'
 
-    const radius = Number(route.query.radius)
+    const radius = compactState
+      ? Number(source.radius)
+      : Number(route.query.radius)
 
     if (Number.isFinite(radius) && radius > 0) {
       pointRadius.value = radius
     }
 
-    const addressFromUrl = String(route.query.addr || '').trim()
+    const addressFromUrl = String(
+      compactState ? source.address || '' : route.query.addr || ''
+    ).trim()
 
     if (addressFromUrl) {
       pointAddress.value = addressFromUrl
@@ -1930,7 +2006,9 @@ function applyFiltersFromUrl() {
    * Пустой набор = «все города», неизвестный город — тоже без фильтра.
    */
   if (!pointResultsActive.value) {
-    const requestedCities = queryValues(route.query.city)
+    const requestedCities = queryValues(
+      compactState ? source.cities : route.query.city
+    )
     const nextCities = requestedCities.length
       ? cities.value.filter(city => requestedCities.includes(city))
       : []
@@ -1945,7 +2023,9 @@ function applyFiltersFromUrl() {
     }
   }
 
-  const requestedTypes = queryValues(route.query.type)
+  const requestedTypes = queryValues(
+    compactState ? source.types : route.query.type
+  )
   const matchedTypes = requestedTypes.length
     ? types.value.filter(type => requestedTypes.includes(type))
     : [...types.value]
@@ -1959,16 +2039,20 @@ function applyFiltersFromUrl() {
   }
 
   const availableMonths = months.value.map(month => month.value)
-  const requestedMonths = queryValues(route.query.months).filter(month =>
-    availableMonths.includes(month)
-  )
+  const requestedMonths = queryValues(
+    compactState ? source.months : route.query.months
+  ).filter(month => availableMonths.includes(month))
 
   if (!sameSelection(selectedMonths.value, requestedMonths)) {
     selectedMonths.value = requestedMonths
   }
 
   const nextLogic =
-    String(route.query.monthLogic || '').toUpperCase() === 'AND' ? 'AND' : 'OR'
+    String(
+      compactState ? source.monthLogic : route.query.monthLogic || ''
+    ).toUpperCase() === 'AND'
+      ? 'AND'
+      : 'OR'
 
   if (monthLogic.value !== nextLogic) {
     monthLogic.value = nextLogic
@@ -1980,7 +2064,9 @@ function applyFiltersFromUrl() {
    * должен скрыто сужать выдачу.
    */
   if (!pointResultsActive.value) {
-    const nextAddress = String(route.query.address || '').trim()
+    const nextAddress = String(
+      compactState ? source.searchQuery || '' : route.query.address || ''
+    ).trim()
 
     if (String(searchQuery.value || '').trim() !== nextAddress) {
       searchQuery.value = nextAddress
@@ -1992,7 +2078,9 @@ function applyFiltersFromUrl() {
    * watcher (map/list), чтобы не ломать их поведение.
    */
   if (route.query.chat !== '1') {
-    const requestedMode = String(route.query.mode || '')
+    const requestedMode = String(
+      compactState ? source.mode || '' : route.query.mode || ''
+    )
 
     if (
       requestedMode === 'map' ||
@@ -2055,6 +2143,44 @@ function buildFilterQuery() {
 
   if (address) {
     query.address = address
+  }
+
+  /*
+   * Компактный режим: одно поле ?s= вместо набора параметров.
+   * Если токен не помещается в лимит, откатываемся к читаемой схеме.
+   */
+  if (urlStateMode.value === 'compact') {
+    try {
+      query.s = encodeUrlState(
+        {
+          mode: workspaceMode.value,
+          cities:
+            cityValues.length && cityValues.length < cities.value.length
+              ? cityValues
+              : [],
+          types:
+            typeValues.length && typeValues.length < types.value.length
+              ? typeValues
+              : [],
+          months: selectedMonths.value,
+          monthLogic: monthLogic.value,
+          searchQuery: address,
+          address: pointAddress.value,
+          point: fixedSearchPoint.value,
+          radius: pointRadius.value
+        },
+        urlStateTokenFormat.value
+      )
+
+      /* Чат-ссылка читает режим из отдельного параметра — сохраняем его. */
+      if (route.query.chat === '1') {
+        query.mode = workspaceMode.value
+      }
+
+      return query
+    } catch {
+      /* слишком длинное состояние — ниже сработает читаемая схема */
+    }
   }
 
   /*
@@ -2483,11 +2609,19 @@ function refreshPopupState(popupRoot) {
     let sectionActive = false
 
     section.querySelectorAll('[data-pf-toggle]').forEach(button => {
-      const active = isSurfaceActive(button.getAttribute('data-pf-toggle'))
+      const id = button.getAttribute('data-pf-toggle')
+      const active = isSurfaceActive(id)
+      const editing = isSelectionMode(id)
 
       button.classList.toggle('is-active', active)
+      button.title = editing
+        ? 'Скрыть выбор месяцев'
+        : active
+          ? 'Изменить месяцы'
+          : 'Добавить в портфель'
 
-      if (active) {
+      /* Кликабельны месяцы только в режиме выбора, не просто «в портфеле». */
+      if (editing) {
         sectionActive = true
       }
     })
@@ -2571,7 +2705,10 @@ function onDocumentClick(event) {
     return
   }
 
-  // Кнопка «Портфель» в попапе: неактивна -> режим выбора; активна -> сброс.
+  /*
+   * Кнопка «Портфель» в попапе только включает/выключает режим выбора
+   * месяцев. Удаление — явной кнопкой «Убрать» в панели портфеля (с undo).
+   */
   const toggleEl = target.closest('[data-pf-toggle]')
 
   if (toggleEl) {
@@ -2581,14 +2718,7 @@ function onDocumentClick(event) {
       const popupRoot =
         toggleEl.closest('.popup') || toggleEl.closest('.albion-popup')
 
-      if (isSurfaceActive(id)) {
-        // Сброс: removeSurface удаляет и месяцы, и режим из стора,
-        // поэтому сразу снимаем рамки со всех месяцев поверхности.
-        removeSurface(id)
-        clearSurfaceMonths(popupRoot, id)
-      } else {
-        toggleSelectionMode(id)
-      }
+      setSelectionMode(id, !isSelectionMode(id))
 
       refreshPopupState(popupRoot)
     }
@@ -2768,6 +2898,11 @@ onBeforeUnmount(() => {
   if (urlWriteTimer) {
     clearTimeout(urlWriteTimer)
     urlWriteTimer = null
+  }
+
+  if (linkCopiedTimer) {
+    clearTimeout(linkCopiedTimer)
+    linkCopiedTimer = null
   }
 })
 </script>
@@ -3778,6 +3913,10 @@ onBeforeUnmount(() => {
 
   right: 24px;
   bottom: 24px;
+
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .tool {

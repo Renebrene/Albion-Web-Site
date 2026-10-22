@@ -176,6 +176,32 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "group": "sides",
         "default": "true",
     },
+    # ----------------------------------------------------------------
+    # Ссылки на каталог. Режим влияет только на генерацию: разбор всегда
+    # понимает и читаемую схему, и компактный токен.
+    # ----------------------------------------------------------------
+    {
+        "key": "url_state_mode",
+        "label": "Формат ссылки на каталог",
+        "type": "select",
+        "group": "links",
+        "options": [
+            {"label": "Читаемая (?city=…&type=…)", "value": "readable"},
+            {"label": "Компактная (?s=v1-…)", "value": "compact"},
+        ],
+        "default": "readable",
+    },
+    {
+        "key": "url_state_token_format",
+        "label": "Алфавит компактной ссылки",
+        "type": "select",
+        "group": "links",
+        "options": [
+            {"label": "Base64Url — короче", "value": "base64url"},
+            {"label": "Base32 — удобно диктовать", "value": "base32"},
+        ],
+        "default": "base64url",
+    },
 ]
 
 # Список ключей в порядке формы (для фронта)

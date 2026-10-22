@@ -54,6 +54,9 @@
             <span v-if="item.size" class="portfolio-size">
               {{ item.size }}
             </span>
+            <span v-if="!hasMonths(item)" class="portfolio-no-months">
+              месяцы не выбраны · 0 ₽
+            </span>
           </div>
 
           <!-- Мини-месяцы: клик добавляет/убирает месяц -->
@@ -289,7 +292,16 @@
         class="portfolio-toast"
         :class="`is-${toast.type}`"
       >
-        {{ toast.text }}
+        <span>{{ toast.text }}</span>
+
+        <button
+          v-if="toast.action"
+          type="button"
+          class="portfolio-toast-action"
+          @click="runToastAction"
+        >
+          {{ toast.action.label }}
+        </button>
       </div>
     </Transition>
   </div>
@@ -348,6 +360,7 @@ const {
   totalPrice,
   toggleItemMonth,
   removeSurface,
+  restoreSurface,
   clear,
   setTitle,
   saveToAccount
@@ -523,6 +536,10 @@ function addressLabel(item) {
  * Чипы месяцев: все MONTHS + возможные «чужие» месяцы позиции.
  * Выбранные подсвечены и показывают цену; stale помечается предупреждением.
  */
+function hasMonths(item) {
+  return Object.keys((item && item.months) || {}).length > 0
+}
+
 function monthChips(item) {
   const months = (item && item.months) || {}
   const prices = (item && item.prices) || {}
@@ -641,20 +658,38 @@ function onMonthClick(item, month) {
 
 // ---------------------------------------------------------------- тосты
 
-const toast = ref({ show: false, type: 'ok', text: '' })
+const toast = ref({ show: false, type: 'ok', text: '', action: null })
 
 let toastTimer = null
 
-function notify(text, type = 'ok') {
-  toast.value = { show: true, type, text }
+/* action: { label, run } — кнопка в тосте (например, «Вернуть»). */
+function notify(text, type = 'ok', action = null) {
+  toast.value = { show: true, type, text, action }
 
   if (toastTimer) {
     clearTimeout(toastTimer)
   }
 
-  toastTimer = setTimeout(() => {
-    toast.value.show = false
-  }, 3000)
+  toastTimer = setTimeout(
+    () => {
+      toast.value.show = false
+      toast.value.action = null
+    },
+    action ? 5000 : 3000
+  )
+}
+
+function runToastAction() {
+  const action = toast.value.action
+
+  if (!action || typeof action.run !== 'function') {
+    return
+  }
+
+  toast.value.show = false
+  toast.value.action = null
+
+  action.run()
 }
 
 // ---------------------------------------------------------------- действия
@@ -690,7 +725,20 @@ const exportOptions = [
 ]
 
 function removeItem(item) {
-  removeSurface(item.surfaceId)
+  const snapshot = removeSurface(item.surfaceId)
+
+  if (!snapshot) {
+    return
+  }
+
+  notify('Позиция удалена', 'ok', {
+    label: 'Вернуть',
+    run: () => {
+      if (restoreSurface(snapshot)) {
+        notify('Позиция восстановлена.')
+      }
+    }
+  })
 }
 
 /* Файл формируется на сервере и скачивается. */
@@ -1188,6 +1236,11 @@ function handleClear() {
   font-weight: 700;
 }
 
+.portfolio-no-months {
+  color: #9a6b00;
+  font-weight: 800;
+}
+
 .portfolio-months {
   display: flex;
   flex-wrap: wrap;
@@ -1426,12 +1479,33 @@ function handleClear() {
 /* --------------------------------------------------------- Тост */
 
 .portfolio-toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 12px;
+
   padding: 9px 12px;
 
   border-radius: 9px;
 
   font-size: 12px;
   font-weight: 700;
+}
+
+.portfolio-toast-action {
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  color: inherit;
+
+  cursor: pointer;
+
+  font-size: 12px;
+  font-weight: 900;
+  text-decoration: underline;
 }
 
 .portfolio-toast.is-ok {

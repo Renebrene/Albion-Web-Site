@@ -341,6 +341,17 @@ function toggleSelectionMode(surfaceId) {
   selectionMode[key] = !selectionMode[key]
 }
 
+/* Явное включение/выключение режима выбора (без «слепого» toggle). */
+function setSelectionMode(surfaceId, enabled) {
+  const key = keyOf(surfaceId)
+
+  if (enabled) {
+    selectionMode[key] = true
+  } else {
+    delete selectionMode[key]
+  }
+}
+
 /*
  * Добавляет/убирает пару (поверхность, месяц).
  *
@@ -447,11 +458,52 @@ function monthPriceOf(surfaceId, monthFull) {
   return item ? toNumber(item.prices?.[monthFull]) : null
 }
 
+/*
+ * Удаляет позицию и возвращает снимок для undo.
+ * null — если позиции уже нет.
+ */
 function removeSurface(surfaceId) {
   const key = keyOf(surfaceId)
+  const current = findItem(surfaceId)
+
+  if (!current) {
+    return null
+  }
+
+  const snapshot = {
+    index: items.value.findIndex(item => keyOf(item.surfaceId) === key),
+    selectionMode: Boolean(selectionMode[key]),
+    item: normalizeItem(cloneDeep(current))
+  }
 
   items.value = items.value.filter(item => keyOf(item.surfaceId) !== key)
   delete selectionMode[key]
+
+  return snapshot
+}
+
+/* Возвращает позицию, удалённую removeSurface(), на прежнее место. */
+function restoreSurface(snapshot) {
+  const item = snapshot ? normalizeItem(cloneDeep(snapshot.item)) : null
+
+  if (!item) {
+    return false
+  }
+
+  if (!findItem(item.surfaceId)) {
+    const index = Math.max(
+      0,
+      Math.min(Number(snapshot.index) || 0, items.value.length)
+    )
+
+    items.value.splice(index, 0, item)
+  }
+
+  if (snapshot.selectionMode) {
+    selectionMode[keyOf(item.surfaceId)] = true
+  }
+
+  return true
 }
 
 function clear() {
@@ -956,10 +1008,12 @@ export function usePortfolio() {
 
     // изменение
     toggleSelectionMode,
+    setSelectionMode,
     toggleMonth,
     toggleItemMonth,
     monthPriceOf,
     removeSurface,
+    restoreSurface,
     clear,
     setTitle,
     syncWithConstructions,

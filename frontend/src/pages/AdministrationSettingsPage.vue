@@ -106,6 +106,50 @@
       </section>
 
       <section class="section-card">
+        <div class="section-title">
+          <div>Проверка ссылок на каталог</div>
+        </div>
+
+        <div class="field">
+          <label>Состояние (JSON)</label>
+          <q-input
+            v-model="linkTestInput"
+            type="textarea"
+            outlined
+            dense
+            autogrow
+            class="link-test-input"
+          />
+        </div>
+
+        <div class="save-row">
+          <q-btn
+            outline
+            no-caps
+            dense
+            color="primary"
+            label="Проверить кодирование"
+            @click="testUrlState"
+          />
+        </div>
+
+        <div v-if="linkTestError" class="error-text">{{ linkTestError }}</div>
+
+        <div v-else-if="linkTestResult" class="link-test-result">
+          <div>
+            <b>Читаемая:</b>
+            <code>{{ linkTestResult.readable }}</code>
+          </div>
+          <div>
+            <b>Компактная:</b>
+            <code>{{ linkTestResult.compact }}</code>
+          </div>
+          <div><b>Длина токена:</b> {{ linkTestResult.length }} символов</div>
+          <pre>{{ linkTestResult.decoded }}</pre>
+        </div>
+      </section>
+
+      <section class="section-card">
         <div class="save-row">
           <q-btn
             unelevated
@@ -333,6 +377,11 @@ import { useRouter } from 'vue-router'
 import { applyAppearanceSettings } from '../boot/settings'
 import { setAvailableMode } from '../config/availableMode'
 import { setShowDynCount } from '../config/dynCount'
+import {
+  decodeUrlState,
+  describeUrlState,
+  encodeUrlState
+} from '../utils/urlState'
 
 const router = useRouter()
 
@@ -372,6 +421,27 @@ const presetBusy = ref(false)
 const error = ref('')
 
 const schema = ref([])
+
+/* ---------- Проверка ссылок на каталог ---------- */
+const linkTestInput = ref(
+  JSON.stringify(
+    {
+      mode: 'list',
+      cities: ['Ростов-на-Дону'],
+      types: ['Щит'],
+      months: ['Октябрь', 'Ноябрь'],
+      monthLogic: 'OR',
+      searchQuery: '',
+      point: null,
+      radius: null,
+      address: ''
+    },
+    null,
+    2
+  )
+)
+const linkTestError = ref('')
+const linkTestResult = ref(null)
 
 /* ---------- Albion: отдельные настройки, секрет не возвращается ---------- */
 const albion = ref({
@@ -486,10 +556,11 @@ async function clearAlbionToken() {
 const GROUP_TITLES = {
   map: 'Карта',
   sides: 'Отображение сторон',
+  links: 'Ссылки и QR',
   appearance: 'Параметры внешнего вида'
 }
 
-const GROUP_ORDER = ['map', 'sides', 'appearance']
+const GROUP_ORDER = ['map', 'sides', 'links', 'appearance']
 
 const fieldGroups = computed(() => {
   const groups = new Map()
@@ -587,6 +658,78 @@ async function save() {
     notify(String(exc), 'error')
   } finally {
     saving.value = false
+  }
+}
+
+/*
+ * Панель проверки ссылок: показывает обе схемы для одного состояния
+ * и декодирует компактный токен обратно. Нужна, чтобы переключать
+ * формат и проверять совместимость без публикации.
+ */
+function testUrlState() {
+  linkTestError.value = ''
+  linkTestResult.value = null
+
+  let state
+
+  try {
+    state = JSON.parse(linkTestInput.value)
+  } catch {
+    linkTestError.value = 'Некорректный JSON состояния.'
+    return
+  }
+
+  try {
+    const params = new URLSearchParams()
+    const mode = String(state.mode || 'map')
+    params.set('mode', mode)
+
+    if (Array.isArray(state.cities) && state.cities.length) {
+      params.set('city', state.cities.join(','))
+    }
+
+    if (Array.isArray(state.types) && state.types.length) {
+      params.set('type', state.types.join(','))
+    }
+
+    if (Array.isArray(state.months) && state.months.length) {
+      params.set('months', state.months.join(','))
+    }
+
+    if (state.monthLogic === 'AND') {
+      params.set('monthLogic', 'AND')
+    }
+
+    if (state.searchQuery) {
+      params.set('address', state.searchQuery)
+    }
+
+    if (state.point) {
+      params.set('lat', String(state.point.lat))
+      params.set('lng', String(state.point.lng))
+    }
+
+    if (state.radius) {
+      params.set('radius', String(state.radius))
+    }
+
+    if (state.address) {
+      params.set('addr', state.address)
+    }
+
+    const format =
+      values.value.url_state_token_format === 'base32' ? 'base32' : 'base64url'
+    const compact = encodeUrlState(state, format)
+    const decoded = decodeUrlState(compact)
+
+    linkTestResult.value = {
+      readable: `/vozmozhnosti?${params.toString()}`,
+      compact: `/vozmozhnosti?s=${compact}`,
+      length: compact.length,
+      decoded: decoded ? describeUrlState(decoded) : 'Не удалось декодировать'
+    }
+  } catch (exc) {
+    linkTestError.value = String(exc?.message || exc)
   }
 }
 
@@ -935,6 +1078,42 @@ onMounted(() => {
 .toast-leave-to {
   opacity: 0;
   transform: translateY(8px);
+}
+
+.link-test-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+
+  margin-top: 14px;
+
+  font-size: 12px;
+}
+
+.link-test-result code {
+  display: inline-block;
+
+  max-width: 100%;
+  padding: 3px 6px;
+
+  overflow-wrap: anywhere;
+
+  border-radius: 5px;
+  background: #f1f3f4;
+}
+
+.link-test-result pre {
+  max-height: 260px;
+  margin: 0;
+  padding: 10px;
+
+  overflow: auto;
+
+  border-radius: 8px;
+  background: #f7f8f9;
+
+  font-size: 11px;
+  line-height: 1.45;
 }
 
 @media (max-width: 700px) {

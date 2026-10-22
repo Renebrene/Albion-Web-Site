@@ -92,6 +92,12 @@ function portfolioBlock(item) {
   }
 
   const active = isSurfaceActive(surfaceId)
+  const editing = portfolio.isSelectionMode(surfaceId)
+  const title = editing
+    ? 'Скрыть выбор месяцев'
+    : active
+      ? 'Изменить месяцы'
+      : 'Добавить в портфель'
 
   return `
     <div class="popup-portfolio">
@@ -99,7 +105,7 @@ function portfolioBlock(item) {
         type="button"
         class="popup-pf-toggle${active ? ' is-active' : ''}"
         data-pf-toggle="${escapeHtml(String(surfaceId))}"
-        title="${active ? 'Убрать из портфеля' : 'Добавить в портфель'}"
+        title="${title}"
       >
         <i class="material-icons popup-pf-icon">work_outline</i>
         <span class="popup-pf-label">Портфель</span>
@@ -363,14 +369,16 @@ function featuresBlock(item, isDynamic, surfaceCount = 0) {
  * месяцы соседней.
  */
 function groupActive(items) {
-  return (items || []).some(item => isSurfaceActive(surfaceIdOf(item)))
+  return (items || []).some(item =>
+    portfolio.isSelectionMode(surfaceIdOf(item))
+  )
 }
 
 /* ---------------------------------------------------------------- блоки */
 
 /* Статичная сторона: обычная карточка */
 function sideCard(item) {
-  const mode = isSurfaceActive(surfaceIdOf(item)) ? ' pf-mode' : ''
+  const mode = portfolio.isSelectionMode(surfaceIdOf(item)) ? ' pf-mode' : ''
 
   return `
     <section class="popup-side-card${mode}">
@@ -473,7 +481,7 @@ function dynamicBlock(group) {
 
 /* Видеоэкран: всегда динамический, месяцы в одну строку */
 function videoBlock(item) {
-  const mode = isSurfaceActive(surfaceIdOf(item)) ? ' pf-mode' : ''
+  const mode = portfolio.isSelectionMode(surfaceIdOf(item)) ? ' pf-mode' : ''
 
   return `
     <section class="popup-side-card popup-side-card--video${mode}">

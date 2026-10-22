@@ -17,6 +17,7 @@ import {
 } from '../config/mapColors'
 import { setAvailableMode } from '../config/availableMode'
 import { setShowDynCount } from '../config/dynCount'
+import { setUrlStateMode, setUrlStateTokenFormat } from '../config/urlStateMode'
 import { applySiteFonts } from '../config/fontLoader'
 
 const SYSTEM_FONT_STACK =
@@ -104,6 +105,10 @@ export function applyAppearanceSettings(settings) {
 
   /* Показ количества поверхностей у динамики (см. config/dynCount.js). */
   setShowDynCount(settings.show_dyn_count)
+
+  /* Формат ссылок: читаемый или компактный токен (см. config/urlStateMode.js). */
+  setUrlStateMode(settings.url_state_mode)
+  setUrlStateTokenFormat(settings.url_state_token_format)
 
   /*
    * Цвета точек на карте (см. config/mapColors.js). Применяем и в JS
