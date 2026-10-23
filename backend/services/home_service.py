@@ -8,7 +8,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from backend.services.data_service import get_connection
+from pathlib import Path
+
+from backend.services.data_service import PROJECT_DIR, get_connection
 from backend.services.cms_url import clean_cms_url
 from backend.services.media_paths import (
     fetch_active_import_key,
@@ -67,6 +69,43 @@ def _button_dict(row) -> dict:
     }
 
 
+def _webp_exists(url: str) -> bool:
+    if not url.endswith(".webp"):
+        return False
+
+    return (Path(PROJECT_DIR) / url.lstrip("/")).is_file()
+
+
+def _slide_image(
+    image_path: str | None,
+    kind: str,
+    active_key: str | None,
+) -> str:
+    """Слайд/hero получает WebP: hero — large 1600, обычный слайд — card 640."""
+    raw = str(image_path or "").strip()
+
+    if raw.startswith(("http://", "https://")):
+        return raw
+
+    url = resolve_import_url(raw, active_key)
+
+    if not url or not url.lower().endswith((".jpg", ".jpeg")):
+        return url
+
+    if kind == "hero" and "/photo/card/" in url:
+        large = f"{url.replace('/photo/card/', '/photo/large/')[:-4]}.webp"
+
+        if _webp_exists(large):
+            return large
+
+    candidate = f"{url[:-4]}.webp"
+
+    if _webp_exists(candidate):
+        return candidate
+
+    return url
+
+
 def _slide_dict(row, active_key: str | None = None) -> dict:
     (
         slide_id,
@@ -81,16 +120,18 @@ def _slide_dict(row, active_key: str | None = None) -> dict:
         is_active,
     ) = row
 
+    slide_kind = kind or ("hero" if is_hero else "text")
+
     return {
         "id": slide_id,
         "sort_order": sort_order,
         "is_hero": is_hero,
-        "kind": kind or ("hero" if is_hero else "text"),
+        "kind": slide_kind,
         "title": title or "",
         "text": text or "",
         "button_label": button_label or "",
         "button_url": button_url or "",
-        "image": resolve_import_url(image_path, active_key),
+        "image": _slide_image(image_path, slide_kind, active_key),
         "is_active": is_active,
         "buttons": [],
         "items": [],
@@ -127,7 +168,7 @@ def _item_dict(row, active_key: str | None = None) -> dict:
         "button_url": button_url or "",
         "button2_label": button2_label or "",
         "button2_url": button2_url or "",
-        "image": resolve_import_url(image_path, active_key),
+        "image": _slide_image(image_path, "item", active_key),
         "extra": extra or "",
         "is_active": is_active,
         "buttons": [],

@@ -26,6 +26,24 @@ def _media_url(storage_path: str | None) -> str:
     return f'/storage/{value}'
 
 
+def _resolve_photo_path(path: str | None, active_key: str | None) -> str:
+    """Приводит путь к URL; поддерживает `storage/...` и `media/...`."""
+    value = str(path or '').strip()
+
+    if not value:
+        return ''
+
+    if value.startswith(('http://', 'https://')):
+        return value
+
+    if value.startswith('storage/'):
+        value = f'/{value}'
+    elif not value.startswith('/'):
+        value = f'/storage/{value}'
+
+    return resolve_import_url(value, active_key)
+
+
 def _map_href(kind: str, value: str, enabled: bool) -> str:
     """Ссылка на интерактивную карту с выбранным направлением.
 
@@ -62,7 +80,21 @@ def _photos(conn, attraction_ids: list[int], *, active_only: bool) -> dict[int, 
         """
         SELECT p.id, p.attraction_id, p.media_id, p.image_path,
                p.alt_text, p.source_name, p.source_url, p.license,
-               p.sort_order, p.is_cover, m.storage_path
+               p.sort_order, p.is_cover, m.storage_path,
+               (
+                   SELECT v.storage_path
+                   FROM media_variants v
+                   WHERE v.media_id = m.id AND v.variant = 'card'
+                   ORDER BY v.id
+                   LIMIT 1
+               ) AS card_path,
+               (
+                   SELECT v.storage_path
+                   FROM media_variants v
+                   WHERE v.media_id = m.id AND v.variant = 'thumb'
+                   ORDER BY v.id
+                   LIMIT 1
+               ) AS thumb_path
         FROM home_geo_attraction_photos p
         LEFT JOIN media m ON m.id = p.media_id
         WHERE p.attraction_id = ANY(%s)
@@ -73,11 +105,14 @@ def _photos(conn, attraction_ids: list[int], *, active_only: bool) -> dict[int, 
     result: dict[int, list[dict]] = {}
     active_key = fetch_active_import_key(conn)
     for row in rows:
-        path = row[3] or _media_url(row[10])
+        # Для geo-карточек достаточно card 640px WebP; оригинал (до 1 МБ)
+        # не тянем. card/thumb важнее явного image_path: в нём часто лежит
+        # тот же оригинал из /storage/media.
+        path = row[11] or row[12] or row[3] or row[10]
         item = {
             'id': row[0],
             'media_id': row[2],
-            'url': resolve_import_url(path, active_key),
+            'url': _resolve_photo_path(path, active_key),
             'alt': row[4] or '',
             'source_name': row[5] or '',
             'source_url': _safe_source(row[6]),
