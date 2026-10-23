@@ -9,10 +9,14 @@
         :placeholder="disabled ? disabledPlaceholder : placeholder"
         :disabled="disabled"
         autocomplete="off"
+        role="combobox"
+        aria-autocomplete="list"
+        aria-controls="search-suggestions"
+        :aria-expanded="showSuggestions ? 'true' : 'false'"
+        :aria-activedescendant="activeDescendant"
         @input="onInput"
         @focus="onFocus"
-        @keydown.enter="onSearch"
-        @keydown.esc="clearSuggestions"
+        @keydown="onKeydown"
         @blur="onBlur"
       />
 
@@ -53,6 +57,8 @@
     <!-- Подсказки геокодера: только в режиме поиска по точке и адресу. -->
     <div
       v-if="showSuggestions"
+      id="search-suggestions"
+      ref="suggestionsRef"
       class="search-suggestions"
       role="listbox"
       aria-label="Подсказки адреса"
@@ -68,12 +74,16 @@
         {{ suggestError }}
       </div>
       <button
-        v-for="suggestion in suggestions"
-        :key="suggestion.id"
+        v-for="(suggestion, index) in suggestions"
+        :id="suggestionOptionId(index)"
+        :key="suggestion.id || index"
         type="button"
         class="search-suggestion"
+        :class="{ 'is-active': index === activeIndex }"
         role="option"
+        :aria-selected="index === activeIndex ? 'true' : 'false'"
         @mousedown.prevent
+        @mouseenter="activeIndex = index"
         @click="selectSuggestion(suggestion)"
       >
         <span class="search-suggestion-title">
@@ -88,7 +98,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import { suggestAddress } from '../../services/geoApi'
 
@@ -163,6 +173,26 @@ let suggestTimer = null
 let suggestSeq = 0
 let blurTimer = null
 
+/* Активная подсказка для клавиатуры: -1 — ни одна. */
+const activeIndex = ref(-1)
+const suggestionsRef = ref(null)
+
+const activeSuggestion = computed(() =>
+  activeIndex.value >= 0 ? suggestions.value[activeIndex.value] || null : null
+)
+
+function suggestionOptionId(index) {
+  return `search-suggestion-opt-${index}`
+}
+
+const activeDescendant = computed(() => {
+  const index = activeIndex.value
+
+  return index >= 0 && suggestions.value[index]
+    ? suggestionOptionId(index)
+    : undefined
+})
+
 function clearBlurTimer() {
   if (blurTimer) {
     clearTimeout(blurTimer)
@@ -183,6 +213,7 @@ function clearSuggestions() {
   suggestError.value = ''
   suggestLoading.value = false
   suggestSeq += 1
+  activeIndex.value = -1
 
   clearBlurTimer()
 
@@ -190,6 +221,69 @@ function clearSuggestions() {
     clearTimeout(suggestTimer)
     suggestTimer = null
   }
+}
+
+/* Выбранная стрелками подсказка не должна уезжать за пределы списка. */
+async function scrollActiveIntoView() {
+  await nextTick()
+
+  const list = suggestionsRef.value
+
+  if (!list) {
+    return
+  }
+
+  const active = list.querySelector('.search-suggestion.is-active')
+
+  active?.scrollIntoView({ block: 'nearest' })
+}
+
+/*
+ * Клавиатура в подсказках: ↑/↓ — выбор, Enter — подставить, Esc — закрыть.
+ * Без этого список был доступен только мышью.
+ */
+function onKeydown(event) {
+  const key = event.key
+
+  if (key === 'Escape') {
+    clearSuggestions()
+    return
+  }
+
+  if (key === 'Enter') {
+    if (activeSuggestion.value) {
+      event.preventDefault()
+      selectSuggestion(activeSuggestion.value)
+      return
+    }
+
+    onSearch()
+    return
+  }
+
+  if (key !== 'ArrowDown' && key !== 'ArrowUp') {
+    return
+  }
+
+  const count = suggestions.value.length
+
+  if (!count) {
+    return
+  }
+
+  /* Иначе каретка прыгает в начало/конец поля. */
+  event.preventDefault()
+
+  const step = key === 'ArrowDown' ? 1 : -1
+
+  activeIndex.value =
+    activeIndex.value < 0
+      ? step > 0
+        ? 0
+        : count - 1
+      : (activeIndex.value + step + count) % count
+
+  void scrollActiveIntoView()
 }
 
 async function loadSuggestions(query) {
@@ -214,6 +308,8 @@ async function loadSuggestions(query) {
     suggestions.value = Array.isArray(result?.suggestions)
       ? result.suggestions
       : []
+
+    activeIndex.value = -1
   } catch (error) {
     if (seq === suggestSeq) {
       suggestions.value = []
@@ -501,7 +597,8 @@ onBeforeUnmount(clearSuggestions)
 }
 
 .search-suggestion:hover,
-.search-suggestion:focus-visible {
+.search-suggestion:focus-visible,
+.search-suggestion.is-active {
   background: #f0f3f4;
 }
 
