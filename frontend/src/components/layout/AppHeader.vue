@@ -100,12 +100,21 @@
 
     <!-- СОЦСЕТИ -->
     <div class="socials">
-      <a href="#" class="social vk" title="ВКонтакте" aria-label="ВКонтакте">
+      <a
+        href="https://vk.ru/albion_su"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="social vk"
+        title="ВКонтакте"
+        aria-label="ВКонтакте"
+      >
         VK
       </a>
 
       <a
-        href="#"
+        href="https://ok.ru/albionsu"
+        target="_blank"
+        rel="noopener noreferrer"
         class="social ok"
         title="Одноклассники"
         aria-label="Одноклассники"
@@ -113,7 +122,16 @@
         OK
       </a>
 
-      <a href="#" class="social max" title="Макс" aria-label="Макс"> Макс </a>
+      <a
+        href="https://web.max.ru/216596265"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="social max"
+        title="Макс"
+        aria-label="Макс"
+      >
+        Макс
+      </a>
     </div>
 
     <!-- УМНЫЙ ЧАТ — открывает окно вниз, размером как «Портфель».
