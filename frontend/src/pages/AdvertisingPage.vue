@@ -149,7 +149,31 @@
               @pointerup="finishPointTargetDrag"
               @pointercancel="cancelPointTargetDrag"
             >
-              <span></span>
+              <!--
+                Метка-домик: остриё снизу — это и есть точка поиска.
+                Координаты в панели берутся под остриём, а не под центром.
+              -->
+              <svg
+                class="point-target-pin"
+                viewBox="0 0 42 50"
+                width="42"
+                height="50"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path
+                  class="point-target-pin__body"
+                  d="M21 48C21 48 5 29.5 5 19A16 16 0 1 1 37 19C37 29.5 21 48 21 48Z"
+                />
+                <path
+                  class="point-target-pin__house"
+                  d="M21 9.5 11.5 17.5H14V27.5H28V17.5H30.5L21 9.5Z"
+                />
+                <path
+                  class="point-target-pin__door"
+                  d="M18.6 27.5V21.6H23.4V27.5"
+                />
+              </svg>
             </div>
 
             <!--
@@ -1176,9 +1200,9 @@ function updatePointCoordinatesFromMap(center) {
   }
 
   /*
-   * Координаты берём под мишенью, а не в центре карты: после перетаскивания
-   * мишень может стоять в любом месте экрана. Если мишени нет — фолбэк
-   * на центр карты.
+   * Координаты берём под остриём метки, а не в центре карты: после
+   * перетаскивания метка может стоять в любом месте экрана. Остриё —
+   * нижний центр габаритов. Если метки нет — фолбэк на центр карты.
    */
   let lat = Number(center?.lat)
   let lng = Number(center?.lng)
@@ -1189,7 +1213,7 @@ function updatePointCoordinatesFromMap(center) {
     const rect = target.getBoundingClientRect()
     const coordinates = mapViewRef.value.getCoordinatesAtScreenPoint(
       rect.left + rect.width / 2,
-      rect.top + rect.height / 2
+      rect.top + rect.height
     )
 
     if (coordinates) {
@@ -1222,9 +1246,13 @@ function startPointTargetDrag(event) {
 
   const targetRect = target.getBoundingClientRect()
 
+  /*
+   * Опорная точка — остриё пина (нижний центр), а не центр габаритов:
+   * иначе при перетаскивании метка «прыгает» вверх на половину высоты.
+   */
   pointTargetPointerOffset.value = {
     x: event.clientX - (targetRect.left + targetRect.width / 2),
-    y: event.clientY - (targetRect.top + targetRect.height / 2)
+    y: event.clientY - (targetRect.top + targetRect.height)
   }
 
   isDraggingPointTarget.value = true
@@ -1272,9 +1300,13 @@ function movePointTarget(event) {
     y
   }
 
+  /*
+   * Координаты — под остриём метки (x/y считаются от угла карты), а не
+   * под курсором: метку можно тащить за любое место корпуса.
+   */
   const coordinates = mapViewRef.value?.getCoordinatesAtScreenPoint(
-    event.clientX,
-    event.clientY
+    rect.left + x,
+    rect.top + y
   )
 
   if (!coordinates) {
@@ -3956,10 +3988,13 @@ onBeforeUnmount(() => {
   left: 50%;
   top: 50%;
 
-  width: 38px;
-  height: 38px;
+  /* Размер — по габаритам пина: 42×50. */
+  width: 42px;
+  height: 50px;
 
-  transform: translate(-50%, -50%);
+  /* Остриё пина — в точке: сдвигаем вверх на всю высоту. */
+  transform: translate(-50%, -100%);
+  transform-origin: 50% 100%;
 
   z-index: 900;
 
@@ -3970,7 +4005,7 @@ onBeforeUnmount(() => {
 
 .point-map-crosshair.dragging {
   cursor: grabbing;
-  transform: translate(-50%, -50%) scale(1.08);
+  transform: translate(-50%, -100%) scale(1.08);
 }
 
 .point-map-crosshair.pending {
@@ -4168,52 +4203,50 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Мишень поиска: двойное кольцо (тёмное + акцент) и центральная точка. */
-.point-map-crosshair::before {
-  content: '';
+/* Метка поиска: пин-домик, остриё снизу указывает на точку. */
+.point-target-pin {
+  display: block;
+  overflow: visible;
 
-  position: absolute;
-  inset: 3px;
-
-  border: 2px solid rgba(23, 33, 43, 0.8);
-  border-radius: 50%;
-
-  box-shadow: 0 1px 6px rgba(23, 33, 43, 0.18);
+  filter: drop-shadow(0 2px 5px rgba(23, 33, 43, 0.35));
 }
 
+.point-target-pin__body {
+  fill: var(--albion-accent);
+  stroke: #fff;
+  stroke-width: 3;
+}
+
+.point-target-pin__house {
+  fill: #fff;
+}
+
+.point-target-pin__door {
+  fill: none;
+  stroke: var(--albion-accent);
+  stroke-width: 2.2;
+  stroke-linejoin: round;
+}
+
+/* Точка выбрана и ждёт фиксации — мягкая пульсация у острия. */
 .point-map-crosshair::after {
   content: '';
 
   position: absolute;
-  inset: 10px;
-
-  border: 2px solid var(--albion-accent);
-  border-radius: 50%;
-}
-
-.point-map-crosshair span {
-  position: absolute;
-
   left: 50%;
-  top: 50%;
+  bottom: 0;
 
-  width: 9px;
-  height: 9px;
+  width: 14px;
+  height: 14px;
 
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, 50%);
 
-  border: 2px solid #fff;
   border-radius: 50%;
 
-  background: var(--albion-accent);
-
-  box-shadow: 0 1px 4px rgba(23, 33, 43, 0.4);
+  pointer-events: none;
 }
 
-/* Точка выбрана и ждёт фиксации — мягкая пульсация. */
-.point-map-crosshair.pending::before {
-  border-color: var(--albion-accent);
-
+.point-map-crosshair.pending::after {
   animation: crosshair-pulse 1.4s ease-out infinite;
 }
 
@@ -4224,7 +4257,7 @@ onBeforeUnmount(() => {
   }
 
   50% {
-    box-shadow: 0 0 0 8px rgba(225, 42, 31, 0.12);
+    box-shadow: 0 0 0 9px rgba(225, 42, 31, 0.18);
   }
 }
 </style>
