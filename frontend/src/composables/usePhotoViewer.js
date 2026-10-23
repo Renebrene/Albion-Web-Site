@@ -313,20 +313,26 @@ function onDocumentClick(event) {
 
 /*
  * Клавиатура: элемент фото — div с role="button" и tabindex, поэтому
- * Enter/Space должны работать так же, как клик. В полях ввода не мешаем.
+ * Enter/Space должны работать так же, как клик.
+ *
+ * Вложенные интерактивные элементы не перехватываем: иначе Enter на
+ * кнопке «Фото/Карта» внутри карточки открывал просмотрщик вместо
+ * переключения, и действие срабатывало дважды.
  */
+const INTERACTIVE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'A'])
+
 function onDocumentKeydown(event) {
   if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') {
     return
   }
 
-  const tag = event.target && event.target.tagName
+  const target = event.target
 
-  if (tag === 'INPUT' || tag === 'TEXTAREA') {
+  if (INTERACTIVE_TAGS.has(target?.tagName) || target?.isContentEditable) {
     return
   }
 
-  if (openPhotoFromTarget(event.target)) {
+  if (openPhotoFromTarget(target)) {
     event.preventDefault()
   }
 }

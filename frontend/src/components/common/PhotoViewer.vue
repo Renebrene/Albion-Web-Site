@@ -26,12 +26,18 @@
       <!-- Крупное изображение, вписанное в экран -->
       <div class="photo-viewer__body">
         <img
-          v-if="url"
+          v-if="url && !imageFailed"
           :key="url"
           :src="url"
           :alt="title || 'Фото конструкции'"
           class="photo-viewer__image"
+          @error="imageFailed = true"
         />
+
+        <!-- Файл не загрузился: сообщение вместо пустого экрана. -->
+        <div v-else-if="url" class="photo-viewer__fallback" role="alert">
+          Не удалось загрузить изображение
+        </div>
 
         <!-- Переключатель: стрелки и точки — как в карусели новостей -->
         <template v-if="images.length > 1">
@@ -91,7 +97,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 
 import {
   sanitizeFileName,
@@ -117,6 +123,43 @@ const {
 } = usePhotoViewer()
 
 const downloading = ref(false)
+
+/* Файл не открылся (404/битая ссылка) — показываем сообщение. */
+const imageFailed = ref(false)
+
+watch(url, () => {
+  imageFailed.value = false
+})
+
+/*
+ * Стрелки ←/→ переключают изображения, пока окно открыто. Esc закрывает
+ * сам q-dialog. Обработчик живёт только на время просмотра.
+ */
+function onViewerKeydown(event) {
+  if (images.value.length < 2) {
+    return
+  }
+
+  if (event.key === 'ArrowLeft') {
+    event.preventDefault()
+    prevImage()
+  } else if (event.key === 'ArrowRight') {
+    event.preventDefault()
+    nextImage()
+  }
+}
+
+watch(isOpen, open => {
+  if (open) {
+    document.addEventListener('keydown', onViewerKeydown)
+  } else {
+    document.removeEventListener('keydown', onViewerKeydown)
+  }
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onViewerKeydown)
+})
 
 /* Временная ссылка -> клик -> освобождение blob-URL. */
 function triggerDownload(href, name) {
@@ -272,6 +315,24 @@ async function handleDownload() {
   object-fit: contain;
 
   border-radius: 8px;
+}
+
+/* Изображение не загрузилось — понятное сообщение вместо пустоты. */
+.photo-viewer__fallback {
+  display: grid;
+  place-items: center;
+
+  min-width: min(420px, 80vw);
+  min-height: 220px;
+  padding: 24px;
+
+  border: 1px dashed rgba(255, 255, 255, 0.28);
+  border-radius: 10px;
+
+  color: rgba(255, 255, 255, 0.72);
+
+  font-size: 14px;
+  text-align: center;
 }
 
 /* --------------------------------------------------------- Переключатель */
