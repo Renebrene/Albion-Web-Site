@@ -4,12 +4,10 @@
  * и медиа-полями, чтобы не дублировать логику по страницам.
  */
 
-const ADMIN_TOKEN_KEY = 'albion_admin_token'
+import { adminHeaders } from './adminApi'
 
 export function adminAuthHeaders() {
-  const token = sessionStorage.getItem(ADMIN_TOKEN_KEY)
-
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  return adminHeaders()
 }
 
 /*

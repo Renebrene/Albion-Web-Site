@@ -614,6 +614,7 @@ import { useAccount } from '@/composables/useAccount'
 import { useChatWorkspace } from '@/composables/useChatWorkspace'
 import { usePortfolio } from '@/composables/usePortfolio'
 import { MONTHS } from '@/utils/constructionGroups'
+import { setAdminToken } from '../services/adminApi'
 
 const {
   account,
@@ -1080,7 +1081,7 @@ async function enterAdminArea() {
     const data = await response.json()
 
     if (response.ok && data.token) {
-      sessionStorage.setItem('albion_admin_token', data.token)
+      setAdminToken(data.token)
       await router.push('/administration/dashboard')
       return
     }

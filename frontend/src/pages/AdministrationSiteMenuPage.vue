@@ -212,6 +212,7 @@ import { useRouter } from 'vue-router'
 import MediaPicker from '../components/admin/MediaPicker.vue'
 import MediaSourceButtons from '../components/admin/MediaSourceButtons.vue'
 import { mediaUrl } from '../services/adminMedia'
+import { adminHeaders, adminRequest as request } from '../services/adminApi'
 
 const router = useRouter()
 
@@ -301,7 +302,7 @@ async function onFileChange(event) {
 
     const response = await fetch('/api/admin/media', {
       method: 'POST',
-      headers: authHeaders(),
+      headers: adminHeaders(),
       body: form
     })
 
@@ -327,38 +328,6 @@ async function onFileChange(event) {
   } finally {
     item.__uploading = false
   }
-}
-
-function authHeaders() {
-  const token = sessionStorage.getItem('albion_admin_token')
-  return { Authorization: `Bearer ${token}` }
-}
-
-async function request(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      ...options.headers,
-      ...authHeaders()
-    }
-  })
-
-  const contentType = response.headers.get('content-type') || ''
-
-  if (!response.ok) {
-    let detail = response.statusText
-
-    try {
-      const data = await response.json()
-      detail = data.detail || detail
-    } catch (exc) {
-      /* не JSON */
-    }
-
-    throw new Error(detail)
-  }
-
-  return response.json()
 }
 
 const mainItems = ref([])

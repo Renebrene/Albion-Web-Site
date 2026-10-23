@@ -173,6 +173,7 @@
 import { computed, ref, watch } from 'vue'
 
 import { mediaUrl, variantUrl } from '../../services/adminMedia'
+import { adminFetch } from '../../services/adminApi'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -241,11 +242,6 @@ const selectedItem = computed(
   () => items.value.find(item => item.id === selectedId.value) || null
 )
 
-function authHeaders() {
-  const token = sessionStorage.getItem('albion_admin_token')
-  return { Authorization: `Bearer ${token}` }
-}
-
 function storageUrl(path) {
   return `/storage/${path}`
 }
@@ -265,13 +261,11 @@ function thumbnailUrl(item) {
 }
 
 async function fetchMedia(limit, offsetValue) {
-  const response = await fetch(
-    `/api/admin/media?limit=${limit}&offset=${offsetValue}`,
-    { headers: authHeaders() }
+  const response = await adminFetch(
+    `/api/admin/media?limit=${limit}&offset=${offsetValue}`
   )
 
   if (response.status === 401) {
-    sessionStorage.removeItem('albion_admin_token')
     throw new Error('Сессия истекла. Войдите заново.')
   }
 
@@ -290,9 +284,7 @@ async function fetchMedia(limit, offsetValue) {
 async function loadCategories() {
   loadingCategories.value = true
   try {
-    const response = await fetch('/api/admin/media/categories', {
-      headers: authHeaders()
-    })
+    const response = await adminFetch('/api/admin/media/categories', {})
     const data = await response.json().catch(() => null)
     categories.value = response.ok ? data?.categories || [] : []
   } catch {

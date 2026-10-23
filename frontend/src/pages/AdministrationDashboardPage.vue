@@ -246,6 +246,11 @@ import { useRouter } from 'vue-router'
 import MediaPicker from '../components/admin/MediaPicker.vue'
 import { uploadAdminMedia } from '../services/adminMedia'
 import { MEDIA_SECTION, mediaCategoryId } from '../composables/useMediaCategory'
+import {
+  adminFetch,
+  clearAdminToken,
+  getAdminToken
+} from '../services/adminApi'
 
 const router = useRouter()
 
@@ -517,12 +522,6 @@ const mediaTargetPath = ref('')
 
 const editMode = computed(() => reorderMode.value || renameMode.value)
 
-function authHeaders() {
-  const token = sessionStorage.getItem('albion_admin_token')
-
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
 /* Каталог + сохранённые переопределения -> плитки в нужном порядке.
    Плитки, которых нет в сохранённом порядке (новые разделы), идут в конец. */
 function buildItems(order, overrides) {
@@ -573,9 +572,7 @@ function setSaved() {
 
 async function loadLayout() {
   try {
-    const response = await fetch('/api/admin/dashboard', {
-      headers: authHeaders()
-    })
+    const response = await adminFetch('/api/admin/dashboard')
 
     if (!response.ok) {
       throw new Error()
@@ -728,9 +725,9 @@ async function saveLayout() {
   }
 
   try {
-    const response = await fetch('/api/admin/dashboard', {
+    const response = await adminFetch('/api/admin/dashboard', {
       method: 'PUT',
-      headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ order, items: overrides })
     })
 
@@ -755,7 +752,7 @@ async function saveLayout() {
 // ----------------------------------------------------- авторизация
 
 async function loadUser() {
-  const token = sessionStorage.getItem('albion_admin_token')
+  const token = getAdminToken()
 
   if (!token) {
     await router.replace('/administration')
@@ -763,14 +760,10 @@ async function loadUser() {
   }
 
   try {
-    const response = await fetch('/api/admin/me', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
+    const response = await adminFetch('/api/admin/me')
 
     if (!response.ok) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return
     }
@@ -785,21 +778,16 @@ async function loadUser() {
 }
 
 async function logout() {
-  const token = sessionStorage.getItem('albion_admin_token')
+  const token = getAdminToken()
 
   loggingOut.value = true
 
   try {
     if (token) {
-      await fetch('/api/admin/logout', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      })
+      await adminFetch('/api/admin/logout', { method: 'POST' })
     }
   } finally {
-    sessionStorage.removeItem('albion_admin_token')
+    clearAdminToken()
     await router.replace('/administration')
     loggingOut.value = false
   }

@@ -684,6 +684,7 @@ import {
   setConstructionPhotoOverride
 } from '../services/constructionMedia'
 import { isDynamicSide } from '../utils/constructionGroups'
+import { adminFetch } from '../services/adminApi'
 
 /* Подсветка включена, если в источнике «Да» */
 function isLightOn(item) {
@@ -853,12 +854,8 @@ function formatDate(value) {
 }
 
 async function loadBaseStats() {
-  const token = sessionStorage.getItem('albion_admin_token')
-
   try {
-    const response = await fetch('/api/admin/constructions/stats', {
-      headers: token ? { Authorization: `Bearer ${token}` } : {}
-    })
+    const response = await adminFetch('/api/admin/constructions/stats')
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`)

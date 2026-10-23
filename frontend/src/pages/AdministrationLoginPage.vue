@@ -54,6 +54,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { setAdminToken } from '../services/adminApi'
 
 const router = useRouter()
 
@@ -84,7 +85,7 @@ async function submit() {
       throw new Error(data.detail || 'Не удалось выполнить вход')
     }
 
-    sessionStorage.setItem('albion_admin_token', data.token)
+    setAdminToken(data.token)
 
     await router.push('/administration/dashboard')
   } catch (err) {

@@ -382,38 +382,9 @@ import {
   describeUrlState,
   encodeUrlState
 } from '../utils/urlState'
+import { adminRequest as request } from '../services/adminApi'
 
 const router = useRouter()
-
-function authHeaders() {
-  const token = sessionStorage.getItem('albion_admin_token')
-  return { Authorization: `Bearer ${token}` }
-}
-
-async function request(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    headers: {
-      ...options.headers,
-      ...authHeaders()
-    }
-  })
-
-  if (!response.ok) {
-    let detail = response.statusText
-
-    try {
-      const data = await response.json()
-      detail = data.detail || detail
-    } catch (exc) {
-      /* не JSON */
-    }
-
-    throw new Error(detail)
-  }
-
-  return response.json()
-}
 
 const loading = ref(true)
 const saving = ref(false)

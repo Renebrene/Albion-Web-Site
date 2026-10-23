@@ -233,37 +233,16 @@
 <script setup>
 import { computed, onMounted, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
+import { adminHeaders, adminRequest as request } from '../services/adminApi'
 
 const router = useRouter()
 
 const PAGE_SIZE = 50
 
-function authHeaders() {
-  const token = sessionStorage.getItem('albion_admin_token')
-  return { Authorization: `Bearer ${token}` }
-}
-
-async function request(path) {
-  const response = await fetch(path, { headers: authHeaders() })
-
-  if (!response.ok) {
-    let detail = response.statusText
-    try {
-      const data = await response.json()
-      detail = data.detail || detail
-    } catch {
-      /* не JSON */
-    }
-    throw new Error(detail)
-  }
-
-  return response.json()
-}
-
 async function postJson(path, body) {
   const response = await fetch(path, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...adminHeaders() },
     body: JSON.stringify(body)
   })
 
@@ -392,7 +371,7 @@ async function loadLlm() {
 async function putJson(path, body) {
   const response = await fetch(path, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    headers: { 'Content-Type': 'application/json', ...adminHeaders() },
     body: JSON.stringify(body)
   })
 
@@ -581,7 +560,7 @@ async function exportJsonl() {
 
   try {
     const response = await fetch(`/api/admin/chat-log/export?${params}`, {
-      headers: authHeaders()
+      headers: adminHeaders()
     })
 
     if (!response.ok) {

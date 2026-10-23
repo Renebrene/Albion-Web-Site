@@ -7,6 +7,7 @@ import {
 } from 'vue-router'
 
 import routes from './routes.js'
+import { getAdminToken } from '../services/adminApi'
 
 /*
  * If not building with SSR mode, you can
@@ -39,7 +40,7 @@ export default defineRouter((/* { store, ssrContext } */) => {
       return true
     }
 
-    const token = sessionStorage.getItem('albion_admin_token')
+    const token = getAdminToken()
 
     if (!token) {
       return {

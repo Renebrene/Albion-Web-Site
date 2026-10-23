@@ -805,6 +805,10 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { mediaUrl, variantUrl } from '../services/adminMedia'
+import {
+  clearAdminToken,
+  getAdminToken as readAdminToken
+} from '../services/adminApi'
 
 const router = useRouter()
 
@@ -1101,7 +1105,7 @@ function mediaFilterParams() {
 }
 
 async function getAdminToken() {
-  const token = sessionStorage.getItem('albion_admin_token')
+  const token = readAdminToken()
 
   if (!token) {
     await router.replace('/administration')
@@ -1140,7 +1144,7 @@ async function createCategory() {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return
     }
@@ -1227,7 +1231,7 @@ async function saveMediaEdit() {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return
     }
@@ -1266,7 +1270,7 @@ async function loadMediaCategories() {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return
     }
@@ -1316,7 +1320,7 @@ async function loadMedia() {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return
     }
@@ -1358,7 +1362,7 @@ async function loadMediaStats() {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return
     }
@@ -1400,7 +1404,7 @@ async function loadMoreMedia() {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return
     }
@@ -1476,7 +1480,7 @@ async function uploadQueueItem(item) {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return false
     }
@@ -1600,7 +1604,7 @@ async function deleteMedia(item) {
     })
 
     if (response.status === 401) {
-      sessionStorage.removeItem('albion_admin_token')
+      clearAdminToken()
       await router.replace('/administration')
       return
     }
