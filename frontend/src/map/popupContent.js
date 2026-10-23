@@ -37,20 +37,6 @@ function surfaceIdOf(item) {
   return id === undefined || id === null || id === '' ? null : id
 }
 
-/*
- * Поверхность активна (розовая кнопка, кликабельные месяцы), если она
- * уже в портфеле или для неё включён режим выбора. Портфель переживает
- * перезагрузку (localStorage), режим — нет, поэтому учитываем оба.
- */
-function isSurfaceActive(id) {
-  return (
-    id !== null &&
-    id !== undefined &&
-    id !== '' &&
-    (portfolio.isInPortfolio(id) || portfolio.isSelectionMode(id))
-  )
-}
-
 function monthCell(item, month) {
   const surfaceId = surfaceIdOf(item)
   const selected =
@@ -77,40 +63,6 @@ function monthCell(item, month) {
     >
       ${escapeHtml(month.short)}
     </button>
-  `
-}
-
-/*
- * Кнопка «Портфель» — одна на секцию попапа (после блока месяцев).
- * Если у поверхности нет id — разметку не добавляем, попап не ломаем.
- */
-function portfolioBlock(item) {
-  const surfaceId = surfaceIdOf(item)
-
-  if (surfaceId === null) {
-    return ''
-  }
-
-  const active = isSurfaceActive(surfaceId)
-  const editing = portfolio.isSelectionMode(surfaceId)
-  const title = editing
-    ? 'Скрыть выбор месяцев'
-    : active
-      ? 'Изменить месяцы'
-      : 'Добавить в портфель'
-
-  return `
-    <div class="popup-portfolio">
-      <button
-        type="button"
-        class="popup-pf-toggle${active ? ' is-active' : ''}"
-        data-pf-toggle="${escapeHtml(String(surfaceId))}"
-        title="${title}"
-      >
-        <i class="material-icons popup-pf-icon">work_outline</i>
-        <span class="popup-pf-label">Портфель</span>
-      </button>
-    </div>
   `
 }
 
@@ -363,27 +315,12 @@ function featuresBlock(item, isDynamic, surfaceCount = 0) {
   `
 }
 
-/*
- * Режим выбора месяцев для СЕКЦИИ попапа.
- *
- * У каждой «половины» карточки своя кнопка «Портфель», поэтому режим
- * включается по секции: активная сторона не делает кликабельными
- * месяцы соседней.
- */
-function groupActive(items) {
-  return (items || []).some(item =>
-    portfolio.isSelectionMode(surfaceIdOf(item))
-  )
-}
-
 /* ---------------------------------------------------------------- блоки */
 
 /* Статичная сторона: обычная карточка */
 function sideCard(item) {
-  const mode = portfolio.isSelectionMode(surfaceIdOf(item)) ? ' pf-mode' : ''
-
   return `
-    <section class="popup-side-card${mode}">
+    <section class="popup-side-card">
       <div class="popup-side-top">
         ${sideBlock(item)}
         ${priceBlock(item)}
@@ -392,7 +329,6 @@ function sideCard(item) {
       ${featuresBlock(item, false)}
       ${photoBlock(item)}
       ${monthBlock(item)}
-      ${portfolioBlock(item)}
     </section>
   `
 }
@@ -464,10 +400,9 @@ function dynamicRowsBlock(group) {
 
 function dynamicBlock(group) {
   const first = group.items[0]
-  const mode = groupActive(group.items) ? ' pf-mode' : ''
 
   return `
-    <section class="popup-side-card popup-side-card--dynamic${mode}">
+    <section class="popup-side-card popup-side-card--dynamic">
       <div class="popup-side-top">
         ${sideBlock({ ...first, side: parentSide(sideLabel(first), first.type) })}
         ${priceBlock(first)}
@@ -476,17 +411,14 @@ function dynamicBlock(group) {
       ${featuresBlock(first, true, group.items.length)}
       ${photoBlock(first)}
       ${dynamicRowsBlock(group)}
-      ${portfolioBlock(first)}
     </section>
   `
 }
 
 /* Видеоэкран: всегда динамический, месяцы в одну строку */
 function videoBlock(item) {
-  const mode = portfolio.isSelectionMode(surfaceIdOf(item)) ? ' pf-mode' : ''
-
   return `
-    <section class="popup-side-card popup-side-card--video${mode}">
+    <section class="popup-side-card popup-side-card--video">
       <div class="popup-side-top">
         ${sideBlock(item)}
         ${priceBlock(item)}
@@ -495,7 +427,6 @@ function videoBlock(item) {
       ${featuresBlock(item, true)}
       ${photoBlock(item)}
       ${videoMonthBlock(item)}
-      ${portfolioBlock(item)}
     </section>
   `
 }
@@ -669,7 +600,7 @@ function signatureOf(ctx) {
           id !== null && portfolio.isMonthSelected(id, month.full) ? '1' : '0'
       }
 
-      parts.push(String(id ?? ''), isSurfaceActive(id) ? '1' : '0', months)
+      parts.push(String(id ?? ''), months)
     }
   }
 
@@ -701,7 +632,7 @@ function buildContent(ctx) {
 
   /*
    * Режим выбора включается не на корне, а на секции стороны —
-   * см. groupActive()/isSurfaceActive() в построителях блоков.
+   * состояние выбранных месяцев входит в signatureOf().
    */
   return `
     <div class="popup ${popupClass}">

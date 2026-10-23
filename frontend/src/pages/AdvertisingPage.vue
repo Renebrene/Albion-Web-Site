@@ -278,10 +278,7 @@
                       v-for="(block, blockIndex) in point.blocks"
                       :key="`${block.type}-${block.parent}-${blockIndex}`"
                       class="card-block"
-                      :class="[
-                        `card-block--${block.kind}`,
-                        { 'pf-mode': isBlockEditing(block) }
-                      ]"
+                      :class="`card-block--${block.kind}`"
                     >
                       <div class="card-topline">
                         <div class="card-type">
@@ -430,15 +427,13 @@
                                     block,
                                     month.full
                                   ),
-                                  'is-locked':
-                                    isBlockEditing(block) &&
-                                    !isSideFree(block, month.full)
+                                  'is-locked': isSideMonthLocked(
+                                    block,
+                                    month.full
+                                  )
                                 }
                               ]"
-                              :disabled="
-                                !isBlockEditing(block) ||
-                                isSideMonthLocked(block, month.full)
-                              "
+                              :disabled="isSideMonthLocked(block, month.full)"
                               :aria-pressed="
                                 isSideMonthSelected(block, month.full)
                               "
@@ -474,15 +469,10 @@
                                     'is-selected':
                                       surfaceIdOf(row) !== null &&
                                       isMonthSelected(row.id, month.full),
-                                    'is-locked':
-                                      isBlockEditing(block) &&
-                                      isMonthLocked(row, month.full)
+                                    'is-locked': isMonthLocked(row, month.full)
                                   }
                                 ]"
-                                :disabled="
-                                  !isBlockEditing(block) ||
-                                  isMonthLocked(row, month.full)
-                                "
+                                :disabled="isMonthLocked(row, month.full)"
                                 :aria-pressed="
                                   surfaceIdOf(row) !== null &&
                                   isMonthSelected(row.id, month.full)
@@ -513,13 +503,13 @@
                                   blockPrimary(block).id,
                                   month.full
                                 ),
-                              'is-locked':
-                                isBlockEditing(block) &&
-                                isMonthLocked(blockPrimary(block), month.full)
+                              'is-locked': isMonthLocked(
+                                blockPrimary(block),
+                                month.full
+                              )
                             }
                           ]"
                           :disabled="
-                            !isBlockEditing(block) ||
                             isMonthLocked(blockPrimary(block), month.full)
                           "
                           :aria-pressed="
@@ -534,26 +524,6 @@
                           "
                         >
                           {{ month.short }}
-                        </button>
-                      </div>
-
-                      <!-- Портфель: кнопка (два состояния) + кликабельные месяцы -->
-                      <div class="card-portfolio">
-                        <button
-                          type="button"
-                          class="card-pf-toggle"
-                          :class="{ 'is-active': isBlockActive(block) }"
-                          :title="
-                            isBlockEditing(block)
-                              ? 'Скрыть выбор месяцев'
-                              : isBlockActive(block)
-                                ? 'Изменить месяцы'
-                                : 'Добавить в портфель'
-                          "
-                          @click="toggleBlockPfMode(block)"
-                        >
-                          <q-icon name="work_outline" size="16px" />
-                          <span>Портфель</span>
                         </button>
                       </div>
 
@@ -770,10 +740,6 @@ function isSideMonthSelected(block, month) {
  * свободным. Иначе при частичном выборе клик инвертировал состояние.
  */
 function onSideMonthClick(block, month) {
-  if (!isBlockEditing(block)) {
-    return
-  }
-
   const selected = isSideMonthSelected(block, month.full)
 
   for (const item of block?.items || []) {
@@ -980,14 +946,11 @@ function setCardMedia(point, blockIndex, mode) {
 /* ---------------------------------------------------------- портфель */
 
 /*
- * Портфель — общий стор приложения. На карточке: кнопка-переключатель
- * режима выбора месяца + кликабельные месяцы в этом режиме.
+ * Портфель — общий стор приложения. Месяцы на карточке кликабельны
+ * всегда: свободный добавляется, выбранный снимается.
  */
 const {
-  isInPortfolio,
   isMonthSelected,
-  isSelectionMode,
-  setSelectionMode,
   toggleMonth,
   syncWithConstructions,
   items: portfolioItems,
@@ -1082,73 +1045,6 @@ function surfaceIdOf(item) {
   return id === undefined || id === null || id === '' ? null : id
 }
 
-/*
- * Все поверхности блока: строки динамики (A(1)/A(2)/A(3)…) и ведущая.
- *
- * Кнопка должна учитывать их ВСЕ: у призматрона месяц можно выбрать на
- * любой строке, и раньше кнопка смотрела только на ведущую — из-за этого
- * выделение на остальных строках оставалось после выключения.
- */
-function blockSurfaces(block) {
-  const seen = new Set()
-  const list = []
-
-  const push = surface => {
-    const id = surfaceIdOf(surface)
-
-    if (id !== null && !seen.has(id)) {
-      seen.add(id)
-      list.push(surface)
-    }
-  }
-
-  if (Array.isArray(block?.items)) {
-    block.items.forEach(push)
-  }
-
-  push(blockPrimary(block))
-
-  return list
-}
-
-function blockSurfaceIds(block) {
-  return blockSurfaces(block)
-    .map(surfaceIdOf)
-    .filter(id => id !== null)
-}
-
-/*
- * Кнопка «Портфель» активна, если ЛЮБАЯ поверхность блока уже в портфеле
- * или для неё включён режим выбора.
- */
-function isBlockActive(block) {
-  return blockSurfaceIds(block).some(
-    id => isInPortfolio(id) || isSelectionMode(id)
-  )
-}
-
-/* Месяцы кликабельны только в режиме редактирования (не просто «в портфеле»). */
-function isBlockEditing(block) {
-  return blockSurfaceIds(block).some(id => isSelectionMode(id))
-}
-
-/*
- * Клик по кнопке-переключателю никогда не удаляет позиции: удаление —
- * только явной кнопкой «Убрать» в панели (с undo). Здесь включаем/выключаем
- * режим выбора месяцев для всех поверхностей блока.
- */
-function toggleBlockPfMode(block) {
-  const ids = blockSurfaceIds(block)
-
-  if (!ids.length) {
-    return
-  }
-
-  const editing = ids.some(id => isSelectionMode(id))
-
-  ids.forEach(id => setSelectionMode(id, !editing))
-}
-
 /* Месяц стороны: выбранный можно снять, остальные — только свободные. */
 function isSideMonthLocked(block, monthFull) {
   if (isSideMonthSelected(block, monthFull)) {
@@ -1169,12 +1065,8 @@ function isMonthLocked(surface, monthFull) {
   return !isFree(surface, monthFull)
 }
 
-/* Клик по месяцу — только в режиме редактирования блока. */
+/* Клик по месяцу: свободный добавляет, выбранный снимает. */
 function onCardMonthClick(block, surface, month) {
-  if (!isBlockEditing(block)) {
-    return
-  }
-
   const id = surfaceIdOf(surface)
 
   if (id === null) {
@@ -2620,118 +2512,49 @@ watch(
  * HTML-строка, поэтому реактивность Vue до неё не достаёт и состояние
  * (режим/выбор) переключаем напрямую через классы DOM.
  */
-/* Поверхность активна: в портфеле или включён режим выбора месяцев. */
-function isSurfaceActive(id) {
-  return (
-    id !== null &&
-    id !== undefined &&
-    id !== '' &&
-    (isInPortfolio(id) || isSelectionMode(id))
-  )
-}
-
 /*
- * Приводит DOM попапа к актуальному состоянию после переключения.
- *
- * Режим выбора — по СЕКЦИЯМ: у каждой «половины» карточки своя кнопка
- * «Портфель», поэтому активность одной стороны не должна делать
- * кликабельными месяцы соседней.
+ * Приводит DOM попапа к актуальному состоянию после переключения:
+ * выбранные месяцы, доступность клика, aria-атрибуты.
  */
 function refreshPopupState(popupRoot) {
   if (!popupRoot) {
     return
   }
 
-  popupRoot.querySelectorAll('.popup-side-card').forEach(section => {
-    let sectionActive = false
-
-    section.querySelectorAll('[data-pf-toggle]').forEach(button => {
-      const id = button.getAttribute('data-pf-toggle')
-      const active = isSurfaceActive(id)
-      const editing = isSelectionMode(id)
-
-      button.classList.toggle('is-active', active)
-      button.title = editing
-        ? 'Скрыть выбор месяцев'
-        : active
-          ? 'Изменить месяцы'
-          : 'Добавить в портфель'
-
-      /* Кликабельны месяцы только в режиме выбора, не просто «в портфеле». */
-      if (editing) {
-        sectionActive = true
-      }
-    })
-
-    section.classList.toggle('pf-mode', sectionActive)
-
-    section.querySelectorAll('.popup-month').forEach(monthEl => {
-      const raw = monthEl.getAttribute('data-pf-month') || ''
-      const sep = raw.indexOf('|')
-      let selected = false
-      let canPick = false
-
-      if (sep > 0) {
-        const ids = raw
-          .slice(0, sep)
-          .split(',')
-          .map(value => value.trim())
-          .filter(Boolean)
-        const month = raw.slice(sep + 1)
-
-        selected = ids.some(id => isMonthSelected(id, month))
-
-        /* Занятый месяц нельзя выбрать, но уже выбранный можно снять. */
-        const surfaces = ids
-          .map(id =>
-            constructions.value.find(
-              construction => String(construction?.id) === id
-            )
-          )
-          .filter(Boolean)
-
-        canPick =
-          selected || surfaces.some(surface => !isMonthLocked(surface, month))
-      }
-
-      monthEl.classList.toggle('is-selected', sectionActive && selected)
-      monthEl.classList.toggle('is-locked', !canPick)
-      monthEl.setAttribute('aria-pressed', String(sectionActive && selected))
-
-      const unavailable = !sectionActive || !canPick
-
-      monthEl.disabled = unavailable
-      monthEl.setAttribute('aria-disabled', String(unavailable))
-    })
-  })
-}
-
-/* Снимает акцентные рамки со всех месяцев указанной поверхности. */
-function clearSurfaceMonths(popupRoot, surfaceId) {
-  if (!popupRoot) {
-    return
-  }
-
-  const id = String(surfaceId)
-
-  // data-pf-month может нести список id (агрегация по стороне),
-  // поэтому проверяем вхождение, а не префикс.
-  popupRoot.querySelectorAll('[data-pf-month]').forEach(monthEl => {
+  popupRoot.querySelectorAll('.popup-month').forEach(monthEl => {
     const raw = monthEl.getAttribute('data-pf-month') || ''
     const sep = raw.indexOf('|')
+    let selected = false
+    let canPick = false
 
-    if (sep <= 0) {
-      return
+    if (sep > 0) {
+      const ids = raw
+        .slice(0, sep)
+        .split(',')
+        .map(value => value.trim())
+        .filter(Boolean)
+      const month = raw.slice(sep + 1)
+
+      selected = ids.some(id => isMonthSelected(id, month))
+
+      /* Занятый месяц нельзя выбрать, но уже выбранный можно снять. */
+      const surfaces = ids
+        .map(id =>
+          constructions.value.find(
+            construction => String(construction?.id) === id
+          )
+        )
+        .filter(Boolean)
+
+      canPick =
+        selected || surfaces.some(surface => !isMonthLocked(surface, month))
     }
 
-    const ids = raw
-      .slice(0, sep)
-      .split(',')
-      .map(value => value.trim())
-
-    if (ids.includes(id)) {
-      monthEl.classList.remove('is-selected')
-    }
+    monthEl.classList.toggle('is-selected', selected)
+    monthEl.classList.toggle('is-locked', !canPick)
+    monthEl.setAttribute('aria-pressed', String(selected))
+    monthEl.disabled = !canPick
+    monthEl.setAttribute('aria-disabled', String(!canPick))
   })
 }
 
@@ -2739,27 +2562,6 @@ function onDocumentClick(event) {
   const target = event.target
 
   if (!(target instanceof Element)) {
-    return
-  }
-
-  /*
-   * Кнопка «Портфель» в попапе только включает/выключает режим выбора
-   * месяцев. Удаление — явной кнопкой «Убрать» в панели портфеля (с undo).
-   */
-  const toggleEl = target.closest('[data-pf-toggle]')
-
-  if (toggleEl) {
-    const id = toggleEl.getAttribute('data-pf-toggle')
-
-    if (id) {
-      const popupRoot =
-        toggleEl.closest('.popup') || toggleEl.closest('.albion-popup')
-
-      setSelectionMode(id, !isSelectionMode(id))
-
-      refreshPopupState(popupRoot)
-    }
-
     return
   }
 
@@ -2801,16 +2603,6 @@ function onDocumentClick(event) {
   }
 
   /*
-   * Месяц относится к своей половине карточки: если у этой секции
-   * режим выбора не включён — клик игнорируем.
-   */
-  const section = monthEl.closest('.popup-side-card')
-
-  if (!section || !section.classList.contains('pf-mode')) {
-    return
-  }
-
-  /*
    * Агрегированный месяц стороны: намерение определяем один раз.
    * Если месяц уже выбран хотя бы у одной поверхности — снимаем его
    * со всех выбранных; иначе добавляем всем свободным. Иначе при
@@ -2848,17 +2640,6 @@ function onDocumentClick(event) {
     surfaces.some(surface => isMonthSelected(surfaceIdOf(surface), monthFull))
   )
 
-  // Снят последний месяц — позиция ушла из портфеля: убираем рамки
-  // со всех её месяцев, иначе они останутся висеть.
-  surfaces.forEach(surface => {
-    const id = surfaceIdOf(surface)
-
-    if (!isSurfaceActive(id)) {
-      clearSurfaceMonths(popupRoot, id)
-    }
-  })
-
-  // Кнопки и pf-mode корня — по актуальному состоянию стора.
   refreshPopupState(popupRoot)
 }
 
@@ -3746,64 +3527,17 @@ onBeforeUnmount(() => {
   font-size: 7px;
 }
 
-/* Портфель: кнопка и кликабельные месяцы в режиме выбора. */
-
-.card-portfolio {
-  margin-top: 10px;
-}
-
-/* В последнем блоке «Портфель» + фичи прижаты к низу карточки. */
-.card-block:last-child .card-portfolio {
-  margin-top: auto;
-
-  padding-top: 10px;
-}
-
-.card-pf-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-
-  padding: 6px 11px;
-
-  border: 1px solid #dce2e6;
-  border-radius: 8px;
-
-  background: #fff;
-  color: #52606a;
-
-  cursor: pointer;
-
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-
-  transition: 0.15s ease;
-}
-
-.card-pf-toggle:hover {
-  border-color: var(--albion-accent);
-  color: var(--albion-accent);
-}
-
-/* Активное состояние: поверхность редактируется (в портфеле либо режим). */
-.card-pf-toggle.is-active {
-  border-color: var(--albion-accent);
-  background: #fdeceb;
-  color: var(--albion-accent);
-}
-
-/* Месяцы кликабельны только у активного блока. */
-.card-block.pf-mode .card-month:not(.is-locked) {
+/* Месяцы кликабельны всегда, если месяц свободен. */
+.card-month:not(.is-locked) {
   cursor: pointer;
 }
 
-.card-block.pf-mode .card-month:not(.is-locked):hover {
+.card-month:not(.is-locked):hover {
   filter: brightness(0.96);
 }
 
 /* Занятый/резервный месяц выбрать нельзя. */
-.card-block.pf-mode .card-month.is-locked {
+.card-month.is-locked {
   cursor: not-allowed;
   opacity: 0.5;
 }
@@ -4521,17 +4255,17 @@ onBeforeUnmount(() => {
 }
 
 /* Курсор-рука — только там, где месяц реально кликабелен. */
-.popup-side-card.pf-mode .popup-month {
+.popup-month:not(.is-locked) {
   cursor: pointer;
 }
 
-/* В режиме выбора занятый месяц выбрать нельзя. */
-.popup-side-card.pf-mode .popup-month.is-locked {
+/* Занятый/резервный месяц выбрать нельзя. */
+.popup-month.is-locked {
   cursor: not-allowed;
   opacity: 0.5;
 }
 
-.popup-side-card.pf-mode .popup-month:hover {
+.popup-month:not(.is-locked):hover {
   filter: brightness(0.96);
 }
 

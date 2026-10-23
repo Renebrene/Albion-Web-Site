@@ -121,13 +121,9 @@
               <button
                 type="button"
                 class="found-pf-toggle"
-                :class="{ 'is-active': isSurfaceActive(entry.item) }"
+                :class="{ 'is-active': isEditing(entry.item) }"
                 :title="
-                  isEditing(entry.item)
-                    ? 'Скрыть выбор месяцев'
-                    : isSurfaceActive(entry.item)
-                      ? 'Изменить месяцы'
-                      : 'Добавить в портфель'
+                  isEditing(entry.item) ? 'Скрыть месяцы' : 'Показать месяцы'
                 "
                 @click="toggleFoundPfMode(entry.item)"
               >
@@ -241,7 +237,6 @@ const constructionLabel = computed(() => {
  * контрол: кнопка + (в режиме выбора) мини-месяцы.
  */
 const {
-  isInPortfolio,
   isMonthSelected,
   isSelectionMode,
   setSelectionMode,
@@ -254,16 +249,6 @@ function surfaceIdOf(item) {
   const id = item?.id
 
   return id === undefined || id === null || id === '' ? null : id
-}
-
-/*
- * Кнопка активна, если поверхность в портфеле или включён режим выбора.
- * Мини-месяцы показываем только в режиме выбора.
- */
-function isSurfaceActive(item) {
-  const id = surfaceIdOf(item)
-
-  return id !== null && (isInPortfolio(id) || isSelectionMode(id))
 }
 
 function isEditing(item) {
