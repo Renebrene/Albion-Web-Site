@@ -347,7 +347,7 @@ function buildPlacemark({ items, lat, lng, color, isDouble, narrow }) {
       /* Кликабельная область — кружок вокруг центра иконки. */
       iconShape: {
         type: 'Circle',
-        coordinates: [8, 8],
+        coordinates: [0, 0],
         radius: 9
       },
 
