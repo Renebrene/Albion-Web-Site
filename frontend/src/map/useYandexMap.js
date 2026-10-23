@@ -12,7 +12,6 @@ import { popupContent, popupLayout } from './popupContent'
 import { MONTHS, groupByPoint } from '../utils/constructionGroups'
 import { getAvailabilityState } from '../utils/availability'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
-import { lazyPopups } from '../config/lazyPopups'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -34,6 +33,9 @@ let ymaps = null
 let map = null
 let clusterer = null
 let containerElement = null
+
+/* Метки по ключу точки: позволяют переиспользовать их между отрисовками. */
+let placemarkByKey = new Map()
 
 let regionOutline = null
 let maskPolygon = null
@@ -271,42 +273,63 @@ function createMap(element) {
    MARKERS
    ========================================================= */
 
-function createPlacemark(group, lazy) {
-  const items = uniqueSides(group.items)
-
-  if (!items.length) {
-    return null
+/*
+ * Ширины балуна подогнаны под попап: двойной/тройной сужены
+ * (см. CSS [class*='balloon__content'] .popup-double/-triple),
+ * одиночный — 300px. Иначе балон шире контента и по бокам пусто.
+ * На узких экранах не даём балуну выйти за пределы вьюпорта.
+ */
+function balloonWidths(isDouble, narrow) {
+  return {
+    balloonMaxWidth: narrow ? 320 : isDouble ? 560 : 340,
+    balloonMinWidth: narrow ? 260 : isDouble ? 500 : 280
   }
+}
 
+/* Опции, которые зависят от цвета и раскладки и меняются на лету. */
+function applyPlacemarkOptions(entry) {
+  entry.placemark.options.set({
+    iconImageHref: dotIconHref(entry.color),
+    ...balloonWidths(entry.isDouble, entry.narrow)
+  })
+}
+
+/*
+ * Содержимое балуна — всегда собирается заранее.
+ *
+ * ВАЖНО: настройка «ленивые попапы» (`map_lazy_popups`) к Яндекс-движку
+ * НЕ применяется. Яндекс 2.1 молча не открывает балун, если
+ * `balloonContentBody` пустой: клик по метке проходит (событие `click`
+ * у метки срабатывает), но балун не появляется. Обходной путь —
+ * заглушка и подмена разметки на `balloonopen` — даёт мигание чужого
+ * содержимого, а выигрыш уже снят диффом меток: разметка собирается
+ * только для новых точек, а не при каждой перерисовке.
+ *
+ * Функцию в качестве значения Яндекс тоже не поддерживает — рендерит её
+ * исходный текст, а не результат вызова.
+ */
+function syncBalloon(entry) {
+  const html = popupContent(entry.items)
+
+  if (entry.html !== html) {
+    entry.html = html
+    entry.placemark.properties.set('balloonContentBody', html)
+  }
+}
+
+/*
+ * Создаёт метку для группы сторон. Возвращает запись для placemarkByKey.
+ * Цвет, раскладка и ширина вьюпорта посчитаны вызывающим — те же значения
+ * потом сравниваются при обновлении существующих меток.
+ */
+function buildPlacemark({ items, lat, lng, color, isDouble, narrow }) {
   const first = items[0]
-
-  const lat = Number(first.lat)
-  const lng = Number(first.lng)
-
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-    return null
-  }
-
-  const color = markerColor(items)
-
-  /*
-   * Ширина балуна — по числу ВИДИМЫХ ГРУПП (popupLayout), а не по сырому
-   * числу сторон: иначе призматрон A(1)+A(2)+A(3) получал широкий балун
-   * при узком контенте (пустое поле).
-   */
-  const isDoublePopup = popupLayout(items) !== 'single'
-  const narrowViewport =
-    typeof window !== 'undefined' && window.innerWidth < 600
 
   const placemark = new ymaps.Placemark(
     [lat, lng],
     {
-      /*
-       * balloonContentBody — HTML-попап из общего модуля,
-       * тот же, что использует Leaflet-движок. В ленивом режиме
-       * собираем его при открытии балуна.
-       */
-      balloonContentBody: lazy ? '' : popupContent(items),
+      /* Разметку кладёт syncBalloon() ниже. */
+      balloonContentBody: '',
 
       hintContent: first.address || first.name || 'Рекламная конструкция'
     },
@@ -328,14 +351,8 @@ function createPlacemark(group, lazy) {
         radius: 9
       },
 
-      /*
-       * Ширины балуна подогнаны под попап: двойной/тройной сужены
-       * (см. CSS [class*='balloon__content'] .popup-double/-triple),
-       * одиночный — 300px. Иначе балон шире контента и по бокам пусто.
-       * На узких экранах не даём балуну выйти за пределы вьюпорта.
-       */
-      balloonMaxWidth: narrowViewport ? 320 : isDoublePopup ? 560 : 340,
-      balloonMinWidth: narrowViewport ? 260 : isDoublePopup ? 500 : 280,
+      ...balloonWidths(isDouble, narrow),
+
       balloonAutoPan: true,
 
       hasBalloon: true,
@@ -343,18 +360,20 @@ function createPlacemark(group, lazy) {
     }
   )
 
-  if (lazy) {
-    placemark.events.add('balloonopen', () => {
-      placemark.properties.set('balloonContentBody', popupContent(items))
-    })
-
-    /* Закрыли — освобождаем разметку до следующего открытия. */
-    placemark.events.add('balloonclose', () => {
-      placemark.properties.set('balloonContentBody', '')
-    })
+  const entry = {
+    placemark,
+    items,
+    html: '',
+    isDouble,
+    narrow,
+    color,
+    lat,
+    lng
   }
 
-  return placemark
+  syncBalloon(entry)
+
+  return entry
 }
 
 function renderMarkers() {
@@ -362,23 +381,83 @@ function renderMarkers() {
     return
   }
 
-  clusterer.removeAll()
-
   const normalized = normalizeItems(constructions)
   const groups = groupByPoint(normalized)
 
-  const placemarks = []
+  const nextKeys = new Set()
+  const added = []
 
   for (const group of groups) {
-    const placemark = createPlacemark(group, lazyPopups.value)
+    const items = uniqueSides(group.items)
 
-    if (placemark) {
-      placemarks.push(placemark)
+    if (!items.length) {
+      continue
+    }
+
+    const lat = Number(items[0].lat)
+    const lng = Number(items[0].lng)
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      continue
+    }
+
+    const key = group.key
+
+    nextKeys.add(key)
+
+    const color = markerColor(items)
+    const isDouble = popupLayout(items) !== 'single'
+    const narrow = typeof window !== 'undefined' && window.innerWidth < 600
+
+    let entry = placemarkByKey.get(key)
+
+    // Новая точка — создаём и добавляем.
+    if (!entry) {
+      entry = buildPlacemark({ items, lat, lng, color, isDouble, narrow })
+
+      placemarkByKey.set(key, entry)
+      added.push(entry.placemark)
+
+      continue
+    }
+
+    const itemsChanged = entry.items !== items
+
+    entry.items = items
+
+    // Точка уже на карте — правим только то, что изменилось.
+    if (entry.lat !== lat || entry.lng !== lng) {
+      entry.lat = lat
+      entry.lng = lng
+      entry.placemark.geometry.setCoordinates([lat, lng])
+    }
+
+    if (
+      entry.color !== color ||
+      entry.isDouble !== isDouble ||
+      entry.narrow !== narrow
+    ) {
+      entry.color = color
+      entry.isDouble = isDouble
+      entry.narrow = narrow
+      applyPlacemarkOptions(entry)
+    }
+
+    if (itemsChanged) {
+      syncBalloon(entry)
     }
   }
 
-  if (placemarks.length) {
-    clusterer.add(placemarks)
+  // Точки, которые больше не проходят фильтр, убираем с карты.
+  for (const [key, entry] of placemarkByKey) {
+    if (!nextKeys.has(key)) {
+      clusterer.remove(entry.placemark)
+      placemarkByKey.delete(key)
+    }
+  }
+
+  if (added.length) {
+    clusterer.add(added)
   }
 
   console.log(
@@ -386,7 +465,7 @@ function renderMarkers() {
   )
 
   console.log(
-    `Albion map (Yandex): ${groups.length} physical constructions / ${placemarks.length} markers`
+    `Albion map (Yandex): ${groups.length} physical constructions / ${placemarkByKey.size} markers`
   )
 }
 
@@ -931,6 +1010,7 @@ function destroyMap() {
   }
 
   clusterer = null
+  placemarkByKey = new Map()
 
   if (map) {
     map.destroy()

@@ -145,7 +145,7 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
     },
     {
         "key": "map_lazy_popups",
-        "label": "Ленивые попапы (собирать при открытии)",
+        "label": "Ленивые попапы (только движок OSM)",
         "type": "toggle",
         "group": "map",
         "default": "false",
