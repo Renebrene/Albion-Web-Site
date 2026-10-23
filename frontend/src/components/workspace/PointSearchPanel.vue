@@ -258,111 +258,97 @@ function surfaceIdOf(item) {
   return id === undefined || id === null || id === '' ? null : id
 }
 
-/* id всех поверхностей строки (у некоторых записей id может не быть). */
-function entryIds(entry) {
-  return entry.items.map(surfaceIdOf).filter(id => id !== null)
+/* Представитель строки: первая поверхность с id (для режима выбора). */
+function entryPrimary(entry) {
+  return (
+    entry.items.find(item => surfaceIdOf(item) !== null) ||
+    entry.items[0] ||
+    null
+  )
 }
 
 function isEditingEntry(entry) {
-  return entryIds(entry).some(id => isSelectionMode(id))
+  const id = surfaceIdOf(entryPrimary(entry))
+
+  return id !== null && isSelectionMode(id)
 }
 
 /*
  * Кнопка только включает/выключает режим выбора месяцев. Удаление —
- * явной кнопкой «Убрать» в панели портфеля (с undo). Режим — общий для
- * всех поверхностей адреса: иначе со строки нельзя было бы выбрать B.
+ * явной кнопкой «Убрать» в панели портфеля (с undo). Режим — у одной
+ * поверхности-представителя, как было до пометок.
  */
 function toggleEntryPfMode(entry) {
-  const ids = entryIds(entry)
+  const id = surfaceIdOf(entryPrimary(entry))
 
-  if (!ids.length) {
+  if (id === null) {
     return
   }
 
-  const editing = ids.some(id => isSelectionMode(id))
-
-  ids.forEach(id => setSelectionMode(id, !editing))
+  setSelectionMode(id, !isSelectionMode(id))
 }
 
 /*
- * Клик по месяцу строки: снимаем со всех, если выбрано у всех, иначе
- * добавляем всем свободным поверхностям адреса.
+ * Поверхность, которую добавляем/убираем по клику на месяц: уже
+ * выбранная (чтобы снять) либо первая свободная. Одна позиция, даже если
+ * у адреса их несколько.
  */
+function entryMonthItem(entry, monthFull) {
+  const selected = entry.items.find(item => {
+    const id = surfaceIdOf(item)
+
+    return id !== null && isMonthSelected(id, monthFull)
+  })
+
+  if (selected) {
+    return selected
+  }
+
+  return (
+    entry.items.find(item => {
+      const id = surfaceIdOf(item)
+
+      return id !== null && isFree(item, monthFull)
+    }) || null
+  )
+}
+
+/* Месяц выбран, если он есть у какой-либо поверхности адреса. */
+function isEntryMonthSelected(entry, monthFull) {
+  return entry.items.some(item => {
+    const id = surfaceIdOf(item)
+
+    return id !== null && isMonthSelected(id, monthFull)
+  })
+}
+
+/* Месяц недоступен, если снять нечего и ни одна поверхность не свободна. */
+function isEntryMonthLocked(entry, monthFull) {
+  return entryMonthItem(entry, monthFull) === null
+}
+
 function onEntryMonthClick(entry, month) {
   if (!isEditingEntry(entry)) {
     return
   }
 
-  const ids = entryIds(entry)
-  const allSelected =
-    ids.length > 0 && ids.every(id => isMonthSelected(id, month.full))
+  const item = entryMonthItem(entry, month.full)
 
-  for (const item of entry.items) {
-    const id = surfaceIdOf(item)
-
-    if (id === null) {
-      continue
-    }
-
-    const selected = isMonthSelected(id, month.full)
-
-    if (allSelected) {
-      if (selected) {
-        togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
-      }
-
-      continue
-    }
-
-    /* Добавляем только свободные и ещё не выбранные. */
-    if (!selected && isFree(item, month.full)) {
-      togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
-    }
-  }
-}
-
-/* Месяц выбран, когда он выбран у всех поверхностей адреса. */
-function isEntryMonthSelected(entry, monthFull) {
-  const ids = entryIds(entry)
-
-  return ids.length > 0 && ids.every(id => isMonthSelected(id, monthFull))
-}
-
-/* Месяц недоступен, только если ни одну поверхность нельзя выбрать. */
-function isEntryMonthLocked(entry, monthFull) {
-  const ids = entryIds(entry)
-
-  if (!ids.length) {
-    return true
+  if (!item) {
+    return
   }
 
-  return !entry.items.some(item => {
-    const id = surfaceIdOf(item)
-
-    if (id === null) {
-      return false
-    }
-
-    return isMonthSelected(id, monthFull) || isFree(item, monthFull)
-  })
+  togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
 }
 
 function entryMonthLabel(entry, monthFull) {
-  if (entry.items.length === 1) {
-    return getMonthStatusLabel(entry.items[0], monthFull)
-  }
+  const item = entryMonthItem(entry, monthFull)
 
-  const free = entry.items.filter(item => isFree(item, monthFull)).length
-
-  if (free === 0) {
+  if (!item) {
     return 'Занято'
   }
 
-  if (free === entry.items.length) {
-    return 'Свободно'
-  }
-
-  return 'Свободно частично'
+  return getMonthStatusLabel(item, monthFull)
 }
 
 /*
@@ -370,8 +356,12 @@ function entryMonthLabel(entry, monthFull) {
  *
  * На один адрес — одна строка, но поверхностей по адресу может быть
  * несколько (щит A и B, призматрон A(1)…A(3)). Раньше вторая и следующие
- * просто терялись. Теперь строка хранит все элементы, показывает короткую
- * пометку «A, B · 6×3», а контроль портфеля действует сразу на все.
+ * просто терялись. Теперь строка хранит все элементы и показывает короткую
+ * пометку «A, B · 6×3».
+ *
+ * В портфель со строки добавляется ОДНА позиция — первая свободная
+ * поверхность. Портфель информационный: он не должен разрастаться на все
+ * поверхности адреса одним кликом.
  */
 const groupedResults = computed(() => {
   const groups = []
@@ -405,7 +395,7 @@ const groupedResults = computed(() => {
   for (const group of groups) {
     for (const entry of group.addresses) {
       entry.mark = entryMark(entry.items)
-      entry.hasIds = entryIds(entry).length > 0
+      entry.hasIds = entry.items.some(item => surfaceIdOf(item) !== null)
     }
   }
 
