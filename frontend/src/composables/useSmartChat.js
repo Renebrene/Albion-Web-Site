@@ -47,12 +47,43 @@ function createStore(key) {
 
       sessionId.value = saved.sessionId || null
       messages.value = Array.isArray(saved.messages) ? saved.messages : []
-      lastResponse.value = saved.lastResponse || null
+
+      /*
+       * lastResponse отдельно не храним: он дублирует последний ответ
+       * ассистента и раздувает sessionStorage. Собираем обратно из
+       * сообщений — данные там те же.
+       */
+      lastResponse.value = lastResponseFromMessages()
     } catch {
       sessionId.value = null
       messages.value = []
       lastResponse.value = null
     }
+  }
+
+  /* Ответ последнего успешного сообщения ассистента — из истории. */
+  function lastResponseFromMessages() {
+    for (let index = messages.value.length - 1; index >= 0; index -= 1) {
+      const message = messages.value[index]
+
+      if (message?.role !== 'assistant' || message.error) {
+        continue
+      }
+
+      return {
+        session_id: sessionId.value,
+        answer: message.text,
+        pending: message.pending,
+        clarification: message.clarification,
+        results: message.results,
+        suggestions: message.suggestions,
+        actions: message.actions,
+        query: message.query,
+        warnings: message.warnings
+      }
+    }
+
+    return null
   }
 
   function persist() {
@@ -62,8 +93,7 @@ function createStore(key) {
         JSON.stringify({
           version: STORAGE_VERSION,
           sessionId: sessionId.value,
-          messages: messages.value.slice(-50),
-          lastResponse: lastResponse.value
+          messages: messages.value.slice(-50)
         })
       )
 
