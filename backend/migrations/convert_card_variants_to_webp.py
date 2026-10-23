@@ -30,7 +30,7 @@ from PIL import Image
 
 from backend.services.data_service import PROJECT_DIR, get_connection
 from backend.services.media_paths import fetch_active_import_key, resolve_import_url
-from backend.services.media_service import STORAGE_ROOT
+from backend.services.media_service import STORAGE_ROOT, has_transparency
 
 WEBP_QUALITY_PHOTO = 80
 WEBP_QUALITY_MAP = 82
@@ -83,7 +83,7 @@ def convert_file(
     output_path — куда писать WebP (по умолчанию рядом с source).
     Старые thumb 400px не апскейлим: для них источником служит card/large.
     """
-    if source.suffix.lower() not in {".jpg", ".jpeg"} or not source.exists():
+    if source.suffix.lower() not in {".jpg", ".jpeg", ".png"} or not source.exists():
         return None
 
     target = output_path or source.with_suffix(".webp")
@@ -92,30 +92,41 @@ def convert_file(
         before_size if before_size is not None else source.stat().st_size
     )
 
-    if target.exists() and target_size is None:
-        return original_size, target.stat().st_size
-
     try:
         with Image.open(source) as image:
             if image.mode not in ("RGB", "L"):
-                return None
+                if has_transparency(image):
+                    return None
+
+                # RGBA без реальной прозрачности (частый случай у карт).
+                image = image.convert("RGB")
+
+            # Плоские карты-схемы (PNG) кодируем q90, чтобы не портить текст.
+            if source.suffix.lower() == ".png":
+                quality = max(quality, 90)
 
             width, height = image.size
             longest = max(width, height)
+            expected = min(target_size, longest) if target_size else longest
 
-            if target_size is not None:
-                if longest < target_size:
-                    return None
+            # Уже пересобрано в нужный размер — повторно не кодируем.
+            if target.exists():
+                try:
+                    with Image.open(target) as existing:
+                        if max(existing.size) == expected:
+                            return original_size, target.stat().st_size
+                except Exception:
+                    pass
 
-                if longest > target_size:
-                    scale = target_size / longest
-                    image = image.resize(
-                        (
-                            max(1, round(width * scale)),
-                            max(1, round(height * scale)),
-                        ),
-                        Image.Resampling.LANCZOS,
-                    )
+            if target_size is not None and longest > target_size:
+                scale = target_size / longest
+                image = image.resize(
+                    (
+                        max(1, round(width * scale)),
+                        max(1, round(height * scale)),
+                    ),
+                    Image.Resampling.LANCZOS,
+                )
 
             data = BytesIO()
             image.save(

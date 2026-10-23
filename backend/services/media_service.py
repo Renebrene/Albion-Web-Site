@@ -262,6 +262,19 @@ def _convert_cmyk_to_srgb(image: Image.Image) -> Image.Image:
     return image.convert("RGB")
 
 
+def has_transparency(image: Image.Image) -> bool:
+    """Есть ли реально прозрачные пиксели (а не просто RGBA-канал)."""
+    if image.mode in ("RGBA", "LA"):
+        try:
+            low, _high = image.getchannel("A").getextrema()
+        except Exception:
+            return True
+
+        return low < 255
+
+    return "transparency" in image.info
+
+
 def _prepare_static_image(
     image: Image.Image,
     *,
@@ -389,6 +402,10 @@ def _build_static_variants(
 
     result: dict[str, tuple[bytes, str, str]] = {}
 
+    # Карты-схемы часто приходят PNG: для плоской графики/текста WebP q90
+    # безопаснее, чем q80, и всё равно даёт ~80% экономии.
+    png_source = str(image.format or "").upper() == "PNG"
+
     for variant, max_side in VARIANT_SIZES.items():
         resized = _resize_for_variant(prepared, max_side)
 
@@ -397,8 +414,12 @@ def _build_static_variants(
             mime_type = "image/png"
             extension = ".png"
         else:
-            # large — 1600px WebP q82; card/thumb — WebP q80.
-            data = _encode_webp(resized, 82 if variant == "large" else 80)
+            if png_source:
+                quality = 90
+            else:
+                quality = 82 if variant == "large" else 80
+
+            data = _encode_webp(resized, quality)
             mime_type = "image/webp"
             extension = ".webp"
 
@@ -1641,13 +1662,7 @@ def save_image(
 
             return result
 
-        preserve_png = (
-            image_format == "PNG"
-            and (
-                "transparency" in image.info
-                or image.mode in ("RGBA", "LA")
-            )
-        )
+        preserve_png = image_format == "PNG" and has_transparency(image)
 
         variants = _build_static_variants(
             image,

@@ -23,6 +23,7 @@ from backend.services.media_service import (
     _build_static_variants,
     _detect_format,
     _open_image,
+    has_transparency,
 )
 
 
@@ -309,7 +310,8 @@ def build_variants(
 
     image_format = _detect_format(image)
 
-    preserve_png = image_format == "PNG"
+    # PNG с реальной прозрачностью оставляем; непрозрачные карты — в WebP q90.
+    preserve_png = image_format == "PNG" and has_transparency(image)
 
     variants = _build_static_variants(
         image,

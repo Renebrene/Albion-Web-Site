@@ -36,6 +36,18 @@ def test_all_raster_variants_are_webp():
         assert max(thumb.size) == 400
 
 
+def test_opaque_png_becomes_webp():
+    buffer = BytesIO()
+    Image.new("RGB", (800, 600), "#ffffff").save(buffer, format="PNG")
+    buffer.seek(0)
+
+    with Image.open(buffer) as image:
+        variants = _build_static_variants(image, preserve_png=False)
+
+    assert variants["card"][1] == "image/webp"
+    assert variants["thumb"][1] == "image/webp"
+
+
 def test_png_with_alpha_keeps_png():
     image = Image.new("RGBA", (600, 400), (255, 0, 0, 128))
 
