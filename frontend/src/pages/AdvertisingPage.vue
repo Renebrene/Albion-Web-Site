@@ -46,7 +46,10 @@
         </div>
 
         <!-- Плавающий блок: переключатель (слева) + поиск (справа) -->
-        <div class="workspace-float">
+        <div
+          class="workspace-float"
+          :class="{ 'workspace-float--chat': chatResultsActive }"
+        >
           <div class="workspace-mode-switch">
             <button
               type="button"
@@ -59,6 +62,12 @@
             <button
               type="button"
               :class="{ active: workspaceMode === 'point' }"
+              :disabled="chatResultsActive"
+              :title="
+                chatResultsActive
+                  ? 'Недоступно в результатах умного чата'
+                  : undefined
+              "
               @click="setWorkspaceMode('point')"
             >
               <span class="mode-label">Поиск по точке и адресу</span>
@@ -81,6 +90,7 @@
             :mode="topSearchMode"
             :error="topSearchError"
             :loading="workspaceMode === 'point' && addressLoading"
+            :disabled="chatResultsActive"
             @update:mode="topSearchMode = $event"
             @select-suggestion="onTopSuggestionSelect"
             @search="onTopSearch"
@@ -101,6 +111,23 @@
             >
               {{ count }}
             </button>
+          </div>
+
+          <!--
+            Результаты умного чата: плашка живёт, пока в адресе есть chat=1
+            и чат вернул хотя бы одну конструкцию. «Сбросить» возвращает
+            обычный каталог; сама история чата не трогается.
+          -->
+          <div
+            v-if="chatResultsActive"
+            class="chat-results-plaque"
+            role="status"
+          >
+            <span class="chat-results-text">
+              Результаты умного чата · {{ chatResultsLabel }}
+            </span>
+
+            <button type="button" @click="resetChatResults">Сбросить</button>
           </div>
         </div>
 
@@ -1546,6 +1573,39 @@ const displayedConstructions = computed(() => {
   return constructions.value.filter(item => ids.has(String(item?.id)))
 })
 
+/*
+ * Режим «результаты чата»: чат передал id найденных конструкций, и страница
+ * показывает их вместо каталога. Фильтры и поиск по точке в этом режиме
+ * намеренно не применяются — поэтому поиск по точке неактивен, а строка
+ * поиска отключена, чтобы не выглядела рабочей.
+ */
+const chatResultsActive = computed(
+  () => route.query.chat === '1' && chatResultIds.value.length > 0
+)
+
+const chatResultsLabel = computed(() => {
+  const value = displayedConstructions.value.length
+
+  return `${value} ${sidesPhrase(value)}`
+})
+
+/* «Сбросить»: убираем chat/mode из адреса — каталог снова с фильтрами. */
+function resetChatResults() {
+  const query = { ...route.query }
+
+  delete query.chat
+  delete query.mode
+
+  router.replace({ path: route.path, query })
+}
+
+/* В результатах чата точки нет — если в ней стояли, уводим в карту. */
+watch(chatResultsActive, active => {
+  if (active && workspaceMode.value === 'point') {
+    setWorkspaceMode('map')
+  }
+})
+
 /* Заголовок левой панели в режиме «Список»: количество сторон. */
 const sidebarCountLabel = computed(() => {
   const value = displayedConstructions.value.length
@@ -2926,6 +2986,68 @@ onBeforeUnmount(() => {
   margin: 18px 0 0 18px;
 }
 
+/*
+ * Плашка результатов умного чата: висит под переключателем режимов, пока
+ * в адресе chat=1 и чат вернул хотя бы одну конструкцию.
+ */
+/* Место под плашку внутри плавающего блока (она стоит по его низу). */
+.workspace-float--chat {
+  padding-bottom: 46px;
+}
+
+/*
+ * Список позиционирован абсолютно от верха рабочей области и не знает о
+ * высоте плавающего блока — плашке добавляем место вручную, чтобы она не
+ * накрывала первые карточки (72px штатного отступа + 46px под плашку).
+ */
+.workspace-float--chat ~ .list-view {
+  padding-top: 118px;
+}
+
+.chat-results-plaque {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  z-index: 1500;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 8px 8px 8px 14px;
+
+  border-radius: 11px;
+
+  background: #17212b;
+  color: #fff;
+
+  box-shadow: 0 8px 28px rgba(23, 33, 43, 0.24);
+
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.chat-results-plaque button {
+  padding: 6px 12px;
+
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 8px;
+
+  background: transparent;
+  color: #fff;
+
+  cursor: pointer;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.chat-results-plaque button:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
 /* Переключатель колонок в строке поиска — освобождает шапку списка. */
 .workspace-columns {
   display: flex;
@@ -3013,9 +3135,15 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
-.workspace-mode-switch button:hover:not(.active) {
+.workspace-mode-switch button:hover:not(.active):not(:disabled) {
   background: #f0f3f4;
   color: #17212b;
+}
+
+/* В результатах чата поиск по точке недоступен. */
+.workspace-mode-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 
 /* Короткие подписи — только на узких экранах, чтобы строка не переносилась. */

@@ -6,7 +6,8 @@
       <input
         :value="modelValue"
         type="search"
-        :placeholder="placeholder"
+        :placeholder="disabled ? disabledPlaceholder : placeholder"
+        :disabled="disabled"
         autocomplete="off"
         @input="onInput"
         @focus="onFocus"
@@ -33,7 +34,13 @@
         </button>
       </div>
 
-      <button type="button" class="search-icon" title="Найти" @click="onSearch">
+      <button
+        type="button"
+        class="search-icon"
+        title="Найти"
+        :disabled="disabled"
+        @click="onSearch"
+      >
         ⌕
       </button>
     </div>
@@ -117,6 +124,12 @@ const props = defineProps({
   loading: {
     type: Boolean,
     default: false
+  },
+
+  /* Строка поиска недоступна (например, в результатах умного чата). */
+  disabled: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -136,6 +149,8 @@ const placeholder = computed(() => {
     ? 'Координаты: 47.2315, 39.7233'
     : 'Введите адрес'
 })
+
+const disabledPlaceholder = 'Фильтры недоступны в результатах чата'
 
 /*
  * Подсказки — только для геокодера (режим точки). В карте и списке строка
@@ -336,6 +351,21 @@ onBeforeUnmount(clearSuggestions)
 
 .search-card input::placeholder {
   color: #9aa5ac;
+}
+
+/* Строка поиска выключена (например, в результатах чата). */
+.search-card input:disabled {
+  cursor: not-allowed;
+  color: #8d979e;
+}
+
+.search-card input:disabled::placeholder {
+  color: #8d979e;
+}
+
+.search-icon:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 /* Переключатель Координаты/Адрес — на краю поля */
