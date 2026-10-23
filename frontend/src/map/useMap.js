@@ -7,6 +7,7 @@ import { MONTHS } from '../utils/constructionGroups'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
 import { SEARCH_POINT_ICON, searchPointIconHref } from './searchPointIcon'
 import { lazyPopups } from '../config/lazyPopups'
+import { mapDebug } from './mapDebug'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -525,11 +526,11 @@ function renderMarkers() {
     }
   }
 
-  console.log(
+  mapDebug(
     `Albion map: ${normalized.length} visible / ${constructions.length} filtered`
   )
 
-  console.log(
+  mapDebug(
     `Albion map: ${groups.length} physical constructions / ${markerByKey.size} markers`
   )
 }
@@ -874,7 +875,7 @@ async function loadRegion() {
 
     regionLayer.addTo(current)
 
-    console.log('Albion Map: Ростовская область и маска загружены')
+    mapDebug('Albion Map: Ростовская область и маска загружены')
   } catch (error) {
     console.error('Albion Map: ошибка загрузки GeoJSON', error)
   }

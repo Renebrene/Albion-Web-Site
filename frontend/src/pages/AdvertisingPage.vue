@@ -753,6 +753,7 @@ import {
   sanitizeFileName,
   usePhotoViewer
 } from '../composables/usePhotoViewer'
+import { mapDebug } from '../map/mapDebug'
 
 /* Акционная цена из отдельной колонки 1С (пока в данных отсутствует). */
 function promoPriceOf(item) {
@@ -2886,7 +2887,7 @@ onMounted(async () => {
   await reloadConstructions()
 
   if (!loadError.value) {
-    console.log('Albion page: загружено', constructions.value.length)
+    mapDebug('Albion page: загружено', constructions.value.length)
   }
 })
 

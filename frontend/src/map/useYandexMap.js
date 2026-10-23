@@ -13,6 +13,7 @@ import { MONTHS, groupByPoint } from '../utils/constructionGroups'
 import { getAvailabilityState } from '../utils/availability'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
 import { SEARCH_POINT_ICON, searchPointIconHref } from './searchPointIcon'
+import { mapDebug } from './mapDebug'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -461,11 +462,11 @@ function renderMarkers() {
     clusterer.add(added)
   }
 
-  console.log(
+  mapDebug(
     `Albion map (Yandex): ${normalized.length} visible / ${constructions.length} filtered`
   )
 
-  console.log(
+  mapDebug(
     `Albion map (Yandex): ${groups.length} physical constructions / ${placemarkByKey.size} markers`
   )
 }
@@ -1027,7 +1028,7 @@ async function loadRegion() {
 
     current.geoObjects.add(regionOutline)
 
-    console.log('Albion Map (Yandex): Ростовская область и маска загружены')
+    mapDebug('Albion Map (Yandex): Ростовская область и маска загружены')
   } catch (error) {
     console.error('Albion Map (Yandex): ошибка загрузки GeoJSON', error)
   }
