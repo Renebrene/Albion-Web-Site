@@ -11,7 +11,7 @@
 |---|---|
 | `ALBION_DB_HOST/PORT/NAME/USER/PASSWORD` | подключение к PostgreSQL |
 | `ALBION_AUTH_MODE` | `cookie` — HttpOnly-сессия админки (рекомендуется на HTTPS), `bearer` — токен в `sessionStorage` (по умолчанию, откат) |
-| `ALBION_COOKIE_SECURE` | `false` снимает флаг Secure у cookie сессии — только для локальной отладки по http; на HTTPS не задавать |
+| `ALBION_COOKIE_SECURE` | `false` снимает флаг Secure у cookie сессии. По умолчанию флаг включён: браузеры принимают Secure-cookie на `localhost` и на https-туннеле, поэтому снимать его нужно только для http на нелокальном хосте (например, `http://192.168.…`) |
 | `ALBION_ALLOWED_ORIGINS` | список origin через запятую для CORS (например `https://albion.example.ru`); пусто — только локальная разработка |
 | `ALBION_SERVE_SPA` | `1` — backend сам отдаёт собранный `frontend/dist/spa` с history-fallback (если нет nginx) |
 | `ALBION_SMTP_HOST/PORT/USER/PASSWORD/FROM` | SMTP для уведомлений о заявках (адрес получателя задаётся в админке: Пользователи → Заявки) |

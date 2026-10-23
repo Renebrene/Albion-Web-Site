@@ -121,8 +121,9 @@ Cookie-режим (TZ 2.1):
 - изменяющие методы (POST/PUT/PATCH/DELETE) с cookie-сессией **без**
   `X-CSRF-Token` получают 403;
 - logout и смена пароля отзывают сессию (`revoked_at`);
-- `ALBION_COOKIE_SECURE=false` снимает флаг Secure — только для локальной
-  отладки по http.
+- Secure-флаг включён по умолчанию; браузеры принимают такие cookie на
+  `localhost` и на https-туннеле. `ALBION_COOKIE_SECURE=false` нужен только
+  для http на нелокальном хосте (LAN-адрес и т.п.).
 
 Переключение обратимое: SPA понимает оба режима (токен сохраняется, только
 если сервер его вернул), заголовок `Authorization` принимается и в cookie-
