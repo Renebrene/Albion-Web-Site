@@ -69,14 +69,24 @@ function accept() {
   flex-wrap: wrap;
   gap: 10px 20px;
 
-  max-width: 900px;
+  max-width: 660px;
   margin: 0 auto;
-  padding: 14px 18px;
+  padding: 12px 16px;
 
   border-radius: var(--albion-radius-cards, 18px);
 
-  background: var(--albion-accent, #e12a1f);
+  /* Полупрозрачная плашка: акцент берём из настроек, поэтому прозрачность
+     добавляем через color-mix, а не жёстким rgba. Размытие подложки
+     сохраняет читаемость белого текста над фото и картой. */
+  background: color-mix(
+    in srgb,
+    var(--albion-accent, #e12a1f) 88%,
+    transparent
+  );
   color: #fff;
+
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
 
   box-shadow: 0 12px 32px rgba(23, 33, 43, 0.3);
 
