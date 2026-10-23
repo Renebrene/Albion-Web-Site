@@ -473,7 +473,7 @@ function fanStyle(index) {
  * обработано, — иначе родитель заодно переключил бы слайд.
  */
 function onStageWheel(event) {
-  const mode = props.slide?.settings?.deck_wheel_mode || 'off'
+  const mode = props.slide?.geo?.settings?.deck_wheel_mode || 'off'
 
   if (mode === 'off') return
 
