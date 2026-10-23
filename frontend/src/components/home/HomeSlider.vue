@@ -172,287 +172,13 @@
           </template>
 
           <!-- ============ ГОРОДА/РАЙОНЫ + ДОСТОПРИМЕЧАТЕЛЬНОСТИ ============ -->
-          <template v-else-if="slide.kind === 'geo'">
-            <div class="geo-layout">
-              <aside class="geo-sidebar" aria-label="Города и районы">
-                <div class="geo-sidebar-title">Города и районы</div>
-                <div class="geo-list-window">
-                  <div
-                    class="geo-list-track"
-                    :class="{ 'is-paused': geoListPaused }"
-                    @mouseenter="geoListPaused = true"
-                    @mouseleave="geoListPaused = false"
-                    @focusin="geoListPaused = true"
-                    @focusout="geoListPaused = false"
-                  >
-                    <div class="geo-list-set">
-                      <button
-                        v-for="location in geoLocations"
-                        :key="location.id"
-                        type="button"
-                        class="geo-list-link"
-                        @click="selectGeoLocation(location)"
-                      >
-                        {{ location.label }}
-                      </button>
-                    </div>
-                    <div
-                      class="geo-list-set geo-list-set--clone"
-                      aria-hidden="true"
-                    >
-                      <span
-                        v-for="location in geoLocations"
-                        :key="`clone-${location.id}`"
-                        class="geo-list-link"
-                      >
-                        {{ location.label }}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </aside>
-
-              <section class="geo-attractions" aria-label="Города и районы">
-                <div class="geo-attractions-head">
-                  <p v-if="slide.text" class="geo-text">{{ slide.text }}</p>
-                  <span v-if="geoCards.length" class="geo-counter">
-                    {{ geoAttractionIndex + 1 }} / {{ geoCards.length }}
-                  </span>
-                </div>
-
-                <!-- «Сдвинутая колода карт»: чистый CSS + индекс -->
-                <div class="geo-stage">
-                  <div class="geo-fan">
-                    <article
-                      v-for="(card, i) in geoCards"
-                      :key="card.location.id"
-                      class="geo-fan-card"
-                      :class="{ 'is-front': i === geoAttractionIndex }"
-                      :style="fanStyle(i)"
-                      :tabindex="i === geoAttractionIndex ? 0 : -1"
-                      @click="onCardClick(i)"
-                      @keydown.enter="onCardClick(i)"
-                    >
-                      <div class="geo-fan-photo" :style="fanCover(card)">
-                        <span v-if="!fanCover(card)" class="geo-fan-nophoto">
-                          {{ card.location.label }}
-                        </span>
-                      </div>
-
-                      <div class="geo-fan-body">
-                        <div class="geo-fan-loc">{{ card.location.label }}</div>
-                        <p
-                          v-if="geoSummary(card.location)"
-                          class="geo-fan-summary"
-                          >{{ geoSummary(card.location) }}</p
-                        >
-                        <div v-else-if="card.attraction" class="geo-fan-name">{{
-                          card.attraction.title
-                        }}</div>
-                        <small v-if="i === geoAttractionIndex">
-                          Нажмите, чтобы увеличить →
-                        </small>
-                      </div>
-                    </article>
-                  </div>
-
-                  <button
-                    v-if="geoCards.length > 1"
-                    type="button"
-                    class="geo-arrow geo-arrow--prev"
-                    aria-label="Предыдущая"
-                    @click="moveGeoAttraction(-1)"
-                    >‹</button
-                  >
-                  <button
-                    v-if="geoCards.length > 1"
-                    type="button"
-                    class="geo-arrow geo-arrow--next"
-                    aria-label="Следующая"
-                    @click="moveGeoAttraction(1)"
-                    >›</button
-                  >
-                </div>
-
-                <div v-if="geoCards.length > 1" class="geo-carousel-dots">
-                  <button
-                    v-for="(card, i) in geoCards"
-                    :key="card.location.id"
-                    type="button"
-                    :class="{ 'is-active': i === geoAttractionIndex }"
-                    :aria-label="card.location.label"
-                    @click="geoAttractionIndex = i"
-                  ></button>
-                </div>
-
-                <div class="geo-region">
-                  <div class="geo-region-title">Ростовская область</div>
-                  <p>
-                    Ростовская область — регион на юге России в бассейне реки
-                    Дон, с административным центром в Ростове-на-Дону. Здесь
-                    сходятся крупные транспортные пути, соединяющие центр
-                    страны, Черноморье и Кавказ. Область известна донским
-                    казачеством, промышленностью и аграрным югом, а её города и
-                    районы — от Таганрога и Новочеркасска до Волгодонска и
-                    Сальска — образуют единую сеть, в которой работает Albion.
-                  </p>
-                </div>
-
-                <div class="geo-buttons">
-                  <template
-                    v-for="btn in slideButtons(slide, GEO_FALLBACK_BUTTONS)"
-                    :key="btn.key"
-                  >
-                    <button
-                      v-if="isFormButton(btn)"
-                      type="button"
-                      class="slide-btn"
-                      :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
-                      @click="gotoFormSlide"
-                      >{{ btn.label }}</button
-                    >
-                    <a
-                      v-else
-                      class="slide-btn"
-                      :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
-                      :href="btn.url"
-                      >{{ btn.label }}</a
-                    >
-                  </template>
-                </div>
-              </section>
-            </div>
-
-            <div
-              v-if="geoExpanded && geoExpanded.location"
-              class="geo-modal-backdrop"
-              @click.self="geoExpanded = null"
-            >
-              <article
-                class="geo-modal"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="geo-modal-title"
-              >
-                <button
-                  type="button"
-                  class="geo-modal-close"
-                  aria-label="Закрыть"
-                  @click="geoExpanded = null"
-                  >×</button
-                >
-
-                <button
-                  v-if="geoCards.length > 1"
-                  type="button"
-                  class="geo-modal-nav geo-modal-nav--prev"
-                  aria-label="Предыдущая карточка"
-                  @click="moveGeoAttraction(-1)"
-                  >‹</button
-                >
-                <button
-                  v-if="geoCards.length > 1"
-                  type="button"
-                  class="geo-modal-nav geo-modal-nav--next"
-                  aria-label="Следующая карточка"
-                  @click="moveGeoAttraction(1)"
-                  >›</button
-                >
-
-                <div
-                  class="geo-modal-photo"
-                  :style="
-                    geoExpanded.location.cover
-                      ? {
-                          backgroundImage: `url('${geoExpanded.location.cover.url}')`
-                        }
-                      : undefined
-                  "
-                >
-                  <span
-                    v-if="!geoExpanded.location.cover"
-                    class="geo-modal-nophoto"
-                    >{{ geoExpanded.location.label }}</span
-                  >
-                </div>
-
-                <div class="geo-modal-body">
-                  <h2 id="geo-modal-title" class="geo-modal-title">{{
-                    geoExpanded.location.label
-                  }}</h2>
-
-                  <div
-                    v-if="geoExpanded.location.description"
-                    class="geo-modal-text"
-                    >{{ geoExpanded.location.description }}</div
-                  >
-                  <p v-else class="geo-modal-text geo-modal-text--muted">
-                    Описание этого направления скоро появится.
-                  </p>
-
-                  <div
-                    v-if="
-                      geoExpanded.location.stats &&
-                      geoExpanded.location.stats.constructions
-                    "
-                    class="geo-modal-stats"
-                  >
-                    <div class="geo-modal-stats-total">
-                      <span class="geo-modal-stats-label">Конструкции:</span>
-                      <b>{{ geoExpanded.location.stats.constructions }}</b>
-                    </div>
-                    <div class="geo-modal-formats">
-                      <span
-                        v-for="f in geoExpanded.location.stats.formats"
-                        :key="f.name"
-                        class="geo-modal-format"
-                        >{{ formatPlural(f.name) }}: <b>{{ f.count }}</b></span
-                      >
-                    </div>
-                  </div>
-
-                  <a
-                    v-if="
-                      safeCmsUrl(
-                        geoExpanded.location.map_href ||
-                          geoExpanded.location.href
-                      )
-                    "
-                    class="geo-modal-mapbtn"
-                    :href="
-                      safeCmsUrl(
-                        geoExpanded.location.map_href ||
-                          geoExpanded.location.href
-                      )
-                    "
-                    >Перейти на интерактивную карту</a
-                  >
-
-                  <div
-                    v-if="geoExpanded.location.cover"
-                    class="geo-modal-credit"
-                  >
-                    <span class="geo-modal-credit-name">
-                      {{ geoExpanded.location.cover.attraction_title }}
-                    </span>
-                    <span v-if="geoExpanded.location.cover.source_name">
-                      · фото: {{ geoExpanded.location.cover.source_name }}
-                    </span>
-                    <a
-                      v-if="safeCmsUrl(geoExpanded.location.cover.source_url)"
-                      :href="safeCmsUrl(geoExpanded.location.cover.source_url)"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      >источник</a
-                    >
-                    <span v-if="geoExpanded.location.cover.license">
-                      · {{ geoExpanded.location.cover.license }}
-                    </span>
-                  </div>
-                </div>
-              </article>
-            </div>
-          </template>
+          <GeoSlide
+            v-else-if="slide.kind === 'geo'"
+            ref="geoSlideRefs"
+            v-model:expanded="geoExpanded"
+            :slide="slide"
+            @open-form="gotoFormSlide"
+          />
 
           <!-- ============ НОВОСТИ ============ -->
           <NewsSlide
@@ -499,6 +225,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { safeCmsUrl } from '../../utils/safeCmsUrl'
 import FeedbackSlide from './slides/FeedbackSlide.vue'
+import GeoSlide from './slides/GeoSlide.vue'
 import NewsSlide from './slides/NewsSlide.vue'
 import TextSlide from './slides/TextSlide.vue'
 import { isFormButton, itemButtons, slideButtons } from './slides/slideButtons'
@@ -537,6 +264,14 @@ const AUTOPLAY_MS = 8000
 const heroIndex = ref(0)
 let heroTimer = null
 let homeSliderMounted = false
+
+/*
+ * Geo-слайд: ссылка нужна для стрелок клавиатуры и сброса при уходе со
+ * слайда, а состояние модалки держим у себя — родитель решает, листать
+ * ли слайды колесом (при открытой модалке — нет).
+ */
+const geoSlideRefs = ref([])
+const geoExpanded = ref(null)
 
 /* Пользователь просит меньше движения — не крутим hero-карусель автоматически.
    Переходы слайдов гасит CSS-медиазапрос prefers-reduced-motion. */
@@ -582,18 +317,6 @@ function heroItems(slide) {
  * legacy-поля (button_label/button2_label и т.п.), чтобы старый контент
  * продолжал работать.
  */
-const GEO_FALLBACK_BUTTONS = [
-  {
-    label: 'Перейти на интерактивную карту',
-    url: '/vozmozhnosti',
-    variant: 'primary'
-  },
-  {
-    label: 'Смотреть описание городов и районов',
-    url: '/informaciya?tab=города и районы',
-    variant: 'ghost'
-  }
-]
 
 const heroCount = computed(() => {
   const slide = slides.value[index.value]
@@ -691,60 +414,7 @@ function heroBgStyle(i, item) {
   return undefined
 }
 
-const geoListPaused = ref(false)
-const geoExpanded = ref(null)
-const geoAttractionIndex = ref(0)
-
-/* Модалка geo: при открытии переносим фокус на кнопку закрытия, при
-   закрытии возвращаем его на элемент, который открыл модалку. */
-let lastGeoFocus = null
-
-watch(
-  geoExpanded,
-  (value, previous) => {
-    if (value && !previous) {
-      lastGeoFocus =
-        typeof document !== 'undefined' ? document.activeElement : null
-
-      const closeBtn = rootRef.value?.querySelector?.('.geo-modal-close')
-      closeBtn?.focus?.()
-    } else if (!value && previous) {
-      if (lastGeoFocus && typeof lastGeoFocus.focus === 'function') {
-        lastGeoFocus.focus()
-      }
-
-      lastGeoFocus = null
-    }
-  },
-  // post: колбэк после обновления DOM — кнопка закрытия уже отрисована.
-  { flush: 'post' }
-)
-
-const currentGeo = computed(
-  () =>
-    slides.value[index.value]?.geo || {
-      settings: { map_links_enabled: true },
-      locations: [],
-      attractions: []
-    }
-)
-
-const geoLocations = computed(() => currentGeo.value.locations || [])
-const geoAttractions = computed(() => currentGeo.value.attractions || [])
-
-/* Карточка колоды = локация + её достопримечательность (если есть). */
-const geoCards = computed(() =>
-  geoLocations.value.map(location => ({
-    location,
-    attraction:
-      geoAttractions.value.find(
-        item => String(item.location_id) === String(location.id)
-      ) || null
-  }))
-)
-
 let wheelLock = 0
-let deckWheelLock = 0
 
 async function load() {
   loading.value = true
@@ -813,150 +483,11 @@ async function load() {
   }
 }
 
-function selectGeoLocation(location) {
-  const idx = geoCards.value.findIndex(card => card.location.id === location.id)
-  if (idx >= 0) geoAttractionIndex.value = idx
-}
+/* Ссылка внутри v-for — массив: берём живой экземпляр гео-слайда. */
+function geoSlideApi() {
+  const list = geoSlideRefs.value
 
-function moveGeoAttraction(direction) {
-  const count = geoCards.value.length
-  if (!count) return
-  const next = (geoAttractionIndex.value + direction + count) % count
-  geoAttractionIndex.value = next
-  // Если открыто окно описания — переключаем и его на соседнюю карточку.
-  if (geoExpanded.value) geoExpanded.value = geoCards.value[next]
-}
-
-function openCurrentGeoCard() {
-  const card = geoCards.value[geoAttractionIndex.value]
-  if (card) geoExpanded.value = card
-}
-
-/* Управление колодой карточек колесом мыши (режим задаётся в админке).
-   Возвращает true, если событие «съедено» и вертикальный слайд не листается. */
-function handleDeckWheel(event) {
-  const mode = currentGeo.value.settings?.deck_wheel_mode || 'off'
-  if (mode === 'off') return false
-  if (slides.value[index.value]?.kind !== 'geo') return false
-
-  const stage = event.target?.closest?.('.geo-stage')
-  if (!stage) return false
-
-  const count = geoCards.value.length
-  if (!count) return false
-
-  const now = Date.now()
-  if (now < deckWheelLock) {
-    event.preventDefault()
-    return true
-  }
-
-  const down = event.deltaY > 0
-
-  if (mode === 'v1') {
-    event.preventDefault()
-    if (!down) {
-      openCurrentGeoCard()
-    } else {
-      const rect = stage.getBoundingClientRect()
-      const center = rect.left + rect.width / 2
-      moveGeoAttraction(event.clientX < center ? -1 : 1)
-    }
-    deckWheelLock = now + 220
-    return true
-  }
-
-  if (mode === 'v2') {
-    event.preventDefault()
-    moveGeoAttraction(down ? -1 : 1)
-    deckWheelLock = now + 220
-    return true
-  }
-
-  if (mode === 'v3') {
-    const next = geoAttractionIndex.value + (down ? 1 : -1)
-    if (next < 0 || next > count - 1) return false
-    event.preventDefault()
-    geoAttractionIndex.value = next
-    deckWheelLock = now + 220
-    return true
-  }
-
-  return false
-}
-
-function onCardClick(i) {
-  const card = geoCards.value[i]
-  if (!card) return
-
-  if (i === geoAttractionIndex.value) {
-    geoExpanded.value = card
-  } else {
-    geoAttractionIndex.value = i
-  }
-}
-
-function fanCover(card) {
-  const url = card?.attraction?.photos?.[0]?.url
-  return url ? { backgroundImage: `url('${url}')` } : undefined
-}
-
-/* Названия форматов в именительном падеже множественного числа. */
-const FORMAT_PLURALS = {
-  Щит: 'Щиты',
-  Видеоэкран: 'Видеоэкраны',
-  'Сити-формат': 'Сити-форматы',
-  Призматрон: 'Призматроны',
-  Скроллер: 'Скроллеры',
-  Пиллар: 'Пиллары'
-}
-
-function formatPlural(name) {
-  const key = String(name || '').trim()
-  return FORMAT_PLURALS[key] || key
-}
-
-/* Краткая выжимка для карточки колоды: первый абзац описания локации. */
-function geoSummary(location) {
-  const text = String(location?.description || '').trim()
-  if (!text) return ''
-
-  const first = text
-    .split(/\n{2,}/)[0]
-    .replace(/\s+/g, ' ')
-    .trim()
-  const limit = 180
-  if (first.length <= limit) return first
-
-  const cut = first.slice(0, limit)
-  const lastSpace = cut.lastIndexOf(' ')
-  return `${(lastSpace > 100 ? cut.slice(0, lastSpace) : cut).trim()}…`
-}
-
-/* Позиция карты в «колоде»: передняя по центру, соседние веером назад. */
-function fanStyle(i) {
-  const n = geoCards.value.length
-  let r = i - geoAttractionIndex.value
-
-  if (n > 1) {
-    if (r > n / 2) r -= n
-    if (r < -n / 2) r += n
-  }
-
-  const maxVisible = 6
-  const clamped = Math.max(-maxVisible, Math.min(maxVisible, r))
-  const abs = Math.abs(clamped)
-  const sign = clamped === 0 ? 0 : clamped > 0 ? 1 : -1
-
-  return {
-    transform:
-      `translate(-50%, -50%) ` +
-      `translate(${sign * abs * 46}px, ${abs * 10}px) ` +
-      `rotate(${sign * abs * 4.5}deg) scale(${1 - abs * 0.05})`,
-    zIndex: String(60 - Math.abs(r)),
-    opacity: Math.abs(r) > maxVisible ? '0' : '1',
-    pointerEvents: Math.abs(r) > maxVisible ? 'none' : 'auto'
-  }
+  return Array.isArray(list) ? list.find(Boolean) : list
 }
 
 function goto(i) {
@@ -976,9 +507,6 @@ function onWheel(event) {
 
   /* Горизонтальный трекпад и Ctrl+wheel (zoom) не листают слайды. */
   if (event.ctrlKey || event.deltaY === 0) return
-
-  // Колода geo-слайда может перехватывать колесо (режим задаётся в админке).
-  if (handleDeckWheel(event)) return
 
   if (slides.value.length < 2) return
 
@@ -1029,10 +557,11 @@ function onKey(event) {
   // При открытом окне описания ←/→ переключают карточки колоды.
   if (geoExpanded.value) {
     if (event.key === 'ArrowRight') {
-      moveGeoAttraction(1)
+      geoSlideApi()?.move(1)
     } else if (event.key === 'ArrowLeft') {
-      moveGeoAttraction(-1)
+      geoSlideApi()?.move(-1)
     }
+
     return
   }
 
@@ -1049,8 +578,9 @@ function onKey(event) {
 
 watch(index, () => {
   heroIndex.value = 0
-  geoAttractionIndex.value = 0
   geoExpanded.value = null
+  geoSlideApi()?.reset()
+
   // Индексы кадров hero у каждого слайда свои — сбрасываем отметки загрузки.
   loadedHeroBgs.clear()
   restartHeroAutoplay()
@@ -1074,17 +604,6 @@ function markHeroBg(i) {
 watch([heroIndex, heroCount], () => markHeroBg(heroIndex.value), {
   immediate: true
 })
-
-watch(
-  () => geoCards.value.length,
-  count => {
-    if (!count) {
-      geoAttractionIndex.value = 0
-    } else if (geoAttractionIndex.value >= count) {
-      geoAttractionIndex.value = 0
-    }
-  }
-)
 
 function onReduceMotionChange(event) {
   prefersReducedMotion.value = event.matches
@@ -1127,7 +646,6 @@ onBeforeUnmount(() => {
   overflow: hidden;
   background: #2a2e34;
 }
-
 .home-state {
   position: absolute;
   inset: 0;
@@ -1141,27 +659,22 @@ onBeforeUnmount(() => {
   text-align: center;
   background: rgba(20, 24, 29, 0.92);
 }
-
 .home-state--error {
   color: #ffd7d2;
 }
-
 .home-state .slide-btn {
   justify-self: center;
 }
-
 .slides-track {
   height: 100%;
   transition: transform 0.75s cubic-bezier(0.65, 0.05, 0.36, 1);
   will-change: transform;
 }
-
 .slide {
   position: relative;
   height: 100%;
   overflow: hidden;
 }
-
 .slide-bg {
   position: absolute;
   inset: 0;
@@ -1170,11 +683,9 @@ onBeforeUnmount(() => {
   transform: scale(1.08);
   transition: transform 1.2s ease;
 }
-
 .slide.is-active .slide-bg {
   transform: scale(1);
 }
-
 .slide-veil {
   position: absolute;
   inset: 0;
@@ -1184,7 +695,6 @@ onBeforeUnmount(() => {
     rgba(6, 12, 16, 0.78)
   );
 }
-
 .slide-inner {
   position: relative;
   z-index: 1;
@@ -1203,26 +713,22 @@ onBeforeUnmount(() => {
     opacity 0.7s ease 0.15s,
     transform 0.7s ease 0.15s;
 }
-
 .slide.is-active .slide-inner {
   opacity: 1;
   transform: translateY(0);
 }
-
 .slide-title {
   margin: 0;
   font-size: clamp(26px, 4vw, 56px);
   font-weight: 900;
   letter-spacing: 0.04em;
 }
-
 .slide-text {
   margin: 0;
   max-width: 780px;
   font-size: clamp(14px, 1.5vw, 20px);
   opacity: 0.9;
 }
-
 .slide-btn {
   margin-top: 8px;
   padding: 12px 26px;
@@ -1237,18 +743,13 @@ onBeforeUnmount(() => {
   cursor: pointer;
   transition: transform 0.15s ease;
 }
-
 .slide-btn:hover {
   transform: translateY(-2px);
 }
-
-/* -------- Первый слайд: вариант A (во всю ширину, без боковых полей) -------- */
-
 .slide-inner--bleed {
   padding: 0;
   align-items: stretch;
 }
-
 .slide--hero .slide-veil {
   background: linear-gradient(
     90deg,
@@ -1257,7 +758,6 @@ onBeforeUnmount(() => {
     rgba(8, 12, 16, 0.18) 100%
   );
 }
-
 .hero-a {
   width: 100%;
   height: 100%;
@@ -1269,27 +769,23 @@ onBeforeUnmount(() => {
   padding: clamp(28px, 6vh, 72px) clamp(28px, 6vw, 120px);
   text-align: left;
 }
-
 .hero-a-brand {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-
 .hero-a-company {
   font-size: clamp(12px, 1.1vw, 16px);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   opacity: 0.8;
 }
-
 .hero-a-name {
   font-size: clamp(46px, 7vw, 108px);
   line-height: 0.95;
   font-weight: 900;
   letter-spacing: 0.02em;
 }
-
 .hero-a-slogan {
   margin: 0;
   max-width: min(920px, 84%);
@@ -1297,20 +793,17 @@ onBeforeUnmount(() => {
   line-height: 1.06;
   font-weight: 800;
 }
-
 .hero-a-text {
   margin: 0;
   max-width: min(620px, 78%);
   font-size: clamp(15px, 1.4vw, 20px);
   opacity: 0.9;
 }
-
 .hero-a-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
 }
-
 .hero-a-stats {
   display: flex;
   flex-wrap: wrap;
@@ -1321,7 +814,6 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   background: rgba(10, 14, 18, 0.5);
 }
-
 .hero-a-stat {
   display: flex;
   flex-direction: column;
@@ -1329,21 +821,17 @@ onBeforeUnmount(() => {
   text-align: center;
   gap: 4px;
 }
-
 .hero-a-stat-label {
   font-size: clamp(9px, 0.85vw, 11px);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.62;
 }
-
 .hero-a-stat b {
   font-size: clamp(26px, 3vw, 44px);
   font-weight: 900;
   line-height: 1;
 }
-
-/* Блок статистики сети на карточке (network_stats). */
 .hero-net {
   display: flex;
   flex-direction: column;
@@ -1354,18 +842,15 @@ onBeforeUnmount(() => {
   border-radius: 14px;
   background: rgba(10, 14, 18, 0.5);
 }
-
 .hero-net-row {
   display: flex;
   flex-wrap: wrap;
   gap: clamp(16px, 2.4vw, 36px);
 }
-
 .hero-net-row--formats {
   padding-top: 12px;
   border-top: 1px solid rgba(255, 255, 255, 0.12);
 }
-
 .hero-net-cell {
   display: flex;
   flex-direction: column;
@@ -1373,19 +858,16 @@ onBeforeUnmount(() => {
   text-align: center;
   gap: 4px;
 }
-
 .hero-net-label {
   font-size: clamp(9px, 0.85vw, 11px);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   opacity: 0.62;
 }
-
 .hero-net-value {
   font-weight: 900;
   line-height: 1;
 }
-
 .hero-net-row--totals .hero-net-value {
   font-size: clamp(28px, 3vw, 44px);
 }
@@ -1393,44 +875,34 @@ onBeforeUnmount(() => {
   font-size: clamp(18px, 1.8vw, 26px);
   font-weight: 800;
 }
-
-.hero-a-name,
-.hero-a-slogan,
 .hero-a-text {
   text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
 }
-
-/* Горизонтальная карусель верхнего слайда (V1). */
 .slide--hero .slide-bg {
   display: none;
 }
-
 .hero-v1 {
   position: relative;
   height: 100%;
   width: 100%;
   overflow: hidden;
 }
-
 .hero-v1-track {
   display: flex;
   height: 100%;
   transition: transform 0.8s cubic-bezier(0.65, 0.05, 0.36, 1);
 }
-
 .hero-v1-slide {
   position: relative;
   flex: 0 0 100%;
   height: 100%;
   overflow: hidden;
 }
-
 .hero-v1-bg {
   position: absolute;
   inset: 0;
   background: #141a1f center/cover no-repeat;
 }
-
 .hero-v1-slide::after {
   content: '';
   position: absolute;
@@ -1442,12 +914,10 @@ onBeforeUnmount(() => {
     rgba(8, 12, 16, 0.18) 100%
   );
 }
-
 .hero-v1 .hero-a {
   position: relative;
   z-index: 1;
 }
-
 @media (max-width: 760px) {
   .hero-a {
     padding: 24px 18px;
@@ -1455,13 +925,10 @@ onBeforeUnmount(() => {
   .hero-a-name {
     font-size: 46px;
   }
-  .hero-a-slogan,
   .hero-a-text {
     max-width: 100%;
   }
 }
-
-/* -------- Верхний слайд: горизонтальная карусель -------- */
 
 .hero-viewport {
   position: relative;
@@ -1481,7 +948,6 @@ onBeforeUnmount(() => {
   gap: clamp(10px, 1.6vh, 18px);
   padding: 0 clamp(14px, 4vw, 64px);
 }
-
 .hero-photo {
   width: 100%;
   max-width: min(900px, 72vw);
@@ -1490,7 +956,6 @@ onBeforeUnmount(() => {
   background-size: cover;
   background-position: center;
 }
-
 .hero-title {
   margin: 0;
   font-size: clamp(24px, 3.6vw, 56px);
@@ -1502,19 +967,16 @@ onBeforeUnmount(() => {
   font-size: clamp(14px, 1.5vw, 22px);
   opacity: 0.9;
 }
-
 .hero-card {
   max-height: 56vh;
   overflow-y: auto;
 }
-
 .hero-eyebrow {
   font-size: 12px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   opacity: 0.75;
 }
-
 .hero-stats {
   display: flex;
   flex-wrap: wrap;
@@ -1522,7 +984,6 @@ onBeforeUnmount(() => {
   gap: 14px 34px;
   margin-top: 6px;
 }
-
 .hero-stat {
   display: flex;
   flex-direction: column;
@@ -1538,7 +999,6 @@ onBeforeUnmount(() => {
   opacity: 0.75;
   margin-top: 2px;
 }
-
 .hero-chips {
   display: flex;
   flex-wrap: wrap;
@@ -1546,7 +1006,6 @@ onBeforeUnmount(() => {
   gap: 8px;
   margin-top: 8px;
 }
-
 .hero-chips span {
   padding: 5px 12px;
   border-radius: 999px;
@@ -1554,11 +1013,9 @@ onBeforeUnmount(() => {
   border: 1px solid rgba(255, 255, 255, 0.18);
   font-size: 13px;
 }
-
 .hero-chips--ghost span {
   background: transparent;
 }
-
 .hero-sub {
   margin-top: 14px;
   font-size: 12px;
@@ -1566,7 +1023,6 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   opacity: 0.7;
 }
-
 .hero-list {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -1577,7 +1033,6 @@ onBeforeUnmount(() => {
   text-align: left;
   max-width: 780px;
 }
-
 .hero-list li {
   position: relative;
   padding-left: 16px;
@@ -1589,7 +1044,6 @@ onBeforeUnmount(() => {
   left: 0;
   color: var(--albion-accent, #e2231a);
 }
-
 .hero-prod {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1597,7 +1051,6 @@ onBeforeUnmount(() => {
   margin: 10px auto 0;
   max-width: 880px;
 }
-
 .hero-prod-item {
   display: flex;
   flex-direction: column;
@@ -1607,7 +1060,6 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.08);
   text-align: left;
 }
-
 .hero-prod-item b {
   font-size: 15px;
 }
@@ -1615,7 +1067,6 @@ onBeforeUnmount(() => {
   font-size: 13px;
   opacity: 0.82;
 }
-
 .hero-arrow {
   position: absolute;
   top: 50%;
@@ -1631,11 +1082,9 @@ onBeforeUnmount(() => {
   line-height: 1;
   cursor: pointer;
 }
-
 .hero-arrow:hover {
   background: rgba(255, 255, 255, 0.3);
 }
-/* Обе стрелки — справа, рядом друг с другом (в обмен с точками). */
 .hero-arrow--prev {
   right: 84px;
   left: auto;
@@ -1644,13 +1093,11 @@ onBeforeUnmount(() => {
   right: 24px;
   left: auto;
 }
-
 .hero-dots {
   display: flex;
   gap: 8px;
   margin-top: 12px;
 }
-
 .hero-dot {
   width: 9px;
   height: 9px;
@@ -1660,494 +1107,13 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.4);
   cursor: pointer;
 }
-
 .hero-dot.is-active {
   background: #fff;
-}
-
-/* -------- Geo: бесконечный список + карусель -------- */
-
-.geo-layout {
-  display: grid;
-  grid-template-columns: minmax(250px, 26%) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
-  gap: clamp(20px, 3vw, 48px);
-  width: min(1500px, 96vw);
-  flex: 1 1 auto;
-  min-height: 0;
-  text-align: left;
-}
-
-.geo-sidebar {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  border-right: 1px solid rgba(255, 255, 255, 0.15);
-  padding-right: 20px;
-  overflow: hidden;
-}
-
-.geo-sidebar-title {
-  font-size: 13px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.65);
-}
-
-.geo-list-window {
-  min-height: 0;
-  flex: 1;
-  overflow: hidden;
-  position: relative;
-  mask-image: linear-gradient(transparent, #000 7%, #000 93%, transparent);
-}
-
-.geo-list-track {
-  animation: geo-marquee 48s linear infinite;
-}
-.geo-list-track.is-paused,
-.geo-list-track:focus-within,
-.geo-list-track:hover {
-  animation-play-state: paused;
-}
-
-.geo-list-set {
-  display: flex;
-  flex-direction: column;
-  gap: 7px;
-  padding: 4px 0;
-}
-
-.geo-list-link {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  width: 100%;
-  padding: 5px 0;
-  border: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.9);
-  font: inherit;
-  font-size: 14px;
-  text-decoration: none;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    color 0.15s ease,
-    transform 0.15s ease;
-}
-
-.geo-list-link:hover,
-.geo-list-link:focus-visible {
-  color: #fff;
-  transform: translateX(5px);
-  outline: none;
-}
-
-.geo-attractions {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  overflow: hidden;
-}
-
-.geo-attractions-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 10px;
-}
-
-.geo-text {
-  margin: 0;
-  font-size: clamp(15px, 1.4vw, 20px);
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
-}
-.geo-counter {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-/* «Сдвинутая колода карт» (чистый CSS + индекс). */
-.geo-stage {
-  position: relative;
-  flex: 1 1 auto;
-  min-height: 190px;
-  margin-top: 4px;
-}
-
-.geo-fan {
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.geo-fan-card {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: clamp(180px, 32%, 280px);
-  height: min(100%, 360px);
-  max-height: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 16px;
-  overflow: hidden;
-  background: #182127;
-  cursor: pointer;
-  transform-origin: center;
-  transition:
-    transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 0.4s ease;
-  will-change: transform;
-}
-
-.geo-fan-card.is-front {
-  border-color: rgba(255, 255, 255, 0.4);
-  box-shadow: 0 20px 46px rgba(0, 0, 0, 0.42);
-}
-
-.geo-fan-photo {
-  height: 54%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #10181d center/cover no-repeat;
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 12px;
-  text-align: center;
-  padding: 8px;
-}
-
-.geo-fan-body {
-  padding: 11px 14px;
-}
-.geo-fan-loc {
-  color: rgba(255, 255, 255, 0.55);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-.geo-fan-name {
-  margin-top: 4px;
-  font-size: 14px;
-  font-weight: 700;
-}
-.geo-fan-summary {
-  margin: 5px 0 0;
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 12px;
-  line-height: 1.4;
-  font-weight: 500;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-.geo-fan-body small {
-  display: block;
-  margin-top: 7px;
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 11px;
-}
-
-.geo-arrow {
-  position: absolute;
-  top: 50%;
-  z-index: 2;
-  width: 42px;
-  height: 42px;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  font-size: 26px;
-  cursor: pointer;
-}
-
-.geo-arrow:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-.geo-arrow--prev {
-  left: 10px;
-}
-.geo-arrow--next {
-  right: 10px;
-}
-.geo-region {
-  margin-top: 14px;
-  max-width: 100%;
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 13px;
-  line-height: 1.5;
-}
-
-.geo-region-title {
-  color: #fff;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  margin-bottom: 4px;
-}
-
-.geo-region p {
-  margin: 0;
-}
-
-.geo-carousel-dots {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-  margin-top: 12px;
-}
-.geo-carousel-dots button {
-  width: 8px;
-  height: 8px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.35);
-  cursor: pointer;
-}
-.geo-carousel-dots button.is-active {
-  background: #fff;
-}
-
-.geo-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 18px;
 }
 .slide-btn--ghost {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.55);
 }
-
-.geo-modal-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(3px);
-}
-
-.geo-modal {
-  position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  width: min(1040px, 94vw);
-  max-height: 86vh;
-  border-radius: 18px;
-  overflow: hidden;
-  background: #182127;
-  color: #fff;
-  text-align: left;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
-}
-
-.geo-modal-close {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 2;
-  width: 38px;
-  height: 38px;
-  border: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  font-size: 24px;
-  line-height: 1;
-  cursor: pointer;
-}
-.geo-modal-close:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-
-.geo-modal-nav {
-  position: absolute;
-  top: 50%;
-  z-index: 3;
-  width: 46px;
-  height: 46px;
-  transform: translateY(-50%);
-  border: 0;
-  border-radius: 50%;
-  background: rgba(0, 0, 0, 0.45);
-  color: #fff;
-  font-size: 28px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 0.15s ease;
-}
-.geo-modal-nav:hover {
-  background: rgba(255, 255, 255, 0.22);
-}
-.geo-modal-nav--prev {
-  left: 12px;
-}
-.geo-modal-nav--next {
-  right: 12px;
-}
-
-.geo-modal-photo {
-  position: relative;
-  min-height: 340px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #0e1519 center/cover no-repeat;
-}
-
-.geo-modal-nophoto {
-  padding: 20px;
-  color: rgba(255, 255, 255, 0.6);
-  font-size: 14px;
-  text-align: center;
-}
-
-.geo-modal-body {
-  display: flex;
-  flex-direction: column;
-  max-height: 86vh;
-  padding: 30px 30px 24px;
-  overflow-y: auto;
-}
-
-.geo-modal-title {
-  margin: 0 0 14px;
-  font-size: clamp(24px, 2.4vw, 34px);
-  line-height: 1.08;
-  font-weight: 900;
-}
-
-.geo-modal-text {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 15px;
-  line-height: 1.7;
-  white-space: pre-line;
-}
-.geo-modal-text--muted {
-  color: rgba(255, 255, 255, 0.55);
-}
-
-.geo-modal-stats {
-  margin-top: 16px;
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.geo-modal-stats-total {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.geo-modal-stats-total b {
-  font-size: 22px;
-  font-weight: 900;
-  line-height: 1;
-}
-.geo-modal-stats-label {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-}
-
-.geo-modal-formats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 0;
-  margin-top: 8px;
-}
-.geo-modal-format {
-  margin-right: 7px;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 12px;
-}
-.geo-modal-format:not(:last-child)::after {
-  content: ',';
-}
-.geo-modal-format b {
-  font-weight: 800;
-}
-
-.geo-modal-mapbtn {
-  align-self: flex-start;
-  margin-top: 16px;
-  padding: 11px 18px;
-  border-radius: 999px;
-  background: var(--albion-accent, #ff4d3d);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 800;
-  text-decoration: none;
-  transition: filter 0.15s ease;
-}
-.geo-modal-mapbtn:hover {
-  filter: brightness(1.08);
-}
-
-.geo-modal-credit {
-  margin-top: auto;
-  padding-top: 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.14);
-  color: rgba(255, 255, 255, 0.5);
-  font-size: 10.5px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-.geo-modal-credit-name {
-  color: rgba(255, 255, 255, 0.72);
-  font-weight: 700;
-}
-.geo-modal-credit a {
-  margin: 0 4px;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-@keyframes geo-marquee {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-50%);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .geo-list-track {
-    animation: none;
-  }
-
-  /* Без плавных переходов слайдов/карусели. */
-  .slides-track,
-  .hero-v1-track,
-  .geo-fan-card,
-  .geo-modal {
-    transition: none;
-  }
-}
-
-/* -------- Новости -------- */
-
-/* -------- Форма -------- */
-
-/* -------- Вертикальная навигация -------- */
-
 .v-dots {
   position: absolute;
   top: 50%;
@@ -2159,7 +1125,6 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 10px;
 }
-
 .v-dot {
   width: 10px;
   height: 10px;
@@ -2169,12 +1134,9 @@ onBeforeUnmount(() => {
   background: rgba(255, 255, 255, 0.4);
   cursor: pointer;
 }
-
 .v-dot.is-active {
   background: #fff;
 }
-
-/* Кнопка «наверх» — фиксированный полупрозрачный круг со стрелкой. */
 .to-top {
   position: absolute;
   right: clamp(14px, 2vw, 28px);
@@ -2207,58 +1169,17 @@ onBeforeUnmount(() => {
     background 0.15s ease,
     transform 0.15s ease;
 }
-
 .to-top:hover {
   background: rgba(20, 24, 28, 0.78);
   transform: translateY(-2px);
 }
-
 @media (max-width: 760px) {
-  .geo-layout {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto minmax(0, 1fr);
-    width: 94vw;
-    min-height: 0;
-    gap: 14px;
-  }
-  .geo-sidebar {
-    border-right: 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
-    padding: 0 0 10px;
-    min-height: 120px;
-    flex: 0 0 150px;
-  }
-  .geo-attractions {
-    min-height: 0;
-  }
-  .geo-list-window {
-    max-height: 150px;
-  }
-  .geo-region {
-    display: none;
-  }
-  .hero-list,
   .hero-prod {
     grid-template-columns: 1fr;
   }
   .hero-card {
     padding: 0 8px;
     max-height: 62vh;
-  }
-
-  .geo-modal {
-    grid-template-columns: 1fr;
-    max-height: 90vh;
-    overflow-y: auto;
-  }
-  .geo-modal-photo {
-    min-height: 0;
-    height: 34vh;
-  }
-  .geo-modal-body {
-    max-height: none;
-    overflow: visible;
-    padding: 22px 20px;
   }
 }
 </style>
