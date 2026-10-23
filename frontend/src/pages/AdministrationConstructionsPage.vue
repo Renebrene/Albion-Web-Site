@@ -1033,25 +1033,14 @@ function distinctValues(accessor) {
   return seen.sort((a, b) => a.localeCompare(b, 'ru'))
 }
 
-/* Выбранные элементы списка поднимаются наверх. */
-function withSelectedFirst(allValues, selected) {
-  const rest = allValues.filter(value => !selected.includes(value))
-  return [...selected, ...rest]
-}
+/*
+ * Порядок вариантов стабильный (по алфавиту): раньше выбранные значения
+ * поднимались наверх, и при каждом клике список прыгал под курсором —
+ * легко было попасть не в тот пункт. Выбранное и так видно чипами.
+ */
+const filterCityOptions = computed(() => distinctValues(item => item.city))
 
-const filterCityOptions = computed(() =>
-  withSelectedFirst(
-    distinctValues(item => item.city),
-    locationFilter.value
-  )
-)
-
-const filterFormatOptions = computed(() =>
-  withSelectedFirst(
-    distinctValues(item => item.type),
-    formatFilter.value
-  )
-)
+const filterFormatOptions = computed(() => distinctValues(item => item.type))
 
 const visibleConstructions = computed(() => {
   const query = searchQuery.value.trim().toLowerCase()
