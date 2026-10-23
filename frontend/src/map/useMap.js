@@ -5,6 +5,7 @@ import { popupContent, popupLayout } from './popupContent'
 import { getAvailabilityState } from '../utils/availability'
 import { MONTHS } from '../utils/constructionGroups'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
+import { SEARCH_POINT_ICON, searchPointIconHref } from './searchPointIcon'
 import { lazyPopups } from '../config/lazyPopups'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
@@ -620,6 +621,13 @@ function setSearchPoint(lat, lng) {
 
   if (!searchPointMarker) {
     searchPointMarker = L.marker(position, {
+      /* Тот же пин-домик, что и перетаскиваемая метка: остриё в точке. */
+      icon: L.icon({
+        iconUrl: searchPointIconHref(),
+        iconSize: [SEARCH_POINT_ICON.width, SEARCH_POINT_ICON.height],
+        iconAnchor: [SEARCH_POINT_ICON.width / 2, SEARCH_POINT_ICON.height]
+      }),
+
       interactive: false,
       keyboard: false,
       zIndexOffset: 1000

@@ -155,23 +155,23 @@
               -->
               <svg
                 class="point-target-pin"
-                viewBox="0 0 42 50"
-                width="42"
-                height="50"
+                :viewBox="`0 0 ${SEARCH_POINT_ICON.width} ${SEARCH_POINT_ICON.height}`"
+                :width="SEARCH_POINT_ICON.width"
+                :height="SEARCH_POINT_ICON.height"
                 aria-hidden="true"
                 focusable="false"
               >
                 <path
                   class="point-target-pin__body"
-                  d="M21 48C21 48 5 29.5 5 19A16 16 0 1 1 37 19C37 29.5 21 48 21 48Z"
+                  :d="SEARCH_POINT_ICON.body"
                 />
                 <path
                   class="point-target-pin__house"
-                  d="M21 9.5 11.5 17.5H14V27.5H28V17.5H30.5L21 9.5Z"
+                  :d="SEARCH_POINT_ICON.house"
                 />
                 <path
                   class="point-target-pin__door"
-                  d="M18.6 27.5V21.6H23.4V27.5"
+                  :d="SEARCH_POINT_ICON.door"
                 />
               </svg>
             </div>
@@ -711,6 +711,7 @@ import MapSearch from '../components/workspace/MapSearch.vue'
 import PointSearchPanel from '../components/workspace/PointSearchPanel.vue'
 import MapView from '../map/MapView.vue'
 import { clearPopupContentCache } from '../map/popupContent'
+import { SEARCH_POINT_ICON } from '../map/searchPointIcon'
 
 import { getConstructions } from '../services/api'
 import { geocodeAddress, reverseGeocode } from '../services/geoApi'

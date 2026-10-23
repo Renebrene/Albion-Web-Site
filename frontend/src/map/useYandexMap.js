@@ -12,6 +12,7 @@ import { popupContent, popupLayout } from './popupContent'
 import { MONTHS, groupByPoint } from '../utils/constructionGroups'
 import { getAvailabilityState } from '../utils/availability'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
+import { SEARCH_POINT_ICON, searchPointIconHref } from './searchPointIcon'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -606,7 +607,15 @@ function setSearchPoint(lat, lng) {
       position,
       {},
       {
-        preset: 'islands#redIcon',
+        /* Тот же пин-домик, что и перетаскиваемая метка: остриё в точке. */
+        iconLayout: 'default#image',
+        iconImageHref: searchPointIconHref(),
+        iconImageSize: [SEARCH_POINT_ICON.width, SEARCH_POINT_ICON.height],
+        iconImageOffset: [
+          -SEARCH_POINT_ICON.width / 2,
+          -SEARCH_POINT_ICON.height
+        ],
+
         interactivityModel: 'default#silent',
         hasBalloon: false,
         hasHint: false
