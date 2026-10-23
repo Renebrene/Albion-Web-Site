@@ -810,6 +810,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { mediaUrl, variantUrl } from '../services/adminMedia'
 import {
+  adminFetch,
   clearAdminToken,
   getAdminToken as readAdminToken
 } from '../services/adminApi'
@@ -1167,11 +1168,8 @@ async function createCategory() {
   formData.append('name', name)
 
   try {
-    const response = await fetch('/api/admin/media/categories', {
+    const response = await adminFetch('/api/admin/media/categories', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
       body: formData
     })
 
@@ -1254,13 +1252,13 @@ async function saveMediaEdit() {
   )
 
   try {
-    const response = await fetch(`/api/admin/media/${editingMedia.value.id}`, {
-      method: 'PATCH',
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      body: formData
-    })
+    const response = await adminFetch(
+      `/api/admin/media/${editingMedia.value.id}`,
+      {
+        method: 'PATCH',
+        body: formData
+      }
+    )
 
     if (response.status === 401) {
       clearAdminToken()
@@ -1295,11 +1293,7 @@ async function loadMediaCategories() {
   loadingCategories.value = true
 
   try {
-    const response = await fetch('/api/admin/media/categories', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
+    const response = await adminFetch('/api/admin/media/categories')
 
     if (response.status === 401) {
       clearAdminToken()
@@ -1347,9 +1341,7 @@ async function loadMedia() {
     const params = mediaFilterParams()
     params.set('limit', String(mediaPageSize))
     params.set('offset', '0')
-    const response = await fetch(`/api/admin/media?${params}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
+    const response = await adminFetch(`/api/admin/media?${params}`)
 
     if (response.status === 401) {
       clearAdminToken()
@@ -1387,11 +1379,7 @@ async function loadMediaStats() {
   mediaStatsError.value = ''
 
   try {
-    const response = await fetch('/api/admin/media/stats', {
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
-    })
+    const response = await adminFetch('/api/admin/media/stats')
 
     if (response.status === 401) {
       clearAdminToken()
@@ -1431,9 +1419,7 @@ async function loadMoreMedia() {
     const params = mediaFilterParams()
     params.set('limit', String(mediaPageSize))
     params.set('offset', String(mediaOffset.value))
-    const response = await fetch(`/api/admin/media?${params}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
+    const response = await adminFetch(`/api/admin/media?${params}`)
 
     if (response.status === 401) {
       clearAdminToken()
@@ -1503,11 +1489,8 @@ async function uploadQueueItem(item) {
   }
 
   try {
-    const response = await fetch('/api/admin/media', {
+    const response = await adminFetch('/api/admin/media', {
       method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
       body: formData,
       signal: uploadAbort?.signal
     })
@@ -1648,11 +1631,8 @@ async function deleteMedia(item) {
   catalogError.value = ''
 
   try {
-    const response = await fetch(`/api/admin/media/${item.id}`, {
-      method: 'DELETE',
-      headers: {
-        Authorization: `Bearer ${token}`
-      }
+    const response = await adminFetch(`/api/admin/media/${item.id}`, {
+      method: 'DELETE'
     })
 
     if (response.status === 401) {
