@@ -608,15 +608,39 @@ async function load(showSpinner = true) {
   }
 }
 
+/*
+ * Все записи настроек идут строго по очереди: live-сохранение и общий PUT
+ * не должны выполняться одновременно — иначе ответы применяются в
+ * произвольном порядке, и одна из правок затирает другую.
+ *
+ * Ошибка одной задачи не останавливает очередь.
+ */
+let settingsWriteQueue = Promise.resolve()
+
+function enqueueSettingsWrite(task) {
+  const result = settingsWriteQueue.then(task, task)
+
+  settingsWriteQueue = result.then(
+    () => undefined,
+    () => undefined
+  )
+
+  return result
+}
+
 async function save() {
   saving.value = true
   error.value = ''
   try {
-    const data = await request('/api/admin/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ settings: values.value })
-    })
+    /* values.value читается в момент выполнения, а не постановки в очередь:
+       live-правка, сделанная за это время, попадёт в общий PUT. */
+    const data = await enqueueSettingsWrite(() =>
+      request('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: values.value })
+      })
+    )
     applyData(data)
 
     // Применяем новые значения сразу — без перезагрузки страницы
@@ -727,12 +751,14 @@ async function onFieldChange(key, value) {
   }
 
   try {
-    await request('/api/admin/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      // Точечно: сохраняем только изменённый ключ, не затирая прочие правки.
-      body: JSON.stringify({ settings: { [key]: value } })
-    })
+    await enqueueSettingsWrite(() =>
+      request('/api/admin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        // Точечно: сохраняем только изменённый ключ, не затирая прочие правки.
+        body: JSON.stringify({ settings: { [key]: value } })
+      })
+    )
     notify('Применено.')
   } catch (exc) {
     notify(String(exc), 'error')
@@ -766,9 +792,10 @@ async function createPreset() {
 async function applyPreset(preset) {
   presetBusy.value = true
   try {
-    const data = await request(
-      `/api/admin/settings/presets/${preset.id}/apply`,
-      { method: 'POST' }
+    const data = await enqueueSettingsWrite(() =>
+      request(`/api/admin/settings/presets/${preset.id}/apply`, {
+        method: 'POST'
+      })
     )
     applyData(data)
     notify(`Набор «${preset.name}» применён.`)
@@ -801,7 +828,9 @@ async function resetToDefaults() {
 
   saving.value = true
   try {
-    const data = await request('/api/admin/settings/reset', { method: 'POST' })
+    const data = await enqueueSettingsWrite(() =>
+      request('/api/admin/settings/reset', { method: 'POST' })
+    )
     applyData(data)
     notify('Настройки сброшены к значениям по умолчанию.')
   } catch (exc) {
