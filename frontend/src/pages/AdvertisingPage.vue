@@ -135,7 +135,7 @@
                 pending: pointSelectionState === 'pending'
               }"
               :style="
-                pointTargetPosition.x || pointTargetPosition.y
+                pointTargetPosition
                   ? {
                       left: `${pointTargetPosition.x}px`,
                       top: `${pointTargetPosition.y}px`
@@ -1183,11 +1183,59 @@ const pointSelectionState = ref('idle')
 const pointResultsActive = computed(
   () => workspaceMode.value === 'point' || pointSelectionState.value === 'fixed'
 )
-const pointTargetPosition = ref({ x: 0, y: 0 })
+/*
+ * Пиксельная позиция метки относительно .map-wrap. null — метка стоит
+ * по центру (CSS 50%/50%), пока её не перетащили и не задали якорь.
+ */
+const pointTargetPosition = ref(null)
+
+/*
+ * Географический якорь метки. После того как метку отпустили, она
+ * «приклеивается» к месту на карте: при панорамировании и зуме позиция
+ * пересчитывается из этих координат, а не остаётся в пикселях экрана.
+ * null — метки ещё не ставили, она привязана к центру вида.
+ */
+const pointAnchor = ref(null)
+
 const isDraggingPointTarget = ref(false)
 const pointTargetPointerOffset = ref({ x: 0, y: 0 })
 const pointTargetRef = ref(null)
 const mapWrapRef = ref(null)
+
+/* Экранная точка (clientX/Y) → позиция метки внутри .map-wrap. */
+function placePointTargetAtScreenPoint(screenX, screenY) {
+  const wrap = mapWrapRef.value
+
+  if (!wrap) {
+    return
+  }
+
+  const rect = wrap.getBoundingClientRect()
+
+  /* left/top позиционируются от padding-края (за вычетом рамки). */
+  pointTargetPosition.value = {
+    x: screenX - rect.left - wrap.clientLeft,
+    y: screenY - rect.top - wrap.clientTop
+  }
+}
+
+/* Ставит метку по её географическому якорю под текущий вид карты. */
+function syncPointTargetToAnchor() {
+  const anchor = pointAnchor.value
+
+  if (!anchor) {
+    return
+  }
+
+  const screen = mapViewRef.value?.getScreenPointAtCoordinates(
+    anchor.lat,
+    anchor.lng
+  )
+
+  if (screen) {
+    placePointTargetAtScreenPoint(screen.x, screen.y)
+  }
+}
 
 function updatePointCoordinatesFromMap(center) {
   /*
@@ -1202,10 +1250,23 @@ function updatePointCoordinatesFromMap(center) {
     return
   }
 
+  /* Пока метку тащат, её положением управляет movePointTarget. */
+  if (isDraggingPointTarget.value) {
+    return
+  }
+
   /*
-   * Координаты берём под остриём метки, а не в центре карты: после
-   * перетаскивания метка может стоять в любом месте экрана. Остриё —
-   * нижний центр габаритов. Если метки нет — фолбэк на центр карты.
+   * Метка приклеена к карте: держим её на месте координат и не
+   * пересчитываем координаты по экрану — они уже точные.
+   */
+  if (pointAnchor.value) {
+    syncPointTargetToAnchor()
+    return
+  }
+
+  /*
+   * Метку ещё не ставили — она в центре вида. Координаты берём под её
+   * остриём (нижний центр габаритов), с фоллбэком на центр карты.
    */
   let lat = Number(center?.lat)
   let lng = Number(center?.lng)
@@ -1316,6 +1377,15 @@ function movePointTarget(event) {
     return
   }
 
+  /*
+   * Запоминаем якорь сразу, ещё во время перетаскивания: после отпускания
+   * метка уже привязана к месту на карте и переживёт панорамирование и зум.
+   */
+  pointAnchor.value = {
+    lat: coordinates.lat,
+    lng: coordinates.lng
+  }
+
   pointCoordinates.value = `${coordinates.lat.toFixed(6)}, ${coordinates.lng.toFixed(6)}`
 }
 
@@ -1391,22 +1461,12 @@ function changeSelectedPoint() {
   const point = fixedSearchPoint.value
 
   if (point) {
-    const screen = mapViewRef.value?.getScreenPointAtCoordinates(
-      point.lat,
-      point.lng
-    )
-
-    const wrap = mapWrapRef.value
-
-    if (screen && wrap) {
-      const rect = wrap.getBoundingClientRect()
-
-      /* left/top позиционируются от padding-края (за вычетом рамки). */
-      pointTargetPosition.value = {
-        x: screen.x - rect.left - wrap.clientLeft,
-        y: screen.y - rect.top - wrap.clientTop
-      }
-    }
+    /*
+     * Возвращённая в правку точка тоже приклеена к карте, а не к пикселям
+     * экрана: якорь запоминаем, позицию считаем под текущий вид.
+     */
+    pointAnchor.value = { lat: point.lat, lng: point.lng }
+    syncPointTargetToAnchor()
   }
 
   fixedSearchPoint.value = null
