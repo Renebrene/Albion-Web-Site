@@ -67,8 +67,9 @@
 
 ## Layouts (`src/layouts/`)
 
-- **`MainLayout`** — `AppHeader` + `router-view` + `AppFooter` + `PhotoViewer`;
-  измеряет высоты шапки/подвала в CSS-переменные; на `onMounted` применяет настройки.
+- **`MainLayout`** — `AppHeader` + `router-view` + `AppFooter` + `PhotoViewer` +
+  `CookieConsent`; измеряет высоты шапки/подвала в CSS-переменные; на `onMounted`
+  применяет настройки.
 - **`AdministrationLayout`** — только контейнер и `router-view`, без шапки/подвала.
 
 ## Компоненты (`src/components/`)
@@ -131,7 +132,8 @@ id через `composables/useMediaCategory.js` (`mediaCategoryId(name)`) —
   `map_color_mode`, `map_color_free/busy/mixed`, `available_mode`, `show_dyn_count` →
   CSS-переменные и ref'ы конфигов. Дефолты — в `:root` (`src/css/app.scss`).
   Админка применяет изменения сразу после сохранения.
-- **localStorage:** портфель (`albion_portfolio`), токен аккаунта (`albion_account_token`).
+- **localStorage:** портфель (`albion_portfolio`), токен аккаунта (`albion_account_token`),
+  согласие с cookie (`albion_cookie_consent`).
 - **sessionStorage:** токен админки (`albion_admin_token`), состояние чата
   (`albion_smart_chat`).
 
