@@ -43,6 +43,21 @@ function resolveSize(value) {
   return null
 }
 
+/*
+ * Скругления в настройках хранятся числами («18»), а CSS-переменной нужна
+ * единица: без неё `border-radius: 18` невалиден, и углы становятся
+ * нулевыми. Ноль допустим — это «острые углы».
+ */
+function resolveLength(value) {
+  const size = Number.parseInt(value, 10)
+
+  if (Number.isFinite(size) && size >= 0) {
+    return `${size}px`
+  }
+
+  return null
+}
+
 async function loadAndApply() {
   let settings
 
@@ -92,8 +107,15 @@ export function applyAppearanceSettings(settings) {
   set('--albion-accent', settings.color_accent)
   set('--albion-bg', settings.color_background)
   set('--albion-text', settings.color_text)
-  set('--albion-radius-cards', settings.radius_cards)
-  set('--albion-radius-buttons', settings.radius_buttons)
+  const radiusCards = resolveLength(settings.radius_cards)
+  if (radiusCards) {
+    set('--albion-radius-cards', radiusCards)
+  }
+
+  const radiusButtons = resolveLength(settings.radius_buttons)
+  if (radiusButtons) {
+    set('--albion-radius-buttons', radiusButtons)
+  }
 
   /* Оператор карты: 'osm' | 'yandex' (см. config/mapConfig.js). */
   setMapEngine(settings.map_engine)
