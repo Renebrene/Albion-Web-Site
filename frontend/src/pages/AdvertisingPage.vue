@@ -11,6 +11,7 @@
         :months="months"
         :types="types"
         :cities="cities"
+        :count-label="sidebarCountLabel"
         @focus-city="focusCity"
       />
 
@@ -84,6 +85,23 @@
             @select-suggestion="onTopSuggestionSelect"
             @search="onTopSearch"
           />
+
+          <div
+            v-if="workspaceMode === 'list'"
+            class="workspace-columns"
+            role="group"
+            aria-label="Число колонок"
+          >
+            <button
+              v-for="count in columnOptions"
+              :key="count"
+              type="button"
+              :class="{ active: listColumns === count }"
+              @click="setListColumns(count)"
+            >
+              {{ count }}
+            </button>
+          </div>
         </div>
 
         <!-- КАРТА И ПОИСК ПО ТОЧКЕ -->
@@ -221,38 +239,14 @@
         >
           <!-- Шапка списка закреплена: заголовок и переключатель колонок
                не двигаются, карточки прокручиваются под ними. -->
-          <div class="list-header">
-            <div>
-              <div class="list-kicker"> РЕКЛАМНЫЕ ВОЗМОЖНОСТИ </div>
-
-              <h1>
-                {{ displayedConstructions.length }}
-                {{ sidesPhrase(displayedConstructions.length) }}
-              </h1>
-
-              <div
-                v-if="pointSelectionState === 'fixed'"
-                class="list-point-note"
-              >
-                <span>В радиусе {{ formatRadius(pointRadius) }} от точки</span>
-                <button type="button" @click="changeSelectedPoint">
-                  Показать весь каталог
-                </button>
-              </div>
-            </div>
-
-            <!-- Ручной выбор числа колонок карточек. -->
-            <div class="list-columns" role="group" aria-label="Число колонок">
-              <button
-                v-for="count in columnOptions"
-                :key="count"
-                type="button"
-                :class="{ active: listColumns === count }"
-                @click="setListColumns(count)"
-              >
-                {{ count }}
-              </button>
-            </div>
+          <div
+            v-if="pointSelectionState === 'fixed'"
+            class="list-point-note list-point-note--standalone"
+          >
+            <span>В радиусе {{ formatRadius(pointRadius) }} от точки</span>
+            <button type="button" @click="changeSelectedPoint">
+              Показать весь каталог
+            </button>
           </div>
 
           <!--
@@ -1535,6 +1529,13 @@ const displayedConstructions = computed(() => {
   const ids = new Set(chatResultIds.value.map(value => String(value)))
 
   return constructions.value.filter(item => ids.has(String(item?.id)))
+})
+
+/* Заголовок левой панели в режиме «Список»: количество сторон. */
+const sidebarCountLabel = computed(() => {
+  const value = displayedConstructions.value.length
+
+  return `${value} ${sidesPhrase(value)}`
 })
 
 /* Данные для единственного экземпляра MapView: в точке — радиус, иначе фильтр. */
@@ -3021,6 +3022,49 @@ onBeforeUnmount(() => {
   margin: 18px 0 0 18px;
 }
 
+/* Переключатель колонок в строке поиска — освобождает шапку списка. */
+.workspace-columns {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  flex-shrink: 0;
+
+  padding: 3px;
+
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #e1e6e9;
+  border-radius: 11px;
+
+  box-shadow: 0 8px 28px rgba(23, 33, 43, 0.14);
+}
+
+.workspace-columns button {
+  min-width: 30px;
+  height: 32px;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: transparent;
+  color: #5b6873;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  cursor: pointer;
+}
+
+.workspace-columns button.active {
+  background: #17212b;
+  color: #fff;
+}
+
+.workspace-columns button:hover:not(.active) {
+  background: #f0f3f4;
+  color: #17212b;
+}
+
 .workspace-mode-switch {
   display: flex;
   align-items: center;
@@ -3141,8 +3185,8 @@ onBeforeUnmount(() => {
   overflow: hidden;
 
   /* Верхний отступ оставляет запас под плавающий блок с переключателем
-     режимов и поиском. */
-  padding: 88px 28px 40px;
+     режимов, поиском и колонками; шапки списка больше нет. */
+  padding: 72px 28px 40px;
 
   background: #f4f6f7;
 }
@@ -3177,6 +3221,11 @@ onBeforeUnmount(() => {
 }
 
 /* Список открыт из point-режима: показываем, что выдача сужена радиусом. */
+.list-point-note--standalone {
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
 .list-point-note {
   display: flex;
   align-items: center;
@@ -4109,7 +4158,8 @@ onBeforeUnmount(() => {
 
   /* Переключатель колонок на узком экране не нужен — число колонок
      определяется шириной автоматически. */
-  .list-columns {
+  .list-columns,
+  .workspace-columns {
     display: none;
   }
 

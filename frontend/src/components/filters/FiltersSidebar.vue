@@ -1,9 +1,13 @@
 <template>
   <aside class="filters-sidebar">
     <div class="sidebar-head">
-      <h2>{{
-        mode === 'list' ? 'Список конструкций' : 'Интерактивная карта'
-      }}</h2>
+      <h2>
+        {{
+          mode === 'list'
+            ? countLabel || 'Список конструкций'
+            : 'Интерактивная карта'
+        }}
+      </h2>
     </div>
 
     <section class="filter-section">
@@ -139,6 +143,12 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'map'
+  },
+
+  /* Например, «1567 рекламных сторон» — заголовок в режиме «Список». */
+  countLabel: {
+    type: String,
+    default: ''
   },
 
   selectedMonths: {

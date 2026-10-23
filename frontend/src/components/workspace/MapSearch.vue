@@ -271,7 +271,7 @@ onBeforeUnmount(clearSuggestions)
 
   /* Занимает всё оставшееся место в строке с переключателем режимов,
      но может сжиматься на узких экранах. */
-  flex: 1 1 320px;
+  flex: 1 1 240px;
   width: auto;
   min-width: 0;
   max-width: 100%;
@@ -282,21 +282,21 @@ onBeforeUnmount(clearSuggestions)
 
   width: 100%;
   max-width: 100%;
-  height: 44px;
+  height: 38px;
 
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 
-  padding: 0 8px 0 10px;
+  padding: 0 6px 0 9px;
 
   background: rgba(255, 255, 255, 0.97);
 
   border: 1px solid rgba(220, 225, 228, 0.9);
 
-  border-radius: 12px;
+  border-radius: 11px;
 
-  box-shadow: 0 10px 35px rgba(25, 35, 45, 0.15);
+  box-shadow: 0 8px 26px rgba(25, 35, 45, 0.13);
 }
 
 .search-card:focus-within {
@@ -306,7 +306,7 @@ onBeforeUnmount(clearSuggestions)
 
 /* счётчик — слева */
 .count {
-  padding: 5px 8px;
+  padding: 4px 7px;
 
   border-radius: 8px;
 
@@ -331,7 +331,7 @@ onBeforeUnmount(clearSuggestions)
 
   color: #17212b;
 
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .search-card input::placeholder {
@@ -352,8 +352,8 @@ onBeforeUnmount(clearSuggestions)
 }
 
 .search-mode button {
-  height: 24px;
-  padding: 0 7px;
+  height: 22px;
+  padding: 0 6px;
 
   border: 0;
   border-radius: 5px;
@@ -377,9 +377,9 @@ onBeforeUnmount(clearSuggestions)
 
 /* иконка поиска — справа */
 .search-icon {
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
 
   display: flex;
   align-items: center;
