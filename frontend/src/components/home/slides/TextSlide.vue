@@ -4,6 +4,7 @@
 
   <div class="text-actions">
     <template v-for="btn in buttons" :key="btn.key">
+      <!-- Кнопка без ссылки открывает слайд с формой — событие наверх. -->
       <button
         v-if="isFormButton(btn)"
         type="button"
@@ -26,30 +27,24 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
+
+import { isFormButton, textSlideButtons } from './slideButtons'
+
 /*
- * Простой текстовый слайд: заголовок, текст и кнопки. Кнопки приходят
- * готовыми из HomeSlider (там общий разбор кнопок CMS); кнопка без адреса
- * открывает слайд с формой — об этом сообщаем наверх событием.
+ * Простой текстовый слайд: заголовок, текст и кнопки из админки. Это ещё
+ * и запасной вариант — сюда попадают слайды неизвестного типа.
  */
-defineProps({
+const props = defineProps({
   slide: {
     type: Object,
     required: true
-  },
-
-  buttons: {
-    type: Array,
-    default: () => []
   }
 })
 
 defineEmits(['open-form'])
 
-function isFormButton(btn) {
-  const url = String((btn && btn.url) || '').trim()
-
-  return !url || url.startsWith('#')
-}
+const buttons = computed(() => textSlideButtons(props.slide))
 </script>
 
 <style scoped>

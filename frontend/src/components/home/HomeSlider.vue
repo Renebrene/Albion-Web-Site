@@ -455,61 +455,18 @@
           </template>
 
           <!-- ============ НОВОСТИ ============ -->
-          <template v-else-if="slide.kind === 'news'">
-            <h1 class="slide-title">{{ slide.title }}</h1>
-            <p v-if="slide.text" class="slide-text">{{ slide.text }}</p>
-
-            <div class="news-grid">
-              <a
-                v-for="item in news.slice(0, 3)"
-                :key="item.slug"
-                class="news-card"
-                :href="`/novosti/${item.slug}`"
-              >
-                <div class="news-date">{{
-                  formatDate(item.date || item.published_at)
-                }}</div>
-                <div class="news-title">{{ item.title }}</div>
-                <div v-if="item.excerpt" class="news-excerpt">
-                  {{ item.excerpt }}
-                </div>
-              </a>
-            </div>
-
-            <div class="news-actions">
-              <template
-                v-for="btn in slideButtons(slide, NEWS_FALLBACK_BUTTONS)"
-                :key="btn.key"
-              >
-                <button
-                  v-if="isFormButton(btn)"
-                  type="button"
-                  class="slide-btn"
-                  :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
-                  @click="gotoFormSlide"
-                  >{{ btn.label }}</button
-                >
-                <a
-                  v-else
-                  class="slide-btn"
-                  :class="{ 'slide-btn--ghost': btn.variant === 'ghost' }"
-                  :href="btn.url"
-                  >{{ btn.label }}</a
-                >
-              </template>
-            </div>
-          </template>
+          <NewsSlide
+            v-else-if="slide.kind === 'news'"
+            :slide="slide"
+            :news="news"
+            @open-form="gotoFormSlide"
+          />
 
           <!-- ============ ФОРМА ОБРАТНОЙ СВЯЗИ ============ -->
           <FeedbackSlide v-else-if="slide.kind === 'form'" :slide="slide" />
 
           <!-- ============ Простой текстовый слайд ============ -->
-          <TextSlide
-            v-else
-            :slide="slide"
-            :buttons="textSlideButtons(slide)"
-            @open-form="gotoFormSlide"
-          />
+          <TextSlide v-else :slide="slide" @open-form="gotoFormSlide" />
         </div>
       </article>
     </div>
@@ -542,7 +499,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { safeCmsUrl } from '../../utils/safeCmsUrl'
 import FeedbackSlide from './slides/FeedbackSlide.vue'
+import NewsSlide from './slides/NewsSlide.vue'
 import TextSlide from './slides/TextSlide.vue'
+import { isFormButton, itemButtons, slideButtons } from './slides/slideButtons'
 
 const rootRef = ref(null)
 const slides = ref([])
@@ -635,86 +594,6 @@ const GEO_FALLBACK_BUTTONS = [
     variant: 'ghost'
   }
 ]
-
-const NEWS_FALLBACK_BUTTONS = [
-  { label: 'Все новости', url: '/novosti', variant: 'ghost' }
-]
-
-/* Список кнопок с ключом для v-for; пустые подписи отбрасываем. */
-function withKeys(list) {
-  return (Array.isArray(list) ? list : [])
-    .filter(btn => btn && String(btn.label || '').trim())
-    .map((btn, i) => {
-      const rawUrl = String(btn.url || '').trim()
-      return {
-        key: btn.id !== null && btn.id !== undefined ? `b${btn.id}` : `k${i}`,
-        label: String(btn.label).trim(),
-        url: safeCmsUrl(rawUrl),
-        invalidUrl: Boolean(rawUrl) && !safeCmsUrl(rawUrl),
-        variant: btn.variant === 'ghost' ? 'ghost' : 'primary'
-      }
-    })
-    .filter(btn => !btn.invalidUrl)
-}
-
-/* Кнопки слайда: свои из базы либо запасные (legacy/зашитые). */
-function slideButtons(slide, fallback = []) {
-  const own = withKeys(slide && slide.buttons)
-
-  return own.length ? own : withKeys(fallback)
-}
-
-/* Кнопки текстового слайда: свои либо legacy-кнопка слайда. */
-function textSlideButtons(slide) {
-  const fallback =
-    slide && slide.button_label
-      ? [
-          {
-            label: slide.button_label,
-            url: slide.button_url || '',
-            variant: 'primary'
-          }
-        ]
-      : []
-
-  return slideButtons(slide, fallback)
-}
-
-/* Кнопки карточки hero: свои либо legacy button/button2. */
-function itemButtons(item) {
-  const own = withKeys(item && item.buttons)
-
-  if (own.length) {
-    return own
-  }
-
-  const fallback = []
-
-  if (item && item.button_label) {
-    fallback.push({
-      label: item.button_label,
-      url: item.button_url || '',
-      variant: 'primary'
-    })
-  }
-
-  if (item && item.button2_label) {
-    fallback.push({
-      label: item.button2_label,
-      url: item.button2_url || '#',
-      variant: 'ghost'
-    })
-  }
-
-  return withKeys(fallback)
-}
-
-/* Кнопка-действие (переход к форме): пустая ссылка или якорь (#form). */
-function isFormButton(btn) {
-  const url = String((btn && btn.url) || '').trim()
-
-  return !url || url.startsWith('#')
-}
 
 const heroCount = computed(() => {
   const slide = slides.value[index.value]
@@ -932,14 +811,6 @@ async function load() {
       /* ignore */
     }
   }
-}
-
-function formatDate(value) {
-  if (!value) return ''
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = n => String(n).padStart(2, '0')
-  return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`
 }
 
 function selectGeoLocation(location) {
@@ -1438,14 +1309,6 @@ onBeforeUnmount(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-}
-
-/* Обёртки списка кнопок у новостного и текстового слайдов. */
-.news-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 22px;
 }
 
 .hero-a-stats {
@@ -2281,42 +2144,6 @@ onBeforeUnmount(() => {
 
 /* -------- Новости -------- */
 
-.news-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  width: min(1000px, 92vw);
-  margin-top: 6px;
-}
-
-.news-card {
-  display: block;
-  padding: 16px;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
-  text-decoration: none;
-  color: #fff;
-  text-align: left;
-  transition: transform 0.15s ease;
-}
-
-.news-card:hover {
-  transform: translateY(-3px);
-}
-.news-date {
-  font-size: 12px;
-  opacity: 0.7;
-}
-.news-title {
-  font-weight: 700;
-  font-size: 15px;
-  margin: 6px 0;
-}
-.news-excerpt {
-  font-size: 13px;
-  opacity: 0.82;
-}
-
 /* -------- Форма -------- */
 
 /* -------- Вертикальная навигация -------- */
@@ -2410,7 +2237,6 @@ onBeforeUnmount(() => {
   .geo-region {
     display: none;
   }
-  .news-grid,
   .hero-list,
   .hero-prod {
     grid-template-columns: 1fr;

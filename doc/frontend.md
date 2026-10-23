@@ -75,11 +75,34 @@
 ## Компоненты (`src/components/`)
 
 `layout/` (шапка, подвал — меню из `/api/site-menu`), `home/` (секции главной,
-`HomeSlider`), `filters/` (`FiltersSidebar`), `workspace/` (`MapSearch`,
+`HomeSlider` + `slides/`), `filters/` (`FiltersSidebar`), `workspace/` (`MapSearch`,
 `PointSearchPanel`), `portfolio/` (`PortfolioPanel`), `common/` (`PhotoViewer`),
 `chat/` (`SmartChatPanel`, `ChatSaveButton`), `news/`, `contacts/`,
 `admin/` (`MediaPicker`, `NewsMediaField`, `VisitChart`).
 Смежное: `src/map/` — движки и попапы (см. `doc/map.md`).
+
+### Слайды главной (`components/home/slides/`)
+
+`HomeSlider` остаётся «хозяином» страницы: грузит данные (`/api/home`, новости,
+статистику), держит индекс слайда, колесо/клавиатуру и переключает `slide.kind`.
+Сами слайды — отдельные компоненты:
+
+| Компонент | `slide.kind` | Что получает |
+|---|---|---|
+| `NewsSlide` | `news` | `slide` + загруженный список `news` |
+| `FeedbackSlide` | `form` | `slide` (форма и отправка внутри) |
+| `TextSlide` | любой другой (запасной) | `slide` |
+
+Правила при добавлении нового типа слайда:
+
+- компонент получает **весь** `slide` (включая `settings` из админки) и сам
+  собирает кнопки через `slides/slideButtons.js` — правок в родителе не нужно;
+- новый `kind` добавляется одной веткой в цепочке `v-if` в `HomeSlider`;
+- у компонентов нет корневой обёртки: заголовок, текст и действия остаются
+  прямыми элементами `.slide-inner` (иначе ломаются отступы `gap`);
+- стили слайда — `scoped` внутри компонента; базовые классы (`.slide-title`,
+  `.slide-text`, `.slide-btn`) продублированы, потому что scoped-стили родителя
+  на дочерние элементы не действуют.
 
 ## Config-модули (`src/config/`)
 
