@@ -58,6 +58,7 @@ _COLUMNS: list[tuple[str, Any]] = [
     ),
     ("Имя", lambda row: (row.get("payload") or {}).get("name", "")),
     ("Телефон", lambda row: (row.get("payload") or {}).get("phone", "")),
+    ("E-mail", lambda row: (row.get("payload") or {}).get("email", "")),
     ("Комментарий", lambda row: (row.get("payload") or {}).get("comment", "")),
     ("Что", lambda row: row.get("title", "")),
     (
@@ -281,7 +282,8 @@ def _format_body(request: dict) -> str:
         f"Заявка №{request.get('id')} с сайта",
         "",
         f"Имя:      {payload.get('name', '—')}",
-        f"Телефон:  {payload.get('phone', '—')}",
+        f"Телефон:  {payload.get('phone') or '—'}",
+        f"E-mail:   {payload.get('email') or '—'}",
         f"Комментарий: {payload.get('comment') or '—'}",
         "",
         f"Что: {request.get('title', '')}",

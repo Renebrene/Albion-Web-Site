@@ -190,6 +190,8 @@
               {{ row.payload.name || '—'
               }}<template v-if="row.payload.phone">
                 · {{ row.payload.phone }}</template
+              ><template v-else-if="row.payload.email">
+                · {{ row.payload.email }}</template
               >
             </td>
             <td class="date-cell">{{ row.title }}</td>

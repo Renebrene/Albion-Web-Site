@@ -37,11 +37,48 @@ admin_router = APIRouter(
 
 NAME_MAX = 120
 PHONE_MAX = 40
+EMAIL_MAX = 254
 COMMENT_MAX = 2000
 ITEMS_MAX = 60
 
-# Телефон: цифры, пробелы, скобки, дефис, плюс. Буквы не пропускаем.
-_PHONE_RE = re.compile(r"^[+\d][\d\s()\-]{5,%d}$" % (PHONE_MAX - 1))
+# Телефон принимаем только российский: 10 цифр (без кода страны) или
+# 11 с ведущей 7/8. Всё остальное — ошибка, а не «пойдёт и так».
+PHONE_DIGITS = 11
+
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]{2,}$")
+
+
+def normalize_phone(value: str) -> str:
+    """
+    Приводит номер к виду «+7 (900) 000-00-00».
+
+    Понимает ввод с 8 и с +7, с пробелами, скобками и дефисами.
+    Возвращает пустую строку, если номер не российский/неполный.
+    """
+    digits = re.sub(r"\D", "", str(value or ""))
+
+    if len(digits) == PHONE_DIGITS and digits[0] in "78":
+        digits = "7" + digits[1:]
+    elif len(digits) == PHONE_DIGITS - 1:
+        digits = "7" + digits
+
+    if len(digits) != PHONE_DIGITS or not digits.startswith("7"):
+        return ""
+
+    return (
+        f"+7 ({digits[1:4]}) "
+        f"{digits[4:7]}-{digits[7:9]}-{digits[9:11]}"
+    )
+
+
+def normalize_email(value: str) -> str:
+    """Нижний регистр + проверка формата; пустая строка — если не похоже."""
+    email = str(value or "").strip().lower()
+
+    if not email or len(email) > EMAIL_MAX or not _EMAIL_RE.match(email):
+        return ""
+
+    return email
 
 
 class RequestItem(BaseModel):
@@ -52,6 +89,7 @@ class RequestItem(BaseModel):
 class PublicRequestPayload(BaseModel):
     name: str = ""
     phone: str = ""
+    email: str = ""
     comment: str = ""
     items: list[RequestItem] = Field(default_factory=list)
 
@@ -72,16 +110,29 @@ def create_public_request(
 ):
     """Принимает заявку с сайта (авторизация не требуется)."""
     name = _clean(payload.name, NAME_MAX)
-    phone = _clean(payload.phone, PHONE_MAX)
+    phone_raw = _clean(payload.phone, PHONE_MAX)
+    email_raw = _clean(payload.email, EMAIL_MAX)
     comment = _clean(payload.comment, COMMENT_MAX)
 
     if len(name) < 2:
         raise HTTPException(status_code=400, detail="Укажите имя")
 
-    if not _PHONE_RE.match(phone):
+    phone = normalize_phone(phone_raw) if phone_raw else ""
+    email = normalize_email(email_raw) if email_raw else ""
+
+    if phone_raw and not phone:
         raise HTTPException(
             status_code=400,
-            detail="Укажите телефон в формате +7 900 000-00-00",
+            detail="Укажите телефон в формате +7 (900) 000-00-00",
+        )
+
+    if email_raw and not email:
+        raise HTTPException(status_code=400, detail="Укажите корректный e-mail")
+
+    if not phone and not email:
+        raise HTTPException(
+            status_code=400,
+            detail="Укажите телефон или e-mail",
         )
 
     items = [
@@ -109,6 +160,7 @@ def create_public_request(
                 "source": "site",
                 "name": name,
                 "phone": phone,
+                "email": email,
                 "comment": comment,
                 "items": items,
             },

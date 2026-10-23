@@ -243,17 +243,75 @@
           <p class="request-hint">
             {{ count }}
             {{ count === 1 ? 'позиция' : 'позиции' }} из портфеля — мы свяжемся
-            по указанному телефону.
+            по указанному телефону или e-mail.
           </p>
 
-          <q-input v-model="requestForm.name" dense outlined label="Имя" />
           <q-input
+            ref="requestNameRef"
+            v-model="requestForm.name"
+            dense
+            outlined
+            label="Имя"
+            autocomplete="name"
+            :error="Boolean(requestFieldErrors.name)"
+            :error-message="requestFieldErrors.name"
+            @update:model-value="clearRequestFieldError('name')"
+          />
+
+          <!-- Способ связи: телефон или e-mail — достаточно одного. -->
+          <div
+            class="request-contact-switch"
+            role="group"
+            aria-label="Способ связи"
+          >
+            <button
+              type="button"
+              :class="{ active: requestContactMode === 'phone' }"
+              @click="setContactMode('phone')"
+            >
+              Телефон
+            </button>
+
+            <button
+              type="button"
+              :class="{ active: requestContactMode === 'email' }"
+              @click="setContactMode('email')"
+            >
+              E-mail
+            </button>
+          </div>
+
+          <q-input
+            v-if="requestContactMode === 'phone'"
+            ref="requestPhoneRef"
             v-model="requestForm.phone"
             dense
             outlined
+            type="tel"
+            autocomplete="tel"
             label="Телефон"
             placeholder="+7 900 000-00-00"
+            :error="Boolean(requestFieldErrors.contact)"
+            :error-message="requestFieldErrors.contact"
+            @blur="formatRequestPhone"
+            @update:model-value="clearRequestFieldError('contact')"
           />
+
+          <q-input
+            v-else
+            ref="requestEmailRef"
+            v-model="requestForm.email"
+            dense
+            outlined
+            type="email"
+            autocomplete="email"
+            label="E-mail"
+            placeholder="name@example.ru"
+            :error="Boolean(requestFieldErrors.contact)"
+            :error-message="requestFieldErrors.contact"
+            @update:model-value="clearRequestFieldError('contact')"
+          />
+
           <q-input
             v-model="requestForm.comment"
             dense
@@ -334,6 +392,7 @@ import {
   buildMonthList
 } from '../../utils/constructionGroups'
 import { getAvailabilityState } from '../../utils/availability'
+import { isValidEmail, normalizeRuPhone } from '../../utils/contactFields'
 
 /*
  * Панель портфеля.
@@ -880,12 +939,84 @@ const requestOpen = ref(false)
 const requestSending = ref(false)
 const requestDone = ref(false)
 const requestError = ref('')
-const requestForm = reactive({ name: '', phone: '', comment: '' })
+const requestForm = reactive({ name: '', phone: '', email: '', comment: '' })
+
+/* Чем связываться: телефон или e-mail. Достаточно одного. */
+const requestContactMode = ref('phone')
+const requestFieldErrors = reactive({ name: '', contact: '' })
+
+const requestNameRef = ref(null)
+const requestPhoneRef = ref(null)
+const requestEmailRef = ref(null)
 
 function openRequest() {
   requestError.value = ''
   requestDone.value = false
+  requestFieldErrors.name = ''
+  requestFieldErrors.contact = ''
   requestOpen.value = true
+}
+
+function clearRequestFieldError(field) {
+  requestFieldErrors[field] = ''
+}
+
+function setContactMode(mode) {
+  if (requestContactMode.value === mode) {
+    return
+  }
+
+  requestContactMode.value = mode
+  requestFieldErrors.contact = ''
+
+  /* Второе поле не отправляем — чистим, чтобы не осталось «мусора». */
+  if (mode === 'phone') {
+    requestForm.email = ''
+  } else {
+    requestForm.phone = ''
+  }
+}
+
+/* Форматирование телефона — после ввода, а не по каждой цифре. */
+function formatRequestPhone() {
+  const formatted = normalizeRuPhone(requestForm.phone)
+
+  if (formatted) {
+    requestForm.phone = formatted
+    requestFieldErrors.contact = ''
+  }
+}
+
+/* Проверка формы: имя и один заполненный контакт. */
+function validateRequestForm() {
+  requestFieldErrors.name =
+    requestForm.name.trim().length < 2 ? 'Укажите имя' : ''
+
+  let contactValid = true
+
+  if (requestContactMode.value === 'phone') {
+    const phone = normalizeRuPhone(requestForm.phone)
+
+    if (phone) {
+      requestForm.phone = phone
+      requestFieldErrors.contact = ''
+    } else {
+      requestFieldErrors.contact = 'Телефон в формате +7 (900) 000-00-00'
+      contactValid = false
+    }
+  } else {
+    const email = requestForm.email.trim().toLowerCase()
+
+    if (isValidEmail(email)) {
+      requestForm.email = email
+      requestFieldErrors.contact = ''
+    } else {
+      requestFieldErrors.contact = 'Укажите корректный e-mail'
+      contactValid = false
+    }
+  }
+
+  return !requestFieldErrors.name && contactValid
 }
 
 /* Позиции портфеля → короткий список для заявки. */
@@ -897,17 +1028,32 @@ function requestItems() {
 }
 
 async function submitRequest() {
-  requestSending.value = true
   requestError.value = ''
+
+  if (!validateRequestForm()) {
+    /* Ведём курсор к первой проблеме, а не оставляем человека гадать. */
+    if (requestFieldErrors.name) {
+      requestNameRef.value?.focus()
+    } else if (requestContactMode.value === 'phone') {
+      requestPhoneRef.value?.focus()
+    } else {
+      requestEmailRef.value?.focus()
+    }
+
+    return
+  }
+
+  requestSending.value = true
 
   try {
     const response = await fetch('/api/requests', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        name: requestForm.name,
-        phone: requestForm.phone,
-        comment: requestForm.comment,
+        name: requestForm.name.trim(),
+        phone: requestContactMode.value === 'phone' ? requestForm.phone : '',
+        email: requestContactMode.value === 'email' ? requestForm.email : '',
+        comment: requestForm.comment.trim(),
         items: requestItems()
       })
     })
@@ -962,6 +1108,46 @@ function handleClear() {
 }
 
 .request-card .q-field + .q-field {
+  margin-top: 8px;
+}
+
+/* Переключатель «Телефон / E-mail» над полем контакта. */
+.request-contact-switch {
+  display: inline-flex;
+  gap: 2px;
+
+  margin: 10px 0 0;
+  padding: 3px;
+
+  border-radius: 9px;
+
+  background: #f0f3f4;
+}
+
+.request-contact-switch button {
+  padding: 5px 12px;
+
+  border: 0;
+  border-radius: 7px;
+
+  background: transparent;
+  color: #5b6873;
+
+  cursor: pointer;
+
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.request-contact-switch button.active {
+  background: #fff;
+  color: #17212b;
+
+  box-shadow: 0 1px 4px rgba(23, 33, 43, 0.12);
+}
+
+.request-contact-switch + .q-field {
   margin-top: 8px;
 }
 
