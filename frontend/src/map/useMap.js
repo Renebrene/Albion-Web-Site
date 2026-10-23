@@ -593,6 +593,33 @@ function getCoordinatesAtScreenPoint(clientX, clientY) {
   }
 }
 
+/*
+ * Обратное к getCoordinatesAtScreenPoint: координаты → точка на экране
+ * (в клиентских пикселях). Нужно, чтобы вернуть перетаскиваемую метку
+ * на место зафиксированной точки после сдвига/зума карты.
+ */
+function getScreenPointAtCoordinates(lat, lng) {
+  if (!map) {
+    return null
+  }
+
+  const latitude = Number(lat)
+  const longitude = Number(lng)
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null
+  }
+
+  const rect = map.getContainer().getBoundingClientRect()
+
+  const point = map.latLngToContainerPoint([latitude, longitude])
+
+  return {
+    x: rect.left + point.x,
+    y: rect.top + point.y
+  }
+}
+
 function setMapDraggingEnabled(enabled) {
   if (!map) {
     return
@@ -1015,6 +1042,7 @@ export function useMap() {
     clearSearchPoint,
 
     getCoordinatesAtScreenPoint,
+    getScreenPointAtCoordinates,
     setMapDraggingEnabled,
 
     setSearchRadius,

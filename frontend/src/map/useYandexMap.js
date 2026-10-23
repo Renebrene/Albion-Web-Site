@@ -569,6 +569,72 @@ function getCoordinatesAtScreenPoint(clientX, clientY) {
   }
 }
 
+/*
+ * Обратное к getCoordinatesAtScreenPoint: координаты → точка на экране
+ * (в клиентских пикселях). Нужно, чтобы вернуть перетаскиваемую метку
+ * на место зафиксированной точки после сдвига/зума карты.
+ */
+function getScreenPointAtCoordinates(lat, lng) {
+  if (!map) {
+    return null
+  }
+
+  const latitude = Number(lat)
+  const longitude = Number(lng)
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return null
+  }
+
+  const element =
+    containerElement ||
+    (map.container && map.container.getElement
+      ? map.container.getElement()
+      : null)
+
+  if (!element) {
+    return null
+  }
+
+  const projection = map.options.get('projection')
+
+  if (!projection || !projection.toGlobalPixels) {
+    return null
+  }
+
+  const rect = element.getBoundingClientRect()
+
+  const globalPoint = projection.toGlobalPixels(
+    [latitude, longitude],
+    map.getZoom()
+  )
+
+  let point = null
+
+  if (typeof map.convertGlobalPixelToScreen === 'function') {
+    point = map.convertGlobalPixelToScreen(globalPoint)
+  } else if (typeof map.convertGlobalToScreen === 'function') {
+    point = map.convertGlobalToScreen(globalPoint)
+  } else {
+    /* Фоллбэк — от глобального пиксельного центра, как в обратном методе. */
+    const center = map.getGlobalPixelCenter()
+
+    point = [
+      rect.width / 2 + (globalPoint[0] - center[0]),
+      rect.height / 2 + (globalPoint[1] - center[1])
+    ]
+  }
+
+  if (!point) {
+    return null
+  }
+
+  return {
+    x: rect.left + point[0],
+    y: rect.top + point[1]
+  }
+}
+
 function setMapDraggingEnabled(enabled) {
   if (!map) {
     return
@@ -1148,6 +1214,7 @@ export function useYandexMap() {
     clearSearchPoint,
 
     getCoordinatesAtScreenPoint,
+    getScreenPointAtCoordinates,
     setMapDraggingEnabled,
 
     setSearchRadius,

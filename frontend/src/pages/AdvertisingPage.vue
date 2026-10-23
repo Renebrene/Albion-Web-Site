@@ -112,6 +112,7 @@
         -->
         <div
           v-show="workspaceMode === 'map' || workspaceMode === 'point'"
+          ref="mapWrapRef"
           class="map-wrap"
         >
           <MapView
@@ -1186,6 +1187,7 @@ const pointTargetPosition = ref({ x: 0, y: 0 })
 const isDraggingPointTarget = ref(false)
 const pointTargetPointerOffset = ref({ x: 0, y: 0 })
 const pointTargetRef = ref(null)
+const mapWrapRef = ref(null)
 
 function updatePointCoordinatesFromMap(center) {
   /*
@@ -1379,6 +1381,34 @@ function fixSelectedPoint() {
 function changeSelectedPoint() {
   /* Отменяем незавершённый обратный геокодер: его адрес уже неактуален. */
   reverseRequestSeq += 1
+
+  /*
+   * Метку возвращаем туда, где точка стоит на карте СЕЙЧАС. Пиксельные
+   * координаты перетаскивания к этому моменту устарели: пока точка была
+   * зафиксирована, карту могли сдвинуть или приблизить — и метка
+   * появлялась бы в старом месте экрана, «отвязанной» от карты.
+   */
+  const point = fixedSearchPoint.value
+
+  if (point) {
+    const screen = mapViewRef.value?.getScreenPointAtCoordinates(
+      point.lat,
+      point.lng
+    )
+
+    const wrap = mapWrapRef.value
+
+    if (screen && wrap) {
+      const rect = wrap.getBoundingClientRect()
+
+      /* left/top позиционируются от padding-края (за вычетом рамки). */
+      pointTargetPosition.value = {
+        x: screen.x - rect.left - wrap.clientLeft,
+        y: screen.y - rect.top - wrap.clientTop
+      }
+    }
+  }
+
   fixedSearchPoint.value = null
   pointSelectionState.value = 'idle'
 }

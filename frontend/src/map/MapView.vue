@@ -315,6 +315,10 @@ function getCoordinatesAtScreenPoint(clientX, clientY) {
   return mapApi.value?.getCoordinatesAtScreenPoint(clientX, clientY) ?? null
 }
 
+function getScreenPointAtCoordinates(lat, lng) {
+  return mapApi.value?.getScreenPointAtCoordinates(lat, lng) ?? null
+}
+
 function setMapDraggingEnabled(enabled) {
   mapApi.value?.setMapDraggingEnabled(enabled)
 }
@@ -323,6 +327,7 @@ defineExpose({
   focusCity,
   setMapCenter: moveToCoordinates,
   getCoordinatesAtScreenPoint,
+  getScreenPointAtCoordinates,
   setMapDraggingEnabled,
   whenReady,
   retryInit,
