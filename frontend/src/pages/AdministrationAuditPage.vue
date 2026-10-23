@@ -107,6 +107,7 @@
           v-model="page"
           :max="totalPages"
           :max-pages="7"
+          :disable="loading"
           boundary-numbers
           direction-links
           @update:model-value="loadPage"
@@ -194,9 +195,19 @@ function formatDate(value) {
   })
 }
 
+/*
+ * Номер последнего запроса: при быстром перелистывании ответы приходят
+ * не по порядку, и ранний мог перезаписать поздний (в таблице оказывались
+ * записи не той страницы). Отвечаем только на самый свежий.
+ */
+let requestSeq = 0
+
 async function loadData() {
+  const seq = ++requestSeq
+
   loading.value = true
   error.value = ''
+
   try {
     const params = new URLSearchParams()
     params.set('limit', String(pageSize))
@@ -206,13 +217,24 @@ async function loadData() {
     }
 
     const result = await request(`/api/admin/audit?${params.toString()}`)
+
+    if (seq !== requestSeq) {
+      return
+    }
+
     items.value = result.items || []
     total.value = result.total || 0
   } catch (exc) {
+    if (seq !== requestSeq) {
+      return
+    }
+
     error.value = String(exc)
     items.value = []
   } finally {
-    loading.value = false
+    if (seq === requestSeq) {
+      loading.value = false
+    }
   }
 }
 
