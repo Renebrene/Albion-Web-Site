@@ -116,34 +116,39 @@
             :key="index"
             class="found-address"
           >
-            <span class="found-address-text">— {{ entry.address }}</span>
+            <span class="found-address-text">
+              — {{ entry.address }}
+              <span v-if="entry.mark" class="found-address-mark">
+                {{ entry.mark }}</span
+              >
+            </span>
 
-            <!-- Портфель: доступен, только если у элемента есть id -->
-            <span v-if="surfaceIdOf(entry.item) !== null" class="found-pf">
+            <!-- Портфель: доступен, только если у поверхностей есть id -->
+            <span v-if="entry.hasIds" class="found-pf">
               <button
                 type="button"
                 class="found-pf-toggle"
-                :class="{ 'is-active': isEditing(entry.item) }"
+                :class="{ 'is-active': isEditingEntry(entry) }"
                 :title="
-                  isEditing(entry.item) ? 'Скрыть месяцы' : 'Показать месяцы'
+                  isEditingEntry(entry) ? 'Скрыть месяцы' : 'Показать месяцы'
                 "
-                @click="toggleFoundPfMode(entry.item)"
+                @click="toggleEntryPfMode(entry)"
               >
                 <q-icon name="inventory_2" size="14px" />
               </button>
 
-              <span v-if="isEditing(entry.item)" class="found-pf-months">
+              <span v-if="isEditingEntry(entry)" class="found-pf-months">
                 <button
                   v-for="month in MONTHS"
                   :key="month.full"
                   type="button"
                   class="found-pf-month"
                   :class="{
-                    'is-selected': isMonthSelected(entry.item.id, month.full),
-                    'is-locked': isMonthLocked(entry.item, month.full)
+                    'is-selected': isEntryMonthSelected(entry, month.full),
+                    'is-locked': isEntryMonthLocked(entry, month.full)
                   }"
-                  :title="getMonthStatusLabel(entry.item, month.full)"
-                  @click="onFoundMonthClick(entry.item, month)"
+                  :title="entryMonthLabel(entry, month.full)"
+                  @click="onEntryMonthClick(entry, month)"
                 >
                   {{ month.short }}
                 </button>
@@ -161,7 +166,7 @@
 <script setup>
 import { computed } from 'vue'
 
-import { MONTHS } from '../../utils/constructionGroups'
+import { MONTHS, parentSide } from '../../utils/constructionGroups'
 import { getMonthStatusLabel, isFree } from '../../utils/availability'
 import { usePortfolio } from '../../composables/usePortfolio'
 
@@ -253,63 +258,131 @@ function surfaceIdOf(item) {
   return id === undefined || id === null || id === '' ? null : id
 }
 
-function isEditing(item) {
-  const id = surfaceIdOf(item)
+/* id всех поверхностей строки (у некоторых записей id может не быть). */
+function entryIds(entry) {
+  return entry.items.map(surfaceIdOf).filter(id => id !== null)
+}
 
-  return id !== null && isSelectionMode(id)
+function isEditingEntry(entry) {
+  return entryIds(entry).some(id => isSelectionMode(id))
 }
 
 /*
  * Кнопка только включает/выключает режим выбора месяцев. Удаление —
- * явной кнопкой «Убрать» в панели портфеля (с undo).
+ * явной кнопкой «Убрать» в панели портфеля (с undo). Режим — общий для
+ * всех поверхностей адреса: иначе со строки нельзя было бы выбрать B.
  */
-function toggleFoundPfMode(item) {
-  const id = surfaceIdOf(item)
+function toggleEntryPfMode(entry) {
+  const ids = entryIds(entry)
 
-  if (id === null) {
+  if (!ids.length) {
     return
   }
 
-  setSelectionMode(id, !isSelectionMode(id))
+  const editing = ids.some(id => isSelectionMode(id))
+
+  ids.forEach(id => setSelectionMode(id, !editing))
 }
 
-function onFoundMonthClick(item, month) {
-  if (!isEditing(item)) {
+/*
+ * Клик по месяцу строки: снимаем со всех, если выбрано у всех, иначе
+ * добавляем всем свободным поверхностям адреса.
+ */
+function onEntryMonthClick(entry, month) {
+  if (!isEditingEntry(entry)) {
     return
   }
 
-  const id = surfaceIdOf(item)
+  const ids = entryIds(entry)
+  const allSelected =
+    ids.length > 0 && ids.every(id => isMonthSelected(id, month.full))
 
-  if (id === null) {
-    return
+  for (const item of entry.items) {
+    const id = surfaceIdOf(item)
+
+    if (id === null) {
+      continue
+    }
+
+    const selected = isMonthSelected(id, month.full)
+
+    if (allSelected) {
+      if (selected) {
+        togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
+      }
+
+      continue
+    }
+
+    /* Добавляем только свободные и ещё не выбранные. */
+    if (!selected && isFree(item, month.full)) {
+      togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
+    }
   }
-
-  /* Снять можно всегда; добавить — только свободный месяц. */
-  if (isMonthLocked(item, month.full)) {
-    return
-  }
-
-  togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
 }
 
-/* Месяц недоступен для выбора: занят/резерв и ещё не выбран. */
-function isMonthLocked(item, monthFull) {
-  const id = surfaceIdOf(item)
+/* Месяц выбран, когда он выбран у всех поверхностей адреса. */
+function isEntryMonthSelected(entry, monthFull) {
+  const ids = entryIds(entry)
 
-  if (id === null || isMonthSelected(id, monthFull)) {
-    return false
-  }
-
-  return !isFree(item, monthFull)
+  return ids.length > 0 && ids.every(id => isMonthSelected(id, monthFull))
 }
 
-/* Группируем найденное по формату: «ЩИТ — Адрес1, Адрес2…». */
+/* Месяц недоступен, только если ни одну поверхность нельзя выбрать. */
+function isEntryMonthLocked(entry, monthFull) {
+  const ids = entryIds(entry)
+
+  if (!ids.length) {
+    return true
+  }
+
+  return !entry.items.some(item => {
+    const id = surfaceIdOf(item)
+
+    if (id === null) {
+      return false
+    }
+
+    return isMonthSelected(id, monthFull) || isFree(item, monthFull)
+  })
+}
+
+function entryMonthLabel(entry, monthFull) {
+  if (entry.items.length === 1) {
+    return getMonthStatusLabel(entry.items[0], monthFull)
+  }
+
+  const free = entry.items.filter(item => isFree(item, monthFull)).length
+
+  if (free === 0) {
+    return 'Занято'
+  }
+
+  if (free === entry.items.length) {
+    return 'Свободно'
+  }
+
+  return 'Свободно частично'
+}
+
+/*
+ * Группируем найденное по формату: «ЩИТ — Адрес1, Адрес2…».
+ *
+ * На один адрес — одна строка, но поверхностей по адресу может быть
+ * несколько (щит A и B, призматрон A(1)…A(3)). Раньше вторая и следующие
+ * просто терялись. Теперь строка хранит все элементы, показывает короткую
+ * пометку «A, B · 6×3», а контроль портфеля действует сразу на все.
+ */
 const groupedResults = computed(() => {
   const groups = []
 
   for (const item of props.results) {
     const type = String(item?.type || 'Конструкция').trim()
     const address = String(item?.address || item?.name || '').trim()
+
+    if (!address) {
+      continue
+    }
 
     let group = groups.find(existing => existing.type === type)
 
@@ -318,14 +391,63 @@ const groupedResults = computed(() => {
       groups.push(group)
     }
 
-    // Храним ссылку на элемент — она нужна контролу портфеля.
-    if (address && !group.addresses.some(entry => entry.address === address)) {
-      group.addresses.push({ address, item })
+    let entry = group.addresses.find(existing => existing.address === address)
+
+    if (!entry) {
+      entry = { address, items: [] }
+      group.addresses.push(entry)
+    }
+
+    entry.items.push(item)
+  }
+
+  /* Пометку и наличие id считаем один раз, а не на каждый рендер. */
+  for (const group of groups) {
+    for (const entry of group.addresses) {
+      entry.mark = entryMark(entry.items)
+      entry.hasIds = entryIds(entry).length > 0
     }
   }
 
   return groups
 })
+
+/* «6 X 3 Метр» → «6×3»: короткая пометка рядом с адресом. */
+function formatSize(value) {
+  const raw = String(value || '').trim()
+
+  if (!raw) {
+    return ''
+  }
+
+  return raw
+    .replace(/\s*[xX×хХ]\s*/g, '×')
+    .replace(/\s*метр\w*/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/* Пометка строки: стороны и размеры всех поверхностей без повторов. */
+function entryMark(items) {
+  const sides = []
+  const sizes = []
+
+  for (const item of items) {
+    const side = parentSide(item?.side, item?.type)
+
+    if (side && !sides.includes(side)) {
+      sides.push(side)
+    }
+
+    const size = formatSize(item?.size)
+
+    if (size && !sizes.includes(size)) {
+      sizes.push(size)
+    }
+  }
+
+  return [sides.join(', '), sizes.join(', ')].filter(Boolean).join(' · ')
+}
 
 function toggleMonth(value) {
   const values = [...props.selectedMonths]
@@ -696,6 +818,22 @@ function toggleType(value) {
 .found-address-text {
   flex: 1 1 auto;
   min-width: 0;
+}
+
+/* Пометка поверхностей: «A, B · 6×3» — тише адреса, но читаемо. */
+.found-address-mark {
+  margin-left: 4px;
+
+  padding: 1px 5px;
+
+  border-radius: 5px;
+
+  background: #eef1f3;
+  color: #5b6873;
+
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 /* Компактный контрол портфеля в списке найденного */
