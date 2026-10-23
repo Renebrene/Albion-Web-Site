@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -12,6 +13,20 @@ from backend.services.data_service import get_connection
 PASSWORD_HASH = PasswordHash.recommended()
 
 SESSION_LIFETIME = timedelta(days=7)
+
+# Cookie-сессии (TZ 2.1) живут меньше: 8 часов.
+COOKIE_SESSION_LIFETIME = timedelta(hours=8)
+
+# Режим авторизации админки. bearer — как было (токен в sessionStorage),
+# cookie — HttpOnly-сессия. Переключение: ALBION_AUTH_MODE=cookie.
+AUTH_MODE_BEARER = "bearer"
+AUTH_MODE_COOKIE = "cookie"
+
+
+def auth_mode() -> str:
+    value = (os.getenv("ALBION_AUTH_MODE") or "").strip().lower()
+
+    return AUTH_MODE_COOKIE if value == AUTH_MODE_COOKIE else AUTH_MODE_BEARER
 
 
 def hash_token(token: str) -> str:
@@ -73,16 +88,23 @@ def create_session(
     user_id: int,
     ip_address: str | None = None,
     user_agent: str | None = None,
+    csrf_token: str | None = None,
+    lifetime: timedelta | None = None,
 ) -> str:
     """
     Создаёт сессию.
 
     Сам token возвращается вызывающему коду.
     В PostgreSQL сохраняется только SHA-256 хэш token.
+
+    csrf_token — токен для double-submit (заголовок X-CSRF-Token);
+    для cookie-режима. lifetime — срок жизни сессии (по умолчанию 7 дней,
+    для cookie-режима передаётся 8 часов).
     """
     token = secrets.token_urlsafe(32)
     token_hash = hash_token(token)
-    expires_at = datetime.now(timezone.utc) + SESSION_LIFETIME
+    csrf = csrf_token or secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + (lifetime or SESSION_LIFETIME)
 
     with get_connection() as conn:
         conn.execute(
@@ -93,10 +115,11 @@ def create_session(
                     token_hash,
                     expires_at,
                     ip_address,
-                    user_agent
+                    user_agent,
+                    csrf_token
                 )
             VALUES
-                (%s, %s, %s, %s, %s)
+                (%s, %s, %s, %s, %s, %s)
             """,
             (
                 user_id,
@@ -104,6 +127,7 @@ def create_session(
                 expires_at,
                 ip_address,
                 user_agent,
+                csrf,
             ),
         )
 
@@ -161,6 +185,50 @@ def get_current_user(token: str):
         "role": role,
         "is_active": is_active,
     }
+
+
+def get_session_csrf(token: str) -> str | None:
+    """CSRF-токен активной сессии (для проверки заголовка X-CSRF-Token)."""
+    if not token:
+        return None
+
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT csrf_token
+            FROM admin_sessions
+            WHERE token_hash = %s
+              AND revoked_at IS NULL
+              AND expires_at > NOW()
+            LIMIT 1
+            """,
+            (hash_token(token),),
+        ).fetchone()
+
+    return row[0] if row and row[0] else None
+
+
+def touch_session(token: str) -> None:
+    """
+    Отмечает активность сессии. Обновляем не чаще раза в минуту —
+    иначе каждый запрос админки писал бы в таблицу.
+    """
+    if not token:
+        return
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            UPDATE admin_sessions
+            SET last_seen = NOW()
+            WHERE token_hash = %s
+              AND (
+                  last_seen IS NULL
+                  OR last_seen < NOW() - INTERVAL '60 seconds'
+              )
+            """,
+            (hash_token(token),),
+        )
 
 
 def revoke_session(token: str) -> bool:

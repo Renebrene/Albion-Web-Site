@@ -812,7 +812,7 @@ import { mediaUrl, variantUrl } from '../services/adminMedia'
 import {
   adminFetch,
   clearAdminToken,
-  getAdminToken as readAdminToken
+  hasAdminSession
 } from '../services/adminApi'
 
 const router = useRouter()
@@ -1137,15 +1137,18 @@ function mediaFilterParams() {
   return params
 }
 
-async function getAdminToken() {
-  const token = readAdminToken()
-
-  if (!token) {
+/*
+ * Проверка живой сессии перед запросом. В cookie-режиме токена в JS нет,
+ * поэтому ориентируемся на маркер сессии, а настоящую проверку делает
+ * сервер (401 → адаптер уводит на вход).
+ */
+async function requireAdminSession() {
+  if (!hasAdminSession()) {
     await router.replace('/administration')
-    return null
+    return false
   }
 
-  return token
+  return true
 }
 
 async function createCategory() {
@@ -1155,7 +1158,7 @@ async function createCategory() {
     return
   }
 
-  const token = await getAdminToken()
+  const token = await requireAdminSession()
 
   if (!token) {
     return
@@ -1236,7 +1239,7 @@ async function saveMediaEdit() {
     return
   }
 
-  const token = await getAdminToken()
+  const token = await requireAdminSession()
 
   if (!token) {
     return
@@ -1284,7 +1287,7 @@ async function saveMediaEdit() {
 }
 
 async function loadMediaCategories() {
-  const token = await getAdminToken()
+  const token = await requireAdminSession()
 
   if (!token) {
     return
@@ -1327,7 +1330,7 @@ async function loadMediaCategories() {
 
 async function loadMedia() {
   const generation = ++mediaRequestGeneration
-  const token = await getAdminToken()
+  const token = await requireAdminSession()
 
   if (!token || generation !== mediaRequestGeneration) return
 
@@ -1369,7 +1372,7 @@ async function loadMedia() {
   }
 }
 async function loadMediaStats() {
-  const token = await getAdminToken()
+  const token = await requireAdminSession()
 
   if (!token) {
     return
@@ -1409,7 +1412,7 @@ async function loadMoreMedia() {
   }
 
   const generation = mediaRequestGeneration
-  const token = await getAdminToken()
+  const token = await requireAdminSession()
 
   if (!token || generation !== mediaRequestGeneration) return
 
@@ -1460,7 +1463,7 @@ function handleMediaGridScroll(event) {
 }
 
 async function uploadQueueItem(item) {
-  const token = await getAdminToken()
+  const token = await requireAdminSession()
 
   if (!token) {
     return false
@@ -1621,7 +1624,7 @@ async function deleteMedia(item) {
     return
   }
 
-  const token = await getAdminToken()
+  const token = await requireAdminSession()
 
   if (!token) {
     return

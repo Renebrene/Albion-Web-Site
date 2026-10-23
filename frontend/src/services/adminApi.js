@@ -10,8 +10,35 @@
 
 const ADMIN_TOKEN_KEY = 'albion_admin_token'
 
+/*
+ * Cookie-сессии (TZ 2.1). Токен сессии лежит в HttpOnly-cookie и JS его
+ * не видит; рядом сервер ставит два читаемых: CSRF-токен для заголовка
+ * X-CSRF-Token и маркер «сессия есть» — по нему гвард роутера решает,
+ * пускать ли на админскую страницу (настоящую проверку делает сервер).
+ */
+const ADMIN_CSRF_COOKIE = 'albion_admin_csrf'
+const ADMIN_AUTH_COOKIE = 'albion_admin_auth'
+
 /* Адрес страницы входа: туда уводим при истёкшей сессии. */
 const ADMIN_LOGIN_PATH = '/administration'
+
+function readCookie(name) {
+  if (typeof document === 'undefined') {
+    return ''
+  }
+
+  const match = document.cookie.match(
+    new RegExp(`(?:^|; )${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`)
+  )
+
+  return match ? decodeURIComponent(match[1]) : ''
+}
+
+function expireCookie(name) {
+  if (typeof document !== 'undefined') {
+    document.cookie = `${name}=; max-age=0; path=/`
+  }
+}
 
 export function getAdminToken() {
   try {
@@ -38,11 +65,41 @@ export function clearAdminToken() {
   }
 }
 
-/* Заголовки админского запроса. Без токена — без Authorization. */
+/*
+ * Есть ли сессия админки: либо cookie-маркер, либо старый Bearer-токен
+ * (пока режим не переключён). Проверка только для навигации — данные
+ * всё равно защищает сервер.
+ */
+export function hasAdminSession() {
+  return Boolean(readCookie(ADMIN_AUTH_COOKIE) || getAdminToken())
+}
+
+/* Полный выход на клиенте: токен и читаемые cookie сессии. */
+export function clearAdminSession() {
+  clearAdminToken()
+  expireCookie(ADMIN_CSRF_COOKIE)
+  expireCookie(ADMIN_AUTH_COOKIE)
+}
+
+/*
+ * Заголовки админского запроса: Bearer (если остался токен) и CSRF для
+ * cookie-режима.
+ */
 export function adminHeaders(extra = {}) {
+  const headers = { ...extra }
   const token = getAdminToken()
 
-  return token ? { ...extra, Authorization: `Bearer ${token}` } : { ...extra }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const csrf = readCookie(ADMIN_CSRF_COOKIE)
+
+  if (csrf) {
+    headers['X-CSRF-Token'] = csrf
+  }
+
+  return headers
 }
 
 /*
@@ -51,7 +108,7 @@ export function adminHeaders(extra = {}) {
  * здесь уместна: состояние админки уже недействительно.
  */
 function handleUnauthorized() {
-  clearAdminToken()
+  clearAdminSession()
 
   if (typeof window === 'undefined') {
     return
@@ -62,10 +119,16 @@ function handleUnauthorized() {
   }
 }
 
-/* fetch с токеном и единой реакцией на 401. */
+/*
+ * fetch с авторизацией и единой реакцией на 401.
+ *
+ * credentials задаём явно: в cookie-режиме сессия уходит только с
+ * same-origin-запросами.
+ */
 export async function adminFetch(path, options = {}) {
   const response = await fetch(path, {
     ...options,
+    credentials: 'same-origin',
     headers: adminHeaders(options.headers || {})
   })
 

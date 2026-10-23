@@ -102,3 +102,29 @@ PostgreSQL (PostGIS)   +   диск: storage/, archive/
 - Лимит размера тела запроса и потоковое чтение загрузок (защита от memory-DoS).
 - Санитайз CMS-ссылок и цветов на бэкенде (`cms_url`, `settings_service`).
 - Отзыв сессий при смене роли/активности/пароля.
+
+### Авторизация админки (два режима)
+
+Режим задаётся переменной окружения `ALBION_AUTH_MODE`:
+
+| Значение | Как работает |
+|---|---|
+| `bearer` (по умолчанию) | токен сессии в `sessionStorage`, заголовок `Authorization: Bearer …` |
+| `cookie` | HttpOnly-cookie `albion_admin_session` (Secure, `SameSite=Lax`, 8 ч) + CSRF |
+
+Cookie-режим (TZ 2.1):
+
+- `albion_admin_session` — **HttpOnly**, JS токен не видит;
+- `albion_admin_csrf` — читаемая, SPA повторяет её в заголовке `X-CSRF-Token`;
+- `albion_admin_auth=1` — читаемый маркер «сессия есть» только для гварда
+  роутера, настоящую проверку делает сервер;
+- изменяющие методы (POST/PUT/PATCH/DELETE) с cookie-сессией **без**
+  `X-CSRF-Token` получают 403;
+- logout и смена пароля отзывают сессию (`revoked_at`);
+- `ALBION_COOKIE_SECURE=false` снимает флаг Secure — только для локальной
+  отладки по http.
+
+Переключение обратимое: SPA понимает оба режима (токен сохраняется, только
+если сервер его вернул), заголовок `Authorization` принимается и в cookie-
+режиме — чтобы открытые вкладки доработали до перезагрузки. Откат — вернуть
+`ALBION_AUTH_MODE=bearer`. Тесты обоих режимов — `backend/tests/test_auth_cookie_mode.py`.

@@ -56,10 +56,14 @@ from backend.api.chat import (
 )
 
 from backend.services.auth_api import (
+    AUTH_MODE_COOKIE,
     LoginRequest,
+    auth_mode,
+    clear_admin_cookies,
     login_admin,
     logout_admin,
     require_admin,
+    set_admin_cookies,
 )
 
 
@@ -569,13 +573,28 @@ def page(slug: str):
 def admin_login(
     data: LoginRequest,
     request: Request,
+    response: Response,
 ):
-
-    return login_admin(
+    result = login_admin(
         data,
         ip_address=request.client.host if request.client else None,
         user_agent=request.headers.get("user-agent"),
     )
+
+    if auth_mode() == AUTH_MODE_COOKIE:
+        set_admin_cookies(response, result["token"], result.get("csrf") or "")
+
+        # В cookie-режиме токен в тело не отдаём: SPA его не использует.
+        return {
+            "mode": AUTH_MODE_COOKIE,
+            "user": result["user"],
+        }
+
+    return {
+        "mode": auth_mode(),
+        "token": result["token"],
+        "user": result["user"],
+    }
 
 
 @app.post("/api/admin/media")
@@ -807,8 +826,16 @@ def admin_me(auth=Depends(require_admin)):
 
 
 @app.post("/api/admin/logout")
-def admin_logout(auth=Depends(require_admin)):
-    return logout_admin(auth)
+def admin_logout(
+    response: Response,
+    auth=Depends(require_admin),
+):
+    result = logout_admin(auth)
+
+    # Снимаем cookie-сессию: иначе браузер продолжит её отправлять.
+    clear_admin_cookies(response)
+
+    return result
 
 
 # ---------------------------------------------------------------------------

@@ -1071,6 +1071,7 @@ async function enterAdminArea() {
   try {
     const response = await fetch('/api/admin/login', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         login: loginForm.value.login.trim(),
@@ -1082,6 +1083,12 @@ async function enterAdminArea() {
 
     if (response.ok && data.token) {
       setAdminToken(data.token)
+      await router.push('/administration/dashboard')
+      return
+    }
+
+    /* Cookie-режим: токена в ответе нет, сессия уже в cookie. */
+    if (response.ok && data.mode === 'cookie') {
       await router.push('/administration/dashboard')
       return
     }

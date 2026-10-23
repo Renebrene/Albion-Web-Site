@@ -7,7 +7,7 @@ import {
 } from 'vue-router'
 
 import routes from './routes.js'
-import { getAdminToken } from '../services/adminApi'
+import { hasAdminSession } from '../services/adminApi'
 
 /*
  * If not building with SSR mode, you can
@@ -40,9 +40,7 @@ export default defineRouter((/* { store, ssrContext } */) => {
       return true
     }
 
-    const token = getAdminToken()
-
-    if (!token) {
+    if (!hasAdminSession()) {
       return {
         path: '/administration',
         replace: true

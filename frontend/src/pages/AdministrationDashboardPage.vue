@@ -248,8 +248,8 @@ import { uploadAdminMedia } from '../services/adminMedia'
 import { MEDIA_SECTION, mediaCategoryId } from '../composables/useMediaCategory'
 import {
   adminFetch,
-  clearAdminToken,
-  getAdminToken
+  clearAdminSession,
+  hasAdminSession
 } from '../services/adminApi'
 
 const router = useRouter()
@@ -752,9 +752,11 @@ async function saveLayout() {
 // ----------------------------------------------------- авторизация
 
 async function loadUser() {
-  const token = getAdminToken()
-
-  if (!token) {
+  /*
+   * В cookie-режиме токена в JS нет — ориентируемся на сессию:
+   * если её нет, сервер ответит 401, а адаптер уведёт на вход.
+   */
+  if (!hasAdminSession()) {
     await router.replace('/administration')
     return
   }
@@ -778,16 +780,15 @@ async function loadUser() {
 }
 
 async function logout() {
-  const token = getAdminToken()
-
   loggingOut.value = true
 
   try {
-    if (token) {
-      await adminFetch('/api/admin/logout', { method: 'POST' })
-    }
+    // Сервер отзывает сессию и снимает cookie.
+    await adminFetch('/api/admin/logout', { method: 'POST' })
+  } catch {
+    /* даже при ошибке уходим на вход, локальную сессию чистим */
   } finally {
-    clearAdminToken()
+    clearAdminSession()
     await router.replace('/administration')
     loggingOut.value = false
   }

@@ -70,6 +70,7 @@ async function submit() {
   try {
     const response = await fetch('/api/admin/login', {
       method: 'POST',
+      credentials: 'same-origin',
       headers: {
         'Content-Type': 'application/json'
       },
@@ -85,7 +86,13 @@ async function submit() {
       throw new Error(data.detail || 'Не удалось выполнить вход')
     }
 
-    setAdminToken(data.token)
+    /*
+     * Cookie-режим: токена в ответе нет — сессия уже в HttpOnly-cookie.
+     * Bearer оставлен запасным путём до полного переключения.
+     */
+    if (data.token) {
+      setAdminToken(data.token)
+    }
 
     await router.push('/administration/dashboard')
   } catch (err) {
