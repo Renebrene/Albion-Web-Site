@@ -10,6 +10,8 @@
 | Переменная | Назначение |
 |---|---|
 | `ALBION_DB_HOST/PORT/NAME/USER/PASSWORD` | подключение к PostgreSQL |
+| `ALBION_AUTH_MODE` | `cookie` — HttpOnly-сессия админки (рекомендуется на HTTPS), `bearer` — токен в `sessionStorage` (по умолчанию, откат) |
+| `ALBION_COOKIE_SECURE` | `false` снимает флаг Secure у cookie сессии — только для локальной отладки по http; на HTTPS не задавать |
 | `ALBION_ALLOWED_ORIGINS` | список origin через запятую для CORS (например `https://albion.example.ru`); пусто — только локальная разработка |
 | `ALBION_SERVE_SPA` | `1` — backend сам отдаёт собранный `frontend/dist/spa` с history-fallback (если нет nginx) |
 | `ALBION_SMTP_HOST/PORT/USER/PASSWORD/FROM` | SMTP для уведомлений о заявках (адрес получателя задаётся в админке: Пользователи → Заявки) |
@@ -38,6 +40,11 @@
 Для медиатеки на Albion перед первым запуском примените аддитивную миграцию
 `.venv/bin/python -m backend.migrations.migrate_media_external_storage`:
 без неё запросы `media`/`media_variants` читают отсутствующие колонки.
+
+Для cookie-сессий админки (`ALBION_AUTH_MODE=cookie`) примените
+`.venv/bin/python -m backend.migrations.migrate_admin_session_cookies` — она
+добавляет в `admin_sessions` колонки `csrf_token` и `last_seen`. Без неё
+cookie-режим не заработает; bearer-режиму миграция не мешает.
 Режим хранения переключается в админке (Настройки → Файлохранилище Albion),
 подробности и откат — `doc/albion-storage.md`.
 
