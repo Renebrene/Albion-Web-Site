@@ -54,7 +54,7 @@
         </q-card-section>
       </q-card>
 
-      <q-dialog v-model="uploadDialog" persistent>
+      <q-dialog v-model="uploadDialog" persistent @hide="onUploadDialogHide">
         <q-card class="upload-queue-dialog">
           <q-card-section>
             <div class="section-title">Добавление медиафайлов</div>
@@ -191,16 +191,20 @@
             </div>
           </q-card-section>
 
-          <q-card-actions v-if="uploadQueue.length > 1" align="right">
+          <q-card-actions align="right">
+            <!--
+              Во время загрузки кнопка не блокируется, а отменяет её:
+              закрыть диалог и оставить загрузку «в фоне» нельзя.
+            -->
             <q-btn
               flat
               no-caps
-              label="ЗАКРЫТЬ"
-              :disable="uploading"
+              :label="uploading ? 'ОТМЕНИТЬ' : 'ЗАКРЫТЬ'"
               @click="uploadDialog = false"
             />
 
             <q-btn
+              v-if="uploadQueue.length > 1"
               unelevated
               color="primary"
               no-caps
@@ -817,6 +821,34 @@ const error = ref('')
 const result = ref(null)
 const uploadQueue = ref([])
 const uploadDialog = ref(false)
+
+/*
+ * Отмена текущей загрузки: закрытие диалога прерывает запрос и
+ * останавливает очередь. Иначе загрузка продолжалась «в фоне», а
+ * object URL превью жили до следующего выбора файлов.
+ */
+const uploadCancelled = ref(false)
+let uploadAbort = null
+
+function beginUploadSession() {
+  uploadCancelled.value = false
+  uploadAbort = new AbortController()
+}
+
+function cancelUpload() {
+  uploadCancelled.value = true
+  uploadAbort?.abort()
+  uploadAbort = null
+}
+
+function onUploadDialogHide() {
+  cancelUpload()
+  revokeQueuePreviews()
+
+  uploadQueue.value = []
+  uploading.value = false
+  uploadCurrentIndex.value = -1
+}
 const uploadProgress = ref(0)
 const uploadCurrentIndex = ref(-1)
 
@@ -1476,7 +1508,8 @@ async function uploadQueueItem(item) {
       headers: {
         Authorization: `Bearer ${token}`
       },
-      body: formData
+      body: formData,
+      signal: uploadAbort?.signal
     })
 
     if (response.status === 401) {
@@ -1496,7 +1529,14 @@ async function uploadQueueItem(item) {
     item.status = 'success'
     item.result = data?.media || null
     return true
-  } catch {
+  } catch (error) {
+    /* Закрыли диалог — файл остаётся в очереди, ошибку не показываем. */
+    if (error?.name === 'AbortError') {
+      item.status = 'pending'
+      item.error = ''
+      return false
+    }
+
     item.status = 'error'
     item.error = 'Не удалось выполнить запрос к серверу'
     return false
@@ -1513,6 +1553,8 @@ async function uploadSingleQueue(item) {
   uploadProgress.value = 0
   uploadCurrentIndex.value = uploadQueue.value.indexOf(item)
 
+  beginUploadSession()
+
   try {
     const success = await uploadQueueItem(item)
     uploadProgress.value = success ? 100 : 0
@@ -1527,6 +1569,7 @@ async function uploadSingleQueue(item) {
   } finally {
     uploading.value = false
     uploadCurrentIndex.value = -1
+    uploadAbort = null
   }
 }
 
@@ -1546,11 +1589,19 @@ async function uploadAllQueue() {
   uploadProgress.value = 0
   uploadCurrentIndex.value = -1
 
+  beginUploadSession()
+
   let completed = 0
   let allUploaded = true
 
   try {
     for (let index = 0; index < items.length; index += 1) {
+      /* Диалог закрыли — остаток очереди не загружаем. */
+      if (uploadCancelled.value) {
+        allUploaded = false
+        break
+      }
+
       uploadCurrentIndex.value = uploadQueue.value.indexOf(items[index])
       const success = await uploadQueueItem(items[index])
 
@@ -1570,6 +1621,7 @@ async function uploadAllQueue() {
   } finally {
     uploading.value = false
     uploadCurrentIndex.value = -1
+    uploadAbort = null
   }
 }
 
