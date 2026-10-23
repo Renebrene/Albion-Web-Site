@@ -12,6 +12,7 @@ import { popupContent, popupLayout } from './popupContent'
 import { MONTHS, groupByPoint } from '../utils/constructionGroups'
 import { getAvailabilityState } from '../utils/availability'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
+import { lazyPopups } from '../config/lazyPopups'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -270,7 +271,7 @@ function createMap(element) {
    MARKERS
    ========================================================= */
 
-function createPlacemark(group) {
+function createPlacemark(group, lazy) {
   const items = uniqueSides(group.items)
 
   if (!items.length) {
@@ -297,14 +298,15 @@ function createPlacemark(group) {
   const narrowViewport =
     typeof window !== 'undefined' && window.innerWidth < 600
 
-  return new ymaps.Placemark(
+  const placemark = new ymaps.Placemark(
     [lat, lng],
     {
       /*
        * balloonContentBody — HTML-попап из общего модуля,
-       * тот же, что использует Leaflet-движок.
+       * тот же, что использует Leaflet-движок. В ленивом режиме
+       * собираем его при открытии балуна.
        */
-      balloonContentBody: popupContent(items),
+      balloonContentBody: lazy ? '' : popupContent(items),
 
       hintContent: first.address || first.name || 'Рекламная конструкция'
     },
@@ -340,6 +342,19 @@ function createPlacemark(group) {
       hasHint: true
     }
   )
+
+  if (lazy) {
+    placemark.events.add('balloonopen', () => {
+      placemark.properties.set('balloonContentBody', popupContent(items))
+    })
+
+    /* Закрыли — освобождаем разметку до следующего открытия. */
+    placemark.events.add('balloonclose', () => {
+      placemark.properties.set('balloonContentBody', '')
+    })
+  }
+
+  return placemark
 }
 
 function renderMarkers() {
@@ -355,7 +370,7 @@ function renderMarkers() {
   const placemarks = []
 
   for (const group of groups) {
-    const placemark = createPlacemark(group)
+    const placemark = createPlacemark(group, lazyPopups.value)
 
     if (placemark) {
       placemarks.push(placemark)

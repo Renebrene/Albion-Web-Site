@@ -5,6 +5,7 @@ import { popupContent, popupLayout } from './popupContent'
 import { getAvailabilityState } from '../utils/availability'
 import { MONTHS } from '../utils/constructionGroups'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
+import { lazyPopups } from '../config/lazyPopups'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -230,10 +231,6 @@ function markerIconFor(color) {
   })
 }
 
-function markerIcon(items) {
-  return markerIconFor(markerColor(items))
-}
-
 /* =========================================================
    MAP
    ========================================================= */
@@ -352,11 +349,20 @@ function popupOptions(isDouble) {
  */
 const markerByKey = new Map()
 
+/* Ленивый попап: разметка собирается при открытии и читает свежие items. */
+function bindLazyPopup(entry, isDouble) {
+  entry.marker.bindPopup(() => {
+    entry.html = popupContent(entry.items)
+
+    return entry.html
+  }, popupOptions(isDouble))
+}
+
 /*
  * Создаёт маркер для группы сторон. Возвращает запись для markerByKey
  * либо null, если координат нет.
  */
-function buildMarker(items, html, isDouble) {
+function buildMarker(items, isDouble, lazy) {
   /*
    * Координаты берём из первой прошедшей стороны.
    * Обычно A и B физически имеют одинаковые координаты.
@@ -370,8 +376,10 @@ function buildMarker(items, html, isDouble) {
     return null
   }
 
+  const color = markerColor(items)
+
   const marker = L.marker([lat, lng], {
-    icon: markerIcon(items),
+    icon: markerIconFor(color),
 
     keyboard: true,
 
@@ -380,9 +388,25 @@ function buildMarker(items, html, isDouble) {
     title: first.address || first.name || 'Рекламная конструкция'
   })
 
-  marker.bindPopup(html, popupOptions(isDouble))
+  const entry = {
+    marker,
+    items,
+    html: '',
+    isDouble,
+    lazy,
+    color,
+    lat,
+    lng
+  }
 
-  return { marker, html, isDouble, color: markerColor(items), lat, lng }
+  if (lazy) {
+    bindLazyPopup(entry, isDouble)
+  } else {
+    entry.html = popupContent(items)
+    marker.bindPopup(entry.html, popupOptions(isDouble))
+  }
+
+  return entry
 }
 
 /*
@@ -427,17 +451,17 @@ function renderMarkers() {
 
     nextKeys.add(key)
 
-    const html = popupContent(items)
-
     const isDouble = popupLayout(items) !== 'single'
 
     const color = markerColor(items)
+
+    const lazy = lazyPopups.value
 
     let entry = markerByKey.get(key)
 
     // Новая точка — создаём и добавляем.
     if (!entry) {
-      entry = buildMarker(items, html, isDouble)
+      entry = buildMarker(items, isDouble, lazy)
 
       if (!entry) {
         continue
@@ -449,6 +473,10 @@ function renderMarkers() {
 
       continue
     }
+
+    const itemsChanged = entry.items !== items
+
+    entry.items = items
 
     // Точка уже на карте — правим только то, что изменилось.
     if (entry.lat !== lat || entry.lng !== lng) {
@@ -462,14 +490,29 @@ function renderMarkers() {
       entry.color = color
     }
 
-    if (entry.isDouble !== isDouble) {
-      // Смена компоновки меняет класс и ширину попапа — нужна повторная привязка.
-      entry.marker.bindPopup(html, popupOptions(isDouble))
+    if (entry.lazy !== lazy || entry.isDouble !== isDouble) {
+      // Смена режима или компоновки — нужна повторная привязка попапа.
+      entry.lazy = lazy
       entry.isDouble = isDouble
-      entry.html = html
-    } else if (entry.html !== html) {
-      entry.marker.setPopupContent(html)
-      entry.html = html
+
+      if (lazy) {
+        bindLazyPopup(entry, isDouble)
+      } else {
+        entry.html = popupContent(items)
+        entry.marker.bindPopup(entry.html, popupOptions(isDouble))
+      }
+    } else if (lazy) {
+      /* Открытый попап обновляем только если данные метки сменились. */
+      if (itemsChanged && entry.marker.isPopupOpen()) {
+        entry.marker.setPopupContent(popupContent(items))
+      }
+    } else {
+      const html = popupContent(items)
+
+      if (entry.html !== html) {
+        entry.marker.setPopupContent(html)
+        entry.html = html
+      }
     }
   }
 

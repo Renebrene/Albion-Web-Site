@@ -17,6 +17,7 @@ import {
 } from '../config/mapColors'
 import { setAvailableMode } from '../config/availableMode'
 import { setShowDynCount } from '../config/dynCount'
+import { setLazyPopups } from '../config/lazyPopups'
 import { setUrlStateMode, setUrlStateTokenFormat } from '../config/urlStateMode'
 import { applySiteFonts } from '../config/fontLoader'
 
@@ -105,6 +106,9 @@ export function applyAppearanceSettings(settings) {
 
   /* Показ количества поверхностей у динамики (см. config/dynCount.js). */
   setShowDynCount(settings.show_dyn_count)
+
+  /* Ленивые попапы карты (см. config/lazyPopups.js). */
+  setLazyPopups(settings.map_lazy_popups)
 
   /* Формат ссылок: читаемый или компактный токен (см. config/urlStateMode.js). */
   setUrlStateMode(settings.url_state_mode)

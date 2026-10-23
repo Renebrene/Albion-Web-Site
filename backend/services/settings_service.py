@@ -144,6 +144,13 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "default": "#e24b42",
     },
     {
+        "key": "map_lazy_popups",
+        "label": "Ленивые попапы (собирать при открытии)",
+        "type": "toggle",
+        "group": "map",
+        "default": "false",
+    },
+    {
         "key": "map_color_mixed",
         "label": "Цвет точки: частично занято",
         "type": "color",

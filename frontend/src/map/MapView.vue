@@ -22,6 +22,7 @@ import {
 import { mapEngine } from '../config/mapConfig'
 import { availableMode } from '../config/availableMode'
 import { showDynCount } from '../config/dynCount'
+import { lazyPopups } from '../config/lazyPopups'
 import { ensureSiteSettings } from '../boot/settings'
 import { loadYandexMaps } from './yandexLoader'
 
@@ -281,7 +282,8 @@ watch(
     () => props.constructions,
     () => props.selectedMonths,
     availableMode,
-    showDynCount
+    showDynCount,
+    lazyPopups
   ],
   ([items, months]) => {
     mapApi.value?.setConstructions(items, months)
