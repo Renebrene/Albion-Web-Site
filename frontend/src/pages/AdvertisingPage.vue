@@ -1657,6 +1657,11 @@ function setWorkspaceMode(mode) {
 
 /* Из панели точки: открыть закладку «Список» с найденными результатами. */
 function openListFromPoint() {
+  /* Пустая выдача: открывать нечего (кнопка в панели тоже выключена). */
+  if (!pointFilteredConstructions.value.length) {
+    return
+  }
+
   workspaceMode.value = 'list'
 }
 

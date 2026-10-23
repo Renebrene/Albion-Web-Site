@@ -91,6 +91,8 @@
       <button
         type="button"
         class="open-list-button"
+        :disabled="!count"
+        :title="count ? undefined : 'В выбранном районе ничего не найдено'"
         @click="$emit('open-list')"
       >
         ОТКРЫТЬ СПИСОК
@@ -640,8 +642,15 @@ function toggleType(value) {
   transition: 0.15s ease;
 }
 
-.open-list-button:hover {
+.open-list-button:hover:not(:disabled) {
   background: #c92219;
+}
+
+/* Ничего не найдено — открывать нечего. */
+.open-list-button:disabled {
+  background: #b9c1c7;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: not-allowed;
 }
 
 .found-list {
