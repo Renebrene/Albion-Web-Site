@@ -91,15 +91,22 @@ function videoMonthBlock(item) {
         const selected =
           surfaceId !== null && portfolio.isMonthSelected(surfaceId, month.full)
 
+        /*
+         * Занятый месяц выбрать нельзя: не ставим data-pf-month, иначе
+         * клик уходил бы в обработчик и молча игнорировался, а клетка
+         * выглядела активной. Уже выбранный месяц снять можно всегда.
+         */
+        const locked = !selected && !isFree(item, month.full)
+
         const pfAttrs =
-          surfaceId !== null
+          surfaceId !== null && !locked
             ? ` data-pf-month="${escapeHtml(String(surfaceId))}|${escapeHtml(month.full)}"`
             : ''
 
         return `
           <button
             type="button"
-            class="popup-month ${state} popup-month--video${selected ? ' is-selected' : ''}"
+            class="popup-month ${state} popup-month--video${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"
             aria-pressed="${selected ? 'true' : 'false'}"
             title="${escapeHtml(title)}"${pfAttrs}
           >
