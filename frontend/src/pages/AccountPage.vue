@@ -362,10 +362,7 @@
           <q-card class="confirm-card">
             <q-card-section>
               <div class="confirm-title">{{ confirmText }}</div>
-              <div class="confirm-note">
-                Очищается только сохранённый список. Содержание остаётся в
-                журнале и базе данных.
-              </div>
+              <div class="confirm-note">{{ confirmNote }}</div>
             </q-card-section>
 
             <q-card-actions align="right">
@@ -862,6 +859,16 @@ const confirmText = computed(() =>
   clearTarget.value === 'chats'
     ? 'Очистить сохранённые чаты?'
     : 'Очистить сохранённый портфель?'
+)
+
+/*
+ * Для портфеля честно предупреждаем: очищается и текущая подборка в
+ * этой вкладке — иначе пользователь теряет её неожиданно.
+ */
+const confirmNote = computed(() =>
+  clearTarget.value === 'chats'
+    ? 'Очищается только сохранённый список. Содержание остаётся в журнале и базе данных.'
+    : 'Будет очищен и сохранённый в личном кабинете портфель, и текущая подборка в этой вкладке. Конструкции из каталога не удаляются.'
 )
 
 function askClear(target) {

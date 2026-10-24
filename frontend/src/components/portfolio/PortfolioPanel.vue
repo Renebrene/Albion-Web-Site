@@ -486,8 +486,24 @@ const {
   restoreSurface,
   clear,
   setTitle,
-  saveToAccount
+  saveToAccount,
+  accountSaveError
 } = usePortfolio()
+
+/*
+ * Ошибка автосохранения портфеля в ЛК. Повторы уже идут в composable,
+ * здесь только показываем причину — и при открытии панели, если ошибка
+ * появилась, пока панель была закрыта.
+ */
+watch(
+  accountSaveError,
+  message => {
+    if (message) {
+      notify(message, 'error')
+    }
+  },
+  { immediate: true }
+)
 
 /*
  * Аккаунт читаем целиком (а не деструктуризацией): requisites появится

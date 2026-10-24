@@ -82,6 +82,21 @@ const accountTitle = ref('')
 // Дата последнего сохранения портфеля в ЛК (ISO-строка) — для фильтра по дате.
 const accountPortfolioUpdatedAt = ref('')
 
+// Результат последней попытки сохранить портфель в ЛК ('' — ошибки нет).
+const accountSaveError = ref('')
+
+/*
+ * Клиентские метки удалений: surfaceId -> ISO-время удаления.
+ *
+ * Сервер хранит только { title, items } и режет лишние поля, поэтому
+ * метка живёт в localStorage. Нужна, чтобы неудачное сохранение удаления
+ * не «воскрешало» позицию при следующем слиянии с сервером.
+ */
+const deletedAt = ref({})
+
+// Старые метки удалений больше не нужны: позиций с такими датами нет.
+const TOMBSTONE_TTL_MS = 30 * 24 * 60 * 60 * 1000
+
 // surfaceId (в виде строки) -> true, если включён режим выбора месяцев.
 const selectionMode = reactive({})
 
@@ -319,6 +334,27 @@ function normalizeItem(raw) {
   return item
 }
 
+/*
+ * Метки удалений из хранилища: только валидные ISO-даты не старше TTL.
+ */
+function normalizeTombstones(raw) {
+  const now = Date.now()
+  const result = {}
+
+  if (raw && typeof raw === 'object') {
+    Object.entries(raw).forEach(([key, value]) => {
+      const stamp = String(value || '')
+      const time = Date.parse(stamp)
+
+      if (Number.isFinite(time) && now - time < TOMBSTONE_TTL_MS) {
+        result[key] = stamp
+      }
+    })
+  }
+
+  return result
+}
+
 // ---------------------------------------------------------------- чтение
 
 /* Индекс по surfaceId: частые isMonthSelected/isInPortfolio больше не O(n). */
@@ -394,6 +430,11 @@ function ensureItem(surface) {
     })
 
     items.value.push(item)
+  }
+
+  /* Позицию добавили заново — метка удаления больше не действует. */
+  if (deletedAt.value[keyOf(surfaceId)]) {
+    delete deletedAt.value[keyOf(surfaceId)]
   }
 
   return item
@@ -593,6 +634,9 @@ function removeSurface(surfaceId) {
   items.value = items.value.filter(item => keyOf(item.surfaceId) !== key)
   delete selectionMode[key]
 
+  /* Метка удаления: даже если PUT не доедет, слияние не вернёт позицию. */
+  deletedAt.value[key] = nowIso()
+
   return snapshot
 }
 
@@ -613,6 +657,9 @@ function restoreSurface(snapshot) {
     items.value.splice(index, 0, item)
   }
 
+  /* Отмена удаления снимает метку. */
+  delete deletedAt.value[keyOf(item.surfaceId)]
+
   if (snapshot.selectionMode) {
     selectionMode[keyOf(item.surfaceId)] = true
   }
@@ -621,6 +668,16 @@ function restoreSurface(snapshot) {
 }
 
 function clear() {
+  const stamp = nowIso()
+
+  /*
+   * Очистка — это удаление всех позиций: отмечаем их, чтобы слияние не
+   * вернуло их, если автосохранение не успеет или не сможет доехать.
+   */
+  items.value.forEach(item => {
+    deletedAt.value[keyOf(item.surfaceId)] = stamp
+  })
+
   items.value = []
   title.value = ''
 
@@ -713,6 +770,12 @@ function syncWithConstructions(constructions) {
   )
   const sideGroups = buildSideGroups(constructions)
 
+  /*
+   * Это обновление снимков из каталога, а не действие пользователя:
+   * помечаем, чтобы watcher не отправлял PUT в ЛК.
+   */
+  applyingCatalogSync = true
+
   items.value.forEach(item => {
     const construction = byId.get(keyOf(item.surfaceId))
 
@@ -751,6 +814,11 @@ function syncWithConstructions(constructions) {
         month.price = price
       }
     })
+  })
+
+  /* Сбрасываем после flush watcher'ов: они выполняются асинхронно. */
+  nextTick(() => {
+    applyingCatalogSync = false
   })
 }
 
@@ -842,7 +910,9 @@ function serialize() {
   return {
     version: 1,
     title: normalizeTitle(title.value),
-    items: Array.isArray(plain) ? plain : []
+    items: Array.isArray(plain) ? plain : [],
+    /* Только для localStorage: сервер это поле не принимает. */
+    deletedAt: { ...deletedAt.value }
   }
 }
 
@@ -865,6 +935,9 @@ function hydrate(data) {
 
   // Название восстанавливаем вместе со списком; нет в данных — пустая строка.
   title.value = normalizeTitle(data.title)
+
+  // Метки удалений (старые и битые отбрасываем).
+  deletedAt.value = normalizeTombstones(data.deletedAt)
 
   return true
 }
@@ -957,12 +1030,31 @@ async function clearAccountPortfolio() {
     if (response.ok) {
       accountPortfolioUpdatedAt.value = ''
 
+      /* Сервер только что очищен: отменяем отложенные сохранения и повторы. */
+      if (saveTimer) {
+        clearTimeout(saveTimer)
+        saveTimer = null
+      }
+
+      resetAccountSaveRetry()
+
+      /*
+       * clear() вызовет watcher — пустой портфель обратно не отправляем.
+       * Если локально уже было пусто, watcher не сработает: снимаем
+       * флаг на следующем тике, чтобы он не погасил будущее сохранение.
+       */
+      suppressNextAccountSave = true
+
       /*
        * Чистим и локальный портфель вместе с режимами выбора: иначе на
        * карте и в списке остаются подсвеченные кнопки «Портфель» и
        * выбранные месяцы, хотя портфель уже пуст.
        */
       clear()
+
+      nextTick(() => {
+        suppressNextAccountSave = false
+      })
     }
 
     return response.ok
@@ -1018,6 +1110,29 @@ function saveToAccount() {
 }
 
 /*
+ * Позиция удалена на этом устройстве и удаление ещё в силе?
+ *
+ * Если серверная запись добавлена ПОЗЖЕ метки удаления (портфель собрали
+ * заново с другого устройства), метка устарела — снимаем её.
+ */
+function isTombstoned(item) {
+  const key = keyOf(item.surfaceId)
+  const deleted = deletedAt.value[key]
+
+  if (!deleted) {
+    return false
+  }
+
+  if (item.addedAt && item.addedAt > deleted) {
+    delete deletedAt.value[key]
+
+    return false
+  }
+
+  return true
+}
+
+/*
  * Слияние двух списков по surfaceId.
  *
  * Месяцы объединяются; при конфликте остаётся запись
@@ -1026,7 +1141,7 @@ function saveToAccount() {
 function mergeItems(localItems, serverItems) {
   const merged = new Map()
 
-  function absorb(list) {
+  function absorb(list, skipTombstoned = false) {
     if (!Array.isArray(list)) {
       return
     }
@@ -1035,6 +1150,10 @@ function mergeItems(localItems, serverItems) {
       const item = normalizeItem(raw)
 
       if (!item) {
+        return
+      }
+
+      if (skipTombstoned && isTombstoned(item)) {
         return
       }
 
@@ -1070,7 +1189,9 @@ function mergeItems(localItems, serverItems) {
   }
 
   absorb(localItems)
-  absorb(serverItems)
+
+  /* Серверные позиции, удалённые здесь, не воскрешаем. */
+  absorb(serverItems, true)
 
   return Array.from(merged.values())
 }
@@ -1127,6 +1248,16 @@ loadLocal()
  */
 let applyingExternalStorage = false
 
+/*
+ * Подавление автосохранения в ЛК:
+ * - applyingCatalogSync — каталог обновил снимки цен/статусов (это не
+ *   пользовательское изменение, PUT не нужен);
+ * - suppressNextAccountSave — портфель только что очищен в ЛК через
+ *   DELETE, отправлять обратно пустой портфель незачем.
+ */
+let applyingCatalogSync = false
+let suppressNextAccountSave = false
+
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', event => {
     if (event.key !== STORAGE_KEY || !event.newValue) {
@@ -1152,6 +1283,42 @@ let saveTimer = null
 let saveInFlight = false
 let saveQueued = false
 
+/* Повторы после неудачного PUT: 5 с -> 15 с -> 30 с, дальше раз в 30 с. */
+const SAVE_RETRY_DELAYS_MS = [5000, 15000, 30000]
+let retryTimer = null
+let retryAttempt = 0
+
+function scheduleAccountSaveRetry() {
+  if (!isAuthenticated.value || retryTimer) {
+    return
+  }
+
+  const delay =
+    SAVE_RETRY_DELAYS_MS[
+      Math.min(retryAttempt, SAVE_RETRY_DELAYS_MS.length - 1)
+    ]
+
+  retryAttempt += 1
+  accountSaveError.value =
+    'Не удалось сохранить портфель в личном кабинете. Повторяем…'
+
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    void flushAccountSave()
+  }, delay)
+}
+
+/* Отменяет запланированные повторы и снимает ошибку сохранения. */
+function resetAccountSaveRetry() {
+  if (retryTimer) {
+    clearTimeout(retryTimer)
+    retryTimer = null
+  }
+
+  retryAttempt = 0
+  accountSaveError.value = ''
+}
+
 /*
  * Последовательная отправка: одновременно выполняется не больше одного
  * PUT. Иначе при быстрых изменениях более старый запрос мог завершиться
@@ -1175,9 +1342,17 @@ async function flushAccountSave() {
 
       const ok = await saveToAccount()
 
-      /* Ошибку не ретраим в цикле: следующий PUT запланирует изменение. */
-      if (!ok) {
+      if (ok) {
+        retryAttempt = 0
+        accountSaveError.value = ''
+      } else {
+        /*
+         * Тихий провал недопустим: удаление, не доехавшее до сервера,
+         * «воскресало» при следующем слиянии. Повторяем и показываем
+         * причину; метки удалений (deletedAt) страхуют от повторов.
+         */
         saveQueued = false
+        scheduleAccountSaveRetry()
         break
       }
     } while (saveQueued && isAuthenticated.value)
@@ -1185,6 +1360,16 @@ async function flushAccountSave() {
     saveInFlight = false
   }
 }
+
+/*
+ * Выход из аккаунта отменяет повторы: сохранять больше некуда, а старая
+ * ошибка не должна всплывать при следующем открытии панели.
+ */
+watch(isAuthenticated, value => {
+  if (!value) {
+    resetAccountSaveRetry()
+  }
+})
 
 watch(
   [items, title],
@@ -1195,6 +1380,21 @@ watch(
     }
 
     saveLocal()
+
+    /*
+     * Снимки цен/статусов из каталога сохраняем только локально: иначе
+     * каждый заход на сайт отправлял бы PUT в ЛК без изменений.
+     */
+    if (applyingCatalogSync) {
+      return
+    }
+
+    /* После DELETE в ЛК сервер уже пуст — PUT пустого портфеля не нужен. */
+    if (suppressNextAccountSave) {
+      suppressNextAccountSave = false
+
+      return
+    }
 
     if (!isAuthenticated.value) {
       return
@@ -1255,6 +1455,7 @@ export function usePortfolio() {
     mergeFromAccount,
     fetchAccountPortfolio,
     accountPortfolioUpdatedAt,
+    accountSaveError,
     clearAccountPortfolio
   }
 }
