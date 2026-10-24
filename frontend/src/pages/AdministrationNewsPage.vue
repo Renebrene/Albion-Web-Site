@@ -255,7 +255,7 @@
         </q-card-section>
 
         <q-card-actions align="right">
-          <q-btn flat no-caps label="Отмена" v-close-popup />
+          <q-btn flat no-caps label="Отмена" @click="closeEditor" />
           <q-btn
             color="primary"
             no-caps
@@ -332,6 +332,33 @@ const messageType = ref('ok')
 const editOpen = ref(false)
 const editing = ref(emptyNews())
 const newCategoryName = ref('')
+
+/*
+ * Снимок формы на момент открытия диалога: по нему понимаем, есть ли
+ * несохранённые правки. «Отмена» (v-close-popup) закрывала диалог молча,
+ * и введённый текст терялся.
+ */
+const editorSnapshot = ref('')
+
+const editorDirty = computed(
+  () => editorSnapshot.value !== JSON.stringify(editing.value)
+)
+
+function markEditorOpened() {
+  editorSnapshot.value = JSON.stringify(editing.value)
+}
+
+function closeEditor() {
+  if (!editorDirty.value) {
+    editOpen.value = false
+
+    return
+  }
+
+  if (window.confirm('Есть несохранённые изменения. Закрыть без сохранения?')) {
+    editOpen.value = false
+  }
+}
 
 const categoryOptions = computed(() => categories.value)
 
@@ -444,6 +471,7 @@ async function addCategory() {
 
 function newNews() {
   editing.value = emptyNews()
+  markEditorOpened()
   editOpen.value = true
 }
 
@@ -463,6 +491,7 @@ function editNews(item) {
     media: mapNewsMedia(item),
     cover_id: coverIdOf(item)
   }
+  markEditorOpened()
   editOpen.value = true
 }
 

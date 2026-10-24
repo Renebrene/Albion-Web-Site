@@ -240,8 +240,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
 import MediaPicker from '../components/admin/MediaPicker.vue'
 import { uploadAdminMedia } from '../services/adminMedia'
@@ -795,6 +795,35 @@ async function logout() {
     loggingOut.value = false
   }
 }
+
+/*
+ * Несохранённые правки: dirty влиял только на кнопку «Сохранить», а уход
+ * со страницы (или перезагрузка) терял изменения молча.
+ */
+onBeforeRouteLeave(() => {
+  if (!dirty.value) {
+    return true
+  }
+
+  return window.confirm('Есть несохранённые изменения. Уйти со страницы?')
+})
+
+function onBeforeUnload(event) {
+  if (!dirty.value) {
+    return
+  }
+
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onMounted(() => {
+  window.addEventListener('beforeunload', onBeforeUnload)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
+})
 
 onMounted(async () => {
   await loadUser()
