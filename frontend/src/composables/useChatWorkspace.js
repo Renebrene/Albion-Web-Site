@@ -177,7 +177,16 @@ async function saveChats() {
   }
 }
 
-/* Восстановление сохранённых чатов: нумерация берётся из сохранённого. */
+/*
+ * Восстановление сохранённых чатов: нумерация берётся из сохранённого.
+ *
+ * Список не подменяем, а дополняем по ключу. Рабочее пространство открывается
+ * вместе с уже созданным чатом (AppHeader.openWorkspace → ensureFirst), и
+ * подмена выбрасывала из него чат, в котором только что задали вопрос, —
+ * он оставался в памяти, но пропадал из списка. Из ЛК добавляем только те
+ * чаты, которых здесь ещё нет; уже открытые не перечитываем, иначе ответ,
+ * который сейчас идёт, был бы отменён (hydrateChat обнуляет запрос).
+ */
 async function loadChats() {
   if (!isAuthenticated.value) return
 
@@ -193,17 +202,37 @@ async function loadChats() {
 
     if (!saved.length) return
 
-    chats.value = saved.map((chat, index) => ({
-      key: chat.key || `chat-${index + 1}`,
-      number: chat.number || index + 1,
-      draft: ''
-    }))
-
-    sequence = chats.value.reduce((max, chat) => Math.max(max, chat.number), 0)
-    persistChats()
+    const known = new Set(chats.value.map(chat => String(chat.key)))
+    const added = []
 
     saved.forEach((chat, index) => {
-      hydrateChat(chats.value[index].key, {
+      const key = String(chat.key || `chat-${index + 1}`)
+
+      if (known.has(key)) {
+        return
+      }
+
+      known.add(key)
+      chats.value.push({
+        key,
+        number: Number(chat.number) || sequence + added.length + 1,
+        draft: ''
+      })
+      added.push({ key, chat })
+    })
+
+    if (!added.length) {
+      return
+    }
+
+    sequence = chats.value.reduce(
+      (max, chat) => Math.max(max, Number(chat.number) || 0),
+      sequence
+    )
+    persistChats()
+
+    added.forEach(({ key, chat }) => {
+      hydrateChat(key, {
         sessionId: chat.sessionId,
         messages: chat.messages,
         lastResponse: chat.lastResponse
