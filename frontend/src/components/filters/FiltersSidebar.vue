@@ -1,5 +1,5 @@
 <template>
-  <aside class="filters-sidebar">
+  <aside class="filters-sidebar" :class="{ 'is-disabled': disabled }">
     <div class="sidebar-head">
       <h2>
         {{
@@ -9,6 +9,20 @@
         }}
       </h2>
     </div>
+
+    <!--
+      Результаты умного чата — самостоятельная выборка: фильтры каталога к
+      ней не применяются. Поэтому контролы погашены и объяснены, иначе они
+      выглядят рабочими, но ни на что не влияют.
+    -->
+    <section
+      v-if="disabled"
+      class="filter-section filters-disabled-note"
+      role="status"
+    >
+      Показаны результаты умного чата — фильтры каталога к ним не применяются.
+      Нажмите «Сбросить» на плашке, чтобы вернуться к каталогу.
+    </section>
 
     <!-- Активный поиск по точке: чем сужена выдача и как это снять -->
     <section v-if="pointFilter" class="filter-section point-filter-section">
@@ -57,6 +71,7 @@
               type="button"
               :class="{ active: monthLogic === 'AND' }"
               :aria-pressed="monthLogic === 'AND'"
+              :disabled="disabled"
               @click="$emit('update:monthLogic', 'AND')"
             >
               И
@@ -66,6 +81,7 @@
               type="button"
               :class="{ active: monthLogic === 'OR' }"
               :aria-pressed="monthLogic === 'OR'"
+              :disabled="disabled"
               @click="$emit('update:monthLogic', 'OR')"
             >
               ИЛИ
@@ -82,6 +98,7 @@
           class="chip"
           :class="{ active: selectedMonths.includes(month.value) }"
           :aria-pressed="selectedMonths.includes(month.value)"
+          :disabled="disabled"
           @click="toggleMonth(month.value)"
         >
           {{ month.label }}
@@ -100,11 +117,16 @@
           class="chip"
           :class="{ active: selectedTypes.includes(type) }"
           :aria-pressed="selectedTypes.includes(type)"
-          :disabled="selectedTypes.length === 1 && selectedTypes.includes(type)"
+          :disabled="
+            disabled ||
+            (selectedTypes.length === 1 && selectedTypes.includes(type))
+          "
           :title="
-            selectedTypes.length === 1 && selectedTypes.includes(type)
-              ? 'Должен остаться хотя бы один формат'
-              : undefined
+            disabled
+              ? 'Недоступно в результатах умного чата'
+              : selectedTypes.length === 1 && selectedTypes.includes(type)
+                ? 'Должен остаться хотя бы один формат'
+                : undefined
           "
           @click="toggleType(type)"
         >
@@ -122,6 +144,7 @@
             type="button"
             title="Очистить выбор — будут показаны все города"
             aria-label="Очистить выбор городов"
+            :disabled="disabled"
             @click="clearCities"
           >
             <q-icon name="filter_alt_off" size="16px" />
@@ -141,6 +164,7 @@
             class="city-check-button"
             :aria-label="`Выбрать город ${city}`"
             :aria-pressed="selectedCities.includes(city)"
+            :disabled="disabled"
             @click.stop="toggleCity(city)"
           >
             <span class="city-check">
@@ -151,6 +175,7 @@
           <button
             type="button"
             class="city-name-button"
+            :disabled="disabled"
             @click="focusCity(city)"
           >
             <span class="city-name">{{ city }}</span>
@@ -173,6 +198,16 @@ const props = defineProps({
   countLabel: {
     type: String,
     default: ''
+  },
+
+  /*
+   * Фильтры недоступны: сейчас так помечаются результаты умного чата —
+   * это самостоятельная выборка, к которой фильтры каталога не применяются.
+   * Контролы гасятся, а не молча игнорируются.
+   */
+  disabled: {
+    type: Boolean,
+    default: false
   },
 
   /*
@@ -230,6 +265,10 @@ const emit = defineEmits([
 ])
 
 function toggleMonth(value) {
+  if (props.disabled) {
+    return
+  }
+
   const values = [...props.selectedMonths]
   const index = values.indexOf(value)
 
@@ -243,6 +282,10 @@ function toggleMonth(value) {
 }
 
 function toggleType(value) {
+  if (props.disabled) {
+    return
+  }
+
   const values = [...props.selectedTypes]
   const index = values.indexOf(value)
 
@@ -265,6 +308,10 @@ function focusCity(value) {
 }
 
 function toggleCity(value) {
+  if (props.disabled) {
+    return
+  }
+
   const values = [...props.selectedCities]
   const index = values.indexOf(value)
 
@@ -283,6 +330,10 @@ function toggleCity(value) {
  * последнего чекбокса.
  */
 function clearCities() {
+  if (props.disabled) {
+    return
+  }
+
   emit('update:selectedCities', [])
 }
 </script>
@@ -313,6 +364,32 @@ function clearCities() {
 /* Отступ до первого блока даёт padding-bottom заголовка, второй не нужен. */
 .sidebar-head + .filter-section {
   margin-top: 0;
+}
+
+/* Пояснение вместо активных фильтров (результаты умного чата). */
+.filters-disabled-note {
+  padding: 10px 12px;
+
+  border-radius: 9px;
+  background: #f5f7f8;
+
+  color: #52606a;
+
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Погашенные фильтры не должны выглядеть рабочими. */
+.filters-sidebar.is-disabled .filter-section:not(.filters-disabled-note) {
+  opacity: 0.6;
+}
+
+.filters-sidebar.is-disabled button:disabled {
+  cursor: not-allowed;
+}
+
+.filters-sidebar.is-disabled .city-name-button:hover .city-name {
+  color: inherit;
 }
 
 .eyebrow {

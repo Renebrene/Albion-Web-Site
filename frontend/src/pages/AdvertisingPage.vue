@@ -11,7 +11,8 @@
         :months="months"
         :types="types"
         :cities="cities"
-        :point-filter="pointFilterInfo"
+        :disabled="chatResultsActive"
+        :point-filter="chatResultsActive ? null : pointFilterInfo"
         :count-label="sidebarCountLabel"
         @focus-city="focusCity"
         @remove-point="changeSelectedPoint"
@@ -326,7 +327,7 @@
           <!-- Шапка списка закреплена: заголовок и переключатель колонок
                не двигаются, карточки прокручиваются под ними. -->
           <div
-            v-if="pointSelectionState === 'fixed'"
+            v-if="pointSelectionState === 'fixed' && !chatResultsActive"
             class="list-point-note list-point-note--standalone"
           >
             <span>В радиусе {{ formatRadius(pointRadius) }} от точки</span>
@@ -1680,12 +1681,17 @@ const chatResultsLabel = computed(() => {
   return `${value} ${sidesPhrase(value)}`
 })
 
-/* «Сбросить»: убираем chat/mode из адреса — каталог снова с фильтрами. */
+/*
+ * «Сбросить»: убираем chat из адреса — каталог снова с фильтрами.
+ *
+ * mode не трогаем: вкладку выбирает пользователь, и без параметра
+ * applyFiltersFromUrl принудительно уводит на карту — читавший «Список»
+ * оказывался на карте.
+ */
 function resetChatResults() {
   const query = { ...route.query }
 
   delete query.chat
-  delete query.mode
 
   router.replace({ path: route.path, query })
 }
@@ -1877,9 +1883,15 @@ watch(
  * Маркер точки: в режиме «Точка» — всегда (мишень видно и во время правки),
  * в карте и списке — пока точка зафиксирована. Выдача там сужена радиусом
  * (см. displayedConstructions), и это сужение должно быть видно.
+ *
+ * В результатах чата точки нет: выдача строится по id из чата, поэтому
+ * пин и круг радиуса скрываются — иначе они показывали бы сужение,
+ * которого нет.
  */
 const searchPointVisible = computed(
-  () => workspaceMode.value === 'point' || pointSelectionState.value === 'fixed'
+  () =>
+    !chatResultsActive.value &&
+    (workspaceMode.value === 'point' || pointSelectionState.value === 'fixed')
 )
 
 const mapSearchPoint = computed(() =>
@@ -1892,7 +1904,9 @@ const mapSearchPoint = computed(() =>
  * радиуса сохраняется и возвращается вместе с фиксацией.
  */
 const mapSearchRadius = computed(() =>
-  pointSelectionState.value === 'fixed' ? pointRadius.value : 0
+  pointSelectionState.value === 'fixed' && !chatResultsActive.value
+    ? pointRadius.value
+    : 0
 )
 
 /*
@@ -1997,6 +2011,15 @@ function resetAllFilters() {
   citiesStashed = false
 
   resetFilters()
+
+  /*
+   * Результаты чата фильтрами не управляются: пока они активны, сброс
+   * фильтров ничего бы не изменил. Поэтому он ещё и выходит из режима
+   * чата — кнопка «Сбросить фильтры» остаётся осмысленной.
+   */
+  if (chatResultsActive.value) {
+    resetChatResults()
+  }
 
   if (workspaceMode.value !== 'point') {
     changeSelectedPoint()
