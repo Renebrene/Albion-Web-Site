@@ -54,7 +54,7 @@
             :style="fanStyle(i)"
             :tabindex="i === attractionIndex ? 0 : -1"
             @click="onCardClick(i)"
-            @keydown.enter="onCardClick(i)"
+            @keydown.enter.prevent="onCardClick(i)"
           >
             <div class="geo-fan-photo" :style="fanCover(card, i)">
               <span v-if="!fanCover(card, i)" class="geo-fan-nophoto">
@@ -140,123 +140,127 @@
     </section>
   </div>
 
-  <div
-    v-if="expanded && expanded.location"
-    class="geo-modal-backdrop"
-    @click.self="closeModal"
-  >
-    <article
-      class="geo-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="geo-modal-title"
-      @keydown="onModalKeydown"
-    >
-      <button
-        ref="closeButtonRef"
-        type="button"
-        class="geo-modal-close"
-        aria-label="Закрыть"
-        @click="closeModal"
-        >×</button
+  <!--
+    Teleport в body: внутри слайдера (.home-slider, position: fixed,
+    z-index: 1) окно оказывалось в отдельном контексте наложения и не
+    перекрывало шапку (z-index: 1000) — ссылки шапки оставались кликабельными
+    поверх «модального» окна.
+  -->
+  <Teleport v-if="expanded && expanded.location" to="body">
+    <div class="geo-modal-backdrop" @click.self="closeModal">
+      <article
+        class="geo-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="geo-modal-title"
+        @keydown="onModalKeydown"
       >
+        <button
+          ref="closeButtonRef"
+          type="button"
+          class="geo-modal-close"
+          aria-label="Закрыть"
+          @click="closeModal"
+          >×</button
+        >
 
-      <button
-        v-if="cards.length > 1"
-        type="button"
-        class="geo-modal-nav geo-modal-nav--prev"
-        aria-label="Предыдущая карточка"
-        @click="move(-1)"
-        >‹</button
-      >
-      <button
-        v-if="cards.length > 1"
-        type="button"
-        class="geo-modal-nav geo-modal-nav--next"
-        aria-label="Следующая карточка"
-        @click="move(1)"
-        >›</button
-      >
-
-      <div
-        class="geo-modal-photo"
-        :style="
-          expanded.location.cover
-            ? {
-                backgroundImage: `url('${expanded.location.cover.url}')`
-              }
-            : undefined
-        "
-      >
-        <span v-if="!expanded.location.cover" class="geo-modal-nophoto">{{
-          expanded.location.label
-        }}</span>
-      </div>
-
-      <div class="geo-modal-body">
-        <h2 id="geo-modal-title" class="geo-modal-title">{{
-          expanded.location.label
-        }}</h2>
-
-        <div v-if="expanded.location.description" class="geo-modal-text">{{
-          expanded.location.description
-        }}</div>
-        <p v-else class="geo-modal-text geo-modal-text--muted">
-          Описание этого направления скоро появится.
-        </p>
+        <button
+          v-if="cards.length > 1"
+          type="button"
+          class="geo-modal-nav geo-modal-nav--prev"
+          aria-label="Предыдущая карточка"
+          @click="move(-1)"
+          >‹</button
+        >
+        <button
+          v-if="cards.length > 1"
+          type="button"
+          class="geo-modal-nav geo-modal-nav--next"
+          aria-label="Следующая карточка"
+          @click="move(1)"
+          >›</button
+        >
 
         <div
-          v-if="
-            expanded.location.stats && expanded.location.stats.constructions
+          class="geo-modal-photo"
+          :style="
+            expanded.location.cover
+              ? {
+                  backgroundImage: `url('${expanded.location.cover.url}')`
+                }
+              : undefined
           "
-          class="geo-modal-stats"
         >
-          <div class="geo-modal-stats-total">
-            <span class="geo-modal-stats-label">Конструкции:</span>
-            <b>{{ expanded.location.stats.constructions }}</b>
-          </div>
-          <div class="geo-modal-formats">
-            <span
-              v-for="f in expanded.location.stats.formats"
-              :key="f.name"
-              class="geo-modal-format"
-              >{{ formatPlural(f.name) }}: <b>{{ f.count }}</b></span
-            >
-          </div>
+          <span v-if="!expanded.location.cover" class="geo-modal-nophoto">{{
+            expanded.location.label
+          }}</span>
         </div>
 
-        <a
-          v-if="
-            safeCmsUrl(expanded.location.map_href || expanded.location.href)
-          "
-          class="geo-modal-mapbtn"
-          :href="
-            safeCmsUrl(expanded.location.map_href || expanded.location.href)
-          "
-          >Перейти на интерактивную карту</a
-        >
+        <div class="geo-modal-body">
+          <h2 id="geo-modal-title" class="geo-modal-title">{{
+            expanded.location.label
+          }}</h2>
 
-        <div v-if="expanded.location.cover" class="geo-modal-credit">
-          <span class="geo-modal-credit-name">
-            {{ expanded.location.cover.attraction_title }}
-          </span>
-          <span v-if="expanded.location.cover.source_name">
-            · фото: {{ expanded.location.cover.source_name }}
-          </span>
-          <a
-            v-if="safeCmsUrl(expanded.location.cover.source_url)"
-            :href="safeCmsUrl(expanded.location.cover.source_url)"
-            target="_blank"
-            rel="noopener noreferrer"
-            >источник</a
+          <div v-if="expanded.location.description" class="geo-modal-text">{{
+            expanded.location.description
+          }}</div>
+          <p v-else class="geo-modal-text geo-modal-text--muted">
+            Описание этого направления скоро появится.
+          </p>
+
+          <div
+            v-if="
+              expanded.location.stats && expanded.location.stats.constructions
+            "
+            class="geo-modal-stats"
           >
-          <span v-if="expanded.location.cover.license">
-            · {{ expanded.location.cover.license }}
-          </span>
+            <div class="geo-modal-stats-total">
+              <span class="geo-modal-stats-label">Конструкции:</span>
+              <b>{{ expanded.location.stats.constructions }}</b>
+            </div>
+            <div class="geo-modal-formats">
+              <span
+                v-for="f in expanded.location.stats.formats"
+                :key="f.name"
+                class="geo-modal-format"
+                >{{ formatPlural(f.name) }}: <b>{{ f.count }}</b></span
+              >
+            </div>
+          </div>
+
+          <a
+            v-if="
+              safeCmsUrl(expanded.location.map_href || expanded.location.href)
+            "
+            class="geo-modal-mapbtn"
+            :href="
+              safeCmsUrl(expanded.location.map_href || expanded.location.href)
+            "
+            >Перейти на интерактивную карту</a
+          >
+
+          <div v-if="expanded.location.cover" class="geo-modal-credit">
+            <span class="geo-modal-credit-name">
+              {{ expanded.location.cover.attraction_title }}
+            </span>
+            <span v-if="expanded.location.cover.source_name">
+              · фото: {{ expanded.location.cover.source_name }}
+            </span>
+            <a
+              v-if="safeCmsUrl(expanded.location.cover.source_url)"
+              :href="safeCmsUrl(expanded.location.cover.source_url)"
+              target="_blank"
+              rel="noopener noreferrer"
+              >источник</a
+            >
+            <span v-if="expanded.location.cover.license">
+              · {{ expanded.location.cover.license }}
+            </span>
+          </div>
         </div>
-      </div>
-    </article>
-  </div>
+      </article>
+    </div>
+  </Teleport>
 </template>
 
 <script setup>
@@ -897,7 +901,12 @@ defineExpose({ move, reset })
 .geo-modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  /*
+   * Выше шапки сайта (1000) и подвала: окно телепортировано в body и должно
+   * перекрывать их по-настоящему, как и обещает aria-modal. Ниже диалогов
+   * Quasar (от 6000) — там свои окна поверх.
+   */
+  z-index: 1100;
   display: flex;
   align-items: center;
   justify-content: center;
