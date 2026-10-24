@@ -789,7 +789,7 @@ function isSideMonthSelected(block, month) {
 
 /*
  * Клик по месяцу свёрнутой стороны: в портфель уходит ОДНА позиция —
- * сторона, а поверхность (A(1), A(2)…) запоминается у самого месяца
+ * сторона, конкретная поверхность (A(1), A(2)…) не хранится
  * (см. toggleSideMonth в composables/usePortfolio.js).
  */
 function onSideMonthClick(block, month) {
@@ -2756,7 +2756,7 @@ function onDocumentClick(event) {
    * data-pf-month = "<id[,id…]>|<месяц>". В режиме «по сторонам» месяц
    * агрегирован по стороне и несёт ВСЕ её поверхности: по ним считается
    * состояние ячейки, а клик добавляет в портфель одну позицию-сторону
-   * (поверхность запоминается у месяца — см. toggleSideMonth).
+   * (одна позиция на сторону — см. toggleSideMonth).
    */
   const idList = raw
     .slice(0, sep)

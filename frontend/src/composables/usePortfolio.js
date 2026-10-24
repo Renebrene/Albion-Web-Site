@@ -21,10 +21,10 @@ import {
  *     surfaceId, address, city, side, type, size,
  *     photo, photo_thumb, photo_large,
  *     map_card, map_thumb, map_large,
- *     // months[monthFull].surfaceId — поверхность, с которой взят месяц:
- *     // у стороны их может быть несколько (призматрон A(1)…A(3)), и
- *     // свободная в каждом месяце — своя. Позиция при этом одна на сторону.
- *     months: { [monthFull]: { price, addedAt, stale, surfaceId } },
+ *     // Позиция — СТОРОНА: конкретная поверхность (A(1), A(2)…) не хранится
+ *     // и не показывается. Продажи ведут менеджеры и сами обновляют данные
+ *     // на сайте, поэтому портфелю достаточно месяца и его цены.
+ *     months: { [monthFull]: { price, addedAt, stale } },
  *     // Снимки для статуса/цен по ВСЕМ месяцам (не только выбранным):
  *     prices: { [monthFull]: number|null },
  *     statuses: { [monthFull]: string },   // нормализованный статус
@@ -290,9 +290,7 @@ function normalizeItem(raw) {
       months[monthFull] = {
         price: toNumber(value.price),
         addedAt: value.addedAt || null,
-        stale: Boolean(value.stale),
-        /* Поверхность месяца (у стороны их может быть несколько). */
-        surfaceId: toSurfaceId(value.surfaceId)
+        stale: Boolean(value.stale)
       }
     })
   }
@@ -309,6 +307,14 @@ function normalizeItem(raw) {
   PASSPORT_FIELDS.forEach(field => {
     item[field] = raw[field] ? String(raw[field]) : ''
   })
+
+  /*
+   * Подпись стороны — сразу без индекса поверхности: у записей, сохранённых
+   * до перехода на «позиция = сторона», в side лежит A(2)/A1(2), и на
+   * странице портфеля (там нет каталога, а значит и syncWithConstructions)
+   * она так и осталась бы поверхностью.
+   */
+  item.side = parentSide(item.side, item.type)
 
   return item
 }
@@ -441,9 +447,7 @@ function toggleMonth(surface, monthFull, price) {
   item.months[monthFull] = {
     price: monthPrice,
     addedAt: nowIso(),
-    stale: false,
-    /* Поверхность, с которой взят месяц (у стороны их может быть несколько). */
-    surfaceId: item.surfaceId
+    stale: false
   }
 }
 
@@ -471,8 +475,7 @@ function toggleItemMonth(surfaceId, monthFull) {
   item.months[monthFull] = {
     price: toNumber(item.prices?.[monthFull]),
     addedAt: nowIso(),
-    stale: false,
-    surfaceId: item.surfaceId
+    stale: false
   }
 }
 
@@ -518,10 +521,11 @@ function sidePassport(surface) {
 /*
  * Клик по месяцу СТОРОНЫ (карточка списка, попап карты, поиск по точке).
  *
- * В портфеле — одна позиция на сторону. Месяц добавляется позиции-
- * представителю (поверхность стороны, уже стоящая в портфеле, иначе
- * свободная в этом месяце), а сама поверхность запоминается В МЕСЯЦЕ:
- * у призматрона A(1)…A(3) свободная в каждом месяце бывает своя.
+ * В портфеле — одна позиция на сторону, конкретная поверхность (A(1), A(2)…)
+ * не хранится и не показывается: продажи ведут менеджеры и сами обновляют
+ * данные на сайте. Цену месяца берём у свободной поверхности стороны
+ * (свободная в каждом месяце бывает своя), а сам id поверхности оставляем
+ * только как ключ позиции.
  *
  * Снятие убирает месяц со всех поверхностей стороны — иначе позиция
  * осталась бы «выбранной» после клика.
@@ -562,8 +566,7 @@ function toggleSideMonth(items, monthFull) {
   item.months[monthFull] = {
     price: toNumber(target.month_prices?.[monthFull]),
     addedAt: nowIso(),
-    stale: false,
-    surfaceId: toSurfaceId(target.id)
+    stale: false
   }
 
   return true
