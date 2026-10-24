@@ -844,7 +844,8 @@ function syncWithConstructions(constructions) {
 function applyShared(shared, constructions, { replace = false } = {}) {
   const list = Array.isArray(shared?.items) ? shared.items : []
   const catalog = Array.isArray(constructions) ? constructions : []
-  const result = { added: 0, months: 0, skipped: 0 }
+  /* unavailable — месяцы из ссылки, которые уже заняты: их не добавить. */
+  const result = { added: 0, months: 0, skipped: 0, unavailable: 0 }
 
   if (replace) {
     clear()
@@ -879,14 +880,22 @@ function applyShared(shared, constructions, { replace = false } = {}) {
       Array.isArray(sharedItem.months) ? sharedItem.months : []
     ).filter(monthFull => monthFull && !isSideMonthSelected(group, monthFull))
 
+    /*
+     * toggleSideMonth возвращает false, если месяц занят: раньше это
+     * молча ничего не добавляло, и о недоступных месяцах никто не узнавал.
+     */
+    const applyMonth = monthFull => {
+      if (!toggleSideMonth(group, monthFull)) {
+        result.unavailable += 1
+      }
+    }
+
     if (existed) {
       /* Позиция стороны уже есть — дополняем её месяцами. */
-      monthsToAdd.forEach(monthFull => toggleSideMonth(group, monthFull))
+      monthsToAdd.forEach(applyMonth)
     } else if (monthsToAdd.length) {
-      toggleSideMonth(group, monthsToAdd[0])
-      monthsToAdd
-        .slice(1)
-        .forEach(monthFull => toggleSideMonth(group, monthFull))
+      applyMonth(monthsToAdd[0])
+      monthsToAdd.slice(1).forEach(applyMonth)
     } else {
       /* Позиция без выбранных месяцев тоже ценна: «ничего не выбрано». */
       ensureItem(sidePassport(sharedSurface))

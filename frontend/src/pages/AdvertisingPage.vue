@@ -783,6 +783,82 @@
         </div>
       </main>
     </div>
+
+    <!-- Ссылка на фильтры: показываем окном, если буфер обмена недоступен. -->
+    <q-dialog v-model="shareLinkDialog">
+      <q-card class="page-dialog">
+        <q-card-section>
+          <div class="page-dialog-title">Ссылка на фильтры</div>
+          <div class="page-dialog-text">
+            Буфер обмена недоступен — скопируйте ссылку вручную.
+          </div>
+
+          <q-input
+            :model-value="shareLinkUrl"
+            readonly
+            dense
+            outlined
+            class="page-dialog-field"
+            @focus="selectShareLink"
+          />
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat no-caps label="Закрыть" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Портфель из ссылки: заменить текущий или дополнить его. -->
+    <q-dialog v-model="sharedPortfolioDialog" persistent>
+      <q-card class="page-dialog">
+        <q-card-section>
+          <div class="page-dialog-title">Портфель из ссылки</div>
+          <div class="page-dialog-text">
+            В ссылке позиций: {{ sharedPortfolioState.count }}. В текущем
+            портфеле: {{ sharedPortfolioState.current }}.
+          </div>
+          <div class="page-dialog-text">
+            Заменить текущий портфель портфелем из ссылки или дополнить его?
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn
+            flat
+            no-caps
+            label="Отмена"
+            @click="resolveSharedPortfolio('cancel')"
+          />
+          <q-btn
+            flat
+            no-caps
+            label="Дополнить"
+            @click="resolveSharedPortfolio('merge')"
+          />
+          <q-btn
+            unelevated
+            no-caps
+            color="primary"
+            label="Заменить"
+            @click="resolveSharedPortfolio('replace')"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
+    <!-- Информационное сообщение (например, позиции из ссылки не найдены). -->
+    <q-dialog v-model="noticeDialog">
+      <q-card class="page-dialog">
+        <q-card-section>
+          <div class="page-dialog-text">{{ noticeText }}</div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat no-caps label="Ок" v-close-popup />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -1977,6 +2053,36 @@ function buildShareUrl() {
   return `${window.location.origin}${route.path}${search ? `?${search}` : ''}`
 }
 
+/*
+ * Окна страницы вместо нативных confirm/alert/prompt: они выглядят чужеродно
+ * и в них нельзя показать ссылку с возможностью копирования.
+ */
+const shareLinkDialog = ref(false)
+const shareLinkUrl = ref('')
+
+const noticeDialog = ref(false)
+const noticeText = ref('')
+
+function showNotice(text) {
+  noticeText.value = String(text || '')
+  noticeDialog.value = true
+}
+
+/* Ссылку показываем окном, когда буфер обмена недоступен. */
+function showShareLink(url) {
+  shareLinkUrl.value = url
+  shareLinkDialog.value = true
+}
+
+/* Фокус в поле — сразу выделяем ссылку, чтобы её было легко скопировать. */
+function selectShareLink(event) {
+  const target = event?.target
+
+  if (target && typeof target.select === 'function') {
+    target.select()
+  }
+}
+
 async function shareCurrentLink() {
   const url = buildShareUrl()
 
@@ -1984,7 +2090,7 @@ async function shareCurrentLink() {
     if (navigator.clipboard && window.isSecureContext) {
       await navigator.clipboard.writeText(url)
     } else {
-      window.prompt('Скопируйте ссылку:', url)
+      showShareLink(url)
       return
     }
 
@@ -1999,7 +2105,34 @@ async function shareCurrentLink() {
       linkCopiedTimer = null
     }, 2000)
   } catch {
-    window.prompt('Скопируйте ссылку:', url)
+    showShareLink(url)
+  }
+}
+
+/*
+ * Выбор «заменить или дополнить» для портфеля из ссылки.
+ * Окно живёт в шаблоне, здесь — только промис, который ждёт ответа.
+ */
+const sharedPortfolioDialog = ref(false)
+const sharedPortfolioState = ref({ count: 0, current: 0 })
+let sharedPortfolioResolve = null
+
+function askSharedPortfolio(state) {
+  return new Promise(resolve => {
+    sharedPortfolioState.value = state
+    sharedPortfolioResolve = resolve
+    sharedPortfolioDialog.value = true
+  })
+}
+
+function resolveSharedPortfolio(choice) {
+  sharedPortfolioDialog.value = false
+
+  if (sharedPortfolioResolve) {
+    const resolve = sharedPortfolioResolve
+
+    sharedPortfolioResolve = null
+    resolve(choice)
   }
 }
 
@@ -3198,7 +3331,7 @@ function dropSharedPortfolioParam() {
   router.replace({ path: route.path, query, hash: route.hash })
 }
 
-function applySharedPortfolioFromUrl() {
+async function applySharedPortfolioFromUrl() {
   if (sharedPortfolioHandled) {
     return
   }
@@ -3231,19 +3364,44 @@ function applySharedPortfolioFromUrl() {
 
   const current = portfolioItems.value.length
 
-  const replace =
-    current === 0 ||
-    window.confirm(
-      `Заменить текущий портфель (позиций: ${current}) портфелем из ссылки? ` +
-        '«Отмена» — дополнить текущий.'
-    )
+  let replace = true
+
+  if (current > 0) {
+    /* Пустой портфель заменяем молча; иначе спрашиваем окном страницы. */
+    const choice = await askSharedPortfolio({
+      count: shared.items.length,
+      current
+    })
+
+    if (choice === 'cancel') {
+      return
+    }
+
+    replace = choice === 'replace'
+  }
 
   const result = applyShared(shared, constructions.value, { replace })
 
-  if (result.skipped) {
-    window.alert(
-      `Из ссылки недоступно позиций: ${result.skipped}. Возможно, конструкция больше не в каталоге.`
-    )
+  /*
+   * Каталог уже прогонял синхронизацию до ответа пользователя —
+   * прогоняем ещё раз, чтобы у новых позиций появились цены и статусы.
+   */
+  syncWithConstructions(constructions.value)
+
+  if (result.skipped || result.unavailable) {
+    const parts = []
+
+    if (result.skipped) {
+      parts.push(
+        `недоступно позиций: ${result.skipped} (конструкции больше нет в каталоге)`
+      )
+    }
+
+    if (result.unavailable) {
+      parts.push(`не добавлено месяцев: ${result.unavailable} (они уже заняты)`)
+    }
+
+    showNotice(`Из ссылки ${parts.join('; ')}.`)
   }
 }
 
@@ -3282,8 +3440,12 @@ async function reloadConstructions() {
       workspaceMode.value = 'list'
     }
 
-    // Портфель из ссылки (?pf=…): собираем позиции из свежего каталога.
-    applySharedPortfolioFromUrl()
+    /*
+     * Портфель из ссылки (?pf=…): позиции собираем по свежему каталогу.
+     * Без await: если текущий портфель не пуст, откроется окно выбора, и
+     * загрузка страницы не должна ждать ответа.
+     */
+    void applySharedPortfolioFromUrl()
 
     // Подтягиваем свежие цены/статусы выбранных месяцев из psql.
     syncWithConstructions(constructions.value)
@@ -3351,6 +3513,33 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* Окна страницы (ссылка на фильтры, портфель из ссылки, сообщения). */
+.page-dialog {
+  width: min(460px, 92vw);
+  border-radius: 14px;
+}
+
+.page-dialog-title {
+  margin-bottom: 6px;
+  color: #17212b;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.page-dialog-text {
+  color: #52606a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.page-dialog-text + .page-dialog-text {
+  margin-top: 6px;
+}
+
+.page-dialog-field {
+  margin-top: 12px;
+}
+
 .advertising-page {
   /* Высоту задаёт .app (100dvh минус шапка и подвал). Гасим min-height
      от Quasar q-page: иначе страница получает полную высоту вьюпорта,

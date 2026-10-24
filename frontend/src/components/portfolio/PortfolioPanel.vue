@@ -407,6 +407,30 @@
       </q-card>
     </q-dialog>
 
+    <!-- Очистка портфеля: своё окно вместо нативного confirm. -->
+    <q-dialog v-model="clearDialog" persistent>
+      <q-card class="portfolio-clear-dialog">
+        <q-card-section>
+          <div class="portfolio-clear-title">Очистить портфель?</div>
+          <div class="portfolio-clear-text">
+            Будут убраны все {{ count }} позиций этой подборки. Действие нельзя
+            отменить.
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat no-caps label="Отмена" @click="clearDialog = false" />
+          <q-btn
+            unelevated
+            no-caps
+            color="negative"
+            label="Очистить"
+            @click="confirmClear"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
+
     <Transition name="portfolio-toast">
       <div
         v-if="toast.show"
@@ -1255,22 +1279,44 @@ async function submitRequest() {
   }
 }
 
-/* Очистка портфеля с подтверждением. */
+/* Очистка портфеля: подтверждаем окном страницы, а не нативным confirm. */
+const clearDialog = ref(false)
+
 function handleClear() {
   if (!count.value) {
     return
   }
 
-  if (!window.confirm('Очистить портфель? Действие нельзя отменить.')) {
-    return
-  }
+  clearDialog.value = true
+}
 
+function confirmClear() {
+  clearDialog.value = false
   clear()
   notify('Портфель очищен.')
 }
 </script>
 
 <style scoped>
+/* Диалог подтверждения очистки портфеля. */
+.portfolio-clear-dialog {
+  width: min(420px, calc(100vw - 32px));
+  border-radius: 14px;
+}
+
+.portfolio-clear-title {
+  margin-bottom: 6px;
+  color: #17212b;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.portfolio-clear-text {
+  color: #52606a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 /* Диалог заявки (без личного кабинета). */
 .request-card {
   width: min(480px, calc(100vw - 32px));
