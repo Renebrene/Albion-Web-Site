@@ -1,4 +1,4 @@
-import { computed, ref, watch } from 'vue'
+import { computed, onScopeDispose, ref, watch } from 'vue'
 import { isFree } from '../utils/availability'
 
 const MONTH_ORDER = [
@@ -54,6 +54,34 @@ export function useConstructionsFilter(constructions) {
   const selectedTypes = ref([])
   const selectedCities = ref([])
   const searchQuery = ref('')
+
+  /*
+   * Поле ввода обновляется мгновенно, а фильтр — с паузой: иначе каждый
+   * символ пересчитывал весь каталог (normalize по 7 полям на запись) и
+   * сбрасывал окно списка наверх.
+   */
+  const SEARCH_DEBOUNCE_MS = 250
+
+  const appliedQuery = ref(searchQuery.value)
+  let searchTimer = null
+
+  watch(searchQuery, value => {
+    if (searchTimer) {
+      clearTimeout(searchTimer)
+    }
+
+    searchTimer = setTimeout(() => {
+      searchTimer = null
+      appliedQuery.value = value
+    }, SEARCH_DEBOUNCE_MS)
+  })
+
+  onScopeDispose(() => {
+    if (searchTimer) {
+      clearTimeout(searchTimer)
+      searchTimer = null
+    }
+  })
 
   // Форматы выбираются все после загрузки данных.
   // Месяцы и города по умолчанию СНЯТЫ: пустой набор означает
@@ -203,8 +231,35 @@ export function useConstructionsFilter(constructions) {
     }
   })
 
+  /*
+   * Нормализованная поисковая строка каждой конструкции: строится один
+   * раз на загруженный каталог, а не на каждый символ запроса.
+   */
+  const searchIndex = computed(() => {
+    const map = new Map()
+
+    for (const item of constructions.value || []) {
+      map.set(
+        item,
+        [
+          item?.city,
+          item?.district,
+          item?.name,
+          item?.address,
+          item?.side,
+          item?.type,
+          item?.number
+        ]
+          .map(normalize)
+          .join(' ')
+      )
+    }
+
+    return map
+  })
+
   const filteredConstructions = computed(() => {
-    const query = normalize(searchQuery.value)
+    const query = normalize(appliedQuery.value)
 
     const result = (constructions.value || []).filter(item => {
       /*
@@ -252,17 +307,7 @@ export function useConstructionsFilter(constructions) {
        * ПОИСК
        */
       if (query) {
-        const haystack = [
-          item?.city,
-          item?.district,
-          item?.name,
-          item?.address,
-          item?.side,
-          item?.type,
-          item?.number
-        ]
-          .map(normalize)
-          .join(' ')
+        const haystack = searchIndex.value.get(item) || ''
 
         /* Порядок слов не важен: «Курчатова Волгодонск» = «Волгодонск Курчатова». */
         const tokens = query.split(' ').filter(Boolean)
@@ -285,6 +330,8 @@ export function useConstructionsFilter(constructions) {
     /* Пустой набор городов = «выбраны все». */
     selectedCities.value = []
     searchQuery.value = ''
+    /* Поиск применяем сразу: сброс не должен ждать дебаунса. */
+    appliedQuery.value = ''
   }
 
   return {
