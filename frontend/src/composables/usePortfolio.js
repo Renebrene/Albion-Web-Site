@@ -680,10 +680,17 @@ function clear() {
   /*
    * Очистка — это удаление всех позиций: отмечаем их, чтобы слияние не
    * вернуло их, если автосохранение не успеет или не сможет доехать.
+   *
+   * Метки ставим только в аккаунте: они страхуют именно серверную копию.
+   * Выход из аккаунта тоже чистит портфель (см. AppHeader.handleLogout), но
+   * там токен уже снят — без этой проверки метки оставались бы в браузере
+   * и на следующем входе стирали бы серверные позиции владельца.
    */
-  items.value.forEach(item => {
-    deletedAt.value[keyOf(item.surfaceId)] = stamp
-  })
+  if (isAuthenticated.value) {
+    items.value.forEach(item => {
+      deletedAt.value[keyOf(item.surfaceId)] = stamp
+    })
+  }
 
   items.value = []
   title.value = ''
@@ -1403,10 +1410,22 @@ async function flushAccountSave() {
 /*
  * Выход из аккаунта отменяет повторы: сохранять больше некуда, а старая
  * ошибка не должна всплывать при следующем открытии панели.
+ *
+ * Там же снимаем и метки удалений: они привязаны к аккаунту, под которым
+ * ставились, и в браузере общего компьютера достались бы следующему
+ * пользователю — его собственные серверные позиции выглядели бы как
+ * удалённые и пропали бы при слиянии.
  */
 watch(isAuthenticated, value => {
-  if (!value) {
-    resetAccountSaveRetry()
+  if (value) {
+    return
+  }
+
+  resetAccountSaveRetry()
+
+  if (Object.keys(deletedAt.value).length) {
+    deletedAt.value = {}
+    saveLocal()
   }
 })
 
