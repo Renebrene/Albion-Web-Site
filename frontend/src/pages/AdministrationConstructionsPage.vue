@@ -165,7 +165,7 @@
           />
 
           <div class="construction-count">
-            Выбрано {{ visibleConstructions.length }} конструкций
+            Найдено {{ visibleConstructions.length }} конструкций
           </div>
 
           <div class="catalog-toolbar-actions">
@@ -1019,7 +1019,12 @@ function setCardMedia(item, mode) {
   }
 }
 
+/* Поколение загрузок: свежий ответ не должен затираться старым. */
+let loadConstructionsSeq = 0
+
 async function loadConstructions() {
+  const seq = ++loadConstructionsSeq
+
   loadingConstructions.value = true
   constructionsError.value = ''
 
@@ -1036,13 +1041,24 @@ async function loadConstructions() {
       throw new Error('Некорректный формат данных')
     }
 
+    /* За время запроса список уже перезагрузили — эти данные устарели. */
+    if (seq !== loadConstructionsSeq) {
+      return
+    }
+
     displayConstructions.value = data.map(mapConstruction)
   } catch (error) {
+    if (seq !== loadConstructionsSeq) {
+      return
+    }
+
     console.error('Ошибка загрузки конструкций:', error)
     constructionsError.value = 'Не удалось загрузить конструкции'
     displayConstructions.value = []
   } finally {
-    loadingConstructions.value = false
+    if (seq === loadConstructionsSeq) {
+      loadingConstructions.value = false
+    }
   }
 }
 

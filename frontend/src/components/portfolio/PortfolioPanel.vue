@@ -956,13 +956,18 @@ function handleEmail() {
     return
   }
 
-  emailPortfolio(items.value, {
+  const result = emailPortfolio(items.value, {
     withMaps: fullOutput.value,
     fullOutput: fullOutput.value,
     title: title.value,
     requisites: currentRequisites()
   })
-  notify('Открываю почтовый клиент.')
+
+  notify(
+    result?.truncated
+      ? 'Письмо сокращено — полный список можно скопировать кнопкой «Скопировать».'
+      : 'Открываю почтовый клиент.'
+  )
 }
 
 /*

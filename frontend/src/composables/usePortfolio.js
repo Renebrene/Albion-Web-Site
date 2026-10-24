@@ -946,6 +946,15 @@ function hydrate(data) {
   // Метки удалений (старые и битые отбрасываем).
   deletedAt.value = normalizeTombstones(data.deletedAt)
 
+  /*
+   * Режимы выбора чистим вместе со списком: после подмены портфеля
+   * (другая вкладка, слияние) оставались ключи позиций, которых уже нет,
+   * и isSelectionMode() продолжал считать их активными.
+   */
+  Object.keys(selectionMode).forEach(key => {
+    delete selectionMode[key]
+  })
+
   return true
 }
 

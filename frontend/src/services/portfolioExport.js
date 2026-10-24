@@ -1039,14 +1039,29 @@ function printPortfolioHtml(
 
 // ---------------------------------------------------------------- почта
 
+/*
+ * Почтовые клиенты обрезают длинные mailto-ссылки, поэтому тело письма
+ * ограничиваем. При обрезке возвращаем признак — панель подскажет, что
+ * полный текст можно скопировать.
+ */
+const MAILTO_BODY_LIMIT = 1000
+
 /* Открывает почтовый клиент с готовым письмом (только клиент, без сервера). */
 export function emailPortfolio(sourceItems, options) {
   const items = resolveItems(sourceItems)
   const opts = resolveOptions(sourceItems, options)
   const subject = resolveTitle(opts.title)
-  const body = portfolioText(items, opts)
+  const fullText = portfolioText(items, opts)
+
+  const truncated = fullText.length > MAILTO_BODY_LIMIT
+
+  const body = truncated
+    ? `${fullText.slice(0, MAILTO_BODY_LIMIT)}\n\n…Письмо сокращено. Полный список можно скопировать кнопкой «Скопировать» в панели портфеля.`
+    : fullText
 
   window.location.href = `mailto:${MAIL_TO}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+
+  return { truncated, text: fullText }
 }
 
 // ---------------------------------------------------------------- буфер обмена
