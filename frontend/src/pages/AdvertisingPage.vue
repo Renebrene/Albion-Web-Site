@@ -2414,6 +2414,23 @@ function applyFiltersFromUrl() {
         focusCityWhenReady(nextCities[0])
       }
     }
+  } else if (!citiesStashed) {
+    /*
+     * Ссылка принесла и город, и точку. Применять город сейчас нельзя
+     * (он скрыто сузил бы выдачу по точке), но и терять его нельзя:
+     * откладываем до снятия точки. Иначе следующая запись URL стирала
+     * city, и после «Показать весь каталог» фильтр оказывался пустым.
+     */
+    const requestedCities = queryValues(
+      compactState ? source.cities : route.query.city
+    )
+
+    if (requestedCities.length) {
+      stashedCities = cities.value.filter(city =>
+        requestedCities.includes(city)
+      )
+      citiesStashed = stashedCities.length > 0
+    }
   }
 
   const requestedTypes = queryValues(
@@ -2454,7 +2471,8 @@ function applyFiltersFromUrl() {
   /*
    * Пока показываются результаты точки (режим точки или список, открытый
    * из него), строка поиска по базе не применяется: адрес из URL не
-   * должен скрыто сужать выдачу.
+   * должен скрыто сужать выдачу. Но и теряться ему нельзя — откладываем
+   * до снятия точки, иначе следующая запись URL стирала address.
    */
   if (!pointResultsActive.value) {
     const nextAddress = String(
@@ -2463,6 +2481,15 @@ function applyFiltersFromUrl() {
 
     if (String(searchQuery.value || '').trim() !== nextAddress) {
       searchQuery.value = nextAddress
+    }
+  } else if (!searchStashed) {
+    const requestedAddress = String(
+      compactState ? source.searchQuery || '' : route.query.address || ''
+    ).trim()
+
+    if (requestedAddress) {
+      stashedSearchQuery = requestedAddress
+      searchStashed = true
     }
   }
 
