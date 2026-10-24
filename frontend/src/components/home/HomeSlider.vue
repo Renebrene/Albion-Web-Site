@@ -38,7 +38,11 @@
         >
           <!-- ============ ВЕРХНИЙ: вариант V1, карусель влево/вправо ============ -->
           <template v-if="slide.kind === 'hero'">
-            <div class="hero-v1">
+            <div
+              class="hero-v1"
+              @mouseenter="setHeroHovered(true)"
+              @mouseleave="setHeroHovered(false)"
+            >
               <div
                 class="hero-v1-track"
                 :style="{ transform: `translateX(${-heroIndex * 100}%)` }"
@@ -331,6 +335,41 @@ function gotoHero(i) {
   restartHeroAutoplay()
 }
 
+/*
+ * Пауза автопрокрутки: курсор над каруселью (пользователь читает кнопки)
+ * или вкладка скрыта. Раньше слайды листались прямо под курсором и
+ * продолжали крутиться в фоне.
+ */
+const heroHovered = ref(false)
+
+function heroAutoplayPaused() {
+  return (
+    heroHovered.value || (typeof document !== 'undefined' && document.hidden)
+  )
+}
+
+function syncHeroAutoplay() {
+  if (heroAutoplayPaused()) {
+    if (heroTimer) {
+      clearInterval(heroTimer)
+      heroTimer = null
+    }
+
+    return
+  }
+
+  restartHeroAutoplay()
+}
+
+function setHeroHovered(value) {
+  heroHovered.value = value
+  syncHeroAutoplay()
+}
+
+function onVisibilityChange() {
+  syncHeroAutoplay()
+}
+
 function restartHeroAutoplay() {
   if (!homeSliderMounted) return
 
@@ -338,6 +377,9 @@ function restartHeroAutoplay() {
     clearInterval(heroTimer)
     heroTimer = null
   }
+
+  /* Пока карусель на паузе (курсор/скрытая вкладка) — не запускаем. */
+  if (heroAutoplayPaused()) return
 
   // При reduced motion автопрокрутка выключена.
   if (prefersReducedMotion.value) {
@@ -513,21 +555,12 @@ function onWheel(event) {
 
   const dir = event.deltaY > 0 ? 1 : -1
 
-  // Внутренний список (города/районы) прокручиваем сами, а слайд
-  // переключаем только когда список уже докручен до края.
-  const scroller =
-    event.target && event.target.closest
-      ? event.target.closest('.geo-list-window')
-      : null
-
-  if (scroller) {
-    const atTop = scroller.scrollTop <= 0
-    const atBottom =
-      scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1
-
-    if (dir > 0 && !atBottom) return
-    if (dir < 0 && !atTop) return
-  }
+  /*
+   * Список городов/районов больше не прокручивается вручную (это бегущая
+   * строка), поэтому прежняя проверка scrollTop только глушила колесо
+   * вниз над этим блоком: scrollTop всегда 0, «докручен до края» никогда
+   * не выполнялось. Теперь слайд листается одинаково в обе стороны.
+   */
 
   const now = Date.now()
   if (now < wheelLock) {
@@ -625,6 +658,7 @@ onMounted(() => {
   })
 
   reduceMotionQuery?.addEventListener?.('change', onReduceMotionChange)
+  document.addEventListener('visibilitychange', onVisibilityChange)
 
   const el = rootRef.value
   if (el) el.addEventListener('wheel', onWheel, { passive: false })
@@ -634,6 +668,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   homeSliderMounted = false
   reduceMotionQuery?.removeEventListener?.('change', onReduceMotionChange)
+  document.removeEventListener('visibilitychange', onVisibilityChange)
   const el = rootRef.value
   if (el) el.removeEventListener('wheel', onWheel)
   window.removeEventListener('keydown', onKey)
