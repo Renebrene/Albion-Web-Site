@@ -210,7 +210,12 @@ const search = ref('')
 const categoryIds = ref([])
 const selectedId = ref(null)
 const selectedIds = ref([])
-let loadedOnce = false
+
+/*
+ * Поколение загрузки: при смене фильтра старый loadMore не должен
+ * дописывать свои записи в новый список.
+ */
+let loadSeq = 0
 
 const categoryOptions = computed(() =>
   categories.value.map(category => ({
@@ -304,31 +309,58 @@ async function loadCategories() {
 }
 
 async function loadFirst() {
+  const seq = ++loadSeq
+
   loading.value = true
   error.value = ''
-  selectedId.value = null
-  selectedIds.value = []
+
   try {
     const { media, hasMore: more } = await fetchMedia(PAGE_SIZE, 0)
+
+    /* Пока ждали ответ, фильтр сменился или список перезагрузили. */
+    if (seq !== loadSeq) {
+      return
+    }
+
     items.value = media
     offset.value = media.length
     hasMore.value = more
   } catch (exc) {
+    if (seq !== loadSeq) {
+      return
+    }
+
     error.value = String(exc.message || exc)
   } finally {
-    loading.value = false
+    if (seq === loadSeq) {
+      loading.value = false
+    }
   }
 }
 
 async function loadMore() {
-  if (loadingMore.value) return
+  if (loading.value || loadingMore.value) return
+
+  const seq = loadSeq
+
   loadingMore.value = true
+
   try {
     const { media, hasMore: more } = await fetchMedia(PAGE_SIZE, offset.value)
+
+    /* Список перезагрузили с новым фильтром — старый ответ не дописываем. */
+    if (seq !== loadSeq) {
+      return
+    }
+
     items.value = [...items.value, ...media]
     offset.value += media.length
     hasMore.value = more
   } catch (exc) {
+    if (seq !== loadSeq) {
+      return
+    }
+
     error.value = String(exc.message || exc)
   } finally {
     loadingMore.value = false
@@ -350,8 +382,18 @@ watch([search, categoryIds], () => {
 })
 
 function onShow() {
-  if (loadedOnce) return
-  loadedOnce = true
+  /*
+   * Каждый показ пикера начинается с чистого выбора: выделение,
+   * пережившее закрытие диалога, никуда не отправляется.
+   */
+  selectedId.value = null
+  selectedIds.value = []
+
+  /*
+   * Список обновляем при каждом открытии: в медиатеку могли загрузить
+   * новые файлы, а прежний loadedOnce показывал старую выдачу до
+   * перезагрузки страницы.
+   */
   loadFirst()
   loadCategories()
 }

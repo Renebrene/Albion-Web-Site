@@ -103,7 +103,9 @@ const loading = ref(false)
 const error = ref('')
 const search = ref('')
 const selectedId = ref(null)
-let loadedOnce = false
+
+/* Поколение загрузки: повторное открытие не должно гоняться со старым ответом. */
+let loadSeq = 0
 
 watch(
   () => props.modelValue,
@@ -131,18 +133,32 @@ const selected = computed(
 )
 
 async function onShow() {
-  if (loadedOnce) return
+  const seq = ++loadSeq
 
-  loadedOnce = true
+  /* Каждый показ — с чистым выбором и свежим каталогом: фото могли
+     переопределить с прошлого открытия. */
+  selectedId.value = null
   loading.value = true
   error.value = ''
 
   try {
-    items.value = await fetchConstructionPreviews()
+    const previews = await fetchConstructionPreviews()
+
+    if (seq !== loadSeq) {
+      return
+    }
+
+    items.value = previews
   } catch (exc) {
+    if (seq !== loadSeq) {
+      return
+    }
+
     error.value = String(exc?.message || exc)
   } finally {
-    loading.value = false
+    if (seq === loadSeq) {
+      loading.value = false
+    }
   }
 }
 
