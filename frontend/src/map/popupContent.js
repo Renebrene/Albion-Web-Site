@@ -675,13 +675,28 @@ export function popupContent(input) {
   const cached = contentCache.get(key)
 
   if (cached !== undefined) {
+    /*
+     * Освежаем позицию: Map сохраняет порядок вставки, поэтому иначе
+     * «старой» окажется давно собранная и всё ещё нужная запись.
+     */
+    contentCache.delete(key)
+    contentCache.set(key, cached)
+
     return cached
   }
 
   const html = buildContent(ctx)
 
+  /*
+   * Вытесняем только самую старую запись: полный clear() обнулял кэш ровно
+   * тогда, когда он начинал помогать (точек в каталоге больше лимита).
+   */
   if (contentCache.size >= CONTENT_CACHE_MAX) {
-    contentCache.clear()
+    const oldest = contentCache.keys().next().value
+
+    if (oldest !== undefined) {
+      contentCache.delete(oldest)
+    }
   }
 
   contentCache.set(key, html)
