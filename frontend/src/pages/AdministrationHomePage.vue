@@ -809,8 +809,7 @@ async function addGeoLocation() {
         map_value: ''
       })
     })
-    geo.value.locations = data.locations || []
-    geo.value.attractions = data.attractions || []
+    geo.value.locations = replaceGeoItem(geo.value.locations, data.location)
   } catch (exc) {
     error.value = String(exc)
   }
@@ -821,6 +820,35 @@ function attractionsFor(location) {
   return (geo.value.attractions || []).filter(
     item => String(item.location_id) === String(location.id)
   )
+}
+
+function findGeoById(list, id) {
+  return (list || []).find(item => String(item?.id) === String(id)) || null
+}
+
+/*
+ * Сервер после каждой операции отдаёт полный список локаций и
+ * достопримечательностей. Заменять им локальные массивы нельзя: в
+ * соседних строках могут быть несохранённые правки, и любое сохранение
+ * их молча стирало. Поэтому меняем только затронутую запись
+ * (или добавляем новую).
+ */
+function replaceGeoItem(list, saved) {
+  if (!saved) {
+    return list
+  }
+
+  const key = String(saved.id)
+
+  if (list.some(item => String(item.id) === key)) {
+    return list.map(item => (String(item.id) === key ? saved : item))
+  }
+
+  return [...list, saved]
+}
+
+function removeGeoItem(list, id) {
+  return list.filter(item => String(item.id) !== String(id))
 }
 
 async function saveGeoLocation(location) {
@@ -837,8 +865,10 @@ async function saveGeoLocation(location) {
         cover_attraction_id: location.cover_attraction_id || null
       })
     })
-    geo.value.locations = data.locations || []
-    geo.value.attractions = data.attractions || []
+    geo.value.locations = replaceGeoItem(
+      geo.value.locations,
+      findGeoById(data.locations, location.id)
+    )
   } catch (exc) {
     error.value = String(exc)
   }
@@ -847,11 +877,21 @@ async function saveGeoLocation(location) {
 async function removeGeoLocation(location) {
   if (!window.confirm('Удалить локацию?')) return
   try {
-    const data = await request(`/api/admin/home/geo/locations/${location.id}`, {
+    await request(`/api/admin/home/geo/locations/${location.id}`, {
       method: 'DELETE'
     })
-    geo.value.locations = data.locations || []
-    geo.value.attractions = data.attractions || []
+    geo.value.locations = removeGeoItem(geo.value.locations, location.id)
+
+    /*
+     * FK home_geo_attractions.location_id — ON DELETE SET NULL: на
+     * сервере достопримечательности остаются без локации. Повторяем
+     * это локально, не трогая остальные их поля.
+     */
+    geo.value.attractions = (geo.value.attractions || []).map(item =>
+      String(item.location_id) === String(location.id)
+        ? { ...item, location_id: null }
+        : item
+    )
   } catch (exc) {
     error.value = String(exc)
   }
@@ -867,8 +907,10 @@ async function addGeoAttraction() {
         description: ''
       })
     })
-    geo.value.locations = data.locations || []
-    geo.value.attractions = data.attractions || []
+    geo.value.attractions = replaceGeoItem(
+      geo.value.attractions,
+      data.attraction
+    )
   } catch (exc) {
     error.value = String(exc)
   }
@@ -889,8 +931,10 @@ async function saveGeoAttraction(attraction) {
         })
       }
     )
-    geo.value.locations = data.locations || []
-    geo.value.attractions = data.attractions || []
+    geo.value.attractions = replaceGeoItem(
+      geo.value.attractions,
+      findGeoById(data.attractions, attraction.id)
+    )
   } catch (exc) {
     error.value = String(exc)
   }
@@ -899,12 +943,17 @@ async function saveGeoAttraction(attraction) {
 async function removeGeoAttraction(attraction) {
   if (!window.confirm('Удалить достопримечательность?')) return
   try {
-    const data = await request(
-      `/api/admin/home/geo/attractions/${attraction.id}`,
-      { method: 'DELETE' }
+    await request(`/api/admin/home/geo/attractions/${attraction.id}`, {
+      method: 'DELETE'
+    })
+    geo.value.attractions = removeGeoItem(geo.value.attractions, attraction.id)
+
+    /* FK home_geo_locations.cover_attraction_id — ON DELETE SET NULL. */
+    geo.value.locations = (geo.value.locations || []).map(item =>
+      String(item.cover_attraction_id) === String(attraction.id)
+        ? { ...item, cover_attraction_id: null }
+        : item
     )
-    geo.value.locations = data.locations || []
-    geo.value.attractions = data.attractions || []
   } catch (exc) {
     error.value = String(exc)
   }
