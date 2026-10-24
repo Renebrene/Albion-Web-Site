@@ -26,6 +26,7 @@
         :types="types"
         :count="pointFilteredConstructions.length"
         :results="pointFilteredConstructions"
+        :point-fixed="pointSelectionState === 'fixed'"
         @open-list="openListFromPoint"
       />
 
@@ -696,6 +697,45 @@
         </div>
 
         <div class="map-tools">
+          <!-- Сброс точки — только в закладке «Точка»: обнуляет координаты,
+               радиус и адрес поиска по точке. -->
+          <button
+            v-if="workspaceMode === 'point'"
+            class="tool"
+            type="button"
+            title="Сбросить точку"
+            aria-label="Сбросить точку"
+            @click="resetSearchPoint"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="6.5"
+                stroke="currentColor"
+                stroke-width="1.8"
+              />
+              <path
+                d="M12 2v3.5M12 18.5V22M2 12h3.5M18.5 12H22"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+              <path
+                d="M6.8 17.2 17.2 6.8"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+
           <button
             class="tool"
             :title="
@@ -1151,7 +1191,11 @@ function onMapSearch() {
   // дополнительно сфокусировать карту на результатах.
 }
 
-const pointCoordinates = ref('47.2357, 39.7015')
+/* Значения точки по умолчанию — к ним возвращает сброс точки. */
+const DEFAULT_POINT_COORDINATES = '47.2357, 39.7015'
+const DEFAULT_POINT_RADIUS = 1000
+
+const pointCoordinates = ref(DEFAULT_POINT_COORDINATES)
 const pointAddress = ref('')
 const addressLoading = ref(false)
 const addressError = ref('')
@@ -1159,7 +1203,7 @@ const addressError = ref('')
 let addressRequestSeq = 0
 /* То же для обратного геокодера (адрес по координатам точки). */
 let reverseRequestSeq = 0
-const pointRadius = ref(1000)
+const pointRadius = ref(DEFAULT_POINT_RADIUS)
 
 /* Шаги радиуса поиска (метры). */
 const RADIUS_STEPS = [50, 100, 200, 300, 500, 800, 1000, 1500, 2000, 3000]
@@ -1494,6 +1538,48 @@ function changeSelectedPoint() {
   pointSelectionState.value = 'idle'
 }
 
+/*
+ * Сброс точки (плавающая кнопка в закладке «Точка»): снимаем фиксацию,
+ * возвращаем радиус к значению по умолчанию, очищаем адрес, а мишень
+ * ставим в центр текущего вида — точку можно ставить заново.
+ */
+function resetSearchPoint() {
+  /* Незавершённые геокодеры больше не нужны: их ответы устарели. */
+  reverseRequestSeq += 1
+  addressRequestSeq += 1
+
+  fixedSearchPoint.value = null
+  pointSelectionState.value = 'idle'
+  pointRadius.value = DEFAULT_POINT_RADIUS
+  pointAddress.value = ''
+  addressError.value = ''
+
+  const wrap = mapWrapRef.value
+  const api = mapViewRef.value
+  const rect = wrap ? wrap.getBoundingClientRect() : null
+
+  /* Центр вида: мишень остаётся на экране, а не уезжает за край. */
+  const center =
+    rect && api
+      ? api.getCoordinatesAtScreenPoint(
+          rect.left + rect.width / 2,
+          rect.top + rect.height / 2
+        )
+      : null
+
+  if (center) {
+    pointAnchor.value = { lat: center.lat, lng: center.lng }
+    pointCoordinates.value = `${center.lat.toFixed(6)}, ${center.lng.toFixed(6)}`
+    syncPointTargetToAnchor()
+
+    return
+  }
+
+  pointAnchor.value = null
+  pointTargetPosition.value = null
+  pointCoordinates.value = DEFAULT_POINT_COORDINATES
+}
+
 function distanceInMeters(lat1, lng1, lat2, lng2) {
   const earthRadius = 6371000
 
@@ -1636,34 +1722,35 @@ const mapSearchRadius = computed(() =>
   pointSelectionState.value === 'fixed' ? pointRadius.value : 0
 )
 
-/* В точке счётчик показывает найденное вокруг неё, в карте/списке — по базе. */
-const toolbarCount = computed(() =>
-  workspaceMode.value === 'point'
-    ? pointFilteredConstructions.value.length
-    : displayedConstructions.value.length
-)
-
 /*
- * Переключение вкладок. Уходя из точки, снимаем фиксацию: иначе карта и
- * список молча показывают радиус без маркера точки и без возможности
- * понять, почему выдача сужена.
- *
- * keepPoint — для гидратации из адреса: ссылку пишет само приложение, и
- * состояние «радиус + список» в ней законное (кнопка «ОТКРЫТЬ СПИСОК»).
- * Без флага открытие такой ссылки теряло точку и показывало полный каталог.
+ * В точке счётчик показывает найденное вокруг неё, в карте/списке — по базе.
+ * Пока точка не зафиксирована, результата нет — вместо нуля прочерк, чтобы
+ * «0» не читался как «в районе ничего не найдено».
  */
-function setWorkspaceMode(mode, { keepPoint = false } = {}) {
-  const modeChanged = mode !== workspaceMode.value
-
+const toolbarCount = computed(() => {
   if (
-    !keepPoint &&
-    modeChanged &&
-    mode !== 'point' &&
-    pointSelectionState.value === 'fixed'
+    workspaceMode.value === 'point' &&
+    pointSelectionState.value !== 'fixed'
   ) {
-    changeSelectedPoint()
+    return '—'
   }
 
+  return workspaceMode.value === 'point'
+    ? pointFilteredConstructions.value.length
+    : displayedConstructions.value.length
+})
+
+/*
+ * Переключение вкладок. Зафиксированная точка НЕ снимается: результаты
+ * поиска по точке — те же данные, что нужны в «Списке» и на «Карте», и
+ * раньше при переходе по закладкам они пропадали (список показывал весь
+ * каталог). Сужение больше не молчаливое: в списке видна плашка «В радиусе
+ * … от точки», на карте — маркер точки и круг радиуса.
+ *
+ * Снять фиксацию можно явно: «Изменить точку» в закладке «Точка»,
+ * «Показать весь каталог» в списке, «Сбросить фильтры» в карте и списке.
+ */
+function setWorkspaceMode(mode) {
   workspaceMode.value = mode
 }
 
@@ -2187,10 +2274,10 @@ function applyFiltersFromUrl() {
       requestedMode === 'point' ||
       requestedMode === 'list'
     ) {
-      /* Точку из адреса не снимаем — её состояние уже применено выше. */
-      setWorkspaceMode(requestedMode, { keepPoint: true })
+      /* Точка из адреса живёт вместе с закладкой: состояние применяется выше. */
+      setWorkspaceMode(requestedMode)
     } else if (workspaceMode.value !== 'map') {
-      setWorkspaceMode('map', { keepPoint: true })
+      setWorkspaceMode('map')
     }
   }
 }
@@ -2838,9 +2925,8 @@ watch(
     if (chat !== '1') return
 
     /*
-     * Через setWorkspaceMode, а не прямым присваиванием: иначе после
-     * «Сбросить» карта оставалась с зафиксированной точкой — выдача сужена
-     * радиусом, а переключатель и подсказки говорили, что фильтров нет.
+     * Режим из чат-ссылки: результаты чата — самостоятельная выборка, точка
+     * её не сужает (см. displayedConstructions), поэтому фиксацию не трогаем.
      */
     setWorkspaceMode(mode === 'map' ? 'map' : 'list')
   }

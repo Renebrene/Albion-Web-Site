@@ -108,8 +108,9 @@ const props = defineProps({
     default: ''
   },
 
+  /* Число найденного; в режиме точки до фиксации приходит прочерк. */
   count: {
-    type: Number,
+    type: [Number, String],
     default: 0
   },
 

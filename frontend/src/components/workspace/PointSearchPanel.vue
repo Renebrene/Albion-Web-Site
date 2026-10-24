@@ -78,21 +78,37 @@
 
     <!-- РЕЗУЛЬТАТ -->
     <div class="result-count">
+      <!--
+        Пока точка не зафиксирована, результаты не считаются: вместо «0
+        конструкций · Ничего не найдено» показываем, что осталось сделать.
+      -->
       <div class="count-value">
-        {{ count }}
+        {{ pointFixed ? count : '—' }}
       </div>
 
       <div class="count-text">
-        {{ constructionLabel }}
+        {{ pointFixed ? constructionLabel : 'Поиск по точке' }}
       </div>
 
-      <div class="count-caption"> найдено в выбранном районе </div>
+      <div class="count-caption">
+        {{
+          pointFixed
+            ? 'найдено в выбранном районе'
+            : 'зафиксируйте точку, чтобы увидеть результаты'
+        }}
+      </div>
 
       <button
         type="button"
         class="open-list-button"
-        :disabled="!count"
-        :title="count ? undefined : 'В выбранном районе ничего не найдено'"
+        :disabled="!count || !pointFixed"
+        :title="
+          !pointFixed
+            ? 'Сначала зафиксируйте точку'
+            : count
+              ? undefined
+              : 'В выбранном районе ничего не найдено'
+        "
         @click="$emit('open-list')"
       >
         ОТКРЫТЬ СПИСОК
@@ -159,7 +175,7 @@
       </div>
     </div>
 
-    <div v-else class="found-empty"> Ничего не найдено </div>
+    <div v-else-if="pointFixed" class="found-empty"> Ничего не найдено </div>
   </aside>
 </template>
 
@@ -204,6 +220,12 @@ const props = defineProps({
   count: {
     type: Number,
     default: 0
+  },
+
+  /* Точка зафиксирована: до этого результаты не считаются и не показываются. */
+  pointFixed: {
+    type: Boolean,
+    default: true
   },
 
   results: {
