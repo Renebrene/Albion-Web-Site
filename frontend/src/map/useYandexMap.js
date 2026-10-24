@@ -308,23 +308,33 @@ function createMap(element) {
    ========================================================= */
 
 /*
- * Ширины балуна подогнаны под попап: двойной/тройной сужены
- * (см. CSS [class*='balloon__content'] .popup-double/-triple),
- * одиночный — 300px. Иначе балон шире контента и по бокам пусто.
- * На узких экранах не даём балуну выйти за пределы вьюпорта.
+ * Ширины балуна подогнаны под разметку попапа
+ * (см. CSS [class*='balloon__content'] .popup-double/-triple):
+ * одиночный — 300 px, двойной — 540, тройной — 580. Тройному нужен
+ * балун шире двойного, иначе третья карточка обрезается (как это было
+ * и в Leaflet). На узких экранах не даём балуну выйти за пределы вьюпорта.
  */
-function balloonWidths(isDouble, narrow) {
-  return {
-    balloonMaxWidth: narrow ? 320 : isDouble ? 560 : 340,
-    balloonMinWidth: narrow ? 260 : isDouble ? 500 : 280
+function balloonWidths(layout, narrow) {
+  if (narrow) {
+    return { balloonMaxWidth: 320, balloonMinWidth: 260 }
   }
+
+  if (layout === 'triple') {
+    return { balloonMaxWidth: 620, balloonMinWidth: 560 }
+  }
+
+  if (layout === 'double') {
+    return { balloonMaxWidth: 560, balloonMinWidth: 500 }
+  }
+
+  return { balloonMaxWidth: 340, balloonMinWidth: 280 }
 }
 
 /* Опции, которые зависят от цвета и раскладки и меняются на лету. */
 function applyPlacemarkOptions(entry) {
   entry.placemark.options.set({
     iconImageHref: dotIconHref(entry.color),
-    ...balloonWidths(entry.isDouble, entry.narrow)
+    ...balloonWidths(entry.layout, entry.narrow)
   })
 }
 
@@ -365,7 +375,7 @@ function itemsKeyOf(items) {
   return items.map(item => String(item?.id ?? '')).join(',')
 }
 
-function buildPlacemark({ items, lat, lng, color, isDouble, narrow }) {
+function buildPlacemark({ items, lat, lng, color, layout, narrow }) {
   const first = items[0]
 
   const placemark = new ymaps.Placemark(
@@ -394,7 +404,7 @@ function buildPlacemark({ items, lat, lng, color, isDouble, narrow }) {
         radius: 9
       },
 
-      ...balloonWidths(isDouble, narrow),
+      ...balloonWidths(layout, narrow),
 
       balloonAutoPan: true,
 
@@ -409,7 +419,7 @@ function buildPlacemark({ items, lat, lng, color, isDouble, narrow }) {
     /* Состав группы: по нему решаем, нужно ли пересобирать балун. */
     itemsKey: itemsKeyOf(items),
     html: '',
-    isDouble,
+    layout,
     narrow,
     color,
     lat,
@@ -451,14 +461,14 @@ function renderMarkers() {
     nextKeys.add(key)
 
     const color = markerColor(items)
-    const isDouble = popupLayout(items) !== 'single'
+    const layout = popupLayout(items)
     const narrow = typeof window !== 'undefined' && window.innerWidth < 600
 
     let entry = placemarkByKey.get(key)
 
     // Новая точка — создаём и добавляем.
     if (!entry) {
-      entry = buildPlacemark({ items, lat, lng, color, isDouble, narrow })
+      entry = buildPlacemark({ items, lat, lng, color, layout, narrow })
 
       placemarkByKey.set(key, entry)
       added.push(entry.placemark)
@@ -482,11 +492,11 @@ function renderMarkers() {
 
     if (
       entry.color !== color ||
-      entry.isDouble !== isDouble ||
+      entry.layout !== layout ||
       entry.narrow !== narrow
     ) {
       entry.color = color
-      entry.isDouble = isDouble
+      entry.layout = layout
       entry.narrow = narrow
       applyPlacemarkOptions(entry)
     }

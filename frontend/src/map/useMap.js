@@ -343,19 +343,46 @@ function createMap(element) {
    ========================================================= */
 
 /*
- * Параметры попапа зависят от числа ВИДИМЫХ КАРТОЧЕК (popupLayout), а не от
- * сырого числа сторон: иначе призматрон A(1)+A(2)+A(3) (3 стороны → одна
- * карточка) получал широкую обёртку при узком контенте.
+ * Ширины попапа по раскладке (`popupLayout` — число ВИДИМЫХ карточек, а не
+ * сырое число сторон: иначе призматрон A(1)+A(2)+A(3) получал широкую обёртку
+ * при узком контенте).
+ *
+ * Тройная раскладка (пиллар со сторонами A, B, C) размечается в 600 px
+ * (`.popup-triple`), поэтому её обёртка шире двойной: при общей ширине 550 px
+ * третья карточка обрезалась — у цены не влезали «₽» и «/ мес.», у месяца
+ * срезался край кнопки. Класс `.albion-popup-double` у тройной остаётся:
+ * на нём держатся общие правила широкого попапа и тройной сетки.
  */
-function popupOptions(isDouble) {
+const POPUP_LAYOUT = {
+  single: {
+    className: 'albion-popup albion-popup-single',
+    maxWidth: 340,
+    minWidth: 300,
+    autoPanPadding: [30, 30]
+  },
+  double: {
+    className: 'albion-popup albion-popup-double',
+    maxWidth: 580,
+    minWidth: 540,
+    autoPanPadding: [40, 40]
+  },
+  triple: {
+    className: 'albion-popup albion-popup-double albion-popup-triple',
+    maxWidth: 630,
+    minWidth: 600,
+    autoPanPadding: [40, 40]
+  }
+}
+
+function popupOptions(layout) {
+  const sizes = POPUP_LAYOUT[layout] || POPUP_LAYOUT.single
+
   return {
-    className: isDouble
-      ? 'albion-popup albion-popup-double'
-      : 'albion-popup albion-popup-single',
+    className: sizes.className,
 
-    maxWidth: isDouble ? 580 : 340,
+    maxWidth: sizes.maxWidth,
 
-    minWidth: isDouble ? 540 : 300,
+    minWidth: sizes.minWidth,
 
     /*
      * Потолок по высоте. Обёртка попапа (`.leaflet-popup-content-wrapper`)
@@ -369,7 +396,7 @@ function popupOptions(isDouble) {
 
     autoPan: true,
 
-    autoPanPadding: isDouble ? [40, 40] : [30, 30]
+    autoPanPadding: sizes.autoPanPadding
   }
 }
 
@@ -403,8 +430,8 @@ function lazyPopupContent(entry) {
   return entry.html
 }
 
-function bindLazyPopup(entry, isDouble) {
-  entry.marker.bindPopup(() => lazyPopupContent(entry), popupOptions(isDouble))
+function bindLazyPopup(entry, layout) {
+  entry.marker.bindPopup(() => lazyPopupContent(entry), popupOptions(layout))
 }
 
 /* Ключ состава метки: по нему видно, что данные точки сменились. */
@@ -416,7 +443,7 @@ function itemsKeyOf(items) {
  * Создаёт маркер для группы сторон. Возвращает запись для markerByKey
  * либо null, если координат нет.
  */
-function buildMarker(items, isDouble, lazy) {
+function buildMarker(items, layout, lazy) {
   /*
    * Координаты берём из первой прошедшей стороны.
    * Обычно A и B физически имеют одинаковые координаты.
@@ -447,7 +474,7 @@ function buildMarker(items, isDouble, lazy) {
     items,
     itemsKey: itemsKeyOf(items),
     html: '',
-    isDouble,
+    layout,
     lazy,
     color,
     lat,
@@ -455,10 +482,10 @@ function buildMarker(items, isDouble, lazy) {
   }
 
   if (lazy) {
-    bindLazyPopup(entry, isDouble)
+    bindLazyPopup(entry, layout)
   } else {
     entry.html = popupContent(items)
-    marker.bindPopup(entry.html, popupOptions(isDouble))
+    marker.bindPopup(entry.html, popupOptions(layout))
   }
 
   return entry
@@ -506,7 +533,7 @@ function renderMarkers() {
 
     nextKeys.add(key)
 
-    const isDouble = popupLayout(items) !== 'single'
+    const layout = popupLayout(items)
 
     const color = markerColor(items)
 
@@ -516,7 +543,7 @@ function renderMarkers() {
 
     // Новая точка — создаём и добавляем.
     if (!entry) {
-      entry = buildMarker(items, isDouble, lazy)
+      entry = buildMarker(items, layout, lazy)
 
       if (!entry) {
         continue
@@ -551,16 +578,16 @@ function renderMarkers() {
       entry.color = color
     }
 
-    if (entry.lazy !== lazy || entry.isDouble !== isDouble) {
+    if (entry.lazy !== lazy || entry.layout !== layout) {
       // Смена режима или компоновки — нужна повторная привязка попапа.
       entry.lazy = lazy
-      entry.isDouble = isDouble
+      entry.layout = layout
 
       if (lazy) {
-        bindLazyPopup(entry, isDouble)
+        bindLazyPopup(entry, layout)
       } else {
         entry.html = popupContent(items)
-        entry.marker.bindPopup(entry.html, popupOptions(isDouble))
+        entry.marker.bindPopup(entry.html, popupOptions(layout))
       }
     } else if (lazy) {
       /*

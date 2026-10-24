@@ -563,18 +563,63 @@ h6 {
 }
 
 .albion-popup-double .leaflet-popup-content {
-  width: 550px !important;
-  max-width: 550px !important;
+  width: 580px !important;
+  max-width: 580px !important;
   min-width: 510px !important;
   margin: 0 !important;
+}
+
+/*
+ * Тройной попап (пиллар со сторонами A, B, C). Разметке `.popup-triple`
+ * нужно 600 px, а обёртка двойного попапа даёт 550 — третья карточка
+ * обрезалась на 42 px: у цены не влезали «₽» и «/ мес.», у чипа месяца
+ * срезался край. Класс `.albion-popup-double` у тройного остаётся (на нём
+ * держатся общие правила широкого попапа и тройная сетка), этот модификатор
+ * добавляет только ширину. На экранах ≤800 px ниже действуют правила
+ * двойного — тройная сетка там и так в одну колонку.
+ *
+ * Ширина окна, контента и разметки здесь одна и та же: иначе карточки
+ * занимают окно не целиком, справа остаётся пустая полоса, и зазоры
+ * получаются разными (было 8 px слева против 38 px справа — полоса
+ * освобождалась под крестик закрытия). Крестик теперь перекрывает только
+ * отступ шапки.
+ */
+.albion-popup-triple .leaflet-popup-content-wrapper {
+  width: 630px !important;
+  max-width: 630px !important;
+  min-width: 600px !important;
+}
+
+.albion-popup-triple .leaflet-popup-content {
+  width: 630px !important;
+  max-width: 630px !important;
+  min-width: 560px !important;
+  margin: 0 !important;
+}
+
+.albion-popup-triple .popup-triple {
+  width: 630px !important;
+  max-width: 630px !important;
 }
 
 /* Сам контейнер двух сторон */
 
 .albion-popup-double .popup-double {
-  width: 550px !important;
+  width: 580px !important;
   max-width: none !important;
   box-sizing: border-box;
+}
+
+/*
+ * Крестик закрытия стоит в правом верхнем углу окна. Пока контент был на
+ * 30 px уже окна, он попадал в пустую полосу; теперь карточки занимают окно
+ * целиком, и шапке нужен симметричный отступ, чтобы адрес не заезжал под
+ * крестик.
+ */
+.albion-popup-double .popup-header,
+.albion-popup-triple .popup-header {
+  padding-right: 26px;
+  padding-left: 26px;
 }
 
 /* Две стороны строго рядом */
@@ -617,6 +662,17 @@ h6 {
 
   .albion-popup-double .popup-double {
     width: 320px !important;
+  }
+
+  /*
+   * Тройная разметка на узком экране — во всю ширину окна. Без этого
+   * правила её ширина из широкого случая (630 px) не сбрасывалась:
+   * у селектора `.albion-popup-triple .popup-triple` специфичность выше,
+   * чем у `.popup-triple` ниже под 760 px.
+   */
+  .albion-popup-triple .popup-triple {
+    width: 320px !important;
+    max-width: calc(100vw - 45px) !important;
   }
 
   .albion-popup-double .popup-sides {
