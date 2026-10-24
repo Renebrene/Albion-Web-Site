@@ -731,6 +731,7 @@ import { availableMode } from '../config/availableMode'
 import { showDynCount } from '../config/dynCount'
 import { urlStateMode, urlStateTokenFormat } from '../config/urlStateMode'
 import { decodeUrlState, encodeUrlState } from '../utils/urlState'
+import { decodePortfolioLink } from '../utils/portfolioLink'
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -781,40 +782,18 @@ function sideMonthLabel(block, month) {
   return isSideFree(block, month) ? 'Свободно' : 'Продано'
 }
 
+/* Месяц стороны — состояние по стороне целиком (логика в usePortfolio). */
 function isSideMonthSelected(block, month) {
-  return (block?.items || []).some(
-    item => surfaceIdOf(item) !== null && isMonthSelected(item.id, month)
-  )
+  return isPortfolioSideMonthSelected(block?.items || [], month)
 }
 
 /*
- * Клик по месяцу свёрнутой стороны применяется ко всем её поверхностям.
- * Намерение определяем один раз: если сторона уже выбрана (хотя бы одной
- * поверхностью) — снимаем месяц со всех выбранных; иначе добавляем всем
- * свободным. Иначе при частичном выборе клик инвертировал состояние.
+ * Клик по месяцу свёрнутой стороны: в портфель уходит ОДНА позиция —
+ * сторона, а поверхность (A(1), A(2)…) запоминается у самого месяца
+ * (см. toggleSideMonth в composables/usePortfolio.js).
  */
 function onSideMonthClick(block, month) {
-  const selected = isSideMonthSelected(block, month.full)
-
-  for (const item of block?.items || []) {
-    const id = surfaceIdOf(item)
-
-    if (id === null) {
-      continue
-    }
-
-    if (selected) {
-      if (isMonthSelected(id, month.full)) {
-        toggleMonth(item, month.full, item.month_prices?.[month.full])
-      }
-
-      continue
-    }
-
-    if (!isMonthLocked(item, month.full)) {
-      toggleMonth(item, month.full, item.month_prices?.[month.full])
-    }
-  }
+  toggleSideMonth(block?.items || [], month.full)
 }
 
 /* Первая (ведущая) сторона блока — как и в попапе карты. */
@@ -1006,7 +985,11 @@ function setCardMedia(point, blockIndex, mode) {
 const {
   isMonthSelected,
   toggleMonth,
+  toggleSideMonth,
   syncWithConstructions,
+  applyShared,
+  isSideMonthSelected: isPortfolioSideMonthSelected,
+  isSideMonthLocked: isPortfolioSideMonthLocked,
   items: portfolioItems,
   selectionMode: portfolioSelectionMode
 } = usePortfolio()
@@ -1017,16 +1000,21 @@ const {
  * личном кабинете, удаление позиции) приводим открытые поп-апы к
  * актуальному состоянию — иначе подсветка остаётся.
  */
-const portfolioSignature = computed(() => {
-  const items = portfolioItems.value
+/* Отпечаток позиций портфеля — без режима выбора (например, для ссылки). */
+function portfolioStateKey(list) {
+  return list
     .map(
       item =>
-        `${item.surfaceId}:${Object.keys(item.months || {})
+        `${item?.surfaceId}:${Object.keys(item?.months || {})
           .sort()
           .join('|')}`
     )
     .sort()
     .join(',')
+}
+
+const portfolioSignature = computed(() => {
+  const items = portfolioStateKey(portfolioItems.value)
 
   const modes = Object.keys(portfolioSelectionMode)
     .filter(key => portfolioSelectionMode[key])
@@ -1101,11 +1089,7 @@ function surfaceIdOf(item) {
 
 /* Месяц стороны: выбранный можно снять, остальные — только свободные. */
 function isSideMonthLocked(block, monthFull) {
-  if (isSideMonthSelected(block, monthFull)) {
-    return false
-  }
-
-  return !isSideFree(block, monthFull)
+  return isPortfolioSideMonthLocked(block?.items || [], monthFull)
 }
 
 /* Месяц можно ВЫБРАТЬ только если он свободен (снять — всегда можно). */
@@ -2724,9 +2708,7 @@ function refreshPopupState(popupRoot) {
         .filter(Boolean)
       const month = raw.slice(sep + 1)
 
-      selected = ids.some(id => isMonthSelected(id, month))
-
-      /* Занятый месяц нельзя выбрать, но уже выбранный можно снять. */
+      /* Ячейка стороны несёт все её поверхности — состояние по стороне. */
       const surfaces = ids
         .map(id =>
           constructions.value.find(
@@ -2735,8 +2717,10 @@ function refreshPopupState(popupRoot) {
         )
         .filter(Boolean)
 
-      canPick =
-        selected || surfaces.some(surface => !isMonthLocked(surface, month))
+      selected = isPortfolioSideMonthSelected(surfaces, month)
+
+      /* Занятый месяц нельзя выбрать, но уже выбранный можно снять. */
+      canPick = !isPortfolioSideMonthLocked(surfaces, month)
     }
 
     monthEl.classList.toggle('is-selected', selected)
@@ -2770,8 +2754,9 @@ function onDocumentClick(event) {
 
   /*
    * data-pf-month = "<id[,id…]>|<месяц>". В режиме «по сторонам» месяц
-   * агрегирован по стороне и несёт сразу несколько поверхностей — тогда
-   * переключаем месяц у всех.
+   * агрегирован по стороне и несёт ВСЕ её поверхности: по ним считается
+   * состояние ячейки, а клик добавляет в портфель одну позицию-сторону
+   * (поверхность запоминается у месяца — см. toggleSideMonth).
    */
   const idList = raw
     .slice(0, sep)
@@ -2791,42 +2776,14 @@ function onDocumentClick(event) {
     return
   }
 
-  /*
-   * Агрегированный месяц стороны: намерение определяем один раз.
-   * Если месяц уже выбран хотя бы у одной поверхности — снимаем его
-   * со всех выбранных; иначе добавляем всем свободным. Иначе при
-   * частичном выборе клик инвертировал состояние.
-   */
-  const selected = surfaces.some(surface =>
-    isMonthSelected(surfaceIdOf(surface), monthFull)
-  )
-
-  surfaces.forEach(surface => {
-    const id = surfaceIdOf(surface)
-
-    if (id === null) {
-      return
-    }
-
-    if (selected) {
-      if (isMonthSelected(id, monthFull)) {
-        toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
-      }
-
-      return
-    }
-
-    if (!isMonthLocked(surface, monthFull)) {
-      toggleMonth(surface, monthFull, surface.month_prices?.[monthFull])
-    }
-  })
+  toggleSideMonth(surfaces, monthFull)
 
   const popupRoot =
     monthEl.closest('.popup') || monthEl.closest('.albion-popup')
 
   monthEl.classList.toggle(
     'is-selected',
-    surfaces.some(surface => isMonthSelected(surfaceIdOf(surface), monthFull))
+    isPortfolioSideMonthSelected(surfaces, monthFull)
   )
 
   refreshPopupState(popupRoot)
@@ -2841,6 +2798,83 @@ watch(
     workspaceMode.value = mode === 'map' ? 'map' : 'list'
   }
 )
+
+/*
+ * Портфель из ссылки (?pf=…).
+ *
+ * Ссылка переносит только портфель — позиции и месяцы (utils/portfolioLink.js),
+ * фильтры остаются в ?s=/?city=…. Свой портфель получателя молча не затираем:
+ * если он не пуст и отличается, спрашиваем — «ОК» меняет его целиком,
+ * «Отмена» дополняет текущий.
+ *
+ * Вызывается один раз, после загрузки каталога и до syncWithConstructions:
+ * позиции собираются из данных каталога, поэтому сначала нужен список
+ * конструкций, а цены/статусы дозаполнит синхронизация.
+ * Параметр из адреса убираем сразу — иначе он переживёт перезагрузку
+ * и вопрос задастся повторно.
+ */
+let sharedPortfolioHandled = false
+
+function dropSharedPortfolioParam() {
+  if (!route.query.pf) {
+    return
+  }
+
+  const query = { ...route.query }
+
+  delete query.pf
+
+  router.replace({ path: route.path, query, hash: route.hash })
+}
+
+function applySharedPortfolioFromUrl() {
+  if (sharedPortfolioHandled) {
+    return
+  }
+
+  sharedPortfolioHandled = true
+
+  const raw = route.query.pf
+
+  if (!raw) {
+    return
+  }
+
+  const shared = decodePortfolioLink(raw)
+
+  dropSharedPortfolioParam()
+
+  if (!shared) {
+    return
+  }
+
+  /* Тот же портфель уже собран — спрашивать не о чем. */
+  const fromLink = shared.items
+    .map(item => `${item.surfaceId}:${[...item.months].sort().join('|')}`)
+    .sort()
+    .join(',')
+
+  if (portfolioStateKey(portfolioItems.value) === fromLink) {
+    return
+  }
+
+  const current = portfolioItems.value.length
+
+  const replace =
+    current === 0 ||
+    window.confirm(
+      `Заменить текущий портфель (позиций: ${current}) портфелем из ссылки? ` +
+        '«Отмена» — дополнить текущий.'
+    )
+
+  const result = applyShared(shared, constructions.value, { replace })
+
+  if (result.skipped) {
+    window.alert(
+      `Из ссылки недоступно позиций: ${result.skipped}. Возможно, конструкция больше не в каталоге.`
+    )
+  }
+}
 
 async function reloadConstructions() {
   loading.value = true
@@ -2863,6 +2897,9 @@ async function reloadConstructions() {
     } else if (route.query.chat === '1') {
       workspaceMode.value = 'list'
     }
+
+    // Портфель из ссылки (?pf=…): собираем позиции из свежего каталога.
+    applySharedPortfolioFromUrl()
 
     // Подтягиваем свежие цены/статусы выбранных месяцев из psql.
     syncWithConstructions(constructions.value)

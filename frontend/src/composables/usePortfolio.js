@@ -2,6 +2,12 @@ import { computed, nextTick, reactive, ref, watch } from 'vue'
 
 import { useAccount } from './useAccount'
 import { isFree } from '../utils/availability'
+import {
+  groupByPoint,
+  groupSides,
+  sideLabel,
+  parentSide
+} from '../utils/constructionGroups'
 
 /*
  * Портфель — корзина избранных поверхностей.
@@ -15,7 +21,10 @@ import { isFree } from '../utils/availability'
  *     surfaceId, address, city, side, type, size,
  *     photo, photo_thumb, photo_large,
  *     map_card, map_thumb, map_large,
- *     months: { [monthFull]: { price, addedAt, stale } },
+ *     // months[monthFull].surfaceId — поверхность, с которой взят месяц:
+ *     // у стороны их может быть несколько (призматрон A(1)…A(3)), и
+ *     // свободная в каждом месяце — своя. Позиция при этом одна на сторону.
+ *     months: { [monthFull]: { price, addedAt, stale, surfaceId } },
  *     // Снимки для статуса/цен по ВСЕМ месяцам (не только выбранным):
  *     prices: { [monthFull]: number|null },
  *     statuses: { [monthFull]: string },   // нормализованный статус
@@ -281,7 +290,9 @@ function normalizeItem(raw) {
       months[monthFull] = {
         price: toNumber(value.price),
         addedAt: value.addedAt || null,
-        stale: Boolean(value.stale)
+        stale: Boolean(value.stale),
+        /* Поверхность месяца (у стороны их может быть несколько). */
+        surfaceId: toSurfaceId(value.surfaceId)
       }
     })
   }
@@ -352,21 +363,12 @@ function setSelectionMode(surfaceId, enabled) {
   }
 }
 
-/*
- * Добавляет/убирает пару (поверхность, месяц).
- *
- * Если позиции с таким surfaceId ещё нет — создаёт её из объекта
- * конструкции (поля id/address/city/side/type/size/photo).
- */
-function toggleMonth(surface, monthFull, price) {
-  if (!surface || !monthFull) {
-    return
-  }
-
-  const surfaceId = toSurfaceId(surface.id)
+/* Создаёт позицию из конструкции, если её ещё нет; иначе — существующую. */
+function ensureItem(surface) {
+  const surfaceId = toSurfaceId(surface?.id)
 
   if (surfaceId === null) {
-    return
+    return null
   }
 
   let item = findItem(surfaceId)
@@ -386,6 +388,26 @@ function toggleMonth(surface, monthFull, price) {
     })
 
     items.value.push(item)
+  }
+
+  return item
+}
+
+/*
+ * Добавляет/убирает пару (поверхность, месяц).
+ *
+ * Если позиции с таким surfaceId ещё нет — создаёт её из объекта
+ * конструкции (поля id/address/city/side/type/size/photo).
+ */
+function toggleMonth(surface, monthFull, price) {
+  if (!surface || !monthFull) {
+    return
+  }
+
+  const item = ensureItem(surface)
+
+  if (!item) {
+    return
   }
 
   /* Позиция из localStorage могла сохраниться без снимка цен. */
@@ -419,7 +441,9 @@ function toggleMonth(surface, monthFull, price) {
   item.months[monthFull] = {
     price: monthPrice,
     addedAt: nowIso(),
-    stale: false
+    stale: false,
+    /* Поверхность, с которой взят месяц (у стороны их может быть несколько). */
+    surfaceId: item.surfaceId
   }
 }
 
@@ -447,8 +471,102 @@ function toggleItemMonth(surfaceId, monthFull) {
   item.months[monthFull] = {
     price: toNumber(item.prices?.[monthFull]),
     addedAt: nowIso(),
-    stale: false
+    stale: false,
+    surfaceId: item.surfaceId
   }
+}
+
+// ------------------------------------------------------------ сторона целиком
+
+/* Поверхности группы (записи каталога) — только те, у которых есть id. */
+function surfaceListOf(items) {
+  return (Array.isArray(items) ? items : []).filter(
+    item => toSurfaceId(item?.id) !== null
+  )
+}
+
+/*
+ * Месяц стороны выбран, если он стоит у ЛЮБОЙ её поверхности: позиция
+ * в портфеле одна, а поверхность у каждого месяца своя.
+ */
+function isSideMonthSelected(items, monthFull) {
+  return surfaceListOf(items).some(surface =>
+    isMonthSelected(toSurfaceId(surface.id), monthFull)
+  )
+}
+
+/* Занято, если снимать нечего и ни одна поверхность стороны не свободна. */
+function isSideMonthLocked(items, monthFull) {
+  const surfaces = surfaceListOf(items)
+
+  if (!surfaces.length) {
+    return true
+  }
+
+  return (
+    !isSideMonthSelected(surfaces, monthFull) &&
+    !surfaces.some(surface => isFree(surface, monthFull))
+  )
+}
+
+/* Паспорт позиции берём от стороны, а не от поверхности A(1): в панели
+   строка читается как «Сторона: A», а не «Сторона: A(1)». */
+function sidePassport(surface) {
+  return { ...surface, side: parentSide(sideLabel(surface), surface.type) }
+}
+
+/*
+ * Клик по месяцу СТОРОНЫ (карточка списка, попап карты, поиск по точке).
+ *
+ * В портфеле — одна позиция на сторону. Месяц добавляется позиции-
+ * представителю (поверхность стороны, уже стоящая в портфеле, иначе
+ * свободная в этом месяце), а сама поверхность запоминается В МЕСЯЦЕ:
+ * у призматрона A(1)…A(3) свободная в каждом месяце бывает своя.
+ *
+ * Снятие убирает месяц со всех поверхностей стороны — иначе позиция
+ * осталась бы «выбранной» после клика.
+ */
+function toggleSideMonth(items, monthFull) {
+  const surfaces = surfaceListOf(items)
+
+  if (!surfaces.length || !monthFull) {
+    return false
+  }
+
+  const selected = surfaces.filter(surface =>
+    isMonthSelected(toSurfaceId(surface.id), monthFull)
+  )
+
+  if (selected.length) {
+    selected.forEach(surface =>
+      toggleItemMonth(toSurfaceId(surface.id), monthFull)
+    )
+
+    return true
+  }
+
+  const target = surfaces.find(surface => isFree(surface, monthFull))
+
+  if (!target) {
+    return false
+  }
+
+  const representative =
+    surfaces.find(surface => isInPortfolio(toSurfaceId(surface.id))) || target
+  const item = ensureItem(sidePassport(representative))
+
+  if (!item) {
+    return false
+  }
+
+  item.months[monthFull] = {
+    price: toNumber(target.month_prices?.[monthFull]),
+    addedAt: nowIso(),
+    stale: false,
+    surfaceId: toSurfaceId(target.id)
+  }
+
+  return true
 }
 
 /* Известна ли цена месяца у позиции (для панели портфеля). */
@@ -524,10 +642,70 @@ function setTitle(value) {
 }
 
 /*
+ * Снимок цен и статусов по СТОРОНЕ: месяц «свободен», если свободна хотя
+ * бы одна её поверхность — та же логика, что на карточке и в попапе
+ * (sideAggMonthCell). У стороны с одной поверхностью снимок совпадает
+ * с её собственным.
+ */
+function sideSnapshots(surfaces) {
+  const prices = {}
+  const statuses = {}
+  const monthTexts = {}
+  const months = new Set()
+
+  surfaces.forEach(surface => {
+    Object.keys(monthPricesOf(surface)).forEach(month => months.add(month))
+    Object.keys(monthStatusesOf(surface)).forEach(month => months.add(month))
+    Object.keys(monthTextsOf(surface)).forEach(month => months.add(month))
+  })
+
+  months.forEach(month => {
+    const source =
+      surfaces.find(surface => isFree(surface, month)) || surfaces[0]
+
+    const price = toNumber(source.month_prices?.[month])
+
+    if (price !== null) {
+      prices[month] = price
+    }
+
+    statuses[month] = monthStatusesOf(source)[month] || ''
+    monthTexts[month] = monthTextsOf(source)[month] || ''
+  })
+
+  return { prices, statuses, monthTexts }
+}
+
+/*
+ * surfaceId → все поверхности той же СТОРОНЫ (формат + сторона в точке).
+ * Нужен, чтобы позиция-сторона считалась по стороне целиком, а не по
+ * одной поверхности, чей id оказался в позиции.
+ */
+function buildSideGroups(constructions) {
+  const map = new Map()
+
+  groupByPoint(constructions).forEach(point => {
+    groupSides(point.items || []).forEach(group => {
+      const surfaces = group.items || []
+
+      surfaces.forEach(surface => {
+        const id = toSurfaceId(surface?.id)
+
+        if (id !== null) {
+          map.set(keyOf(id), surfaces)
+        }
+      })
+    })
+  })
+
+  return map
+}
+
+/*
  * Синхронизация с актуальным списком конструкций.
  *
- * Обновляет «паспортные» поля позиций и помечает месяц stale,
- * если он больше не «Свободно»; цену берёт из month_prices.
+ * Обновляет «паспортные» поля позиций, снимок цен/статусов и помечает
+ * месяц stale, если сторона больше не свободна ни одной поверхностью.
  */
 function syncWithConstructions(constructions) {
   if (!Array.isArray(constructions)) {
@@ -537,6 +715,7 @@ function syncWithConstructions(constructions) {
   const byId = new Map(
     constructions.map(construction => [keyOf(construction?.id), construction])
   )
+  const sideGroups = buildSideGroups(constructions)
 
   items.value.forEach(item => {
     const construction = byId.get(keyOf(item.surfaceId))
@@ -549,15 +728,16 @@ function syncWithConstructions(constructions) {
       item[field] = construction[field] ? String(construction[field]) : ''
     })
 
-    /* Обновляем снимок цен/статусов по всем месяцам, не только выбранным. */
-    Object.entries(monthPricesOf(construction)).forEach(([month, price]) => {
-      if (price !== null) {
-        item.prices[month] = price
-      }
-    })
+    /* Подпись стороны без индекса поверхности: «A», а не «A(1)». */
+    item.side = parentSide(item.side, item.type)
 
-    item.statuses = { ...item.statuses, ...monthStatusesOf(construction) }
-    item.monthTexts = { ...item.monthTexts, ...monthTextsOf(construction) }
+    const siblings = sideGroups.get(keyOf(item.surfaceId)) || [construction]
+    const snapshots = sideSnapshots(siblings)
+
+    /* Обновляем снимок цен/статусов по всем месяцам, не только выбранным. */
+    item.prices = { ...item.prices, ...snapshots.prices }
+    item.statuses = { ...item.statuses, ...snapshots.statuses }
+    item.monthTexts = { ...item.monthTexts, ...snapshots.monthTexts }
 
     Object.keys(item.months).forEach(monthFull => {
       const month = item.months[monthFull]
@@ -566,16 +746,79 @@ function syncWithConstructions(constructions) {
         return
       }
 
-      /* Свободность — по той же логике, что на карте и в списке. */
-      month.stale = !isFree(construction, monthFull)
+      /* Свободность — по стороне целиком, как на карте и в списке. */
+      month.stale = !siblings.some(surface => isFree(surface, monthFull))
 
-      const price = toNumber(construction.month_prices?.[monthFull])
+      const price = snapshots.prices[monthFull]
 
-      if (price !== null) {
+      if (price !== undefined) {
         month.price = price
       }
     })
   })
+}
+
+/*
+ * Портфель из ссылки (?pf=…): список { surfaceId, months }.
+ *
+ * Позиции собираются обычным toggleMonth по загруженному каталогу — он
+ * сам заполняет паспортные поля и снимки цен/статусов, поэтому «призрачных»
+ * позиций удалённых конструкций не появляется. Цены и stale после этого
+ * дозаполнит syncWithConstructions на странице.
+ *
+ * replace=true — заменить текущий портфель, иначе дополнить: месяцы,
+ * которые уже выбраны, пропускаем (toggleMonth на выбранном месяце его
+ * СНИМАЕТ, а не добавляет).
+ */
+function applyShared(shared, constructions, { replace = false } = {}) {
+  const list = Array.isArray(shared?.items) ? shared.items : []
+  const catalog = Array.isArray(constructions) ? constructions : []
+  const result = { added: 0, months: 0, skipped: 0 }
+
+  if (replace) {
+    clear()
+  }
+
+  const byId = new Map(
+    catalog.map(construction => [keyOf(construction?.id), construction])
+  )
+
+  list.forEach(sharedItem => {
+    const construction = byId.get(keyOf(sharedItem?.surfaceId))
+
+    if (!construction) {
+      result.skipped += 1
+      return
+    }
+
+    const existed = Boolean(findItem(sharedItem.surfaceId))
+
+    const monthsToAdd = (
+      Array.isArray(sharedItem.months) ? sharedItem.months : []
+    ).filter(
+      monthFull =>
+        monthFull && !isMonthSelected(sharedItem.surfaceId, monthFull)
+    )
+
+    /* Позиция без выбранных месяцев в портфеле тоже ценна: «ничего не выбрано». */
+    if (!existed && !monthsToAdd.length) {
+      ensureItem(construction)
+    }
+
+    monthsToAdd.forEach(monthFull => toggleMonth(construction, monthFull))
+
+    if (!existed) {
+      result.added += 1
+    }
+
+    result.months += monthsToAdd.length
+  })
+
+  if (shared?.title) {
+    setTitle(shared.title)
+  }
+
+  return result
 }
 
 // ---------------------------------------------------------------- сериализация
@@ -1005,11 +1248,14 @@ export function usePortfolio() {
     isInPortfolio,
     isMonthSelected,
     isSelectionMode,
+    isSideMonthSelected,
+    isSideMonthLocked,
 
     // изменение
     toggleSelectionMode,
     setSelectionMode,
     toggleMonth,
+    toggleSideMonth,
     toggleItemMonth,
     monthPriceOf,
     removeSurface,
@@ -1017,6 +1263,7 @@ export function usePortfolio() {
     clear,
     setTitle,
     syncWithConstructions,
+    applyShared,
 
     // (де)сериализация и хранение
     serialize,

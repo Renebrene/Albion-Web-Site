@@ -9,12 +9,18 @@
  * Версия в префиксе позволяет менять раскладку без поломки старых ссылок.
  */
 
+import {
+  FORMAT_BASE32,
+  FORMAT_BASE64URL,
+  decodeBytes,
+  detectFormat,
+  encodeBytes
+} from './tokenCodec'
+
 const TOKEN_VERSION = 'v1-'
 const MAX_TOKEN_LENGTH = 512
 const MAX_QUERY_LENGTH = 100
 const MAX_ADDRESS_LENGTH = 200
-
-const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
 
 const MODES = new Set(['map', 'list', 'point'])
 
@@ -114,90 +120,7 @@ function payloadToState(payload) {
   })
 }
 
-function bytesToBase64Url(bytes) {
-  let binary = ''
-
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte)
-  }
-
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function base64UrlToBytes(text) {
-  const normalized = String(text).replace(/-/g, '+').replace(/_/g, '/')
-  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
-  const binary = atob(padded)
-  const bytes = new Uint8Array(binary.length)
-
-  for (let index = 0; index < binary.length; index += 1) {
-    bytes[index] = binary.charCodeAt(index)
-  }
-
-  return bytes
-}
-
-function bytesToBase32(bytes) {
-  let value = 0
-  let bits = 0
-  let output = ''
-
-  for (const byte of bytes) {
-    value = (value << 8) | byte
-    bits += 8
-
-    while (bits >= 5) {
-      bits -= 5
-      output += BASE32_ALPHABET[(value >>> bits) & 31]
-    }
-  }
-
-  if (bits > 0) {
-    output += BASE32_ALPHABET[(value << (5 - bits)) & 31]
-  }
-
-  return output
-}
-
-function base32ToBytes(text) {
-  const clean = String(text).toUpperCase().replace(/=+$/, '')
-  let value = 0
-  let bits = 0
-  const bytes = []
-
-  for (const char of clean) {
-    const index = BASE32_ALPHABET.indexOf(char)
-
-    if (index === -1) {
-      throw new Error('Некорректный Base32')
-    }
-
-    value = (value << 5) | index
-    bits += 5
-
-    if (bits >= 8) {
-      bits -= 8
-      bytes.push((value >>> bits) & 255)
-    }
-  }
-
-  return new Uint8Array(bytes)
-}
-
-function encodeBytes(bytes, format) {
-  return format === 'base32' ? bytesToBase32(bytes) : bytesToBase64Url(bytes)
-}
-
-function decodeBytes(text, format) {
-  return format === 'base32' ? base32ToBytes(text) : base64UrlToBytes(text)
-}
-
-/* Определяем алфавит: Base32 состоит только из A-Z2-7. */
-function detectFormat(text) {
-  return /^[A-Z2-7]+$/.test(text) ? 'base32' : 'base64url'
-}
-
-export function encodeUrlState(state, format = 'base64url') {
+export function encodeUrlState(state, format = FORMAT_BASE64URL) {
   const normalized = normalizeState(state)
   const json = JSON.stringify(stateToPayload(normalized))
   const bytes = new TextEncoder().encode(json)
@@ -225,7 +148,7 @@ export function decodeUrlState(token) {
 
   const formats = [
     detectFormat(body),
-    detectFormat(body) === 'base32' ? 'base64url' : 'base32'
+    detectFormat(body) === FORMAT_BASE32 ? FORMAT_BASE64URL : FORMAT_BASE32
   ]
 
   for (const format of formats) {

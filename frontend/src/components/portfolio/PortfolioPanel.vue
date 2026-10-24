@@ -144,51 +144,103 @@
         :disable="!count"
       />
 
-      <!-- Вывод: форматы файлов -->
-      <q-btn-dropdown
-        outline
-        no-caps
-        dense
-        class="portfolio-action"
-        label="Вывод"
-        :disable="!count || Boolean(busy)"
-      >
-        <q-list dense class="portfolio-export-menu">
-          <q-item
-            v-for="option in exportOptions"
-            :key="option.value"
-            v-close-popup
-            clickable
-            @click="exportAs(option.value)"
-          >
-            <q-item-section>
-              <q-item-label>{{ option.label }}</q-item-label>
-            </q-item-section>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
+      <!--
+        Форматы и действия — иконками: выпадающие списки прятали частые
+        действия за лишним кликом. Три основных формата вынесены наружу,
+        редкие остались в «…» (exportOptions минус вынесенные).
+      -->
+      <div class="portfolio-icons" role="group" aria-label="Вывод портфеля">
+        <q-btn
+          v-for="badge in fileBadges"
+          :key="badge.value"
+          flat
+          dense
+          class="portfolio-icon"
+          :disable="!count || Boolean(busy)"
+          :aria-label="badge.title"
+          @click="exportAs(badge.value)"
+        >
+          <span class="portfolio-file-badge" :class="`is-${badge.value}`">
+            {{ badge.badge }}
+          </span>
 
-      <!-- Действия: принтер / почта / чат -->
-      <q-btn-dropdown
-        outline
-        no-caps
-        dense
-        class="portfolio-action"
-        label="Действия"
-        :disable="!count || Boolean(busy)"
-      >
-        <q-list dense class="portfolio-action-menu">
-          <q-item v-close-popup clickable @click="handlePrint">
-            <q-item-section>Принтер</q-item-section>
-          </q-item>
-          <q-item v-close-popup clickable @click="handleEmail">
-            <q-item-section>Почта</q-item-section>
-          </q-item>
-          <q-item v-close-popup clickable @click="handleChat">
-            <q-item-section>Чат</q-item-section>
-          </q-item>
-        </q-list>
-      </q-btn-dropdown>
+          <q-tooltip>{{ badge.title }}</q-tooltip>
+        </q-btn>
+
+        <q-btn-dropdown
+          flat
+          dense
+          class="portfolio-icon"
+          :disable="!count || Boolean(busy)"
+          aria-label="Остальные форматы"
+        >
+          <template #label>
+            <span class="portfolio-more">…</span>
+
+            <q-tooltip>Остальные форматы</q-tooltip>
+          </template>
+
+          <q-list dense class="portfolio-export-menu">
+            <q-item
+              v-for="option in extraExportOptions"
+              :key="option.value"
+              v-close-popup
+              clickable
+              @click="exportAs(option.value)"
+            >
+              <q-item-section>
+                <q-item-label>{{ option.label }}</q-item-label>
+              </q-item-section>
+            </q-item>
+          </q-list>
+        </q-btn-dropdown>
+
+        <q-btn
+          flat
+          dense
+          class="portfolio-icon"
+          icon="print"
+          :disable="!count || Boolean(busy)"
+          aria-label="Печать"
+          @click="handlePrint"
+        >
+          <q-tooltip>Печать</q-tooltip>
+        </q-btn>
+
+        <q-btn
+          flat
+          dense
+          class="portfolio-icon"
+          icon="mail_outline"
+          :disable="!count || Boolean(busy)"
+          aria-label="Отправить письмом"
+          @click="handleEmail"
+        >
+          <q-tooltip>Отправить письмом</q-tooltip>
+        </q-btn>
+
+        <!--
+          Ссылка на портфель: переносится сам портфель (?pf=…), а не
+          фильтры — этим она отличается от «Поделиться» в каталоге.
+        -->
+        <q-btn
+          flat
+          dense
+          class="portfolio-icon"
+          icon="link"
+          :disable="!count"
+          aria-label="Ссылка на портфель"
+          @click="sharePortfolioLink"
+        >
+          <q-tooltip ref="linkTip" :offset="[0, 6]">
+            {{
+              linkCopied
+                ? 'Скопировано в память!'
+                : 'Вы можете отправить содержимое портфеля ссылкой'
+            }}
+          </q-tooltip>
+        </q-btn>
+      </div>
 
       <!--
         Сохранение в личный кабинет. Кабинет скрыт флагом ACCOUNT_UI_ENABLED
@@ -366,7 +418,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, unref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, unref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import {
@@ -375,11 +427,11 @@ import {
   emailPortfolio,
   formatPrice,
   itemSum,
-  portfolioText,
   printPortfolio
 } from '../../services/portfolioExport'
 import { useAccount } from '../../composables/useAccount'
 import { ACCOUNT_UI_ENABLED } from '../../config/features'
+import { urlStateTokenFormat } from '../../config/urlStateMode'
 import { usePortfolio } from '../../composables/usePortfolio'
 import {
   photoLabel,
@@ -393,6 +445,7 @@ import {
 } from '../../utils/constructionGroups'
 import { getAvailabilityState } from '../../utils/availability'
 import { isValidEmail, normalizeRuPhone } from '../../utils/contactFields'
+import { encodePortfolioLink } from '../../utils/portfolioLink'
 
 /*
  * Панель портфеля.
@@ -764,7 +817,7 @@ const saving = ref(false)
 const fullOutput = ref(false)
 
 /*
- * Форматы выгрузки («Вывод»). Текстовые (csv/txt/md/json) отдают только
+ * Форматы выгрузки. Текстовые (csv/txt/md/json) отдают только
  * текстовую часть и не зависят от «полный/краткий вывод» — это обеспечивает
  * сервер (см. backend/services/portfolio_export.py).
  */
@@ -782,6 +835,17 @@ const exportOptions = [
   { label: 'MD — Markdown', value: 'md' },
   { label: 'JSON — данные', value: 'json' }
 ]
+
+/* Три частых формата — отдельными иконками, остальные уходят в «…». */
+const fileBadges = [
+  { value: 'pdf', badge: 'PDF', title: 'Скачать PDF' },
+  { value: 'xlsx', badge: 'XLS', title: 'Скачать Excel (XLSX)' },
+  { value: 'docx', badge: 'DOC', title: 'Скачать Word (DOCX)' }
+]
+
+const extraExportOptions = exportOptions.filter(
+  option => !fileBadges.some(badge => badge.value === option.value)
+)
 
 function removeItem(item) {
   const snapshot = removeSurface(item.surfaceId)
@@ -870,36 +934,79 @@ function handleEmail() {
 }
 
 /*
- * Чат: заглушка под виджет сайта (JivoSite и т.п.). Сейчас виджета нет —
- * копируем текст портфеля и показываем подсказку. Когда виджет появится,
- * здесь достаточно будет window.jivo_api.open().
+ * Ссылка на портфель.
+ *
+ * Переносится сам портфель — позиции и выбранные месяцы (?pf=…, см.
+ * utils/portfolioLink.js). Фильтры в ссылку не попадают: получателю нужен
+ * тот же набор позиций, а не чужая выдача. Алфавит токена берётся из
+ * настройки сайта «Формат ссылок» — как у кнопки «Поделиться» в каталоге.
  */
-async function handleChat() {
+const linkTip = ref(null)
+const linkCopied = ref(false)
+let linkCopiedTimer = null
+
+function buildPortfolioLink() {
+  const token = encodePortfolioLink(
+    { items: items.value, title: title.value },
+    urlStateTokenFormat.value
+  )
+
+  return `${window.location.origin}/vozmozhnosti?pf=${token}`
+}
+
+async function sharePortfolioLink() {
   if (!count.value) {
     return
   }
 
-  const text = portfolioText(items.value, {
-    withMaps: fullOutput.value,
-    fullOutput: fullOutput.value,
-    title: title.value,
-    requisites: currentRequisites()
-  })
+  let url
 
-  const copied = await copyToClipboard(text)
+  try {
+    url = buildPortfolioLink()
+  } catch (exc) {
+    notify(
+      exc && exc.message
+        ? `${exc.message} — выгрузите его файлом.`
+        : 'Не удалось подготовить ссылку.',
+      'error'
+    )
 
-  if (window.jivo_api && typeof window.jivo_api.open === 'function') {
-    window.jivo_api.open()
-    notify('Открываю чат поддержки.')
     return
   }
 
-  notify(
-    copied
-      ? 'Чат пока не подключён (заглушка). Текст портфеля скопирован — вставьте его в чат.'
-      : 'Чат пока не подключён (заглушка).'
-  )
+  if (!(await copyToClipboard(url))) {
+    notify('Не удалось скопировать ссылку — скопируйте её вручную.', 'error')
+
+    return
+  }
+
+  linkCopied.value = true
+
+  /* Подсказку показываем принудительно: копирование могло быть по хоткею. */
+  if (linkTip.value) {
+    linkTip.value.show()
+  }
+
+  if (linkCopiedTimer) {
+    clearTimeout(linkCopiedTimer)
+  }
+
+  linkCopiedTimer = setTimeout(() => {
+    linkCopied.value = false
+    linkCopiedTimer = null
+
+    if (linkTip.value) {
+      linkTip.value.hide()
+    }
+  }, 2000)
 }
+
+onBeforeUnmount(() => {
+  if (linkCopiedTimer) {
+    clearTimeout(linkCopiedTimer)
+    linkCopiedTimer = null
+  }
+})
 
 /* ЛК: сохраняем при авторизации, иначе отправляем на вход. */
 async function handleSave() {
@@ -1590,8 +1697,72 @@ function handleClear() {
   letter-spacing: 0.02em;
 }
 
+/* «Очистить» — отдельно от группы: прижата к правому краю строки. */
 .portfolio-action--danger {
+  margin-left: auto;
+
   color: #c62828;
+}
+
+/*
+ * Иконки вывода и действий: три формата (PDF/XLSX/DOCX), «…» для
+ * редких, принтер, почта и ссылка на портфель.
+ */
+.portfolio-icons {
+  display: flex;
+  align-items: center;
+
+  gap: 2px;
+}
+
+.portfolio-icon {
+  min-width: 28px;
+  min-height: 28px;
+  padding: 0 5px;
+
+  border-radius: 8px;
+
+  color: #455a64;
+}
+
+/* Бейджи форматов: буквы вместо картинок — узнаваемо и без внешних файлов. */
+.portfolio-file-badge {
+  padding: 2px 4px;
+
+  border-radius: 4px;
+
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1.2;
+
+  letter-spacing: 0.02em;
+}
+
+.portfolio-file-badge.is-pdf {
+  background: #fdecea;
+
+  color: #c62828;
+}
+
+.portfolio-file-badge.is-xlsx {
+  background: #e6f4ea;
+
+  color: #1e6f43;
+}
+
+.portfolio-file-badge.is-docx {
+  background: #e8eefb;
+
+  color: #2b579a;
+}
+
+/* «…» — единственный символ, поэтому крупнее буквенных бейджей. */
+.portfolio-more {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1;
+
+  color: #546e7a;
 }
 
 /* Обёртка «Сохранить»: нужна, чтобы тултип показывался и когда кнопка
@@ -1606,23 +1777,21 @@ function handleClear() {
   pointer-events: none;
 }
 
-/* Длинный список форматов «Вывода» — с прокруткой. */
+/* Список редких форматов («…») — с прокруткой. */
 .portfolio-export-menu {
   max-height: 320px;
   overflow-y: auto;
 }
 
-/* Пункты выпадающих списков — тем же кеглем и весом, что подписи кнопок
-   («Вывод», «Действия»), чтобы меню выглядело компактнее. */
-.portfolio-export-menu :deep(.q-item__label),
-.portfolio-action-menu :deep(.q-item__label) {
+/* Пункты меню — тем же кеглем и весом, что подписи кнопок портфеля,
+   чтобы меню выглядело компактнее. */
+.portfolio-export-menu :deep(.q-item__label) {
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.02em;
 }
 
-.portfolio-export-menu :deep(.q-item),
-.portfolio-action-menu :deep(.q-item) {
+.portfolio-export-menu :deep(.q-item) {
   min-height: 30px;
   padding-top: 2px;
   padding-bottom: 2px;

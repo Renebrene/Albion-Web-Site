@@ -244,11 +244,11 @@ const constructionLabel = computed(() => {
  * контрол: кнопка + (в режиме выбора) мини-месяцы.
  */
 const {
-  isMonthSelected,
+  isSideMonthSelected,
+  isSideMonthLocked,
+  toggleSideMonth,
   isSelectionMode,
-  setSelectionMode,
-  // alias: в панели уже есть свой toggleMonth для чипов фильтра
-  toggleMonth: togglePortfolioMonth
+  setSelectionMode
 } = usePortfolio()
 
 /* id поверхности; null — если его нет (тогда контрол не показываем). */
@@ -289,42 +289,17 @@ function toggleEntryPfMode(entry) {
 }
 
 /*
- * Поверхность, которую добавляем/убираем по клику на месяц: уже
- * выбранная (чтобы снять) либо первая свободная. Одна позиция, даже если
- * у адреса их несколько.
+ * Месяц адреса: состояние считаем по всем его поверхностям, а клик
+ * добавляет ОДНУ позицию (см. toggleSideMonth в usePortfolio) — иначе
+ * адрес с несколькими поверхностями превращался в несколько позиций.
  */
-function entryMonthItem(entry, monthFull) {
-  const selected = entry.items.find(item => {
-    const id = surfaceIdOf(item)
-
-    return id !== null && isMonthSelected(id, monthFull)
-  })
-
-  if (selected) {
-    return selected
-  }
-
-  return (
-    entry.items.find(item => {
-      const id = surfaceIdOf(item)
-
-      return id !== null && isFree(item, monthFull)
-    }) || null
-  )
-}
-
-/* Месяц выбран, если он есть у какой-либо поверхности адреса. */
 function isEntryMonthSelected(entry, monthFull) {
-  return entry.items.some(item => {
-    const id = surfaceIdOf(item)
-
-    return id !== null && isMonthSelected(id, monthFull)
-  })
+  return isSideMonthSelected(entry.items, monthFull)
 }
 
 /* Месяц недоступен, если снять нечего и ни одна поверхность не свободна. */
 function isEntryMonthLocked(entry, monthFull) {
-  return entryMonthItem(entry, monthFull) === null
+  return isSideMonthLocked(entry.items, monthFull)
 }
 
 function onEntryMonthClick(entry, month) {
@@ -332,23 +307,18 @@ function onEntryMonthClick(entry, month) {
     return
   }
 
-  const item = entryMonthItem(entry, month.full)
-
-  if (!item) {
-    return
-  }
-
-  togglePortfolioMonth(item, month.full, item.month_prices?.[month.full])
+  toggleSideMonth(entry.items, month.full)
 }
 
+/* Подпись месяца: берём у свободной поверхности — её и получит клиент. */
 function entryMonthLabel(entry, monthFull) {
-  const item = entryMonthItem(entry, monthFull)
+  const free = entry.items.find(item => isFree(item, monthFull))
 
-  if (!item) {
-    return 'Занято'
+  if (free) {
+    return getMonthStatusLabel(free, monthFull)
   }
 
-  return getMonthStatusLabel(item, monthFull)
+  return isEntryMonthSelected(entry, monthFull) ? 'Выбрано' : 'Занято'
 }
 
 /*

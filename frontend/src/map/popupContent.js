@@ -345,31 +345,31 @@ function sideCard(item) {
  * В режиме «по сторонам» — одна строка: месяц свободен, если свободна
  * хоть одна поверхность, иначе продано (резерв не показываем). */
 function sideAggMonthCell(group, month) {
-  const freeIds = (group.items || [])
-    .filter(item => isFree(item, month.full))
+  const allIds = (group.items || [])
     .map(item => surfaceIdOf(item))
     .filter(id => id !== null)
 
-  const anyFree = freeIds.length > 0
+  const anyFree = (group.items || []).some(item => isFree(item, month.full))
   const state = anyFree ? 'free' : 'busy'
   const title = anyFree ? 'Свободно' : 'Продано'
 
   /*
-   * В режиме «по сторонам» отдельной ячейки на каждую поверхность нет,
-   * поэтому агрегированная ячейка несёт СПИСОК id свободных поверхностей
-   * стороны. Клик добавляет/убирает месяц сразу у всех (см. onDocumentClick).
-   * Без этого из динамической половины в портфель нельзя было ничего добавить.
+   * Ячейка несёт ВСЕ поверхности стороны, а не только свободные: по ним
+   * считается состояние (месяц может быть выбран поверхностью, которая
+   * с тех пор стала занята) и выбирается та, что освободилась. В портфель
+   * при этом уходит ОДНА позиция на сторону — поверхность запоминается
+   * у самого месяца (см. toggleSideMonth в usePortfolio).
    */
-  const selected = freeIds.some(id => portfolio.isMonthSelected(id, month.full))
+  const selected = allIds.some(id => portfolio.isMonthSelected(id, month.full))
 
-  const pfAttrs = freeIds.length
-    ? ` data-pf-month="${escapeHtml(freeIds.join(','))}|${escapeHtml(month.full)}"`
+  const pfAttrs = allIds.length
+    ? ` data-pf-month="${escapeHtml(allIds.join(','))}|${escapeHtml(month.full)}"`
     : ''
 
   return `
     <button
       type="button"
-      class="popup-month ${state}${selected ? ' is-selected' : ''}${freeIds.length ? '' : ' is-locked'}"
+      class="popup-month ${state}${selected ? ' is-selected' : ''}${allIds.length ? '' : ' is-locked'}"
       aria-pressed="${selected ? 'true' : 'false'}"
       title="${escapeHtml(title)}"${pfAttrs}
     >
