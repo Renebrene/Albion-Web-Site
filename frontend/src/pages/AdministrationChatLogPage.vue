@@ -234,6 +234,7 @@
 import { computed, onMounted, ref, watchEffect } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminHeaders, adminRequest as request } from '../services/adminApi'
+import { asText } from '../utils/safeValue'
 
 const router = useRouter()
 
@@ -455,7 +456,9 @@ function formatDate(value) {
 function queryParams() {
   const params = new URLSearchParams()
 
-  if (search.value.trim()) params.set('q', search.value.trim())
+  const query = asText(search.value).trim()
+
+  if (query) params.set('q', query)
 
   if (dateFrom.value) params.set('date_from', `${dateFrom.value}T00:00:00`)
 

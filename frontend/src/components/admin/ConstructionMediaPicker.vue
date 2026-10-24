@@ -90,6 +90,7 @@
 import { computed, ref, watch } from 'vue'
 
 import { fetchConstructionPreviews } from '../../services/constructionMedia'
+import { asText } from '../../utils/safeValue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false }
@@ -119,7 +120,7 @@ watch(open, value => {
 })
 
 const filtered = computed(() => {
-  const query = search.value.trim().toLowerCase()
+  const query = asText(search.value).trim().toLowerCase()
 
   if (!query) {
     return items.value

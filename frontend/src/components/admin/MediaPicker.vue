@@ -174,6 +174,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { mediaUrl, variantUrl } from '../../services/adminMedia'
 import { adminFetch } from '../../services/adminApi'
+import { asList, asText } from '../../utils/safeValue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -261,14 +262,16 @@ function mediaQuery(limit, offsetValue) {
   params.set('limit', String(limit))
   params.set('offset', String(offsetValue))
 
-  const query = search.value.trim()
+  const query = asText(search.value).trim()
 
   if (query) {
     params.set('search', query)
   }
 
-  if (categoryIds.value.length) {
-    params.set('category_ids', categoryIds.value.join(','))
+  const categories = asList(categoryIds.value)
+
+  if (categories.length) {
+    params.set('category_ids', categories.join(','))
   }
 
   return params

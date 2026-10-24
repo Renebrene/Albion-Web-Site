@@ -815,6 +815,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { MEDIA_SECTION } from '../composables/useMediaCategory'
 import { mediaUrl, variantUrl } from '../services/adminMedia'
+import { asList, asText } from '../utils/safeValue'
 import {
   adminFetch,
   clearAdminSession,
@@ -1121,7 +1122,7 @@ const filteredMediaItems = computed(() => mediaItems.value)
 const hasActiveFilters = computed(() => {
   return Boolean(
     searchQuery.value ||
-    filterCategoryId.value.length > 0 ||
+    asList(filterCategoryId.value).length > 0 ||
     filterMediaType.value !== 'all' ||
     dateFrom.value ||
     dateTo.value
@@ -1147,15 +1148,16 @@ watch(
 
 function mediaFilterParams() {
   const params = new URLSearchParams()
-  const search = searchQuery.value.trim()
+  const search = asText(searchQuery.value).trim()
   if (search) params.set('search', search)
   if (filterMediaType.value !== 'all') {
     params.set('media_type', filterMediaType.value)
   }
   if (dateFrom.value) params.set('date_from', dateFrom.value)
   if (dateTo.value) params.set('date_to', dateTo.value)
-  if (filterCategoryId.value.length) {
-    params.set('category_ids', filterCategoryId.value.join(','))
+  const categoryIds = asList(filterCategoryId.value)
+  if (categoryIds.length) {
+    params.set('category_ids', categoryIds.join(','))
   }
   return params
 }

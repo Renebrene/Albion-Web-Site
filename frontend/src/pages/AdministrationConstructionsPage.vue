@@ -711,6 +711,7 @@ import {
   setConstructionPhotoOverride
 } from '../services/constructionMedia'
 import { isDynamicSide } from '../utils/constructionGroups'
+import { asList, asText } from '../utils/safeValue'
 import { adminFetch } from '../services/adminApi'
 
 /* Подсветка включена, если в источнике «Да» */
@@ -1086,7 +1087,9 @@ const filterCityOptions = computed(() => distinctValues(item => item.city))
 const filterFormatOptions = computed(() => distinctValues(item => item.type))
 
 const visibleConstructions = computed(() => {
-  const query = searchQuery.value.trim().toLowerCase()
+  const query = asText(searchQuery.value).trim().toLowerCase()
+  const cities = asList(locationFilter.value)
+  const formats = asList(formatFilter.value)
 
   return displayConstructions.value.filter(item => {
     // Фильтр «Показать изменённые» — оставляем только конструкции с правками.
@@ -1100,14 +1103,11 @@ const visibleConstructions = computed(() => {
       if (!haystack.includes(query)) return false
     }
 
-    if (
-      locationFilter.value.length &&
-      !locationFilter.value.includes(item.city)
-    ) {
+    if (cities.length && !cities.includes(item.city)) {
       return false
     }
 
-    if (formatFilter.value.length && !formatFilter.value.includes(item.type)) {
+    if (formats.length && !formats.includes(item.type)) {
       return false
     }
 
