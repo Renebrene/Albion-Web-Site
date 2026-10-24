@@ -96,21 +96,57 @@ function createStore(key) {
     return null
   }
 
+  /*
+   * Облегчённый снимок: результаты поиска (позиции с фото и ссылками)
+   * тяжёлые, а sessionStorage ограничен. При переполнении оставляем их
+   * только у последнего ответа, вместо того чтобы молча перестать
+   * сохранять чат вовсе.
+   */
+  function messagesForStorage() {
+    const slice = messages.value.slice(-50)
+
+    let lastWithResults = -1
+
+    for (let index = slice.length - 1; index >= 0; index -= 1) {
+      if (slice[index]?.results) {
+        lastWithResults = index
+        break
+      }
+    }
+
+    return slice.map((message, index) =>
+      index === lastWithResults ? message : { ...message, results: undefined }
+    )
+  }
+
   function persist() {
+    const base = {
+      version: STORAGE_VERSION,
+      sessionId: sessionId.value
+    }
+
     try {
       sessionStorage.setItem(
         storageKey,
-        JSON.stringify({
-          version: STORAGE_VERSION,
-          sessionId: sessionId.value,
-          messages: messages.value.slice(-50)
-        })
+        JSON.stringify({ ...base, messages: messages.value.slice(-50) })
       )
+    } catch {
+      /* Квота: пробуем снимок без тяжёлых результатов в старых ответах. */
+      try {
+        sessionStorage.setItem(
+          storageKey,
+          JSON.stringify({ ...base, messages: messagesForStorage() })
+        )
+      } catch {
+        // Private browsing or disabled storage should not break chat.
+      }
+    }
 
+    try {
       // Старый ключ без версии больше не нужен.
       sessionStorage.removeItem('albion_smart_chat')
     } catch {
-      // Private browsing or disabled storage should not break chat.
+      /* storage может быть недоступен */
     }
   }
 

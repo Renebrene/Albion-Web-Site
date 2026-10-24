@@ -50,6 +50,7 @@
     </div>
 
     <div
+      ref="sessionRef"
       class="chat-session"
       :style="{ '--cols': columns }"
       role="log"
@@ -87,7 +88,10 @@
           v-for="(message, ai) in exchange.answers"
           :key="`answer-${index}-${ai}`"
         >
-          <div class="chat-message chat-message-assistant">
+          <div
+            class="chat-message chat-message-assistant"
+            :class="{ 'chat-message-error': message.error }"
+          >
             <div class="chat-message-row">
               <div class="chat-bubble">{{ message.text }}</div>
               <button
@@ -110,6 +114,23 @@
             </div>
             <div v-if="message.warnings?.length" class="chat-warning">
               {{ message.warnings.join(' ') }}
+            </div>
+
+            <!-- Ошибку видно по оформлению, и её можно повторить, не
+                 набирая вопрос заново. -->
+            <div
+              v-if="message.error && exchange.question"
+              class="chat-retry-row"
+            >
+              <q-btn
+                flat
+                dense
+                no-caps
+                size="sm"
+                label="Повторить"
+                :disable="loading"
+                @click="retryExchange(exchange)"
+              />
             </div>
           </div>
 
@@ -299,12 +320,13 @@
     </div>
 
     <form class="chat-input" @submit.prevent="submit">
+      <!-- Поле остаётся доступным, пока ждём ответ: можно набирать
+           следующий вопрос (отправка всё равно заблокирована). -->
       <textarea
         v-model="draft"
         rows="2"
         maxlength="2000"
         placeholder="Например: свободные пиллары на декабрь"
-        :disabled="loading"
         @keydown.ctrl.enter.prevent="submit"
       />
       <div class="chat-input-actions">
@@ -335,7 +357,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useChatWorkspace } from '../../composables/useChatWorkspace'
@@ -535,6 +557,36 @@ const exchanges = computed(() => {
 
 /* Ключ сообщения, текст которого только что скопирован (для иконки-галочки). */
 const copiedKey = ref('')
+
+/*
+ * Лента не прокручивалась: в компактном окне новый ответ легко оказывался
+ * вне видимости. Прокручиваем к последнему сообщению при его появлении.
+ */
+const sessionRef = ref(null)
+
+watch(
+  () => messages.value.length,
+  async () => {
+    await nextTick()
+
+    const el = sessionRef.value
+
+    if (el) {
+      el.scrollTop = el.scrollHeight
+    }
+  }
+)
+
+/* Повтор неудачного запроса: отправляем тот же вопрос заново. */
+function retryExchange(exchange) {
+  const text = String(exchange?.question?.text || '').trim()
+
+  if (!text || loading.value) {
+    return
+  }
+
+  void send(text)
+}
 let copyTimer = null
 
 async function copyMessage(message, key) {
@@ -1065,6 +1117,17 @@ function loadLabel(row) {
 }
 .chat-message-assistant {
   align-self: flex-start;
+}
+
+/* Сообщение об ошибке: отличается от обычного ответа ассистента. */
+.chat-message-error .chat-bubble {
+  border: 1px solid #efc1bd;
+  background: #fdf2f1;
+  color: #b3261e;
+}
+
+.chat-retry-row {
+  margin-top: 4px;
 }
 .chat-bubble {
   max-width: 90%;
