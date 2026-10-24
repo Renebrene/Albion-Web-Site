@@ -127,8 +127,19 @@ const downloading = ref(false)
 /* Файл не открылся (404/битая ссылка) — показываем сообщение. */
 const imageFailed = ref(false)
 
+/*
+ * Сброс «не загрузилось» — и при смене картинки, и при каждом открытии окна:
+ * иначе повторное открытие той же битой ссылки сразу показывало «Не удалось
+ * загрузить изображение» без новой попытки (url не менялся — watch молчал).
+ */
 watch(url, () => {
   imageFailed.value = false
+})
+
+watch(isOpen, open => {
+  if (open) {
+    imageFailed.value = false
+  }
 })
 
 /*
@@ -213,7 +224,13 @@ async function handleDownload() {
     const objectUrl = URL.createObjectURL(blob)
 
     triggerDownload(objectUrl, targetName)
-    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+
+    /*
+     * Ссылку отзываем с запасом: нулевой таймаут — известная причина
+     * обрывов скачивания больших blob в Firefox/Safari (в этом же файле
+     * для PDF стоит 60 с).
+     */
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000)
   } catch (error) {
     console.warn(
       '[PhotoViewer] не удалось скачать через fetch, использую прямую ссылку:',
