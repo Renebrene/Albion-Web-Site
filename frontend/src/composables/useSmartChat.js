@@ -29,9 +29,19 @@ function createStore(key) {
    */
   let generation = 0
 
+  /*
+   * Активный запрос ответа: нужен кнопке «Стоп» и сбросу, чтобы прервать
+   * ожидание, а не блокировать чат до перезагрузки страницы.
+   */
+  let activeController = null
+  let stopRequested = false
+
   function invalidate() {
     generation += 1
     loading.value = false
+    stopRequested = false
+    activeController?.abort()
+    activeController = null
   }
 
   function restore() {
@@ -111,22 +121,31 @@ function createStore(key) {
     if (!text || loading.value) return null
 
     const requestGeneration = generation
+    const controller = new AbortController()
 
     error.value = ''
     loading.value = true
+    stopRequested = false
+    activeController = controller
     messages.value.push({ role: 'user', text })
 
+    /* Индекс оптимистичного сообщения: при отмене откатываем его. */
+    const messageIndex = messages.value.length - 1
+
     try {
-      const response = await sendChatMessage({
-        session_id: sessionId.value,
-        request_id:
-          typeof crypto?.randomUUID === 'function'
-            ? crypto.randomUUID()
-            : undefined,
-        message: text,
-        context,
-        chat_key: key
-      })
+      const response = await sendChatMessage(
+        {
+          session_id: sessionId.value,
+          request_id:
+            typeof crypto?.randomUUID === 'function'
+              ? crypto.randomUUID()
+              : undefined,
+          message: text,
+          context,
+          chat_key: key
+        },
+        controller.signal
+      )
 
       /* Чат очистили/пересоздали, пока шёл запрос — ответ уже не нужен. */
       if (generation !== requestGeneration) {
@@ -153,25 +172,67 @@ function createStore(key) {
         return null
       }
 
-      error.value = exc?.message || 'Не удалось обратиться к помощнику.'
+      /*
+       * Пользователь нажал «Стоп»: считаем, что сообщение не отправлено, —
+       * убираем его из ленты. Текст в поле вернёт панель ввода (send
+       * возвращает null так же, как при ошибке).
+       */
+      if (stopRequested || exc?.code === 'aborted') {
+        if (messages.value[messageIndex]?.role === 'user') {
+          messages.value.splice(messageIndex, 1)
+        }
+
+        return null
+      }
+
+      error.value =
+        exc?.code === 'timeout'
+          ? 'Помощник не ответил вовремя. Попробуйте ещё раз.'
+          : exc?.message || 'Не удалось обратиться к помощнику.'
+
       messages.value.push({
         role: 'assistant',
         text: `Ошибка: ${error.value}`,
         error: true
       })
       persist()
-      return null
+
+      /*
+       * После таймаута сообщение пользователя остаётся в истории: запрос
+       * мог дойти до сервера. Текст в поле ввода не возвращаем, иначе он
+       * задвоится, — панель отличает таймаут от прочих ошибок по результату.
+       */
+      return exc?.code === 'timeout' ? { timedOut: true } : null
     } finally {
+      if (activeController === controller) {
+        activeController = null
+      }
+
       if (generation === requestGeneration) {
         loading.value = false
       }
     }
   }
 
+  /* Пользователь прервал ожидание ответа (кнопка «Стоп»). */
+  function stop() {
+    if (!loading.value || !activeController) {
+      return
+    }
+
+    stopRequested = true
+    activeController.abort()
+  }
+
   async function reset() {
     generation += 1
     const resetGeneration = generation
     const activeSession = sessionId.value
+
+    /* Незавершённый ответ уже не нужен: прерываем запрос. */
+    stopRequested = false
+    activeController?.abort()
+    activeController = null
 
     /* Блокируем новые отправки, пока чистим серверную сессию. */
     loading.value = true
@@ -205,6 +266,7 @@ function createStore(key) {
     loading,
     error,
     send,
+    stop,
     reset,
     persist,
     invalidate

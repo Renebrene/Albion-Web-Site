@@ -318,6 +318,9 @@
           :loading="loading"
           :disable="!draft.trim() || loading"
         />
+        <!-- Пока ждём ответ, даём прервать ожидание: иначе зависший запрос
+             блокировал бы чат до перезагрузки страницы. -->
+        <q-btn v-if="loading" flat dense no-caps label="Стоп" @click="stop" />
         <q-btn
           flat
           dense
@@ -405,7 +408,7 @@ const expanded = ref(false)
 const collapseToSides = computed(
   () => props.variant === 'compact' || availableMode.value === 'sides'
 )
-const { messages, loading, lastResponse, send, reset } = useSmartChat(
+const { messages, loading, lastResponse, send, stop, reset } = useSmartChat(
   props.chatKey
 )
 
