@@ -584,6 +584,14 @@ watch(index, () => {
 
   // Индексы кадров hero у каждого слайда свои — сбрасываем отметки загрузки.
   loadedHeroBgs.clear()
+
+  /*
+   * Отмечаем кадры явно: если heroIndex уже был 0 и число кадров у нового
+   * слайда совпало, watch([heroIndex, heroCount]) не сработает, и фон
+   * hero-кадра остался бы не подставленным до следующего тика.
+   */
+  markHeroBg(heroIndex.value)
+
   restartHeroAutoplay()
 })
 
