@@ -406,33 +406,83 @@ function resolveFullOutput(sourceItems, options) {
  * options: { withPhotos, withMaps, fullOutput, title, requisites }.
  */
 /*
+ * Экспорт собирает файл на сервере через LibreOffice, поэтому может
+ * занимать десятки секунд. Ограничиваем ожидание: без таймаута зависший
+ * запрос оставлял панель портфеля заблокированной (busy не сбрасывался)
+ * до перезагрузки страницы.
+ */
+const EXPORT_TIMEOUT_MS = 120000
+
+function exportError(message, code) {
+  const error = new Error(message)
+
+  error.code = code
+
+  return error
+}
+
+/*
  * Запрашивает собранный файл портфеля у backend и возвращает blob.
  * payload: { title, withPhotos, withMaps, fullOutput, requisites }.
+ *
+ * Таймаут покрывает и запрос, и чтение тела: сервер отдаёт ответ
+ * заголовками раньше, чем дописывает файл, поэтому снимать таймер сразу
+ * после fetch было бы недостаточно.
  */
 async function requestPortfolioFile(format, items, payload) {
-  const response = await fetch(
-    `${API_URL}/portfolio/export?format=${encodeURIComponent(format)}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: payload.title,
-        items,
-        with_photos: payload.withPhotos,
-        with_maps: payload.withMaps,
-        full_output: payload.fullOutput,
-        requisites: payload.requisites
-      })
+  const controller = new AbortController()
+  let timedOut = false
+
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, EXPORT_TIMEOUT_MS)
+
+  try {
+    const response = await fetch(
+      `${API_URL}/portfolio/export?format=${encodeURIComponent(format)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
+        body: JSON.stringify({
+          title: payload.title,
+          items,
+          with_photos: payload.withPhotos,
+          with_maps: payload.withMaps,
+          full_output: payload.fullOutput,
+          requisites: payload.requisites
+        })
+      }
+    )
+
+    if (!response.ok) {
+      throw new Error(`Не удалось сформировать файл (${response.status})`)
     }
-  )
 
-  if (!response.ok) {
-    throw new Error(`Не удалось сформировать файл (${response.status})`)
-  }
+    return {
+      blob: await response.blob(),
+      filename: responseFilename(response)
+    }
+  } catch (error) {
+    if (timedOut) {
+      throw exportError(
+        'Сервер не успел сформировать файл за 2 минуты. Попробуйте ещё раз.',
+        'timeout'
+      )
+    }
 
-  return {
-    blob: await response.blob(),
-    filename: responseFilename(response)
+    if (error?.name === 'AbortError') {
+      throw exportError('Формирование файла прервано.', 'aborted')
+    }
+
+    if (error instanceof TypeError) {
+      throw exportError('Не удалось соединиться с сервером.', 'network')
+    }
+
+    throw error
+  } finally {
+    clearTimeout(timer)
   }
 }
 

@@ -149,6 +149,12 @@
         действия за лишним кликом. Три основных формата вынесены наружу,
         редкие остались в «…» (exportOptions минус вынесенные).
       -->
+      <!-- Пока файл собирается на сервере (LibreOffice), показываем, что
+           именно происходит: одних только погашенных кнопок недостаточно. -->
+      <span v-if="busy" class="portfolio-busy" role="status">
+        {{ busyLabel }}
+      </span>
+
       <div class="portfolio-icons" role="group" aria-label="Вывод портфеля">
         <q-btn
           v-for="badge in fileBadges"
@@ -157,6 +163,7 @@
           dense
           class="portfolio-icon"
           :disable="!count || Boolean(busy)"
+          :loading="busy === badge.value"
           :aria-label="badge.title"
           @click="exportAs(badge.value)"
         >
@@ -201,6 +208,7 @@
           class="portfolio-icon"
           icon="print"
           :disable="!count || Boolean(busy)"
+          :loading="busy === 'print'"
           aria-label="Печать"
           @click="handlePrint"
         >
@@ -811,6 +819,11 @@ function runToastAction() {
 
 const busy = ref('')
 const saving = ref(false)
+
+/* Подпись текущей операции: формат файла или подготовка печати. */
+const busyLabel = computed(() =>
+  busy.value === 'print' ? 'Готовим версию для печати…' : 'Формируем файл…'
+)
 
 /*
  * «Полный вывод»: фото и карта добавляются в документ автоматически
@@ -1754,6 +1767,14 @@ function handleClear() {
   align-items: center;
 
   gap: 2px;
+}
+
+/* Статус долгой операции (сборка файла на сервере). */
+.portfolio-busy {
+  color: #607d8b;
+
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .portfolio-icon {
