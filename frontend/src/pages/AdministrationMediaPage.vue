@@ -65,6 +65,7 @@
 
           <q-card-section>
             <q-linear-progress
+              :indeterminate="uploadIndeterminate"
               :value="uploadProgress / 100"
               size="8px"
               rounded
@@ -72,7 +73,11 @@
             />
 
             <div class="upload-progress-text">
-              {{ Math.round(uploadProgress) }}%
+              {{
+                uploadIndeterminate
+                  ? 'Отправка…'
+                  : `${Math.round(uploadProgress)}%`
+              }}
             </div>
 
             <div class="upload-queue-list">
@@ -808,6 +813,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { MEDIA_SECTION } from '../composables/useMediaCategory'
 import { mediaUrl, variantUrl } from '../services/adminMedia'
 import {
   adminFetch,
@@ -851,6 +857,13 @@ function onUploadDialogHide() {
   uploadCurrentIndex.value = -1
 }
 const uploadProgress = ref(0)
+
+/*
+ * Одиночная загрузка: байтовый прогресс fetch не отдаёт, поэтому полоса
+ * раньше стояла на 0% всё время отправки большого файла. Для одного файла
+ * показываем неопределённый индикатор, для очереди — долю готовых файлов.
+ */
+const uploadIndeterminate = ref(false)
 const uploadCurrentIndex = ref(-1)
 
 const mediaItems = ref([])
@@ -872,7 +885,12 @@ const mediaStatsTimer = ref(null)
 
 const mediaCategories = ref([])
 const loadingCategories = ref(false)
-const uploadCategoryId = ref([1])
+/*
+ * Раздел загрузки по умолчанию. Пусто — до загрузки списка разделов;
+ * дальше подставляем раздел «Медиа» (см. loadMediaCategories). Раньше
+ * здесь был захардкожен id=1, которого могло не существовать.
+ */
+const uploadCategoryId = ref([])
 const filterCategoryId = ref([])
 const filterMediaType = ref('all')
 
@@ -941,7 +959,12 @@ function prepareUploadQueue(files) {
     file: item,
     name: item.name,
     alt: '',
-    categoryId: [1],
+    /* Раздел, выбранный в очереди загрузки (не захардкоженный id). */
+    categoryId: uploadCategoryId.value.length
+      ? [...uploadCategoryId.value]
+      : mediaCategories.value.length
+        ? [mediaCategories.value[0].id]
+        : [],
     status: 'pending',
     error: ''
   }))
@@ -1313,13 +1336,18 @@ async function loadMediaCategories() {
 
     mediaCategories.value = data?.categories || []
 
-    if (
-      mediaCategories.value.length &&
-      !mediaCategories.value.some(category =>
-        uploadCategoryId.value.includes(category.id)
-      )
-    ) {
-      uploadCategoryId.value = [mediaCategories.value[0].id]
+    const selectionValid = mediaCategories.value.some(category =>
+      uploadCategoryId.value.includes(category.id)
+    )
+
+    if (mediaCategories.value.length && !selectionValid) {
+      /* Приоритет — раздел «Медиа», иначе первый в списке. */
+      const preferred =
+        mediaCategories.value.find(
+          category => category.name === MEDIA_SECTION.media
+        ) || mediaCategories.value[0]
+
+      uploadCategoryId.value = [preferred.id]
     }
   } catch {
     catalogError.value = 'Не удалось загрузить категории'
@@ -1487,10 +1515,6 @@ async function uploadQueueItem(item) {
     formData.append('title', item.title.trim())
   }
 
-  if (item.file.type.startsWith('video/') && item.previewTime > 0) {
-    formData.append('preview_time', String(item.previewTime))
-  }
-
   try {
     const response = await adminFetch('/api/admin/media', {
       method: 'POST',
@@ -1537,6 +1561,7 @@ function excludeUploadQueueItem(item) {
 async function uploadSingleQueue(item) {
   uploading.value = true
   uploadProgress.value = 0
+  uploadIndeterminate.value = true
   uploadCurrentIndex.value = uploadQueue.value.indexOf(item)
 
   beginUploadSession()
@@ -1554,6 +1579,7 @@ async function uploadSingleQueue(item) {
     }
   } finally {
     uploading.value = false
+    uploadIndeterminate.value = false
     uploadCurrentIndex.value = -1
     uploadAbort = null
   }
@@ -1573,6 +1599,8 @@ async function uploadAllQueue() {
 
   uploading.value = true
   uploadProgress.value = 0
+  /* Для очереди прогресс осмысленный: доля отправленных файлов. */
+  uploadIndeterminate.value = false
   uploadCurrentIndex.value = -1
 
   beginUploadSession()
@@ -1672,11 +1700,27 @@ onMounted(() => {
   loadMediaStats()
 
   mediaStatsTimer.value = window.setInterval(() => {
+    /* Скрытая вкладка не опрашивает сервер впустую. */
+    if (document.hidden) {
+      return
+    }
+
     loadMediaStats()
   }, 30000)
+
+  document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
+/* Вкладка снова видима — обновляем статистику, не дожидаясь интервала. */
+function onVisibilityChange() {
+  if (!document.hidden) {
+    loadMediaStats()
+  }
+}
+
 onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+
   if (mediaStatsTimer.value) {
     window.clearInterval(mediaStatsTimer.value)
     mediaStatsTimer.value = null
