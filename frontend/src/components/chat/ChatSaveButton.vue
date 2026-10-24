@@ -1,6 +1,12 @@
 <template>
   <div class="chat-save" :class="{ 'is-compact': compact }">
+    <!--
+      Сохранение чатов живёт в личном кабинете: пока он скрыт флагом
+      ACCOUNT_UI_ENABLED, кнопка вела бы в тупик («Зайдите в личный
+      кабинет», а вход недоступен). Портфель прячет свой блок так же.
+    -->
     <q-btn
+      v-if="ACCOUNT_UI_ENABLED"
       flat
       dense
       no-caps
@@ -27,14 +33,19 @@
 
     <!-- Тултип без авторизации: появляется по клику и гаснет сам. -->
     <transition name="chat-save-fade">
-      <span v-if="tip" class="chat-save-tip">Зайдите в личный кабинет</span>
+      <span v-if="ACCOUNT_UI_ENABLED && tip" class="chat-save-tip">
+        Зайдите в личный кабинет
+      </span>
     </transition>
 
     <span v-if="clearArmed" class="chat-save-hint is-warn">
       Нажмите ещё раз, чтобы отменить
     </span>
 
-    <span v-else-if="!tip && savedAt" class="chat-save-hint">
+    <span
+      v-else-if="ACCOUNT_UI_ENABLED && !tip && savedAt"
+      class="chat-save-hint"
+    >
       Сохранено в {{ savedAt }}
     </span>
 
@@ -45,6 +56,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
 
+import { ACCOUNT_UI_ENABLED } from '../../config/features'
 import { useChatWorkspace } from '../../composables/useChatWorkspace'
 
 const props = defineProps({
