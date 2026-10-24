@@ -150,6 +150,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="geo-modal-title"
+      @keydown="onModalKeydown"
     >
       <button
         ref="closeButtonRef"
@@ -340,6 +341,48 @@ watch(
   /* post: кнопка закрытия уже отрисована. */
   { flush: 'post' }
 )
+
+/*
+ * Удержание Tab внутри окна описания. У окна aria-modal="true", но фокус
+ * всё равно уходил на карточки колоды и кнопки слайда за подложкой.
+ */
+function onModalKeydown(event) {
+  if (event.key !== 'Tab') {
+    return
+  }
+
+  const modal = event.currentTarget
+
+  if (!modal) {
+    return
+  }
+
+  const focusable = modal.querySelectorAll(
+    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+  )
+
+  if (!focusable.length) {
+    return
+  }
+
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  const active = document.activeElement
+
+  if (event.shiftKey) {
+    if (active === first || !modal.contains(active)) {
+      event.preventDefault()
+      last.focus()
+    }
+
+    return
+  }
+
+  if (active === last || !modal.contains(active)) {
+    event.preventDefault()
+    first.focus()
+  }
+}
 
 const locations = computed(() => props.slide?.geo?.locations || [])
 

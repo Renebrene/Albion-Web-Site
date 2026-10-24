@@ -37,6 +37,15 @@ function surfaceIdOf(item) {
   return id === undefined || id === null || id === '' ? null : id
 }
 
+/*
+ * Заблокированный месяц — действительно отключённая кнопка, а не только
+ * класс: до первого взаимодействия попап рисовался как рабочий, а клик
+ * молча ничего не делал.
+ */
+function lockedAttrs(locked) {
+  return locked ? ' disabled aria-disabled="true"' : ''
+}
+
 function monthCell(item, month) {
   const surfaceId = surfaceIdOf(item)
   const selected =
@@ -57,7 +66,7 @@ function monthCell(item, month) {
   return `
     <button
       type="button"
-      class="popup-month ${monthState(item, month.full)}${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"
+      class="popup-month ${monthState(item, month.full)}${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"${lockedAttrs(locked)}
       aria-pressed="${selected ? 'true' : 'false'}"
       title="${escapeHtml(getMonthStatusLabel(item, month.full))}"${pfAttrs}
     >
@@ -106,7 +115,7 @@ function videoMonthBlock(item) {
         return `
           <button
             type="button"
-            class="popup-month ${state} popup-month--video${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"
+            class="popup-month ${state} popup-month--video${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"${lockedAttrs(locked)}
             aria-pressed="${selected ? 'true' : 'false'}"
             title="${escapeHtml(title)}"${pfAttrs}
           >
@@ -372,7 +381,7 @@ function sideAggMonthCell(group, month) {
   return `
     <button
       type="button"
-      class="popup-month ${state}${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"
+      class="popup-month ${state}${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"${lockedAttrs(locked)}
       aria-pressed="${selected ? 'true' : 'false'}"
       title="${escapeHtml(title)}"${pfAttrs}
     >

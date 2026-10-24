@@ -53,6 +53,7 @@
           type="button"
           class="chip"
           :class="{ active: selectedMonths.includes(month.value) }"
+          :aria-pressed="selectedMonths.includes(month.value)"
           @click="toggleMonth(month.value)"
         >
           {{ month.label }}
@@ -71,6 +72,7 @@
           type="button"
           class="chip"
           :class="{ active: selectedTypes.includes(type) }"
+          :aria-pressed="selectedTypes.includes(type)"
           :disabled="isLastSelectedType(type)"
           :title="
             isLastSelectedType(type)
