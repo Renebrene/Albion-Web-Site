@@ -4,7 +4,17 @@
 
     <div v-if="initError" class="map-error" role="alert">
       <p>{{ initError }}</p>
-      <button type="button" @click="retryInit">Повторить</button>
+      <button type="button" :disabled="initializing" @click="retryInit">
+        Повторить
+      </button>
+    </div>
+
+    <!--
+      Яндекс был настроен, но не поднялся: карта молча работала на OSM.
+      Оператору об этом стоит знать.
+    -->
+    <div v-if="engineFallback" class="map-engine-note" role="status">
+      Карта работает на OpenStreetMap: Яндекс.Карты недоступны
     </div>
   </div>
 </template>
@@ -68,6 +78,12 @@ const mapElement = ref(null)
  */
 const mapApi = shallowRef(null)
 const activeEngine = ref('')
+
+/* Яндекс был настроен, но упал — карта работает на Leaflet. */
+const engineFallback = ref(false)
+
+/* Инициализация/повторная инициализация идёт: кнопку не дёргаем. */
+const initializing = ref(false)
 
 /* Компонент размонтирован: асинхронная инициализация не должна продолжать
    работу с уже удалённым DOM/картой. */
@@ -168,6 +184,9 @@ async function initMap() {
       } catch {
         /* карта могла не создаться вовсе */
       }
+
+      /* Сообщаем пользователю, что карта на другом движке. */
+      engineFallback.value = true
     }
   }
 
@@ -232,6 +251,9 @@ async function initialize() {
     } catch (error) {
       /* карта могла не успеть создаться */
     }
+
+    /* Разбудить whenReady(): иначе ожидания страницы висят вечно. */
+    resolveReady()
     return
   }
 
@@ -262,12 +284,14 @@ async function initialize() {
   }
 
   if (disposed) {
+    resolveReady()
     return
   }
 
   await nextTick()
 
   if (disposed) {
+    resolveReady()
     return
   }
 
@@ -278,25 +302,33 @@ async function initialize() {
 }
 
 async function retryInit() {
-  if (disposed) {
+  /* Двойной клик по «Повторить» давал две параллельные инициализации. */
+  if (disposed || initializing.value) {
     return
   }
 
-  if (mapApi.value) {
-    try {
-      mapApi.value.destroyMap()
-    } catch (error) {
-      /* карта могла быть уже уничтожена */
+  initializing.value = true
+
+  try {
+    if (mapApi.value) {
+      try {
+        mapApi.value.destroyMap()
+      } catch (error) {
+        /* карта могла быть уже уничтожена */
+      }
     }
+
+    mapApi.value = null
+    activeEngine.value = ''
+    engineFallback.value = false
+    initError.value = ''
+    isReady.value = false
+    readyPromise = createReadyPromise()
+
+    await initialize()
+  } finally {
+    initializing.value = false
   }
-
-  mapApi.value = null
-  activeEngine.value = ''
-  initError.value = ''
-  isReady.value = false
-  readyPromise = createReadyPromise()
-
-  await initialize()
 }
 
 onMounted(async () => {
@@ -428,6 +460,25 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-size: 12px;
   font-weight: 800;
+}
+
+/* Ненавязчивая пометка о смене движка карты. */
+.map-engine-note {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1100;
+
+  padding: 6px 10px;
+
+  border: 1px solid #e6c77a;
+  border-radius: 8px;
+  background: rgba(255, 248, 230, 0.95);
+
+  color: #8a5a00;
+
+  font-size: 11px;
+  line-height: 1.3;
 }
 </style>
 
