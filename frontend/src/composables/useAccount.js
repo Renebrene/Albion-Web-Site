@@ -79,7 +79,11 @@ function setToken(value) {
 /*
  * Единая обёртка над fetch:
  * - ошибки сервера приходят как JSON { detail },
- * - 4xx поднимаются как Error(detail).
+ * - 4xx поднимаются как Error(detail) со статусом в error.status
+ *   (status = 0 — сеть недоступна, ответа не было).
+ *
+ * Статус нужен вызывающему коду: «токен протух» (401/403) и «сервер
+ * недоступен» требуют разной реакции.
  */
 async function apiRequest(path, { method = 'GET', body, auth = false } = {}) {
   const headers = {}
@@ -103,7 +107,13 @@ async function apiRequest(path, { method = 'GET', body, auth = false } = {}) {
   try {
     response = await fetch(`${API_URL}${path}`, options)
   } catch {
-    throw new Error('Не удалось соединиться с сервером. Проверьте подключение.')
+    const failure = new Error(
+      'Не удалось соединиться с сервером. Проверьте подключение.'
+    )
+
+    failure.status = 0
+
+    throw failure
   }
 
   let data = null
@@ -118,9 +128,13 @@ async function apiRequest(path, { method = 'GET', body, auth = false } = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(
+    const failure = new Error(
       (data && data.detail) || `Ошибка сервера (${response.status})`
     )
+
+    failure.status = response.status
+
+    throw failure
   }
 
   return data || {}
@@ -215,12 +229,20 @@ async function loadMe() {
       )
       return data
     })
-  } catch {
-    /* недействительный/просроченный токен — чистим молча */
-    setToken('')
-    account.value = null
-    requests.value = []
-    requisites.value = emptyRequisites()
+  } catch (exc) {
+    /*
+     * Токен протух только при 401/403 — это и есть выход из кабинета.
+     * Сетевой сбой (status = 0) или 5xx — не повод стирать токен:
+     * сессия цела, а выкинутый пользователь вернуться уже не сможет.
+     * Сообщение об ошибке уже записал run().
+     */
+    if (exc && (exc.status === 401 || exc.status === 403)) {
+      setToken('')
+      account.value = null
+      requests.value = []
+      requisites.value = emptyRequisites()
+    }
+
     return null
   }
 }
