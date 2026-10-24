@@ -10,6 +10,30 @@
       </h2>
     </div>
 
+    <!-- Активный поиск по точке: чем сужена выдача и как это снять -->
+    <section v-if="pointFilter" class="filter-section point-filter-section">
+      <div class="section-label">Поиск по точке</div>
+
+      <div class="point-filter-row">
+        <span class="point-filter-text">
+          {{ pointFilter.title }}
+        </span>
+
+        <button
+          type="button"
+          class="point-filter-remove"
+          title="Убрать точку и показать весь каталог"
+          @click="emit('remove-point')"
+        >
+          снять
+        </button>
+      </div>
+
+      <div v-if="pointFilter.address" class="point-filter-address">
+        {{ pointFilter.address }}
+      </div>
+    </section>
+
     <section class="filter-section">
       <div class="section-title-row month-title-row">
         <div class="section-label">Свободные месяцы</div>
@@ -151,6 +175,15 @@ const props = defineProps({
     default: ''
   },
 
+  /*
+   * Активный поиск по точке: строка-фильтр в блоке фильтров, чтобы было
+   * видно, чем сужена выдача. null — точки нет.
+   */
+  pointFilter: {
+    type: Object,
+    default: null
+  },
+
   selectedMonths: {
     type: Array,
     default: () => []
@@ -192,7 +225,8 @@ const emit = defineEmits([
   'update:monthLogic',
   'update:selectedTypes',
   'update:selectedCities',
-  'focus-city'
+  'focus-city',
+  'remove-point'
 ])
 
 function toggleMonth(value) {
@@ -299,6 +333,48 @@ function clearCities() {
 
 .filter-section {
   margin-top: 22px;
+}
+
+/* Строка активного поиска по точке. */
+.point-filter-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  gap: 8px;
+}
+
+.point-filter-text {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.point-filter-remove {
+  padding: 2px 8px;
+
+  border: 1px dashed currentColor;
+  border-radius: 6px;
+
+  background: transparent;
+
+  color: var(--albion-accent, #e12a1f);
+  cursor: pointer;
+
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.point-filter-remove:hover {
+  background: rgba(225, 42, 31, 0.08);
+}
+
+.point-filter-address {
+  margin-top: 4px;
+
+  color: #66727c;
+
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .section-label {

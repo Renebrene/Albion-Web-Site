@@ -11,8 +11,10 @@
         :months="months"
         :types="types"
         :cities="cities"
+        :point-filter="pointFilterInfo"
         :count-label="sidebarCountLabel"
         @focus-city="focusCity"
+        @remove-point="changeSelectedPoint"
       />
 
       <PointSearchPanel
@@ -1741,6 +1743,83 @@ const pointChipVisible = computed(
     !!fixedSearchPoint.value &&
     (pointPinHovered.value || pointChipHovered.value)
 )
+
+/*
+ * Город точки: по ближайшей к ней конструкции каталога (обратный геокодер
+ * даёт адрес, но не всегда город). Берём только город из справочника,
+ * иначе фильтр не применится.
+ */
+const pointCity = computed(() => {
+  const point = fixedSearchPoint.value
+
+  if (!point) {
+    return ''
+  }
+
+  let nearest = null
+  let nearestDistance = Infinity
+
+  for (const item of constructions.value) {
+    const lat = Number(item?.lat)
+    const lng = Number(item?.lng)
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      continue
+    }
+
+    const distance = (lat - point.lat) ** 2 + (lng - point.lng) ** 2
+
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      nearest = item
+    }
+  }
+
+  const city = String(nearest?.city || '').trim()
+
+  return city && cities.value.includes(city) ? city : ''
+})
+
+/*
+ * Город определяется точкой: как только точка зафиксирована — в закладке
+ * «Точка», в списке или на карте, — ставим в фильтр город этой точки.
+ * Иначе фильтр городов расходился с точкой: выдача сужена радиусом, а
+ * в «Городах / районах» не отмечено ничего.
+ */
+watch(pointCity, city => {
+  if (!city) {
+    return
+  }
+
+  if (pointSelectionState.value !== 'fixed') {
+    return
+  }
+
+  if (sameSelection(selectedCities.value, [city])) {
+    return
+  }
+
+  syncingPointCities = true
+  selectedCities.value = [city]
+
+  nextTick(() => {
+    syncingPointCities = false
+  })
+})
+
+/* Данные строки-фильтра «Поиск по точке» в сайдбаре. */
+const pointFilterInfo = computed(() => {
+  const point = fixedSearchPoint.value
+
+  if (!point || pointSelectionState.value !== 'fixed') {
+    return null
+  }
+
+  return {
+    title: `Радиус ${formatRadius(pointRadius.value)} от точки`,
+    address: String(pointAddress.value || '').trim()
+  }
+})
 
 /*
  * Между пином и чипом есть зазор в несколько пикселей: без задержки чип
