@@ -368,12 +368,32 @@
         {{ toast.text }}
       </div>
     </transition>
+
+    <!-- Подтверждение (опасные действия и уход с несохранёнными правками). -->
+    <q-dialog v-model="confirmOpen" persistent>
+      <q-card class="confirm-dialog">
+        <q-card-section>
+          <div class="confirm-text">{{ confirmText }}</div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat no-caps label="Отмена" @click="resolveConfirm(false)" />
+          <q-btn
+            unelevated
+            no-caps
+            color="negative"
+            :label="confirmAction"
+            @click="resolveConfirm(true)"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { applyAppearanceSettings } from '../boot/settings'
 import { setAvailableMode } from '../config/availableMode'
 import { setShowDynCount } from '../config/dynCount'
@@ -390,6 +410,92 @@ const loading = ref(true)
 const saving = ref(false)
 const presetBusy = ref(false)
 const error = ref('')
+
+/*
+ * Окно подтверждения вместо нативных confirm: спрашиваем и об опасных
+ * действиях (сброс, удаление набора, очистка токена), и при уходе
+ * страницы с несохранёнными настройками.
+ */
+const confirmOpen = ref(false)
+const confirmText = ref('')
+const confirmAction = ref('Подтвердить')
+let confirmResolve = null
+
+function askConfirm(text, action = 'Подтвердить') {
+  return new Promise(resolve => {
+    confirmText.value = String(text || '')
+    confirmAction.value = action
+    confirmResolve = resolve
+    confirmOpen.value = true
+  })
+}
+
+function resolveConfirm(ok) {
+  confirmOpen.value = false
+
+  if (confirmResolve) {
+    const resolve = confirmResolve
+
+    confirmResolve = null
+    resolve(ok)
+  }
+}
+
+/*
+ * Снимок формы: берём после загрузки и после полного сохранения.
+ * По нему понимаем, остались ли несохранённые правки — раньше уход со
+ * страницы терял их молча.
+ */
+const savedSnapshot = ref(null)
+
+function snapshotState() {
+  return JSON.stringify(values.value)
+}
+
+function markSaved() {
+  savedSnapshot.value = snapshotState()
+}
+
+/* Live-сохранение одного ключа: отмечаем сохранённым только его. */
+function markKeySaved(key) {
+  if (savedSnapshot.value === null) {
+    return
+  }
+
+  try {
+    const parsed = JSON.parse(savedSnapshot.value)
+
+    parsed[key] = values.value[key]
+    savedSnapshot.value = JSON.stringify(parsed)
+  } catch {
+    markSaved()
+  }
+}
+
+const dirty = computed(
+  () => savedSnapshot.value !== null && snapshotState() !== savedSnapshot.value
+)
+
+onBeforeRouteLeave(() => {
+  if (!dirty.value) {
+    return true
+  }
+
+  return askConfirm(
+    'Есть несохранённые настройки. Уйти со страницы без сохранения?',
+    'Уйти без сохранения'
+  )
+})
+
+/* Перезагрузка/закрытие вкладки: нативный диалог браузера. */
+function onBeforeUnload(event) {
+  if (!dirty.value) {
+    return
+  }
+
+  event.preventDefault()
+  event.returnValue = ''
+}
 
 const schema = ref([])
 
@@ -515,7 +621,9 @@ async function verifyAlbion() {
 }
 
 async function clearAlbionToken() {
-  if (!confirm('Очистить сохранённый токен Albion?')) return
+  if (!(await askConfirm('Очистить сохранённый токен Albion?', 'Очистить'))) {
+    return
+  }
 
   await saveAlbion({ token: '' })
 }
@@ -601,6 +709,9 @@ async function load(showSpinner = true) {
   try {
     const data = await request('/api/admin/settings')
     applyData(data)
+
+    /* Исходный снимок: с ним сравниваем правки формы. */
+    markSaved()
   } catch (exc) {
     error.value = String(exc)
   } finally {
@@ -642,6 +753,9 @@ async function save() {
       })
     )
     applyData(data)
+
+    /* Сохранено целиком — снимок обновляем, «грязных» правок нет. */
+    markSaved()
 
     // Применяем новые значения сразу — без перезагрузки страницы
     // (в т.ч. режим доступности `available_mode` в списке/попапах/чате).
@@ -759,6 +873,9 @@ async function onFieldChange(key, value) {
         body: JSON.stringify({ settings: { [key]: value } })
       })
     )
+
+    /* Сервер принял только этот ключ — отмечаем сохранённым его. */
+    markKeySaved(key)
     notify('Применено.')
   } catch (exc) {
     notify(String(exc), 'error')
@@ -798,6 +915,7 @@ async function applyPreset(preset) {
       })
     )
     applyData(data)
+    markSaved()
     notify(`Набор «${preset.name}» применён.`)
   } catch (exc) {
     notify(String(exc), 'error')
@@ -807,7 +925,9 @@ async function applyPreset(preset) {
 }
 
 async function deletePreset(preset) {
-  if (!confirm(`Удалить набор «${preset.name}»?`)) return
+  if (!(await askConfirm(`Удалить набор «${preset.name}»?`, 'Удалить'))) {
+    return
+  }
 
   presetBusy.value = true
   try {
@@ -824,7 +944,14 @@ async function deletePreset(preset) {
 }
 
 async function resetToDefaults() {
-  if (!confirm('Сбросить настройки к значениям по умолчанию?')) return
+  if (
+    !(await askConfirm(
+      'Сбросить настройки к значениям по умолчанию?',
+      'Сбросить'
+    ))
+  ) {
+    return
+  }
 
   saving.value = true
   try {
@@ -832,6 +959,7 @@ async function resetToDefaults() {
       request('/api/admin/settings/reset', { method: 'POST' })
     )
     applyData(data)
+    markSaved()
     notify('Настройки сброшены к значениям по умолчанию.')
   } catch (exc) {
     notify(String(exc), 'error')
@@ -841,12 +969,29 @@ async function resetToDefaults() {
 }
 
 onMounted(() => {
+  window.addEventListener('beforeunload', onBeforeUnload)
   load()
   loadAlbion()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
 })
 </script>
 
 <style scoped>
+/* Окно подтверждения. */
+.confirm-dialog {
+  width: min(440px, 92vw);
+  border-radius: 14px;
+}
+
+.confirm-text {
+  color: #17212b;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .administration-settings {
   max-width: 1200px;
   margin: 0 auto;

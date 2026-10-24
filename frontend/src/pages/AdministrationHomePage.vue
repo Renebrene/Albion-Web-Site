@@ -671,12 +671,36 @@
         Сообщений пока нет.
       </div>
     </div>
+
+    <!-- Уход со страницы с несохранёнными правками. -->
+    <q-dialog v-model="leaveDialog" persistent>
+      <q-card class="leave-dialog">
+        <q-card-section>
+          <div class="leave-title">Есть несохранённые изменения</div>
+          <div class="leave-text">
+            Правки слайдов и гео-блока ещё не сохранены. Если уйти сейчас, они
+            пропадут.
+          </div>
+        </q-card-section>
+
+        <q-card-actions align="right">
+          <q-btn flat no-caps label="Остаться" @click="resolveLeave(false)" />
+          <q-btn
+            unelevated
+            no-caps
+            color="negative"
+            label="Уйти без сохранения"
+            @click="resolveLeave(true)"
+          />
+        </q-card-actions>
+      </q-card>
+    </q-dialog>
   </q-page>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
 import MediaSourceButtons from '../components/admin/MediaSourceButtons.vue'
 import { adminRequest as request } from '../services/adminApi'
@@ -687,6 +711,81 @@ const slides = ref([])
 const loading = ref(false)
 const error = ref('')
 const savingKey = ref(null)
+
+/*
+ * Снимок редактируемого состояния: берём после загрузки и после каждого
+ * успешного изменения на сервере. По нему видно, остались ли в форме
+ * несохранённые правки — раньше уход со страницы терял их молча.
+ */
+const savedSnapshot = ref(null)
+
+function stateSnapshot() {
+  return JSON.stringify({ slides: slides.value, geo: geo.value })
+}
+
+function markSaved() {
+  savedSnapshot.value = stateSnapshot()
+}
+
+const dirty = computed(
+  () => savedSnapshot.value !== null && stateSnapshot() !== savedSnapshot.value
+)
+
+/*
+ * Обёртка изменяющих запросов: после успеха форма считается сохранённой.
+ * «Грязным» остаётся только то, что пользователь изменил и не сохранил.
+ */
+async function requestSaved(path, options = {}) {
+  const data = await request(path, options)
+
+  const method = String(options?.method || 'GET').toUpperCase()
+
+  if (method !== 'GET') {
+    await nextTick()
+    markSaved()
+  }
+
+  return data
+}
+
+/*
+ * Уход со страницы с несохранёнными правками подтверждаем окном страницы
+ * (не нативным confirm).
+ */
+const leaveDialog = ref(false)
+let leaveResolve = null
+
+function resolveLeave(leave) {
+  leaveDialog.value = false
+
+  if (leaveResolve) {
+    const resolve = leaveResolve
+
+    leaveResolve = null
+    resolve(leave)
+  }
+}
+
+onBeforeRouteLeave(() => {
+  if (!dirty.value) {
+    return true
+  }
+
+  return new Promise(resolve => {
+    leaveResolve = resolve
+    leaveDialog.value = true
+  })
+})
+
+/* Перезагрузка/закрытие вкладки: нативный диалог браузера. */
+function onBeforeUnload(event) {
+  if (!dirty.value) {
+    return
+  }
+
+  event.preventDefault()
+  event.returnValue = ''
+}
 
 /* Сообщения от полей выбора медиа: ошибки — в баннер, успех — тихо. */
 function onMediaNotify(message, type = 'success') {
@@ -750,7 +849,7 @@ function formatDateTime(value) {
 
 async function loadFeedback() {
   try {
-    const data = await request('/api/admin/home/feedback')
+    const data = await requestSaved('/api/admin/home/feedback')
     feedback.value = data.feedback || []
   } catch (exc) {
     error.value = String(exc)
@@ -759,7 +858,7 @@ async function loadFeedback() {
 
 async function loadGeo() {
   try {
-    const data = await request('/api/admin/home/geo')
+    const data = await requestSaved('/api/admin/home/geo')
     geo.value = {
       settings: data.settings || { map_links_enabled: true },
       locations: data.locations || [],
@@ -773,7 +872,7 @@ async function loadGeo() {
 async function saveGeoSettings(value) {
   geo.value.settings.map_links_enabled = Boolean(value)
   try {
-    const data = await request('/api/admin/home/geo/settings', {
+    const data = await requestSaved('/api/admin/home/geo/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ map_links_enabled: Boolean(value) })
@@ -787,7 +886,7 @@ async function saveGeoSettings(value) {
 async function saveGeoWheelMode(value) {
   geo.value.settings.deck_wheel_mode = value
   try {
-    const data = await request('/api/admin/home/geo/settings', {
+    const data = await requestSaved('/api/admin/home/geo/settings', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ deck_wheel_mode: value })
@@ -800,7 +899,7 @@ async function saveGeoWheelMode(value) {
 
 async function addGeoLocation() {
   try {
-    const data = await request('/api/admin/home/geo/locations', {
+    const data = await requestSaved('/api/admin/home/geo/locations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -853,18 +952,21 @@ function removeGeoItem(list, id) {
 
 async function saveGeoLocation(location) {
   try {
-    const data = await request(`/api/admin/home/geo/locations/${location.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        kind: location.kind,
-        label: location.label,
-        map_value: location.map_value,
-        is_active: location.is_active,
-        description: location.description || '',
-        cover_attraction_id: location.cover_attraction_id || null
-      })
-    })
+    const data = await requestSaved(
+      `/api/admin/home/geo/locations/${location.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: location.kind,
+          label: location.label,
+          map_value: location.map_value,
+          is_active: location.is_active,
+          description: location.description || '',
+          cover_attraction_id: location.cover_attraction_id || null
+        })
+      }
+    )
     geo.value.locations = replaceGeoItem(
       geo.value.locations,
       findGeoById(data.locations, location.id)
@@ -877,7 +979,7 @@ async function saveGeoLocation(location) {
 async function removeGeoLocation(location) {
   if (!window.confirm('Удалить локацию?')) return
   try {
-    await request(`/api/admin/home/geo/locations/${location.id}`, {
+    await requestSaved(`/api/admin/home/geo/locations/${location.id}`, {
       method: 'DELETE'
     })
     geo.value.locations = removeGeoItem(geo.value.locations, location.id)
@@ -899,7 +1001,7 @@ async function removeGeoLocation(location) {
 
 async function addGeoAttraction() {
   try {
-    const data = await request('/api/admin/home/geo/attractions', {
+    const data = await requestSaved('/api/admin/home/geo/attractions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -918,7 +1020,7 @@ async function addGeoAttraction() {
 
 async function saveGeoAttraction(attraction) {
   try {
-    const data = await request(
+    const data = await requestSaved(
       `/api/admin/home/geo/attractions/${attraction.id}`,
       {
         method: 'PATCH',
@@ -943,7 +1045,7 @@ async function saveGeoAttraction(attraction) {
 async function removeGeoAttraction(attraction) {
   if (!window.confirm('Удалить достопримечательность?')) return
   try {
-    await request(`/api/admin/home/geo/attractions/${attraction.id}`, {
+    await requestSaved(`/api/admin/home/geo/attractions/${attraction.id}`, {
       method: 'DELETE'
     })
     geo.value.attractions = removeGeoItem(geo.value.attractions, attraction.id)
@@ -963,7 +1065,7 @@ async function removeFeedback(item) {
   if (!window.confirm('Удалить сообщение?')) return
 
   try {
-    const data = await request(`/api/admin/home/feedback/${item.id}`, {
+    const data = await requestSaved(`/api/admin/home/feedback/${item.id}`, {
       method: 'DELETE'
     })
     feedback.value = data.feedback || []
@@ -977,7 +1079,7 @@ async function load() {
   error.value = ''
 
   try {
-    const data = await request('/api/admin/home/slides')
+    const data = await requestSaved('/api/admin/home/slides')
     slides.value = data.slides || []
   } catch (exc) {
     error.value = String(exc)
@@ -989,7 +1091,7 @@ async function load() {
 async function addSlide() {
   error.value = ''
   try {
-    const data = await request('/api/admin/home/slides', {
+    const data = await requestSaved('/api/admin/home/slides', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Новый слайд', text: '' })
@@ -1005,7 +1107,7 @@ async function patchSlide(slide, payload, key) {
   error.value = ''
 
   try {
-    const data = await request(`/api/admin/home/slides/${slide.id}`, {
+    const data = await requestSaved(`/api/admin/home/slides/${slide.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -1045,7 +1147,7 @@ async function removeSlide(slide) {
   if (!window.confirm(`Удалить слайд «${slide.title || slide.id}»?`)) return
 
   try {
-    const data = await request(`/api/admin/home/slides/${slide.id}`, {
+    const data = await requestSaved(`/api/admin/home/slides/${slide.id}`, {
       method: 'DELETE'
     })
     slides.value = data.slides || []
@@ -1056,11 +1158,14 @@ async function removeSlide(slide) {
 
 async function addItem(slide) {
   try {
-    const data = await request(`/api/admin/home/slides/${slide.id}/items`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Новая карточка', text: '' })
-    })
+    const data = await requestSaved(
+      `/api/admin/home/slides/${slide.id}/items`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Новая карточка', text: '' })
+      }
+    )
     slides.value = data.slides || []
   } catch (exc) {
     error.value = String(exc)
@@ -1073,7 +1178,7 @@ async function saveItem(item) {
   error.value = ''
 
   try {
-    const data = await request(`/api/admin/home/items/${item.id}`, {
+    const data = await requestSaved(`/api/admin/home/items/${item.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1101,7 +1206,7 @@ async function removeItem(slide, item) {
   if (!window.confirm('Удалить карточку?')) return
 
   try {
-    const data = await request(`/api/admin/home/items/${item.id}`, {
+    const data = await requestSaved(`/api/admin/home/items/${item.id}`, {
       method: 'DELETE'
     })
     slides.value = data.slides || []
@@ -1122,15 +1227,18 @@ async function addSlideButton(slide) {
   error.value = ''
 
   try {
-    const data = await request(`/api/admin/home/slides/${slide.id}/buttons`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        label: 'Новая кнопка',
-        url: '',
-        variant: 'primary'
-      })
-    })
+    const data = await requestSaved(
+      `/api/admin/home/slides/${slide.id}/buttons`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: 'Новая кнопка',
+          url: '',
+          variant: 'primary'
+        })
+      }
+    )
     slides.value = data.slides || []
   } catch (exc) {
     error.value = String(exc)
@@ -1141,15 +1249,18 @@ async function addItemButton(item) {
   error.value = ''
 
   try {
-    const data = await request(`/api/admin/home/items/${item.id}/buttons`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        label: 'Новая кнопка',
-        url: '',
-        variant: 'primary'
-      })
-    })
+    const data = await requestSaved(
+      `/api/admin/home/items/${item.id}/buttons`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          label: 'Новая кнопка',
+          url: '',
+          variant: 'primary'
+        })
+      }
+    )
     slides.value = data.slides || []
   } catch (exc) {
     error.value = String(exc)
@@ -1161,7 +1272,7 @@ async function saveButton(btn) {
   error.value = ''
 
   try {
-    const data = await request(`/api/admin/home/buttons/${btn.id}`, {
+    const data = await requestSaved(`/api/admin/home/buttons/${btn.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -1182,7 +1293,7 @@ async function removeButton(btn) {
   if (!window.confirm('Удалить кнопку?')) return
 
   try {
-    const data = await request(`/api/admin/home/buttons/${btn.id}`, {
+    const data = await requestSaved(`/api/admin/home/buttons/${btn.id}`, {
       method: 'DELETE'
     })
     slides.value = data.slides || []
@@ -1191,14 +1302,42 @@ async function removeButton(btn) {
   }
 }
 
-onMounted(() => {
-  load()
-  loadFeedback()
-  loadGeo()
+onMounted(async () => {
+  await load()
+  await loadFeedback()
+  await loadGeo()
+
+  /* Исходный снимок: с ним сравниваем правки формы. */
+  markSaved()
+
+  window.addEventListener('beforeunload', onBeforeUnload)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('beforeunload', onBeforeUnload)
 })
 </script>
 
 <style scoped>
+/* Окно «есть несохранённые изменения». */
+.leave-dialog {
+  width: min(440px, 92vw);
+  border-radius: 14px;
+}
+
+.leave-title {
+  margin-bottom: 6px;
+  color: #17212b;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.leave-text {
+  color: #52606a;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 .administration-home {
   max-width: 1100px;
   margin: 0 auto;
