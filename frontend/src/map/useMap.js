@@ -354,12 +354,19 @@ function popupOptions(isDouble) {
 const markerByKey = new Map()
 
 /* Ленивый попап: разметка собирается при открытии и читает свежие items. */
-function bindLazyPopup(entry, isDouble) {
-  entry.marker.bindPopup(() => {
-    entry.html = popupContent(entry.items)
+function lazyPopupContent(entry) {
+  entry.html = popupContent(entry.items)
 
-    return entry.html
-  }, popupOptions(isDouble))
+  return entry.html
+}
+
+function bindLazyPopup(entry, isDouble) {
+  entry.marker.bindPopup(() => lazyPopupContent(entry), popupOptions(isDouble))
+}
+
+/* Ключ состава метки: по нему видно, что данные точки сменились. */
+function itemsKeyOf(items) {
+  return items.map(item => String(item?.id ?? '')).join(',')
 }
 
 /*
@@ -395,6 +402,7 @@ function buildMarker(items, isDouble, lazy) {
   const entry = {
     marker,
     items,
+    itemsKey: itemsKeyOf(items),
     html: '',
     isDouble,
     lazy,
@@ -478,8 +486,14 @@ function renderMarkers() {
       continue
     }
 
-    const itemsChanged = entry.items !== items
+    /*
+     * Состав метки сравниваем по id: массив пересобирается на каждой
+     * отрисовке, поэтому проверка по ссылке была всегда истинной.
+     */
+    const itemsKey = itemsKeyOf(items)
+    const itemsChanged = entry.itemsKey !== itemsKey
 
+    entry.itemsKey = itemsKey
     entry.items = items
 
     // Точка уже на карте — правим только то, что изменилось.
@@ -506,9 +520,14 @@ function renderMarkers() {
         entry.marker.bindPopup(entry.html, popupOptions(isDouble))
       }
     } else if (lazy) {
-      /* Открытый попап обновляем только если данные метки сменились. */
+      /*
+       * Открытый попап обновляем через update(): контент — функция, она
+       * заново собирает разметку из свежих items. Раньше сюда передавали
+       * готовую строку, функция-билдер терялась, и следующее открытие метки
+       * показывало разметку на момент прошлой смены фильтра.
+       */
       if (itemsChanged && entry.marker.isPopupOpen()) {
-        entry.marker.setPopupContent(popupContent(items))
+        entry.marker.getPopup()?.update()
       }
     } else {
       const html = popupContent(items)
