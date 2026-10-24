@@ -66,6 +66,9 @@ let selectedMonths = []
 let renderTimer = null
 let resizeObserver = null
 
+/* Кадр троттлинга boundschange (см. handleBoundsChange). */
+let centerFrame = null
+
 /* =========================================================
    HELPERS
    ========================================================= */
@@ -207,16 +210,29 @@ function dotIconHref(color) {
    MAP
    ========================================================= */
 
+/*
+ * boundschange приходит на каждый кадр панорамирования/зума, а страница
+ * на нём делает getBoundingClientRect и реактивные записи. Считаем центр
+ * не чаще одного раза за кадр.
+ */
 function handleBoundsChange() {
-  if (!map || !centerChangeHandler) {
+  if (!map || !centerChangeHandler || centerFrame !== null) {
     return
   }
 
-  const center = map.getCenter()
+  centerFrame = requestAnimationFrame(() => {
+    centerFrame = null
 
-  centerChangeHandler({
-    lat: center[0],
-    lng: center[1]
+    if (!map || !centerChangeHandler) {
+      return
+    }
+
+    const center = map.getCenter()
+
+    centerChangeHandler({
+      lat: center[0],
+      lng: center[1]
+    })
   })
 }
 
@@ -255,8 +271,8 @@ function createMap(element) {
     }
   )
 
+  /* actionend дублировал финальное boundschange — оставляем одно событие. */
   map.events.add('boundschange', handleBoundsChange)
-  map.events.add('actionend', handleBoundsChange)
 
   clusterer = new ymaps.Clusterer({
     gridSize: 60,
@@ -331,6 +347,15 @@ function syncBalloon(entry) {
  * Цвет, раскладка и ширина вьюпорта посчитаны вызывающим — те же значения
  * потом сравниваются при обновлении существующих меток.
  */
+/*
+ * Состав группы в виде строки: массив items пересобирается на каждой
+ * отрисовке, поэтому сравнение по ссылке всегда давало «изменилось»
+ * и пересобирало балуны всех меток при любом изменении фильтра.
+ */
+function itemsKeyOf(items) {
+  return items.map(item => String(item?.id ?? '')).join(',')
+}
+
 function buildPlacemark({ items, lat, lng, color, isDouble, narrow }) {
   const first = items[0]
 
@@ -372,6 +397,8 @@ function buildPlacemark({ items, lat, lng, color, isDouble, narrow }) {
   const entry = {
     placemark,
     items,
+    /* Состав группы: по нему решаем, нужно ли пересобирать балун. */
+    itemsKey: itemsKeyOf(items),
     html: '',
     isDouble,
     narrow,
@@ -430,8 +457,11 @@ function renderMarkers() {
       continue
     }
 
-    const itemsChanged = entry.items !== items
+    /* Сравнение по составу, а не по ссылке (см. itemsKeyOf). */
+    const itemsKey = itemsKeyOf(items)
+    const itemsChanged = entry.itemsKey !== itemsKey
 
+    entry.itemsKey = itemsKey
     entry.items = items
 
     // Точка уже на карте — правим только то, что изменилось.
@@ -1127,6 +1157,11 @@ function destroyMap() {
     renderTimer = null
   }
 
+  if (centerFrame !== null) {
+    cancelAnimationFrame(centerFrame)
+    centerFrame = null
+  }
+
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
@@ -1136,8 +1171,6 @@ function destroyMap() {
     map.events.remove('boundschange', handleBoundsChange)
 
     map.events.remove('boundschange', scheduleMaskRefresh)
-
-    map.events.remove('actionend', handleBoundsChange)
   }
 
   if (maskRefreshFrame) {

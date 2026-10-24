@@ -28,6 +28,8 @@ let constructions = []
 let selectedMonths = []
 
 let renderTimer = null
+/* Кадр троттлинга события центра карты (см. map.on('move')). */
+let centerFrame = null
 let resizeObserver = null
 
 /* =========================================================
@@ -266,16 +268,29 @@ function createMap(element) {
   // оставляя атрибуцию OpenStreetMap.
   map.attributionControl.setPrefix(false)
 
+  /*
+   * Событие приходит на каждый кадр панорамирования. Страница на нём
+   * делает getBoundingClientRect и реактивные записи, поэтому считаем
+   * центр не чаще одного раза за кадр.
+   */
   map.on('move', () => {
-    if (!map || !centerChangeHandler) {
+    if (!map || !centerChangeHandler || centerFrame !== null) {
       return
     }
 
-    const center = map.getCenter()
+    centerFrame = requestAnimationFrame(() => {
+      centerFrame = null
 
-    centerChangeHandler({
-      lat: center.lat,
-      lng: center.lng
+      if (!map || !centerChangeHandler) {
+        return
+      }
+
+      const center = map.getCenter()
+
+      centerChangeHandler({
+        lat: center.lat,
+        lng: center.lng
+      })
     })
   })
 
@@ -990,6 +1005,11 @@ function destroyMap() {
   if (renderTimer) {
     clearTimeout(renderTimer)
     renderTimer = null
+  }
+
+  if (centerFrame !== null) {
+    cancelAnimationFrame(centerFrame)
+    centerFrame = null
   }
 
   if (resizeObserver) {
