@@ -247,7 +247,17 @@ export function groupSides(items) {
     const type = String(item?.type || '')
       .trim()
       .toLowerCase()
-    const parent = parentSide(sideLabel(item), item.type)
+    const label = sideLabel(item)
+
+    /*
+     * Видеоэкран: «A» и «A(1)» — РАЗНЫЕ стороны, а не сторона и её
+     * поверхность. У экранов индекс в подписи не отбрасываем, иначе две
+     * записи сливались в одну группу, а группа видео рисует только первый
+     * элемент — второй экран не появлялся ни в попапе, ни в списке.
+     */
+    const parent = isScreenFormat(item.type)
+      ? label
+      : parentSide(label, item.type)
     const key = `${parent}\u0000${type}`
     let group = byKey.get(key)
 
