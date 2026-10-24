@@ -1202,13 +1202,58 @@ function cityOptions(currentCity) {
   return [currentCity, ...cities.filter(city => city !== currentCity)]
 }
 
-/* Убрать фото из редактора и освободить object URL. */
-function clearEditingPhoto() {
-  if (!editingItem.value) return
+/*
+ * Убирает переопределение фото: возвращает фото из каталога и сохраняет
+ * это на сервере.
+ *
+ * Раньше функция только чистила поля в форме (photo = ''), а сохранение
+ * ничего не отправляло: «Сохранить» оставалась погашенной, и операция
+ * не срабатывала вовсе.
+ */
+async function clearEditingPhoto() {
+  const target = editingItem.value
 
-  releaseObjectUrl(editingItem.value.photo)
-  editingItem.value.photo = ''
-  editingItem.value.photoThumb = ''
+  if (!target) return
+
+  if (!target.surface_hash) {
+    constructionsError.value =
+      'У этой конструкции нет surface_hash — удаление недоступно.'
+
+    return
+  }
+
+  const confirmed = window.confirm(
+    'Убрать переопределённое фото и вернуть фото из каталога?'
+  )
+
+  if (!confirmed) {
+    return
+  }
+
+  overriding.value = true
+  constructionsError.value = ''
+
+  try {
+    await clearConstructionPhotoOverride({
+      surface_hash: target.surface_hash,
+      media_type: 'photo'
+    })
+
+    await loadConstructions()
+
+    const fresh = displayConstructions.value.find(
+      item => item.surface_hash === target.surface_hash
+    )
+
+    if (fresh) {
+      releaseObjectUrl(editingItem.value?.photo)
+      applyItemToForm(fresh)
+    }
+  } catch (exc) {
+    constructionsError.value = String(exc?.message || exc)
+  } finally {
+    overriding.value = false
+  }
 }
 
 /* ------------------------------------------------- медиатека конструкций */
@@ -1236,6 +1281,9 @@ async function applyPhotoOverride({ file, sourceUrl }) {
   const target = editingItem.value
 
   if (!target) return
+
+  /* Двойной клик не должен отправлять два переопределения подряд. */
+  if (overriding.value) return
 
   if (!target.surface_hash) {
     constructionsError.value =
@@ -1481,6 +1529,18 @@ async function resetToDefault() {
   const target = editingItem.value
 
   if (!target?.surface_hash) return
+
+  /*
+   * Снимаются все переопределения сразу (поля, месяцы, фото, карта) —
+   * действие необратимое, поэтому спрашиваем подтверждение.
+   */
+  const confirmed = window.confirm(
+    'Снять все временные изменения конструкции? Вернутся поля, цены, месяцы и фото из каталога.'
+  )
+
+  if (!confirmed) {
+    return
+  }
 
   const hash = target.surface_hash
 
