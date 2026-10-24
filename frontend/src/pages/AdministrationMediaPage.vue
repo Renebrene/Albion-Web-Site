@@ -811,7 +811,7 @@ import { useRouter } from 'vue-router'
 import { mediaUrl, variantUrl } from '../services/adminMedia'
 import {
   adminFetch,
-  clearAdminToken,
+  clearAdminSession,
   hasAdminSession
 } from '../services/adminApi'
 
@@ -1177,7 +1177,7 @@ async function createCategory() {
     })
 
     if (response.status === 401) {
-      clearAdminToken()
+      clearAdminSession()
       await router.replace('/administration')
       return
     }
@@ -1264,7 +1264,7 @@ async function saveMediaEdit() {
     )
 
     if (response.status === 401) {
-      clearAdminToken()
+      clearAdminSession()
       await router.replace('/administration')
       return
     }
@@ -1299,7 +1299,7 @@ async function loadMediaCategories() {
     const response = await adminFetch('/api/admin/media/categories')
 
     if (response.status === 401) {
-      clearAdminToken()
+      clearAdminSession()
       await router.replace('/administration')
       return
     }
@@ -1347,7 +1347,7 @@ async function loadMedia() {
     const response = await adminFetch(`/api/admin/media?${params}`)
 
     if (response.status === 401) {
-      clearAdminToken()
+      clearAdminSession()
       await router.replace('/administration')
       return
     }
@@ -1385,7 +1385,7 @@ async function loadMediaStats() {
     const response = await adminFetch('/api/admin/media/stats')
 
     if (response.status === 401) {
-      clearAdminToken()
+      clearAdminSession()
       await router.replace('/administration')
       return
     }
@@ -1425,7 +1425,7 @@ async function loadMoreMedia() {
     const response = await adminFetch(`/api/admin/media?${params}`)
 
     if (response.status === 401) {
-      clearAdminToken()
+      clearAdminSession()
       await router.replace('/administration')
       return
     }
@@ -1499,7 +1499,7 @@ async function uploadQueueItem(item) {
     })
 
     if (response.status === 401) {
-      clearAdminToken()
+      clearAdminSession()
       await router.replace('/administration')
       return false
     }
@@ -1639,7 +1639,7 @@ async function deleteMedia(item) {
     })
 
     if (response.status === 401) {
-      clearAdminToken()
+      clearAdminSession()
       await router.replace('/administration')
       return
     }

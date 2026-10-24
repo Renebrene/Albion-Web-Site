@@ -1,4 +1,4 @@
-import { clearAdminToken } from './adminApi'
+import { clearAdminSession } from './adminApi'
 import { adminAuthHeaders } from './adminMedia'
 
 /*
@@ -77,7 +77,7 @@ export async function setConstructionPhotoOverride({
   })
 
   if (response.status === 401) {
-    clearAdminToken()
+    clearAdminSession()
     throw new Error('Сессия истекла. Войдите заново.')
   }
 
@@ -122,7 +122,7 @@ export async function setConstructionFieldOverride({ surface_hash, fields }) {
   })
 
   if (response.status === 401) {
-    clearAdminToken()
+    clearAdminSession()
     throw new Error('Сессия истекла. Войдите заново.')
   }
 

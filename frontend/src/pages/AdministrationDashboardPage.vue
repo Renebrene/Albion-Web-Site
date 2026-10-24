@@ -765,7 +765,9 @@ async function loadUser() {
     const response = await adminFetch('/api/admin/me')
 
     if (!response.ok) {
-      clearAdminToken()
+      /* Сессия недействительна: чистим её целиком (cookie + токен),
+         иначе в cookie-режиме hasAdminSession() останется истинным. */
+      clearAdminSession()
       await router.replace('/administration')
       return
     }
