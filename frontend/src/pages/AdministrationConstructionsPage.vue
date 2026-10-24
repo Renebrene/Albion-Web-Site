@@ -26,6 +26,28 @@
       </span>
     </div>
 
+    <!--
+      Ошибки загрузки и сохранений. Раньше constructionsError только
+      записывался: пользователь нажимал «Сохранить» и не видел причины,
+      почему ничего не произошло.
+    -->
+    <div
+      v-if="constructionsError && !editDialog"
+      class="error-banner"
+      role="alert"
+    >
+      <q-icon name="error_outline" size="18px" />
+      <span class="error-banner-text">{{ constructionsError }}</span>
+      <q-btn
+        flat
+        dense
+        no-caps
+        icon="close"
+        aria-label="Скрыть сообщение"
+        @click="constructionsError = ''"
+      />
+    </div>
+
     <div class="status-grid">
       <q-card flat bordered class="status-card">
         <q-card-section>
@@ -628,6 +650,11 @@
               </q-input>
             </div>
           </div>
+        </q-card-section>
+
+        <!-- Ошибка внутри диалога: страничный баннер за оверлеем не виден. -->
+        <q-card-section v-if="constructionsError" class="edit-dialog-error">
+          <div class="edit-error" role="alert">{{ constructionsError }}</div>
         </q-card-section>
 
         <q-separator />
@@ -1366,6 +1393,9 @@ function applyItemToForm(item) {
 function openEdit(item) {
   releaseObjectUrl(editingItem.value?.photo)
 
+  /* Диалог открывается с чистым статусом: старая ошибка к нему не относится. */
+  constructionsError.value = ''
+
   applyItemToForm(item)
   editDialog.value = true
 }
@@ -1549,6 +1579,45 @@ onBeforeUnmount(() => {
 
 .restore-meta {
   color: #8a5a00;
+}
+
+/* Ошибки загрузки и сохранений (страничный баннер). */
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  margin-bottom: 16px;
+  padding: 10px 14px;
+
+  border: 1px solid #efc1bd;
+  border-radius: 12px;
+  background: #fdf2f1;
+  color: #b3261e;
+}
+
+.error-banner-text {
+  flex: 1;
+  min-width: 0;
+
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* Та же ошибка внутри диалога редактирования. */
+.edit-dialog-error {
+  padding-top: 0;
+}
+
+.edit-error {
+  padding: 8px 12px;
+
+  border-radius: 9px;
+  background: #fdf2f1;
+  color: #b3261e;
+
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .page-header p {
