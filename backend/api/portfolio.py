@@ -23,8 +23,9 @@
     }
 
 Необязательные переключатели (в теле; дублируются query-параметрами,
-приоритет у тела): ``with_photos``, ``with_maps``, ``full_output``.
-``full_output`` меняет только раскладку — фото и карта в один ряд.
+приоритет у тела): ``with_photos``, ``with_maps``, ``full_output``,
+``per_page``. ``full_output`` меняет только раскладку — фото и карта в один
+ряд во всю ширину листа; ``per_page`` (2 или 3) — сколько позиций на лист.
 
 Ответ — файл с Content-Disposition: attachment.
 
@@ -74,8 +75,12 @@ class PortfolioExportPayload(BaseModel):
     with_maps: bool | None = None
 
     # Необязательно: раскладка «Полный вывод» — фото и карта в один ряд
-    # фиксированной ширины вместо колонок. Same-правило приоритета тела.
+    # во всю ширину листа вместо колонок. Same-правило приоритета тела.
     full_output: bool | None = None
+
+    # Необязательно: сколько позиций на лист в «полном выводе» — 2 или 3.
+    # Другое значение сервис приводит к 2. Same-правило приоритета тела.
+    per_page: int | None = None
 
     # Необязательно: реквизиты пользователя (организация, ИНН, КПП, адрес,
     # телефон, e-mail, контактное лицо). Непустые поля печатаются блоком
@@ -116,6 +121,10 @@ def export_portfolio(
         default=None,
         description="Раскладка «Полный вывод» (1/true). Тело запроса приоритетнее.",
     ),
+    per_page: str | None = Query(
+        default=None,
+        description="Позиций на лист в «полном выводе»: 2 или 3. Тело приоритетнее.",
+    ),
 ):
     fmt = (format or "").strip().lower()
 
@@ -144,6 +153,11 @@ def export_portfolio(
     else:
         use_full_output = bool(payload.full_output)
 
+    if payload.per_page is None:
+        per_page = per_page or svc.FULL_ITEMS_PER_PAGE
+    else:
+        per_page = payload.per_page
+
     try:
         content = svc.render(
             payload.items,
@@ -153,6 +167,7 @@ def export_portfolio(
             with_maps=include_maps,
             requisites=payload.requisites,
             full_output=use_full_output,
+            per_page=per_page,
         )
     except svc.PortfolioExportError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

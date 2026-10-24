@@ -131,11 +131,22 @@ PDF_PHOTO_BOX = (240, 240)
 PDF_PHOTO_WIDTH_MM = 18.0
 DOCX_PHOTO_WIDTH_CM = 1.8
 
-# «Полный вывод»: изображения компактнее, чтобы пара карточек помещалась
-# на портретной A4 вместе с заголовком и коротким блоком реквизитов.
-FULL_IMAGE_BOX = (640, 400)
-FULL_IMAGE_WIDTH_CM = 6.4
-FULL_IMAGE_HEIGHT_CM = 4.0
+# «Полный вывод»: фото и карта делят ПОЛЕЗНУЮ ШИРИНУ портретной A4
+# (21 − 1.5 − 1.5 = 18 см), то есть идут от левого отступа до правого.
+FULL_PAGE_CONTENT_CM = 18.0
+# Просвет между фото и картой — отдельная колонка таблицы.
+FULL_IMAGE_GAP_CM = 0.6
+FULL_IMAGE_WIDTH_CM = 8.7
+# Пропорция источника — 1.6 (см. FULL_IMAGE_BOX), высота считается от неё,
+# чтобы фото и карта были одной высоты и не искажались.
+FULL_IMAGE_HEIGHT_CM = 5.44
+# Крупнее прежнего (было 640×400): на ширине 8.7 см это ~260 dpi для печати.
+FULL_IMAGE_BOX = (880, 550)
+
+# Сколько позиций помещается на лист в «полном выводе». 2 — по умолчанию,
+# 3 — компактный вариант (изображения те же, теснее только отбивки).
+FULL_ITEMS_PER_PAGE = 2
+FULL_ITEMS_PER_PAGE_OPTIONS = (2, 3)
 
 CONTENT_TYPES = {
     "xls": "application/vnd.ms-excel",
@@ -162,6 +173,20 @@ class FontUnavailableError(RuntimeError):
 
 
 # ---------------------------------------------------------------- утилиты
+
+
+def normalize_per_page(value: Any) -> int:
+    """Сколько позиций на лист в «полном выводе»: 2 (по умолчанию) или 3.
+
+    Любое другое значение (в том числе пустое, строка «3», None) приводится
+    к 2 — раскладка не должна зависеть от того, что прислал клиент.
+    """
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return FULL_ITEMS_PER_PAGE
+
+    return number if number in FULL_ITEMS_PER_PAGE_OPTIONS else FULL_ITEMS_PER_PAGE
 
 
 def _to_number(value: Any) -> float | None:
@@ -360,7 +385,8 @@ def photo_to_bytes(image, image_format: str = "JPEG", quality: int = 82) -> byte
 def load_full_image(url: Any, box=None):
     """Картинка «полного вывода»: cover-кроп по центру до нужного бокса.
 
-    Возвращает PIL Image ровно ``FULL_IMAGE_BOX`` (600×400, 3:2) или ``None``.
+    Возвращает PIL Image ровно ``FULL_IMAGE_BOX`` (880×550, пропорция 1.6)
+    или ``None``.
     Благодаря точному боксу width/height в docx/pdf не искажают картинку,
     а высота у фото и карты гарантированно совпадает.
     """
@@ -399,6 +425,7 @@ def build_portfolio(
     with_maps: bool = False,
     requisites: Any = None,
     full_output: bool = False,
+    per_page: Any = FULL_ITEMS_PER_PAGE,
 ) -> dict:
     """Проверяет входные данные и собирает общую структуру для всех форматов.
 
@@ -416,6 +443,9 @@ def build_portfolio(
     из результата. Для картинок «полного вывода» в строках есть поля
     ``photo_full`` / ``map_full`` — крупные варианты с фолбэком на обычные.
 
+    ``per_page`` — сколько позиций на лист в «полном выводе»: 2 (по
+    умолчанию) или 3. Другое значение приводится к 2.
+
     Возвращает::
 
         {
@@ -424,6 +454,7 @@ def build_portfolio(
           "with_photos": bool,
           "with_maps": bool,
           "full_output": bool,
+          "per_page": int,
           "requisites": [(label, value), ...],
           "rows": [ {index, city, address, side, type, size, months, sum, sum_value, photo, map, photo_full, map_full}, ... ],
           "positions": int,
@@ -526,6 +557,7 @@ def build_portfolio(
         "with_photos": bool(with_photos),
         "with_maps": bool(with_maps),
         "full_output": bool(full_output),
+        "per_page": normalize_per_page(per_page),
         "requisites": build_requisites_block(requisites),
         "rows": rows,
         "positions": positions,
@@ -693,13 +725,68 @@ def export_xlsx(portfolio: dict) -> bytes:
 # ---------------------------------------------------------------- docx
 
 
+def _add_docx_image_row(document, images: list, cm) -> None:
+    """Кладёт изображения в один ряд во всю полезную ширину листа.
+
+    Таблица без рамок и без внутренних отступов: колонка фото, просвет,
+    колонка карты. Сумма колонок равна полезной ширине (18 см), поэтому ряд
+    идёт от левого отступа до правого, а изображения не переносятся.
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+
+    columns = [FULL_IMAGE_WIDTH_CM]
+    if len(images) > 1:
+        columns = [FULL_IMAGE_WIDTH_CM, FULL_IMAGE_GAP_CM, FULL_IMAGE_WIDTH_CM]
+    else:
+        columns = [FULL_IMAGE_WIDTH_CM]
+
+    table = document.add_table(rows=1, cols=len(columns))
+    table.autofit = False
+
+    # Фиксированная раскладка и нулевые поля ячеек: иначе Word добавит свои
+    # 0.19 см по краям, ряд станет шире листа и картинки снова перенесутся.
+    properties = table._tbl.tblPr
+    layout = OxmlElement("w:tblLayout")
+    layout.set(qn("w:type"), "fixed")
+    properties.append(layout)
+
+    margins = OxmlElement("w:tblCellMar")
+    for side in ("top", "left", "bottom", "right"):
+        element = OxmlElement(f"w:{side}")
+        element.set(qn("w:w"), "0")
+        element.set(qn("w:type"), "dxa")
+        margins.append(element)
+    properties.append(margins)
+
+    cells = table.rows[0].cells
+
+    # Ширину задаём и колонке (w:gridCol), и ячейке: по одной ячейке
+    # LibreOffice берёт сетку, созданную add_table — равные 6 см, — и
+    # картинки сжимались под неё.
+    for index, width in enumerate(columns):
+        table.columns[index].width = cm(width)
+        cells[index].width = cm(width)
+
+    # Изображения — в первую и последнюю колонку, просвет пустой.
+    targets = [cells[0]] if len(images) == 1 else [cells[0], cells[-1]]
+
+    for cell, image in zip(targets, images):
+        run = cell.paragraphs[0].add_run()
+        run.add_picture(
+            io.BytesIO(photo_to_bytes(image)),
+            width=cm(FULL_IMAGE_WIDTH_CM),
+            height=cm(FULL_IMAGE_HEIGHT_CM),
+        )
+
+
 def _export_docx_full(portfolio: dict) -> bytes:
     """Word «полный вывод»: позиция абзацами, фото и карта — в один ряд.
 
     Портретная A4 с полями 1.5 см (рабочая ширина ~18 см): два изображения
-    по 7.5 см встают в один ряд с запасом. Картинки предварительно
-    cover-кроплены до 3:2, поэтому width/height (7.5 × 5 см) не искажают их
-    и высота у фото и карты одинаковая.
+    во всю полезную ширину листа. Картинки предварительно cover-кроплены до
+    пропорции 1.6, поэтому width/height (8.7 × 5.44 см) не искажают их,
+    высота у фото и карты одинаковая, а пара идёт от левого отступа до правого.
     """
     from docx import Document
     from docx.enum.section import WD_ORIENT
@@ -707,6 +794,12 @@ def _export_docx_full(portfolio: dict) -> bytes:
     from docx.shared import Cm, Pt
 
     document = Document()
+
+    # Интервалы абзацев задаём сами: у Normal они добавляли по полсантиметра
+    # на каждую строку позиции, и на лист влезало только две позиции.
+    normal = document.styles["Normal"]
+    normal.paragraph_format.space_before = Pt(0)
+    normal.paragraph_format.space_after = Pt(0)
 
     section = document.sections[0]
     section.orientation = WD_ORIENT.PORTRAIT
@@ -725,20 +818,27 @@ def _export_docx_full(portfolio: dict) -> bytes:
     with_photos = bool(portfolio.get("with_photos"))
     with_maps = bool(portfolio.get("with_maps"))
 
+    per_page = normalize_per_page(portfolio.get("per_page"))
+
     for row_index, row in enumerate(portfolio["rows"]):
-        # Каждая пара начинается с новой страницы; позиции удерживаются
-        # целиком и вместе, если обе помещаются в доступную высоту листа.
-        if row_index and row_index % 2 == 0:
+        # Раскладка «по две»: явный разрыв каждые две позиции. Для «по три»
+        # разрывов не ставим — позиция не режется (keep_together), и Word сам
+        # переносит её целиком, укладывая по три на лист.
+        if per_page == 2 and row_index and row_index % per_page == 0:
             page_break = document.add_paragraph()
             page_break.add_run().add_break(WD_BREAK.PAGE)
 
         first_item_paragraph = len(document.paragraphs)
-        first_item = row_index % 2 == 0
+        first_item = row_index % per_page == 0
         place = ", ".join(
             part for part in (row["city"], row["address"]) if part
         ) or "Адрес не указан"
 
         head = document.add_paragraph()
+        # Отбивка между позициями — вместо пустого абзаца: он съедал
+        # полсантиметра, а на лист нужно уложить три позиции.
+        head.paragraph_format.space_before = Pt(10)
+        head.paragraph_format.space_after = Pt(0)
         head_run = head.add_run(
             f'{row["index"]}. {row["type"] or "Формат не указан"} — {place}'
         )
@@ -750,9 +850,13 @@ def _export_docx_full(portfolio: dict) -> bytes:
         if row["size"]:
             meta_parts.append(f'Размер: {row["size"]}')
         if meta_parts:
-            document.add_paragraph(" · ".join(meta_parts))
+            meta = document.add_paragraph(" · ".join(meta_parts))
+            meta.paragraph_format.space_after = Pt(0)
 
-        # Изображения в один ряд (внутри одного абзаца, инлайн).
+        # Изображения в один ряд. Ряд — таблица без рамок: в абзаце пара
+        # шириной во весь лист переносилась на вторую строку (фото и карта
+        # вставали друг под другом), а колонки фиксированной ширины держат
+        # их строго рядом — от левого отступа до правого.
         candidates = []
         if with_photos:
             candidates.append(row.get("photo_full"))
@@ -766,26 +870,19 @@ def _export_docx_full(portfolio: dict) -> bytes:
                 loaded.append(image)
 
         if loaded:
-            picture_paragraph = document.add_paragraph()
-            for position, image in enumerate(loaded):
-                if position:
-                    picture_paragraph.add_run("    ")
-                run = picture_paragraph.add_run()
-                run.add_picture(
-                    io.BytesIO(photo_to_bytes(image)),
-                    width=Cm(FULL_IMAGE_WIDTH_CM),
-                    height=Cm(FULL_IMAGE_HEIGHT_CM),
-                )
+            _add_docx_image_row(document, loaded, Cm)
 
         months_paragraph = document.add_paragraph()
+        months_paragraph.paragraph_format.space_before = Pt(0)
+        months_paragraph.paragraph_format.space_after = Pt(0)
         months_run = months_paragraph.add_run(f'Месяцы: {row["months"]}')
         months_run.font.size = Pt(9)
 
         sum_paragraph = document.add_paragraph()
+        sum_paragraph.paragraph_format.space_before = Pt(0)
+        sum_paragraph.paragraph_format.space_after = Pt(0)
         sum_run = sum_paragraph.add_run(f'Сумма: {row["sum"]}')
         sum_run.bold = True
-
-        document.add_paragraph()
 
         paragraphs = document.paragraphs[first_item_paragraph:]
         for paragraph in paragraphs:
@@ -793,7 +890,11 @@ def _export_docx_full(portfolio: dict) -> bytes:
             paragraph.paragraph_format.keep_with_next = True
 
         if paragraphs:
-            paragraphs[-1].paragraph_format.keep_with_next = first_item
+            # «Держать со следующим» нужно только у первой позиции пары:
+            # тогда пара не разрывается между листами.
+            paragraphs[-1].paragraph_format.keep_with_next = (
+                first_item and per_page == 2
+            )
 
     summary_paragraph = document.add_paragraph()
     summary_run = summary_paragraph.add_run(portfolio["summary"])
@@ -1023,8 +1124,9 @@ def _export_pdf_full(portfolio: dict) -> bytes:
     """PDF «полный вывод»: позиция абзацами, фото и карта — в один ряд.
 
     Портретная A4, поля 1.5 см. Изображения предварительно cover-кроплены
-    до 3:2 (600×400 px), затем растянуты ровно в 7.5 × 5 см — пропорции
-    сохранены, высота у фото и карты одинаковая.
+    до пропорции 1.6 (880×550 px), затем растянуты ровно в 8.7 × 5.44 см:
+    пропорции сохранены, высота у фото и карты одинаковая, пара занимает всю
+    полезную ширину листа (18 см).
     """
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
@@ -1093,8 +1195,10 @@ def _export_pdf_full(portfolio: dict) -> bytes:
 
     photo_buffers: list[io.BytesIO] = []
 
+    per_page = normalize_per_page(portfolio.get("per_page"))
+
     for row_index, row in enumerate(portfolio["rows"]):
-        if row_index and row_index % 2 == 0:
+        if per_page == 2 and row_index and row_index % per_page == 0:
             story.append(PageBreak())
 
         first_page = row_index == 0
@@ -1150,7 +1254,9 @@ def _export_pdf_full(portfolio: dict) -> bytes:
                     [
                         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
                         ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                        ("RIGHTPADDING", (0, 0), (-1, -1), 12),
+                        # Просвет между фото и картой: 6 pt вместо 12,
+                        # иначе пара не влезает в полезную ширину листа.
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                         ("TOPPADDING", (0, 0), (-1, -1), 4),
                         ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
                     ]
@@ -1574,6 +1680,7 @@ def render(
     with_maps: bool = False,
     requisites: Any = None,
     full_output: bool = False,
+    per_page: Any = FULL_ITEMS_PER_PAGE,
 ) -> bytes:
     """Собирает портфель и рендерит его в выбранный формат.
 
@@ -1601,6 +1708,7 @@ def render(
         with_maps=False if text_only else with_maps,
         requisites=requisites,
         full_output=False if text_only else full_output,
+        per_page=per_page,
     )
 
     if fmt == "xlsx":

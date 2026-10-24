@@ -145,6 +145,25 @@
       />
 
       <!--
+        Сколько позиций на лист в «полном выводе». Показываем только там,
+        где это влияет на документ: в табличных раскладках позиции идут
+        строками, и разбивкой управляет сама таблица.
+      -->
+      <q-btn-toggle
+        v-if="fullOutput"
+        v-model="perPage"
+        dense
+        unelevated
+        no-caps
+        toggle-color="primary"
+        class="portfolio-per-page"
+        :options="perPageOptions"
+        :disable="!count"
+      >
+        <q-tooltip>Сколько позиций помещается на лист</q-tooltip>
+      </q-btn-toggle>
+
+      <!--
         Форматы и действия — иконками: выпадающие списки прятали частые
         действия за лишним кликом. Три основных формата вынесены наружу,
         редкие остались в «…» (exportOptions минус вынесенные).
@@ -874,6 +893,16 @@ const busyLabel = computed(() =>
 const fullOutput = ref(false)
 
 /*
+ * Сколько позиций на лист в «полном выводе»: 2 (по умолчанию) или 3.
+ * При 3 изображения те же, но на лист встаёт на одну позицию больше.
+ */
+const perPage = ref(2)
+const perPageOptions = [
+  { label: '2 на лист', value: 2 },
+  { label: '3 на лист', value: 3 }
+]
+
+/*
  * Форматы выгрузки. Текстовые (csv/txt/md/json) отдают только
  * текстовую часть и не зависят от «полный/краткий вывод» — это обеспечивает
  * сервер (см. backend/services/portfolio_export.py).
@@ -934,6 +963,7 @@ async function exportAs(format) {
       withPhotos: fullOutput.value,
       withMaps: fullOutput.value,
       fullOutput: fullOutput.value,
+      perPage: perPage.value,
       title: title.value,
       requisites: currentRequisites()
     })
@@ -961,6 +991,7 @@ async function handlePrint() {
       withPhotos: fullOutput.value,
       withMaps: fullOutput.value,
       fullOutput: fullOutput.value,
+      perPage: perPage.value,
       title: title.value,
       requisites: currentRequisites()
     })
@@ -1959,6 +1990,22 @@ function confirmClear() {
   font-weight: 900;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+/* Переключатель «2/3 на лист» — компактный, рядом с «Полным выводом». */
+.portfolio-per-page {
+  margin-left: 8px;
+  border: 1px solid #dfe6ea;
+  border-radius: 8px;
+}
+
+.portfolio-per-page :deep(.q-btn) {
+  min-height: 26px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 /* --------------------------------------------------------- Тост */

@@ -379,8 +379,9 @@ function resolveWithMaps(sourceItems, options) {
 }
 
 /*
- * Флаг «Полный вывод». Меняет только раскладку (фото и карта в один ряд
- * шириной 7.5 см, одинаковая высота). Та же схема вызова, что у фото/карты.
+ * Флаг «Полный вывод». Меняет только раскладку: фото и карта идут одним
+ * рядом во всю полезную ширину листа (по 8.7 см, одинаковая высота).
+ * Та же схема вызова, что у фото/карты.
  */
 function resolveFullOutput(sourceItems, options) {
   if (options && typeof options === 'object') {
@@ -399,11 +400,31 @@ function resolveFullOutput(sourceItems, options) {
 }
 
 /*
+ * Сколько позиций на лист в «полном выводе»: 2 (по умолчанию) или 3.
+ * Остальные раскладки параметр игнорируют. Та же схема вызова.
+ */
+function resolvePerPage(sourceItems, options) {
+  const raw =
+    options && typeof options === 'object'
+      ? options.perPage
+      : sourceItems &&
+          !Array.isArray(sourceItems) &&
+          typeof sourceItems === 'object'
+        ? sourceItems.perPage
+        : null
+
+  const value = Number(raw)
+
+  return value === 3 ? 3 : 2
+}
+
+/*
  * Выгрузка портфеля в файл.
  * POST /api/portfolio/export?format=xlsx|docx|pdf
- * Тело: { title, items, with_photos, with_maps, full_output, requisites }.
+ * Тело: { title, items, with_photos, with_maps, full_output, per_page,
+ * requisites }.
  * Ответ — файл (blob).
- * options: { withPhotos, withMaps, fullOutput, title, requisites }.
+ * options: { withPhotos, withMaps, fullOutput, perPage, title, requisites }.
  */
 /*
  * Экспорт собирает файл на сервере через LibreOffice, поэтому может
@@ -423,7 +444,7 @@ function exportError(message, code) {
 
 /*
  * Запрашивает собранный файл портфеля у backend и возвращает blob.
- * payload: { title, withPhotos, withMaps, fullOutput, requisites }.
+ * payload: { title, withPhotos, withMaps, fullOutput, perPage, requisites }.
  *
  * Таймаут покрывает и запрос, и чтение тела: сервер отдаёт ответ
  * заголовками раньше, чем дописывает файл, поэтому снимать таймер сразу
@@ -451,6 +472,7 @@ async function requestPortfolioFile(format, items, payload) {
           with_photos: payload.withPhotos,
           with_maps: payload.withMaps,
           full_output: payload.fullOutput,
+          per_page: payload.perPage,
           requisites: payload.requisites
         })
       }
@@ -503,6 +525,7 @@ export async function downloadPortfolio(format, sourceItems, options) {
   const withPhotos = resolveWithPhotos(sourceItems, options)
   const withMaps = resolveWithMaps(sourceItems, options)
   const fullOutput = resolveFullOutput(sourceItems, options)
+  const perPage = resolvePerPage(sourceItems, options)
   const items = Array.isArray(sourceItems)
     ? sourceItems
     : resolveItems(sourceItems)
@@ -512,6 +535,7 @@ export async function downloadPortfolio(format, sourceItems, options) {
     withPhotos,
     withMaps,
     fullOutput,
+    perPage,
     requisites: resolveRequisites(opts)
   })
 
@@ -895,13 +919,14 @@ export function buildPrintHtml(
  * (тот же backend-экспорт, что «DOC»/«PDF»). Открываем PDF в новом окне
  * и вызываем системную печать. Если PDF не удалось получить (или окно
  * заблокировано) — откат на прежнюю печать из HTML.
- * options: { withPhotos, withMaps, fullOutput, title, requisites }.
+ * options: { withPhotos, withMaps, fullOutput, perPage, title, requisites }.
  */
 export async function printPortfolio(sourceItems, options) {
   const opts = resolveOptions(sourceItems, options)
   const withPhotos = resolveWithPhotos(sourceItems, options)
   const withMaps = resolveWithMaps(sourceItems, options)
   const fullOutput = resolveFullOutput(sourceItems, options)
+  const perPage = resolvePerPage(sourceItems, options)
   const items = Array.isArray(sourceItems)
     ? sourceItems
     : resolveItems(sourceItems)
@@ -921,6 +946,7 @@ export async function printPortfolio(sourceItems, options) {
       withPhotos,
       withMaps,
       fullOutput,
+      perPage,
       requisites
     })
 
