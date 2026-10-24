@@ -50,6 +50,7 @@
             no-caps
             class="preset-btn"
             :class="{ 'is-active': activePreset === preset.label }"
+            :disable="loading"
             :label="preset.label"
             @click="applyPreset(preset)"
           />

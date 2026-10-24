@@ -170,7 +170,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import { mediaUrl, variantUrl } from '../../services/adminMedia'
 import { adminFetch } from '../../services/adminApi'
@@ -219,24 +219,13 @@ const categoryOptions = computed(() =>
   }))
 )
 
-const filteredItems = computed(() => {
-  const query = search.value.trim().toLowerCase()
-
-  return items.value.filter(item => {
-    if (query && !(item.original_name || '').toLowerCase().includes(query)) {
-      return false
-    }
-
-    if (
-      categoryIds.value.length &&
-      !categoryIds.value.some(id => item.category_id?.includes(id))
-    ) {
-      return false
-    }
-
-    return true
-  })
-})
+/*
+ * Фильтры уходят на сервер (search, category_ids), поэтому показываем то,
+ * что вернула страница целиком. Раньше поиск фильтровал только загруженные
+ * 30 записей: файл со второй страницы «не находился», а «показать ещё»
+ * догружало записи без учёта фильтров.
+ */
+const filteredItems = computed(() => items.value)
 
 const selectedItem = computed(
   () => items.value.find(item => item.id === selectedId.value) || null
@@ -260,9 +249,29 @@ function thumbnailUrl(item) {
   return chosen ? variantUrl(chosen) : mediaUrl(item)
 }
 
+/* Параметры списка: лимит/смещение + активные фильтры. */
+function mediaQuery(limit, offsetValue) {
+  const params = new URLSearchParams()
+
+  params.set('limit', String(limit))
+  params.set('offset', String(offsetValue))
+
+  const query = search.value.trim()
+
+  if (query) {
+    params.set('search', query)
+  }
+
+  if (categoryIds.value.length) {
+    params.set('category_ids', categoryIds.value.join(','))
+  }
+
+  return params
+}
+
 async function fetchMedia(limit, offsetValue) {
   const response = await adminFetch(
-    `/api/admin/media?limit=${limit}&offset=${offsetValue}`
+    `/api/admin/media?${mediaQuery(limit, offsetValue)}`
   )
 
   if (response.status === 401) {
@@ -326,12 +335,33 @@ async function loadMore() {
   }
 }
 
+/* Смена фильтров: с начала списка и с дебаунсом, как в медиатеке. */
+let filterTimer = null
+
+watch([search, categoryIds], () => {
+  if (filterTimer) {
+    clearTimeout(filterTimer)
+  }
+
+  filterTimer = setTimeout(() => {
+    filterTimer = null
+    loadFirst()
+  }, 250)
+})
+
 function onShow() {
   if (loadedOnce) return
   loadedOnce = true
   loadFirst()
   loadCategories()
 }
+
+onBeforeUnmount(() => {
+  if (filterTimer) {
+    clearTimeout(filterTimer)
+    filterTimer = null
+  }
+})
 
 function confirm(item) {
   if (!item || !item.storage_path) return

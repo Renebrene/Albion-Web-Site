@@ -213,7 +213,7 @@
           dense
           no-caps
           icon="chevron_left"
-          :disable="page <= 1"
+          :disable="loading || page <= 1"
           @click="goTo(page - 1)"
         />
         <span class="page-info">Стр. {{ page }} из {{ totalPages }}</span>
@@ -222,7 +222,7 @@
           dense
           no-caps
           icon="chevron_right"
-          :disable="page >= totalPages"
+          :disable="loading || page >= totalPages"
           @click="goTo(page + 1)"
         />
       </div>
@@ -464,7 +464,15 @@ function queryParams() {
   return params
 }
 
+/*
+ * Номер последнего запроса: быстрые клики по страницам давали ответы не по
+ * порядку, и таблица показывала не ту страницу, что в «Стр. N из M».
+ */
+let requestSeq = 0
+
 async function load() {
+  const seq = ++requestSeq
+
   loading.value = true
   error.value = ''
 
@@ -476,13 +484,24 @@ async function load() {
 
   try {
     const data = await request(`/api/admin/chat-log?${params}`)
+
+    if (seq !== requestSeq) {
+      return
+    }
+
     items.value = data.items || []
     total.value = data.total || 0
     selectedTotal.value = data.selected_total || 0
   } catch (exc) {
+    if (seq !== requestSeq) {
+      return
+    }
+
     error.value = exc.message || 'Не удалось загрузить журнал.'
   } finally {
-    loading.value = false
+    if (seq === requestSeq) {
+      loading.value = false
+    }
   }
 }
 
