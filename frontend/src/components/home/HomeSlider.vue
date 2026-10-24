@@ -177,6 +177,7 @@
             ref="geoSlideRefs"
             v-model:expanded="geoExpanded"
             :slide="slide"
+            :active="slideIndex === index"
             @open-form="gotoFormSlide"
           />
 

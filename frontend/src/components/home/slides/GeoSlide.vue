@@ -5,7 +5,7 @@
       <div class="geo-list-window">
         <div
           class="geo-list-track"
-          :class="{ 'is-paused': listPaused }"
+          :class="{ 'is-paused': listPaused || !active }"
           @mouseenter="listPaused = true"
           @mouseleave="listPaused = false"
           @focusin="listPaused = true"
@@ -56,8 +56,8 @@
             @click="onCardClick(i)"
             @keydown.enter="onCardClick(i)"
           >
-            <div class="geo-fan-photo" :style="fanCover(card)">
-              <span v-if="!fanCover(card)" class="geo-fan-nophoto">
+            <div class="geo-fan-photo" :style="fanCover(card, i)">
+              <span v-if="!fanCover(card, i)" class="geo-fan-nophoto">
                 {{ card.location.label }}
               </span>
             </div>
@@ -287,6 +287,13 @@ const props = defineProps({
   expanded: {
     type: Object,
     default: null
+  },
+
+  /* Слайд на экране: неактивные гасятся через inert, но анимации в них
+     продолжают крутиться — бегущую строку останавливаем явно. */
+  active: {
+    type: Boolean,
+    default: true
   }
 })
 
@@ -399,10 +406,37 @@ function onCardClick(index) {
   }
 }
 
-function fanCover(card) {
+/*
+ * Обложки подставляем только карточкам рядом с видимой зоной: у далёких
+ * фон всё равно не виден (opacity: 0), а фото локации — сотни килобайт.
+ * Запас ±3 карточки, чтобы при быстрой прокрутке колоды фон уже был.
+ */
+const FAN_MAX_VISIBLE = 6
+const FAN_PRELOAD_MARGIN = 3
+
+function fanCover(card, index) {
+  const offset = cardOffset(index)
+
+  if (Math.abs(offset) > FAN_MAX_VISIBLE + FAN_PRELOAD_MARGIN) {
+    return undefined
+  }
+
   const url = card?.attraction?.photos?.[0]?.url
 
   return url ? { backgroundImage: `url('${url}')` } : undefined
+}
+
+/* Смещение карточки от передней: то же, что в fanStyle, но без вёрстки. */
+function cardOffset(index) {
+  const count = cards.value.length
+  let offset = index - attractionIndex.value
+
+  if (count > 1) {
+    if (offset > count / 2) offset -= count
+    if (offset < -count / 2) offset += count
+  }
+
+  return offset
 }
 
 /* Названия форматов в именительном падеже множественного числа. */
@@ -443,15 +477,8 @@ function geoSummary(location) {
 
 /* Позиция карты в «колоде»: передняя по центру, соседние веером назад. */
 function fanStyle(index) {
-  const count = cards.value.length
-  let offset = index - attractionIndex.value
-
-  if (count > 1) {
-    if (offset > count / 2) offset -= count
-    if (offset < -count / 2) offset += count
-  }
-
-  const maxVisible = 6
+  const offset = cardOffset(index)
+  const maxVisible = FAN_MAX_VISIBLE
   const clamped = Math.max(-maxVisible, Math.min(maxVisible, offset))
   const abs = Math.abs(clamped)
   const sign = clamped === 0 ? 0 : clamped > 0 ? 1 : -1
@@ -619,6 +646,14 @@ defineExpose({ move, reset })
   animation: geo-marquee 48s linear infinite;
 }
 .geo-list-track:hover {
+  animation-play-state: paused;
+}
+/*
+ * Пауза по ховеру и по фокусу с клавиатуры (обработчики выше): без этого
+ * правила строка не останавливалась при навигации табом и уезжала
+ * из-под фокуса. Тем же классом гасим анимацию у неактивного слайда.
+ */
+.geo-list-track.is-paused {
   animation-play-state: paused;
 }
 .geo-list-set {
