@@ -252,7 +252,10 @@
                 </button>
               </div>
 
-              <div class="point-radius-float">
+              <div
+                class="point-radius-float"
+                :class="{ 'is-inactive': pointSelectionState !== 'fixed' }"
+              >
                 <div class="point-radius-head">
                   <span>РАДИУС ПОИСКА</span>
                   <strong>{{ formatRadius(pointRadius) }}</strong>
@@ -265,6 +268,12 @@
                   :max="RADIUS_STEPS.length - 1"
                   step="1"
                   :value="pointRadiusIndex"
+                  :disabled="pointSelectionState !== 'fixed'"
+                  :title="
+                    pointSelectionState === 'fixed'
+                      ? 'Радиус поиска вокруг зафиксированной точки'
+                      : 'Сначала зафиксируйте точку'
+                  "
                   @input="onPointRadiusInput"
                 />
 
@@ -1606,10 +1615,9 @@ const mapConstructions = computed(() =>
 )
 
 /*
- * Круг и маркер точки: в режиме «Точка» — всегда (мишень видно и во время
- * правки), в карте и списке — пока точка зафиксирована. Выдача там сужена
- * радиусом (см. displayedConstructions), и это сужение должно быть видно,
- * иначе причина «мало объектов» непонятна.
+ * Маркер точки: в режиме «Точка» — всегда (мишень видно и во время правки),
+ * в карте и списке — пока точка зафиксирована. Выдача там сужена радиусом
+ * (см. displayedConstructions), и это сужение должно быть видно.
  */
 const searchPointVisible = computed(
   () => workspaceMode.value === 'point' || pointSelectionState.value === 'fixed'
@@ -1619,8 +1627,13 @@ const mapSearchPoint = computed(() =>
   searchPointVisible.value ? fixedSearchPoint.value : null
 )
 
+/*
+ * Круг радиуса — только у ЗАФИКСИРОВАННОЙ точки: пока точку правят
+ * («ИЗМЕНИТЬ ТОЧКУ»), круг не рисуется и слайдер выключен, но значение
+ * радиуса сохраняется и возвращается вместе с фиксацией.
+ */
 const mapSearchRadius = computed(() =>
-  searchPointVisible.value ? pointRadius.value : 0
+  pointSelectionState.value === 'fixed' ? pointRadius.value : 0
 )
 
 /* В точке счётчик показывает найденное вокруг неё, в карте/списке — по базе. */
@@ -4461,6 +4474,19 @@ onBeforeUnmount(() => {
   width: 100%;
   accent-color: var(--albion-accent);
   cursor: pointer;
+}
+
+/*
+ * Радиус действует только у зафиксированной точки: до «ЗАФИКСИРОВАТЬ» и во
+ * время «ИЗМЕНИТЬ ТОЧКУ» плашка приглушена, а ползунок выключен — значение
+ * при этом сохраняется и возвращается вместе с фиксацией.
+ */
+.point-radius-float.is-inactive {
+  opacity: 0.55;
+}
+
+.point-radius-range:disabled {
+  cursor: not-allowed;
 }
 
 .point-radius-marks {
