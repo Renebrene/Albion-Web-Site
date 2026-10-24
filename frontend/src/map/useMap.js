@@ -2,6 +2,7 @@ import L from 'leaflet'
 import 'leaflet.markercluster'
 
 import { popupContent, popupLayout } from './popupContent'
+import { escapeHtml } from '../utils/escapeHtml'
 import { getAvailabilityState } from '../utils/availability'
 import { MONTHS } from '../utils/constructionGroups'
 import { mapDotColors, mapColorMode } from '../config/mapColors'
@@ -45,15 +46,6 @@ let resizeObserver = null
 /* =========================================================
    HELPERS
    ========================================================= */
-
-function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
-}
 
 /*
  * Точка на карте = КООРДИНАТА (округление ~1 м).
@@ -365,12 +357,32 @@ function popupOptions(isDouble) {
 
     minWidth: isDouble ? 540 : 300,
 
+    /*
+     * Потолок по высоте. Обёртка попапа (`.leaflet-popup-content-wrapper`)
+     * обрезает содержимое по overflow: hidden, а Leaflet включает прокрутку
+     * только когда задан maxHeight — без него на низком экране нижняя часть
+     * попапа (фото, месяцы) была недоступна.
+     */
+    maxHeight: popupMaxHeight(),
+
     closeButton: true,
 
     autoPan: true,
 
     autoPanPadding: isDouble ? [40, 40] : [30, 30]
   }
+}
+
+/*
+ * Высота попапа ограничена высотой карты: чтобы попап влезал целиком вместе
+ * с «хвостиком». Для скрытой карты (нулевой размер) берём запасное значение,
+ * иначе попап открывался бы высотой в 0 из-за защитного минимума.
+ */
+function popupMaxHeight() {
+  const size = map?.getSize()
+  const height = size && size.y > 0 ? size.y : window.innerHeight
+
+  return Math.max(240, Math.round(height - 80))
 }
 
 /*
