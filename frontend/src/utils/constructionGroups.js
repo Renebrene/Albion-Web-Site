@@ -304,6 +304,13 @@ export function groupSides(items) {
  * Ключ точки — КООРДИНАТА (округление до 5 знаков). Подпись адреса и
  * номер конструкции в ключ не входят: у одной точки они могут отличаться.
  * Без координат — откат на адрес, чтобы не слить разные объекты.
+ *
+ * Видеоэкраны раньше получали собственный ключ `video|id`: два экрана по
+ * одному адресу давали два маркера в одной точке, и кликабелен был только
+ * верхний (на Leaflet они и так сливались по координате — движки
+ * расходились). Теперь группировка общая, а обе стороны экрана видны:
+ * groupSides для экранов не отбрасывает индекс подписи, поэтому «A» и
+ * «A(1)» — два блока в попапе и в карточке списка.
  */
 export function groupByPoint(items) {
   const points = []
@@ -312,16 +319,10 @@ export function groupByPoint(items) {
   for (const item of items) {
     const lat = Number(item?.lat)
     const lng = Number(item?.lng)
-    const type = String(item?.type || '').toLowerCase()
 
     let key
 
-    /* Видеоэкран — самостоятельная сущность: по одному адресу у него две
-     * стороны, но это ДВА отдельных экрана, поэтому каждый экран — отдельная
-     * точка (не сливаем их по координате). */
-    if (type.includes('видеоэкран')) {
-      key = `video|${item?.id ?? item?.construction_id ?? points.length}`
-    } else if (Number.isFinite(lat) && Number.isFinite(lng)) {
+    if (Number.isFinite(lat) && Number.isFinite(lng)) {
       key = `${lat.toFixed(5)}|${lng.toFixed(5)}`
     } else {
       const city = String(item?.city || '')
