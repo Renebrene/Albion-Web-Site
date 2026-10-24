@@ -20,6 +20,8 @@ let centerChangeHandler = null
 
 // Точка поиска и визуальный радиус.
 let searchPointMarker = null
+let searchPointHoverHandler = null
+let searchPointClickHandler = null
 let searchRadiusCircle = null
 
 let constructions = []
@@ -656,13 +658,50 @@ function setSearchPoint(lat, lng) {
         iconAnchor: [SEARCH_POINT_ICON.width / 2, SEARCH_POINT_ICON.height]
       }),
 
-      interactive: false,
+      /*
+       * Метка только сообщает о наведении: чип «Убрать точку» рисует
+       * страница — одинаково для обоих движков и без подсказок Leaflet,
+       * которые закрываются, как только курсор уходит с метки. Клик по
+       * метке ничего не делает.
+       */
+      interactive: true,
       keyboard: false,
       zIndexOffset: 1000
     }).addTo(map)
+
+    searchPointMarker.on('mouseover', () => {
+      if (typeof searchPointHoverHandler === 'function') {
+        searchPointHoverHandler(true)
+      }
+    })
+
+    searchPointMarker.on('mouseout', () => {
+      if (typeof searchPointHoverHandler === 'function') {
+        searchPointHoverHandler(false)
+      }
+    })
+
+    searchPointMarker.on('click', () => {
+      if (typeof searchPointClickHandler === 'function') {
+        searchPointClickHandler()
+      }
+    })
   } else {
     searchPointMarker.setLatLng(position)
   }
+}
+
+/* Наведение на метку поиска: колбэк задаёт страница (чип «Убрать точку»). */
+function setSearchPointHoverHandler(handler) {
+  searchPointHoverHandler = typeof handler === 'function' ? handler : null
+}
+
+/*
+ * Клик по метке поиска: страница переходит в закладку «Поиск по точке»
+ * (там радиус, сброс и правка точки). Метку при этом не убираем.
+ */
+function setSearchPointClickHandler(handler) {
+  searchPointClickHandler = typeof handler === 'function' ? handler : null
 }
 
 function clearSearchPoint() {
@@ -904,6 +943,9 @@ function invalidateSize() {
 }
 
 function destroyMap() {
+  searchPointHoverHandler = null
+  searchPointClickHandler = null
+
   clearSearchPoint()
   clearSearchRadius()
   if (renderTimer) {
@@ -1041,6 +1083,8 @@ export function useMap() {
 
     setSearchPoint,
     clearSearchPoint,
+    setSearchPointHoverHandler,
+    setSearchPointClickHandler,
 
     getCoordinatesAtScreenPoint,
     getScreenPointAtCoordinates,

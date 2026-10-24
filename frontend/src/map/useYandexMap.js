@@ -49,6 +49,8 @@ let regionRings = []
 let maskRefreshFrame = null
 
 let searchPointPlacemark = null
+let searchPointHoverHandler = null
+let searchPointClickHandler = null
 let searchRadiusCircle = null
 
 let centerChangeHandler = null
@@ -683,16 +685,51 @@ function setSearchPoint(lat, lng) {
           -SEARCH_POINT_ICON.height
         ],
 
-        interactivityModel: 'default#silent',
+        /*
+         * Метка только сообщает наружу о наведении и клике: чип «Убрать
+         * точку» рисует страница, клик переводит в закладку «Поиск по
+         * точке». Сама метка ничего не убирает.
+         */
         hasBalloon: false,
         hasHint: false
       }
     )
 
+    searchPointPlacemark.events.add('mouseenter', () => {
+      if (typeof searchPointHoverHandler === 'function') {
+        searchPointHoverHandler(true)
+      }
+    })
+
+    searchPointPlacemark.events.add('mouseleave', () => {
+      if (typeof searchPointHoverHandler === 'function') {
+        searchPointHoverHandler(false)
+      }
+    })
+
+    searchPointPlacemark.events.add('click', () => {
+      if (typeof searchPointClickHandler === 'function') {
+        searchPointClickHandler()
+      }
+    })
+
     map.geoObjects.add(searchPointPlacemark)
   } else {
     searchPointPlacemark.geometry.setCoordinates(position)
   }
+}
+
+/* Наведение на метку поиска: колбэк задаёт страница (чип «Убрать точку»). */
+function setSearchPointHoverHandler(handler) {
+  searchPointHoverHandler = typeof handler === 'function' ? handler : null
+}
+
+/*
+ * Клик по метке поиска: страница переходит в закладку «Поиск по точке».
+ * Метку при этом не убираем.
+ */
+function setSearchPointClickHandler(handler) {
+  searchPointClickHandler = typeof handler === 'function' ? handler : null
 }
 
 function clearSearchPoint() {
@@ -1051,6 +1088,9 @@ function invalidateSize() {
 }
 
 function destroyMap() {
+  searchPointHoverHandler = null
+  searchPointClickHandler = null
+
   clearSearchPoint()
   clearSearchRadius()
 
@@ -1213,6 +1253,8 @@ export function useYandexMap() {
 
     setSearchPoint,
     clearSearchPoint,
+    setSearchPointHoverHandler,
+    setSearchPointClickHandler,
 
     getCoordinatesAtScreenPoint,
     getScreenPointAtCoordinates,

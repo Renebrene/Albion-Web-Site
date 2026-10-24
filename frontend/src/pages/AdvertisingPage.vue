@@ -151,7 +151,29 @@
             :search-point="mapSearchPoint"
             :search-radius="mapSearchRadius"
             @map-center="updatePointCoordinatesFromMap"
+            @search-point-hover="onSearchPointHover"
+            @search-point-open="openPointTab"
           />
+
+          <!--
+            Чип «Убрать точку»: появляется при наведении на пин точки (или на
+            сам чип) и убирает точку. Клик по пину при этом ничего не убирает —
+            он переводит в закладку «Поиск по точке».
+          -->
+          <button
+            v-if="pointChipVisible && pointChipPosition"
+            type="button"
+            class="point-chip"
+            :style="{
+              left: `${pointChipPosition.x}px`,
+              top: `${pointChipPosition.y}px`
+            }"
+            @mouseenter="pointChipHovered = true"
+            @mouseleave="pointChipHovered = false"
+            @click="resetSearchPoint"
+          >
+            Убрать точку
+          </button>
 
           <template v-if="workspaceMode === 'point'">
             <div
@@ -1303,6 +1325,8 @@ function syncPointTargetToAnchor() {
 }
 
 function updatePointCoordinatesFromMap(center) {
+  syncPointChipPosition()
+
   /*
    * После фиксации точка не должна «уезжать» вместе с картой: результаты
    * считаются вокруг fixedSearchPoint, а координаты в поле — иначе они
@@ -1698,6 +1722,91 @@ const mapConstructions = computed(() =>
   workspaceMode.value === 'point'
     ? pointFilteredConstructions.value
     : displayedConstructions.value
+)
+
+/*
+ * Чип «Убрать точку» у пина зафиксированной точки: показываем при наведении
+ * на пин или на сам чип. Позиция — экранная точка пина в координатах
+ * .map-wrap (как у перетаскиваемой мишени), пересчитывается при движении
+ * карты вместе с координатами точки.
+ */
+const pointPinHovered = ref(false)
+const pointChipHovered = ref(false)
+const pointChipPosition = ref(null)
+
+/* Чип показываем, только пока курсор на пине или на самом чипе. */
+const pointChipVisible = computed(
+  () =>
+    pointSelectionState.value === 'fixed' &&
+    !!fixedSearchPoint.value &&
+    (pointPinHovered.value || pointChipHovered.value)
+)
+
+/*
+ * Между пином и чипом есть зазор в несколько пикселей: без задержки чип
+ * успевал исчезнуть ровно на пути курсора. Даём 220 мс — за это время
+ * указатель либо доходит до чипа (тогда таймер снимает его mouseenter),
+ * либо уходит совсем.
+ */
+let pointChipHideTimer = null
+
+function onSearchPointHover(hovered) {
+  if (pointChipHideTimer) {
+    clearTimeout(pointChipHideTimer)
+    pointChipHideTimer = null
+  }
+
+  if (hovered === true) {
+    pointPinHovered.value = true
+
+    return
+  }
+
+  pointChipHideTimer = setTimeout(() => {
+    pointChipHideTimer = null
+    pointPinHovered.value = false
+  }, 220)
+}
+
+/* Клик по пину — переход в закладку «Поиск по точке». */
+function openPointTab() {
+  setWorkspaceMode('point')
+}
+
+function syncPointChipPosition() {
+  const point = fixedSearchPoint.value
+  const wrap = mapWrapRef.value
+  const api = mapViewRef.value
+
+  if (!point || !wrap || !api) {
+    pointChipPosition.value = null
+
+    return
+  }
+
+  const screen = api.getScreenPointAtCoordinates(point.lat, point.lng)
+
+  if (!screen) {
+    pointChipPosition.value = null
+
+    return
+  }
+
+  const rect = wrap.getBoundingClientRect()
+
+  pointChipPosition.value = {
+    x: screen.x - rect.left - wrap.clientLeft,
+    /* Остриё пина внизу, сам пин выше: чип ставим над ним. */
+    y: screen.y - rect.top - wrap.clientTop - SEARCH_POINT_ICON.height - 6
+  }
+}
+
+watch(
+  [pointSelectionState, () => fixedSearchPoint.value],
+  () => {
+    syncPointChipPosition()
+  },
+  { immediate: true }
 )
 
 /*
@@ -3062,6 +3171,11 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  if (pointChipHideTimer) {
+    clearTimeout(pointChipHideTimer)
+    pointChipHideTimer = null
+  }
+
   pageAlive = false
   focusRequestToken += 1
 
@@ -4375,6 +4489,39 @@ onBeforeUnmount(() => {
 .point-search-trigger-icon {
   font-size: 19px;
   line-height: 1;
+}
+
+/*
+ * Чип «Убрать точку» у пина: полупрозрачный, без белой окантовки —
+ * подсказка Leaflet тут не подходит (закрывается при уходе курсора).
+ */
+.point-chip {
+  position: absolute;
+  z-index: 640;
+
+  padding: 6px 10px;
+
+  border: 0;
+  border-radius: 8px;
+
+  background: rgba(23, 33, 43, 0.72);
+
+  color: #fff;
+  cursor: pointer;
+
+  font-size: 11px;
+  font-weight: 800;
+
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+
+  backdrop-filter: blur(4px);
+
+  transform: translate(-50%, -100%);
+}
+
+.point-chip:hover {
+  background: rgba(23, 33, 43, 0.88);
 }
 
 .point-map-crosshair {

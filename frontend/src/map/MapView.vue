@@ -53,7 +53,12 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['select', 'map-center'])
+const emit = defineEmits([
+  'select',
+  'map-center',
+  'search-point-hover',
+  'search-point-open'
+])
 
 const mapElement = ref(null)
 
@@ -218,6 +223,15 @@ async function initialize() {
   }
 
   mapApi.value = api
+
+  /*
+   * Метка поиска сообщает наружу: наведение — для чипа «Убрать точку»,
+   * клик — переход в закладку «Поиск по точке».
+   */
+  api.setSearchPointHoverHandler?.(hovered =>
+    emit('search-point-hover', hovered)
+  )
+  api.setSearchPointClickHandler?.(() => emit('search-point-open'))
 
   syncSearchPoint()
 
