@@ -1,4 +1,4 @@
-import { escapeHtml } from './markerIcon'
+import { escapeHtml } from '../utils/escapeHtml'
 import {
   getAvailabilityState,
   getMonthStatusLabel,

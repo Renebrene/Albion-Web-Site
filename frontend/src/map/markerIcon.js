@@ -2,15 +2,7 @@ import L from 'leaflet'
 import { getAvailabilityState, getMonthValue } from '../utils/availability'
 import { mapDotColors } from '../config/mapColors'
 import { MONTHS } from '../utils/constructionGroups'
-
-export function escapeHtml(value) {
-  return String(value ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;')
-}
+import { escapeHtml } from '../utils/escapeHtml'
 
 /*
  * Нормализуем состояние одного месяца.
