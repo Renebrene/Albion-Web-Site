@@ -4,8 +4,33 @@ export function normalizeAvailability(value) {
     .toLowerCase()
 }
 
+/*
+ * Заглушка «Доступность» из выгрузки (там это статус LOAD): статуса в ней нет,
+ * а реальное значение — проценты загрузки — лежит в `months`.
+ */
+const LOAD_PLACEHOLDER = 'доступность'
+
+/*
+ * Статус месяца. Главный источник — `statuses`: это нормализованный статус
+ * из выгрузки, и только в него попадают временные правки администратора
+ * (переопределения месяца в разделе «Конструкции»). Раньше приоритет был
+ * у `months`, поэтому такие правки на сайте не были видны вовсе: `months`
+ * непустой, а `??` не пропускает пустую строку.
+ *
+ * `months` остаётся источником там, где статуса нет: у видеоэкранов он
+ * содержит проценты загрузки («8%», «33%»), у части строк — «Резерв до …».
+ *
+ * Все состояния сайта считаются отсюда (карта, попап, список, портфель,
+ * чат, фильтр месяцев), поэтому правило одно на всех.
+ */
 export function getMonthValue(item, month) {
-  return item?.months?.[month] ?? item?.statuses?.[month] ?? ''
+  const status = String(item?.statuses?.[month] ?? '').trim()
+
+  if (status && normalizeAvailability(status) !== LOAD_PLACEHOLDER) {
+    return status
+  }
+
+  return item?.months?.[month] ?? ''
 }
 
 export function getAvailabilityState(item, month) {

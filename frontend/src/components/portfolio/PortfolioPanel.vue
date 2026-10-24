@@ -746,9 +746,10 @@ function monthChips(item) {
     const price = selected ? toNumber(value.price) : toNumber(prices[full])
 
     /*
-     * Статус — тем же разбором, что на карте и в списке: сначала сырой
-     * текст месяцев (item.monthTexts), затем statuses как запасной
-     * вариант (см. getMonthValue в utils/availability).
+     * Статус — тем же разбором, что на карте и в списке: статус берётся
+     * из item.statuses, а сырой текст месяцев (item.monthTexts) — там,
+     * где статуса нет (проценты загрузки у видеоэкранов). См.
+     * getMonthValue в utils/availability.
      */
     const state = getAvailabilityState(
       { months: item?.monthTexts, statuses: item?.statuses },
