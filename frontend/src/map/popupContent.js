@@ -362,14 +362,18 @@ function sideAggMonthCell(group, month) {
    */
   const selected = allIds.some(id => portfolio.isMonthSelected(id, month.full))
 
-  const pfAttrs = allIds.length
-    ? ` data-pf-month="${escapeHtml(allIds.join(','))}|${escapeHtml(month.full)}"`
-    : ''
+  /* Как и у одиночной ячейки: продано и снимать нечего — ячейка инертна. */
+  const locked = !anyFree && !selected
+
+  const pfAttrs =
+    allIds.length && !locked
+      ? ` data-pf-month="${escapeHtml(allIds.join(','))}|${escapeHtml(month.full)}"`
+      : ''
 
   return `
     <button
       type="button"
-      class="popup-month ${state}${selected ? ' is-selected' : ''}${allIds.length ? '' : ' is-locked'}"
+      class="popup-month ${state}${selected ? ' is-selected' : ''}${locked ? ' is-locked' : ''}"
       aria-pressed="${selected ? 'true' : 'false'}"
       title="${escapeHtml(title)}"${pfAttrs}
     >
