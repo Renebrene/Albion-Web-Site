@@ -2384,17 +2384,27 @@ function applyFiltersFromUrl() {
     const requestedCities = queryValues(
       compactState ? source.cities : route.query.city
     )
-    const nextCities = requestedCities.length
-      ? cities.value.filter(city => requestedCities.includes(city))
-      : []
-    const citiesChanged = !sameSelection(selectedCities.value, nextCities)
 
-    if (citiesChanged) {
-      selectedCities.value = nextCities
-    }
+    /*
+     * Пустой параметр означает «все города». Не переписываем выбор, если все
+     * города уже отмечены: адрес пишет city только для частичного набора,
+     * поэтому после дебаунса отметки снимались сами собой.
+     */
+    const allCitiesSelected = selectedCities.value.length >= cities.value.length
 
-    if (citiesChanged && nextCities.length === 1) {
-      focusCityWhenReady(nextCities[0])
+    if (requestedCities.length || !allCitiesSelected) {
+      const nextCities = requestedCities.length
+        ? cities.value.filter(city => requestedCities.includes(city))
+        : []
+      const citiesChanged = !sameSelection(selectedCities.value, nextCities)
+
+      if (citiesChanged) {
+        selectedCities.value = nextCities
+      }
+
+      if (citiesChanged && nextCities.length === 1) {
+        focusCityWhenReady(nextCities[0])
+      }
     }
   }
 
@@ -2504,7 +2514,12 @@ function buildFilterQuery() {
         : [...selectedMonths.value]
   }
 
-  if (selectedMonths.value.length && monthLogic.value === 'AND') {
+  /*
+   * «И/ИЛИ» пишем независимо от выбранных месяцев: иначе переключение на «И»
+   * при пустом наборе месяцев не попадало в адрес, и после первой же записи
+   * адреса тумблер возвращался на «ИЛИ».
+   */
+  if (monthLogic.value === 'AND') {
     query.monthLogic = 'AND'
   }
 
