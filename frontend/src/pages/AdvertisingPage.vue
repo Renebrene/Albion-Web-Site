@@ -869,19 +869,6 @@ function onSideMonthClick(block, month) {
   toggleSideMonth(block?.items || [], month.full)
 }
 
-/* Первая (ведущая) сторона блока — как и в попапе карты. */
-function blockPrimary(block) {
-  return block?.items?.[0] || {}
-}
-
-function blockType(block) {
-  return String(blockPrimary(block).type || 'Конструкция').trim()
-}
-
-function blockSize(block) {
-  return String(blockPrimary(block).size || '').trim()
-}
-
 /* Подпись стороны блока: динамика — сторона блока, иначе своя подпись. */
 function blockSide(block) {
   const item = blockPrimary(block)
@@ -919,17 +906,6 @@ function sidesPhrase(count) {
 }
 
 /* ------------------------------------------------- фото (адаптивные) */
-
-/*
- * API отдаёт два превью и large:
- *   photo       — card 640px (2× ширины карточки),
- *   photo_thumb — thumb 400px (портфель и узкие сетки),
- *   photo_large — large 1600px (просмотр/скачивание).
- * Любой вариант может отсутствовать — подставляем соседний.
- */
-function photoThumb(item) {
-  return item?.photo_thumb || item?.photo || item?.photo_large || ''
-}
 
 function photoCard(item) {
   return item?.photo || item?.photo_thumb || item?.photo_large || ''
@@ -4958,51 +4934,6 @@ onBeforeUnmount(() => {
 }
 
 /* Кнопка «Портфель» в секции попапа. */
-.popup-portfolio {
-  display: flex;
-  justify-content: center;
-
-  margin-top: 5px;
-}
-
-.popup-pf-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-
-  padding: 4px 10px;
-
-  border: 1px solid #dce2e6;
-  border-radius: 8px;
-
-  background: #fff;
-  color: #52606a;
-
-  cursor: pointer;
-
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-
-  transition: 0.15s ease;
-}
-
-.popup-pf-toggle:hover {
-  border-color: var(--albion-accent);
-  color: var(--albion-accent);
-}
-
-.popup-pf-toggle.is-active {
-  border-color: var(--albion-accent);
-  background: #fdeceb;
-  color: var(--albion-accent);
-}
-
-.popup-pf-icon {
-  font-size: 15px;
-  line-height: 1;
-}
 
 /*
  * Quasar q-page-container по умолчанию имеет min-height:100vh и стоит ПОД

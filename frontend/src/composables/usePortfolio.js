@@ -572,13 +572,6 @@ function toggleSideMonth(items, monthFull) {
   return true
 }
 
-/* Известна ли цена месяца у позиции (для панели портфеля). */
-function monthPriceOf(surfaceId, monthFull) {
-  const item = findItem(surfaceId)
-
-  return item ? toNumber(item.prices?.[monthFull]) : null
-}
-
 /*
  * Удаляет позицию и возвращает снимок для undo.
  * null — если позиции уже нет.
@@ -903,39 +896,6 @@ function saveLocal() {
 }
 
 // ---------------------------------------------------------------- синхронизация с ЛК
-
-async function loadFromAccount() {
-  const token = getToken()
-
-  if (!token) {
-    return false
-  }
-
-  try {
-    const response = await fetch(`${API_URL}/account/portfolio`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-
-    if (!response.ok) {
-      return false
-    }
-
-    const data = await response.json()
-
-    // Непустой серверный заголовок применяется; пустой — не затирает локальный.
-    const serverTitle = normalizeTitle(data && data.title)
-
-    accountTitle.value = serverTitle
-
-    return hydrate({
-      version: 1,
-      title: serverTitle || title.value,
-      items: Array.isArray(data && data.items) ? data.items : []
-    })
-  } catch {
-    return false
-  }
-}
 
 /*
  * Читает сохранённый в ЛК портфель, НЕ трогая текущий список.
@@ -1277,7 +1237,6 @@ export function usePortfolio() {
     toggleMonth,
     toggleSideMonth,
     toggleItemMonth,
-    monthPriceOf,
     removeSurface,
     restoreSurface,
     clear,
@@ -1292,7 +1251,6 @@ export function usePortfolio() {
     saveLocal,
 
     // синхронизация с ЛК
-    loadFromAccount,
     saveToAccount,
     mergeFromAccount,
     fetchAccountPortfolio,

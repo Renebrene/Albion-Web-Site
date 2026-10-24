@@ -256,20 +256,6 @@ async function fetchSavedChats() {
  * Очищает сохранённые чаты ЛК (журнал чата не затрагивается).
  * Рабочее пространство в памяти не трогаем.
  */
-async function clearSavedChats() {
-  if (!isAuthenticated.value) return false
-
-  try {
-    const response = await fetch('/api/account/chats', {
-      method: 'DELETE',
-      headers: authHeaders()
-    })
-
-    return response.ok
-  } catch {
-    return false
-  }
-}
 
 /* Открытие маленького окна: гарантированный первый чат + подъём данных. */
 async function openWorkspace() {
@@ -370,7 +356,6 @@ export function useChatWorkspace() {
     openWorkspace,
     saveChats,
     fetchSavedChats,
-    clearSavedChats,
     clearChats,
     toggleClear,
     clearArmed,

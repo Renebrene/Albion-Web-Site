@@ -174,5 +174,3 @@ export function decodePortfolioLink(token) {
 
   return null
 }
-
-export const PORTFOLIO_LINK_LIMIT = MAX_TOKEN_LENGTH

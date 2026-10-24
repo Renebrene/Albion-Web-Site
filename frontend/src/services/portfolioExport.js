@@ -1040,14 +1040,3 @@ export async function copyToClipboard(text) {
     return false
   }
 }
-
-/*
- * Готовит черновик обращения для «Умного чата»:
- * копирует текст в буфер и возвращает его для передачи в query.
- */
-export async function chatDraft(sourceItems, options) {
-  const text = portfolioText(sourceItems, options)
-  const copied = await copyToClipboard(text)
-
-  return { text, copied }
-}
