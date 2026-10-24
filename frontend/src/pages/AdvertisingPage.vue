@@ -1605,13 +1605,22 @@ const mapConstructions = computed(() =>
     : displayedConstructions.value
 )
 
-/* Круг и маркер точки показываем только в режиме «Точка». */
+/*
+ * Круг и маркер точки: в режиме «Точка» — всегда (мишень видно и во время
+ * правки), в карте и списке — пока точка зафиксирована. Выдача там сужена
+ * радиусом (см. displayedConstructions), и это сужение должно быть видно,
+ * иначе причина «мало объектов» непонятна.
+ */
+const searchPointVisible = computed(
+  () => workspaceMode.value === 'point' || pointSelectionState.value === 'fixed'
+)
+
 const mapSearchPoint = computed(() =>
-  workspaceMode.value === 'point' ? fixedSearchPoint.value : null
+  searchPointVisible.value ? fixedSearchPoint.value : null
 )
 
 const mapSearchRadius = computed(() =>
-  workspaceMode.value === 'point' ? pointRadius.value : 0
+  searchPointVisible.value ? pointRadius.value : 0
 )
 
 /* В точке счётчик показывает найденное вокруг неё, в карте/списке — по базе. */
@@ -1625,11 +1634,16 @@ const toolbarCount = computed(() =>
  * Переключение вкладок. Уходя из точки, снимаем фиксацию: иначе карта и
  * список молча показывают радиус без маркера точки и без возможности
  * понять, почему выдача сужена.
+ *
+ * keepPoint — для гидратации из адреса: ссылку пишет само приложение, и
+ * состояние «радиус + список» в ней законное (кнопка «ОТКРЫТЬ СПИСОК»).
+ * Без флага открытие такой ссылки теряло точку и показывало полный каталог.
  */
-function setWorkspaceMode(mode) {
+function setWorkspaceMode(mode, { keepPoint = false } = {}) {
   const modeChanged = mode !== workspaceMode.value
 
   if (
+    !keepPoint &&
     modeChanged &&
     mode !== 'point' &&
     pointSelectionState.value === 'fixed'
@@ -1975,6 +1989,16 @@ function queryValues(value) {
   return list.map(item => String(item).trim()).filter(Boolean)
 }
 
+/*
+ * Число из адреса. Пустой параметр (`?lat=&lng=`) — это NaN, а не 0:
+ * иначе `Number('')` фиксировал точку в (0, 0) и поиск уходил в океан.
+ */
+function readUrlNumber(value) {
+  const text = String(value ?? '').trim()
+
+  return text ? Number(text) : Number.NaN
+}
+
 function sameSelection(left, right) {
   if (left.length !== right.length) {
     return false
@@ -2017,8 +2041,12 @@ function applyFiltersFromUrl() {
    * Точка из URL. Применяем до городов: pointResultsActive должен быть
    * уже истинным, иначе городской фильтр скроет часть выдачи.
    */
-  const lat = compactState ? Number(source.point?.lat) : Number(route.query.lat)
-  const lng = compactState ? Number(source.point?.lng) : Number(route.query.lng)
+  const lat = compactState
+    ? Number(source.point?.lat)
+    : readUrlNumber(route.query.lat)
+  const lng = compactState
+    ? Number(source.point?.lng)
+    : readUrlNumber(route.query.lng)
   const hasPoint = Number.isFinite(lat) && Number.isFinite(lng)
 
   if (hasPoint) {
@@ -2146,9 +2174,10 @@ function applyFiltersFromUrl() {
       requestedMode === 'point' ||
       requestedMode === 'list'
     ) {
-      setWorkspaceMode(requestedMode)
+      /* Точку из адреса не снимаем — её состояние уже применено выше. */
+      setWorkspaceMode(requestedMode, { keepPoint: true })
     } else if (workspaceMode.value !== 'map') {
-      setWorkspaceMode('map')
+      setWorkspaceMode('map', { keepPoint: true })
     }
   }
 }
@@ -2795,7 +2824,12 @@ watch(
   ([chat, mode]) => {
     if (chat !== '1') return
 
-    workspaceMode.value = mode === 'map' ? 'map' : 'list'
+    /*
+     * Через setWorkspaceMode, а не прямым присваиванием: иначе после
+     * «Сбросить» карта оставалась с зафиксированной точкой — выдача сужена
+     * радиусом, а переключатель и подсказки говорили, что фильтров нет.
+     */
+    setWorkspaceMode(mode === 'map' ? 'map' : 'list')
   }
 )
 
