@@ -28,6 +28,7 @@
             <button
               type="button"
               :class="{ active: monthLogic === 'AND' }"
+              :aria-pressed="monthLogic === 'AND'"
               @click="$emit('update:monthLogic', 'AND')"
             >
               И
@@ -36,6 +37,7 @@
             <button
               type="button"
               :class="{ active: monthLogic === 'OR' }"
+              :aria-pressed="monthLogic === 'OR'"
               @click="$emit('update:monthLogic', 'OR')"
             >
               ИЛИ
@@ -69,6 +71,12 @@
           type="button"
           class="chip"
           :class="{ active: selectedTypes.includes(type) }"
+          :disabled="isLastSelectedType(type)"
+          :title="
+            isLastSelectedType(type)
+              ? 'Должен остаться хотя бы один формат'
+              : undefined
+          "
           @click="toggleType(type)"
         >
           {{ type }}
@@ -158,6 +166,8 @@
                   v-for="month in MONTHS"
                   :key="month.full"
                   type="button"
+                  :disabled="isEntryMonthLocked(entry, month.full)"
+                  :aria-disabled="isEntryMonthLocked(entry, month.full)"
                   class="found-pf-month"
                   :class="{
                     'is-selected': isEntryMonthSelected(entry, month.full),
@@ -444,6 +454,11 @@ function toggleMonth(value) {
   emit('update:selectedMonths', values)
 }
 
+/* Последний выбранный формат снять нельзя — иначе не останется ни одного. */
+function isLastSelectedType(type) {
+  return props.selectedTypes.length === 1 && props.selectedTypes.includes(type)
+}
+
 function toggleType(value) {
   const values = [...props.selectedTypes]
   const index = values.indexOf(value)
@@ -680,6 +695,12 @@ function toggleType(value) {
   font-size: 10px;
   font-weight: 700;
   transition: 0.12s ease;
+}
+
+/* Недоступный чип (последний формат) — явно неактивный и без ховера. */
+.chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .chip:hover {
