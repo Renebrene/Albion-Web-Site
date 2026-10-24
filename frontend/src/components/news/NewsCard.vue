@@ -13,7 +13,8 @@
       class="news-media"
       :style="mediaAspect ? { aspectRatio: mediaAspect } : null"
     >
-      <template v-if="mediaItems.length">
+      <!-- Битое медиа показываем как «нет фото», а не сломанной иконкой. -->
+      <template v-if="mediaItems.length && !mediaFailed">
         <!-- Видео в карточке: без автозапуска, показываем постер/первый кадр -->
         <video
           v-if="activeMedia.kind === 'video'"
@@ -33,6 +34,7 @@
           :alt="activeMedia.alt || news.title"
           loading="lazy"
           decoding="async"
+          @error="mediaFailed = true"
         />
 
         <div
@@ -125,6 +127,14 @@ const mediaItems = computed(() =>
   normalizeMedia(props.news.media, ['card', 'thumb'])
 )
 const activeMedia = computed(() => mediaItems.value[currentSlide.value] || {})
+
+/* Медиа не загрузилось (битый URL) — показываем заглушку карточки. */
+const mediaFailed = ref(false)
+
+/* Сменили слайд — даём шанс загрузиться его медиа. */
+watch(activeMedia, () => {
+  mediaFailed.value = false
+})
 
 /*
  * Пропорция кадра по обложке (реальные width/height из API). Задаём её

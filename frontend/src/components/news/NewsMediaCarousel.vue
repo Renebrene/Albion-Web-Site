@@ -7,7 +7,10 @@
   >
     <!-- Активный слайд: фото / анимированный GIF / видео -->
     <div class="media-stage">
-      <Transition name="media-fade" mode="out-in">
+      <!-- Битый слайд: вместо сломанной картинки — понятная заглушка. -->
+      <div v-if="activeFailed" class="media-fallback">Медиа недоступно</div>
+
+      <Transition v-else name="media-fade" mode="out-in">
         <!-- Видео: без автозапуска, постер если он есть -->
         <video
           v-if="active.kind === 'video'"
@@ -18,6 +21,7 @@
           controls
           preload="metadata"
           playsinline
+          @error="markFailed(active.id)"
         ></video>
 
         <!-- Анимированный GIF: обычный img, чтобы анимация проигрывалась -->
@@ -28,6 +32,7 @@
           :src="active.url"
           :alt="active.alt || alt || 'Медиа новости'"
           decoding="async"
+          @error="markFailed(active.id)"
         />
 
         <!-- Фото: ленивая загрузка и сохранение пропорций -->
@@ -39,6 +44,7 @@
           :alt="active.alt || alt || 'Медиа новости'"
           loading="lazy"
           decoding="async"
+          @error="markFailed(active.id)"
         />
       </Transition>
     </div>
@@ -228,6 +234,24 @@ const items = computed(() => normalizeMedia(props.media, 'large'))
 
 const active = computed(() => items.value[current.value] || {})
 
+/*
+ * Слайды, которые не загрузились. Раньше битая ссылка давала пустой
+ * серый кадр, а счётчик и стрелки продолжали работать.
+ */
+const failedIds = ref({})
+
+const activeFailed = computed(() =>
+  Boolean(active.value?.id && failedIds.value[active.value.id])
+)
+
+function markFailed(id) {
+  if (!id) {
+    return
+  }
+
+  failedIds.value = { ...failedIds.value, [id]: true }
+}
+
 // При смене набора медиа начинаем с обложки.
 watch(
   items,
@@ -285,6 +309,22 @@ function onTouchEnd(event) {
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #dfe5e8;
+}
+
+/* Заглушка вместо битого слайда. */
+.media-fallback {
+  position: absolute;
+  inset: 0;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  color: #6b7881;
+
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
 }
 
 /* object-fit: contain — пропорции не искажаются, кадр вписывается целиком */
