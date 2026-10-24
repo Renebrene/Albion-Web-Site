@@ -26,6 +26,10 @@
         </nav>
       </div>
 
+      <div v-if="newsSource === 'local'" class="news-source-note" role="status">
+        Показаны локальные данные: свежие новости с сервера получить не удалось.
+      </div>
+
       <div class="news-body">
         <div v-if="loading" class="news-loading">
           <q-spinner-dots size="42px" color="primary" />
@@ -61,6 +65,13 @@ import { normalizeMedia } from '../components/news/NewsMediaCarousel.vue'
 const selectedCategory = ref('Все')
 const newsList = ref([])
 const loading = ref(true)
+
+/*
+ * 'api' — данные с сервера, 'local' — показан зашитый демо-список
+ * (сервер недоступен или публикаций нет). Нужно, чтобы посетитель видел,
+ * что новости не «живые».
+ */
+const newsSource = ref('api')
 /* Компонент могли закрыть, пока шёл запрос или nextTick. */
 let isUnmounted = false
 
@@ -107,6 +118,7 @@ onMounted(async () => {
     newsList.value = published.length
       ? published.map(normalizeNews)
       : localNews()
+    newsSource.value = published.length ? 'api' : 'local'
   } catch (error) {
     if (isUnmounted) {
       return
@@ -115,6 +127,7 @@ onMounted(async () => {
     // Если API недоступен — показываем локальные данные, как раньше.
     console.error('Не удалось загрузить новости:', error)
     newsList.value = localNews()
+    newsSource.value = 'local'
   } finally {
     if (!isUnmounted) {
       loading.value = false
@@ -274,6 +287,21 @@ watch([filteredNews, loading], async () => {
 /* Отступ от фильтров до первой карточки. */
 .news-body {
   padding-top: clamp(16px, 1.5vw, 22px);
+}
+
+/* Плашка «показаны локальные данные» (API недоступен). */
+.news-source-note {
+  margin-top: 12px;
+  padding: 9px 14px;
+
+  border: 1px solid #e6c77a;
+  border-radius: 10px;
+  background: #fff8e6;
+
+  color: #8a5a00;
+
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .news-header {

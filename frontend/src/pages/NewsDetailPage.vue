@@ -90,10 +90,10 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NEWS from '../data/news'
-import { getNewsItem } from '@/services/api'
+import { getNews, getNewsItem } from '@/services/api'
 import NewsMediaCarousel, {
   normalizeMedia
 } from '../components/news/NewsMediaCarousel.vue'
@@ -136,15 +136,49 @@ async function loadNews(slug) {
 
   try {
     const data = await getNewsItem(slug)
+
+    /* Пока грузилась, открыли другую новость — ответ устарел. */
+    if (String(route.params.slug) !== String(slug)) {
+      return
+    }
+
     apiNews.value = normalizeNews(data)
   } catch (error) {
+    if (String(route.params.slug) !== String(slug)) {
+      return
+    }
+
     // 404 — это нормальная ситуация «новость не найдена», в консоль не пишем.
     // Об остальных ошибках (например, API недоступен) сообщаем.
     if (!String(error).includes('404')) {
       console.error('Не удалось загрузить новость:', error)
     }
   } finally {
-    loading.value = false
+    if (String(route.params.slug) === String(slug)) {
+      loading.value = false
+    }
+  }
+}
+
+/*
+ * Список публикаций для блока «Ещё новости».
+ *
+ * Раньше он всегда собирался из зашитого демо-массива, поэтому реальные
+ * новости из API в этом блоке не появлялись никогда.
+ */
+const relatedSource = ref([])
+
+async function loadRelated() {
+  try {
+    const data = await getNews()
+    const list = Array.isArray(data) ? data : data?.data || data?.items || []
+
+    relatedSource.value = list
+      .filter(item => item.is_published !== false)
+      .map(normalizeNews)
+  } catch {
+    /* API недоступен — останется локальный список. */
+    relatedSource.value = []
   }
 }
 
@@ -153,6 +187,8 @@ watch(
   slug => loadNews(slug),
   { immediate: true }
 )
+
+onMounted(loadRelated)
 
 const news = computed(() => {
   if (apiNews.value) return apiNews.value
@@ -189,11 +225,17 @@ const formattedDate = computed(() => {
 })
 
 const relatedNews = computed(() => {
-  if (!news.value) return []
+  const current = news.value
 
-  return NEWS.filter(
-    item => item.status === 'published' && item.id !== news.value.id
-  )
+  if (!current) return []
+
+  /* Публикации из API; локальный демо-список — только как запасной. */
+  const source = relatedSource.value.length
+    ? relatedSource.value
+    : NEWS.filter(item => item.status === 'published').map(normalizeNews)
+
+  return source
+    .filter(item => String(item.id) !== String(current.id))
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, 4)
 })
