@@ -86,6 +86,13 @@ const accountPortfolioUpdatedAt = ref('')
 const accountSaveError = ref('')
 
 /*
+ * Ошибка чтения портфеля из ЛК: '' — ошибки нет. Нужна, чтобы отличать
+ * «на сервере пусто» от «не удалось получить данные» — раньше оба случая
+ * выглядели как пустой портфель.
+ */
+const accountPortfolioError = ref('')
+
+/*
  * Клиентские метки удалений: surfaceId -> ISO-время удаления.
  *
  * Сервер хранит только { title, items } и режет лишние поля, поэтому
@@ -987,8 +994,12 @@ async function fetchAccountPortfolio() {
     })
 
     if (!response.ok) {
+      accountPortfolioError.value = `Не удалось загрузить портфель (код ${response.status}).`
+
       return []
     }
+
+    accountPortfolioError.value = ''
 
     const data = await response.json()
 
@@ -1006,6 +1017,8 @@ async function fetchAccountPortfolio() {
 
     return list.map(normalizeItem).filter(Boolean)
   } catch {
+    accountPortfolioError.value = 'Нет связи с сервером — портфель не загружен.'
+
     return []
   }
 }
@@ -1211,13 +1224,21 @@ async function mergeFromAccount() {
       headers: { Authorization: `Bearer ${token}` }
     })
 
-    if (response.ok) {
-      const data = await response.json()
-      serverItems = Array.isArray(data && data.items) ? data.items : []
-      serverTitle = normalizeTitle(data && data.title)
-      accountTitle.value = serverTitle
+    if (!response.ok) {
+      accountPortfolioError.value = `Не удалось загрузить портфель (код ${response.status}).`
+
+      return false
     }
+
+    accountPortfolioError.value = ''
+
+    const data = await response.json()
+    serverItems = Array.isArray(data && data.items) ? data.items : []
+    serverTitle = normalizeTitle(data && data.title)
+    accountTitle.value = serverTitle
   } catch {
+    accountPortfolioError.value = 'Нет связи с сервером — портфель не загружен.'
+
     return false
   }
 
@@ -1456,6 +1477,7 @@ export function usePortfolio() {
     fetchAccountPortfolio,
     accountPortfolioUpdatedAt,
     accountSaveError,
+    accountPortfolioError,
     clearAccountPortfolio
   }
 }

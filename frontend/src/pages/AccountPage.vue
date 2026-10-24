@@ -232,7 +232,12 @@
             </li>
           </ul>
 
-          <div v-if="portfolioMessage" class="portfolio-note">
+          <div
+            v-if="portfolioMessage"
+            class="portfolio-note"
+            :class="{ 'is-error': portfolioMessageError }"
+            :role="portfolioMessageError ? 'alert' : undefined"
+          >
             {{ portfolioMessage }}
           </div>
         </section>
@@ -604,7 +609,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import { useAccount } from '@/composables/useAccount'
@@ -641,6 +646,7 @@ const {
   mergeFromAccount,
   accountTitle,
   accountPortfolioUpdatedAt,
+  accountPortfolioError,
   clearAccountPortfolio,
   clear: clearPortfolio
 } = usePortfolio()
@@ -651,6 +657,8 @@ const chatsUpdatedAt = ref('')
 const savedLoading = ref(false)
 const portfolioRestoring = ref(false)
 const portfolioMessage = ref('')
+/* Сообщение с ошибкой рисуем красным, а не «успешным» зелёным. */
+const portfolioMessageError = ref(false)
 
 const PORTFOLIO_PRICE = new Intl.NumberFormat('ru-RU')
 
@@ -831,6 +839,10 @@ async function loadSaved() {
     savedPortfolio.value = portfolio
     savedChats.value = chats.chats
     chatsUpdatedAt.value = chats.updated_at
+
+    /* Ошибку чтения показываем вместо молчаливого «портфель пуст». */
+    portfolioMessageError.value = Boolean(accountPortfolioError.value)
+    portfolioMessage.value = accountPortfolioError.value || ''
   } finally {
     savedLoading.value = false
   }
@@ -840,12 +852,21 @@ async function loadSaved() {
 async function restorePortfolio() {
   portfolioRestoring.value = true
   portfolioMessage.value = ''
+  portfolioMessageError.value = false
 
   try {
-    await mergeFromAccount()
+    const ok = await mergeFromAccount()
     savedPortfolio.value = await fetchAccountPortfolio()
-    portfolioMessage.value =
-      'Портфель загружен — откройте его кнопкой «Портфель» в шапке.'
+
+    if (ok) {
+      portfolioMessage.value =
+        'Портфель загружен — откройте его кнопкой «Портфель» в шапке.'
+    } else {
+      portfolioMessageError.value = true
+      portfolioMessage.value =
+        accountPortfolioError.value ||
+        'Не удалось загрузить портфель из личного кабинета. Попробуйте ещё раз.'
+    }
   } finally {
     portfolioRestoring.value = false
   }
@@ -884,11 +905,25 @@ async function doClear() {
       await clearChats()
       savedChats.value = []
       chatsUpdatedAt.value = ''
-    } else if (await clearAccountPortfolio()) {
-      savedPortfolio.value = []
+      confirmOpen.value = false
+
+      return
     }
 
-    confirmOpen.value = false
+    if (await clearAccountPortfolio()) {
+      savedPortfolio.value = []
+      confirmOpen.value = false
+
+      return
+    }
+
+    /*
+     * Ошибка очистки раньше проглатывалась: диалог просто закрывался.
+     * Теперь причина видна, а диалог остаётся открытым для повтора.
+     */
+    portfolioMessageError.value = true
+    portfolioMessage.value =
+      'Не удалось очистить портфель в личном кабинете. Попробуйте ещё раз.'
   } finally {
     clearing.value = false
   }
@@ -919,13 +954,63 @@ const requisitesSaving = ref(false)
 const requisitesMessage = ref('')
 const requisitesMessageType = ref('success')
 
-/* Заполняем поля текущими реквизитами из ЛК (в т.ч. после перезагрузки). */
+/*
+ * Заполняем поля текущими реквизитами из ЛК (в т.ч. после перезагрузки).
+ *
+ * Фоновый loadMe дёргают шапка и другие страницы, поэтому обновление
+ * requisites может прийти прямо во время правки. Несохранённый ввод не
+ * затираем: синхронизируем форму только когда пользователь ничего не
+ * менял.
+ */
+const requisitesDirty = ref(false)
+let applyingRequisitesForm = false
+
 watch(
   requisites,
   value => {
+    if (requisitesDirty.value) {
+      return
+    }
+
+    applyingRequisitesForm = true
     requisitesForm.value = { ...emptyRequisites(), ...value }
+
+    /* Сбрасываем после flush watcher'ов: они выполняются асинхронно. */
+    nextTick(() => {
+      applyingRequisitesForm = false
+    })
   },
   { deep: true, immediate: true }
+)
+
+/* Правка формы: сигнал, что затирать её больше нельзя. */
+watch(
+  requisitesForm,
+  () => {
+    if (applyingRequisitesForm) {
+      return
+    }
+
+    requisitesDirty.value = true
+  },
+  { deep: true }
+)
+
+/* Смена пользователя: показываем его реквизиты, чужие правки забываем. */
+watch(
+  () => String(account.value?.login || ''),
+  () => {
+    requisitesDirty.value = false
+    requisitesErrors.value = {}
+    requisitesMessage.value = ''
+
+    applyingRequisitesForm = true
+    requisitesForm.value = { ...emptyRequisites(), ...requisites.value }
+
+    nextTick(() => {
+      applyingRequisitesForm = false
+    })
+  }
 )
 
 function validateRequisites(values) {
@@ -968,6 +1053,8 @@ async function submitRequisites() {
     await saveRequisites(payload)
     requisitesMessage.value = 'Реквизиты сохранены'
     requisitesMessageType.value = 'success'
+    /* Сохранено: форма снова может синхронизироваться с сервером. */
+    requisitesDirty.value = false
   } catch (exc) {
     /* локальное сообщение об ошибке — без дубля в общем баннере */
     requisitesMessage.value =
@@ -1710,6 +1797,12 @@ async function handleLogout() {
   color: #2e7d32;
 
   font-size: 13px;
+}
+
+/* Ошибка загрузки/очистки портфеля — красная, а не «успешно-зелёная». */
+.portfolio-note.is-error {
+  background: #fdf2f1;
+  color: #b3261e;
 }
 
 /* ---------------- Подтверждение ---------------- */
