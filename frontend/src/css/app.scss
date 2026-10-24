@@ -1128,12 +1128,53 @@ h6 {
    шире и такого лимита высоты нет. Селектор бьёт по контейнеру
    балуна Яндекса (в Leaflet он иной — leaflet-popup-content).
    --------------------------------------------------------- */
+/* До 800 px — как было: попап фиксированной ширины, балун подстраивается. */
 [class*='balloon__content'] .popup-double {
   width: 540px;
 }
 
 [class*='balloon__content'] .popup-triple {
   width: 580px;
+}
+
+/*
+ * Карточки занимают окно балуна целиком. Штатно контент балуна сдвинут от
+ * левого края на 12 px, а справа колонку в 30 px занимает крестик закрытия —
+ * из-за этого зазоры получались 20 px слева и 38 px справа. Сдвиг убираем,
+ * а крестик вынимаем из потока: он ложится поверх правого верхнего угла
+ * балуна (как в Leaflet), и карточки получают всю ширину. Шапке даём
+ * симметричный отступ, чтобы адрес не заезжал под крестик.
+ *
+ * Только для настольных ширин (>800 px) и только когда в балуне широкая
+ * раскладка (`:has`): одиночный попап и узкие экраны остаются как были.
+ */
+@media (min-width: 801px) {
+  [class*='balloon__content']:has(.popup-double),
+  [class*='balloon__content']:has(.popup-triple) {
+    padding-left: 0 !important;
+    /* Поле справа резервировало колонку крестика; теперь крестик поверх. */
+    margin-right: 0 !important;
+  }
+
+  [class*='balloon__content']:has(.popup-double) .popup-double,
+  [class*='balloon__content']:has(.popup-triple) .popup-triple {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  [class*='balloon__layout']:has(.popup-double) [class*='balloon__close'],
+  [class*='balloon__layout']:has(.popup-triple) [class*='balloon__close'] {
+    position: absolute !important;
+    top: 0;
+    right: 0;
+    z-index: 3;
+  }
+
+  [class*='balloon__content']:has(.popup-double) .popup-header,
+  [class*='balloon__content']:has(.popup-triple) .popup-header {
+    padding-right: 30px;
+    padding-left: 30px;
+  }
 }
 
 @media (max-width: 760px) {

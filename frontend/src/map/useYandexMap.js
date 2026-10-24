@@ -314,17 +314,27 @@ function createMap(element) {
  * балун шире двойного, иначе третья карточка обрезается (как это было
  * и в Leaflet). На узких экранах не даём балуну выйти за пределы вьюпорта.
  */
-function balloonWidths(layout, narrow) {
+function balloonWidths(layout, narrow, wide) {
   if (narrow) {
     return { balloonMaxWidth: 320, balloonMinWidth: 260 }
   }
 
+  /*
+   * На широких экранах (>800 px) разметка занимает балун целиком, поэтому
+   * ширину задаём точно (min = max): своей «естественной» ширины у контента
+   * нет, и Яндекс взял бы минимальную. До 800 px оставляем как было —
+   * «резиновую» ширину, там балун подстраивается под попап.
+   */
   if (layout === 'triple') {
-    return { balloonMaxWidth: 620, balloonMinWidth: 560 }
+    return wide
+      ? { balloonMaxWidth: 620, balloonMinWidth: 620 }
+      : { balloonMaxWidth: 620, balloonMinWidth: 560 }
   }
 
   if (layout === 'double') {
-    return { balloonMaxWidth: 560, balloonMinWidth: 500 }
+    return wide
+      ? { balloonMaxWidth: 560, balloonMinWidth: 560 }
+      : { balloonMaxWidth: 560, balloonMinWidth: 500 }
   }
 
   return { balloonMaxWidth: 340, balloonMinWidth: 280 }
@@ -334,7 +344,7 @@ function balloonWidths(layout, narrow) {
 function applyPlacemarkOptions(entry) {
   entry.placemark.options.set({
     iconImageHref: dotIconHref(entry.color),
-    ...balloonWidths(entry.layout, entry.narrow)
+    ...balloonWidths(entry.layout, entry.narrow, entry.wide)
   })
 }
 
@@ -375,7 +385,7 @@ function itemsKeyOf(items) {
   return items.map(item => String(item?.id ?? '')).join(',')
 }
 
-function buildPlacemark({ items, lat, lng, color, layout, narrow }) {
+function buildPlacemark({ items, lat, lng, color, layout, narrow, wide }) {
   const first = items[0]
 
   const placemark = new ymaps.Placemark(
@@ -404,7 +414,7 @@ function buildPlacemark({ items, lat, lng, color, layout, narrow }) {
         radius: 9
       },
 
-      ...balloonWidths(layout, narrow),
+      ...balloonWidths(layout, narrow, wide),
 
       balloonAutoPan: true,
 
@@ -421,6 +431,7 @@ function buildPlacemark({ items, lat, lng, color, layout, narrow }) {
     html: '',
     layout,
     narrow,
+    wide,
     color,
     lat,
     lng
@@ -462,13 +473,16 @@ function renderMarkers() {
 
     const color = markerColor(items)
     const layout = popupLayout(items)
-    const narrow = typeof window !== 'undefined' && window.innerWidth < 600
+    const viewport = typeof window !== 'undefined' ? window.innerWidth : 1500
+    const narrow = viewport < 600
+    /* Широкий экран: есть запас под попап во всю ширину балуна. */
+    const wide = viewport > 800
 
     let entry = placemarkByKey.get(key)
 
     // Новая точка — создаём и добавляем.
     if (!entry) {
-      entry = buildPlacemark({ items, lat, lng, color, layout, narrow })
+      entry = buildPlacemark({ items, lat, lng, color, layout, narrow, wide })
 
       placemarkByKey.set(key, entry)
       added.push(entry.placemark)
@@ -493,11 +507,13 @@ function renderMarkers() {
     if (
       entry.color !== color ||
       entry.layout !== layout ||
-      entry.narrow !== narrow
+      entry.narrow !== narrow ||
+      entry.wide !== wide
     ) {
       entry.color = color
       entry.layout = layout
       entry.narrow = narrow
+      entry.wide = wide
       applyPlacemarkOptions(entry)
     }
 
