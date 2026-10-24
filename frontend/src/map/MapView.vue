@@ -145,16 +145,29 @@ async function initMap() {
   await ensureSiteSettings()
 
   if (mapEngine.value === 'yandex') {
+    let yandexApi = null
+
     try {
-      const api = await loadEngineApi('yandex')
-      api.createMap(mapElement.value)
+      yandexApi = await loadEngineApi('yandex')
+      yandexApi.createMap(mapElement.value)
       activeEngine.value = 'yandex'
-      return api
+
+      return yandexApi
     } catch (error) {
       console.warn(
         'Albion map: Yandex Maps недоступны, откат на Leaflet.',
         error
       )
+
+      /*
+       * createMap мог успеть создать карту и упасть дальше (кластер,
+       * geoObjects): тогда экземпляр и его подписки остаются на элементе.
+       */
+      try {
+        yandexApi?.destroyMap?.()
+      } catch {
+        /* карта могла не создаться вовсе */
+      }
     }
   }
 

@@ -353,6 +353,9 @@ function popupOptions(isDouble) {
  */
 const markerByKey = new Map()
 
+/* Отложенный пересчёт размеров карты (см. invalidateSize). */
+let invalidateTimer = null
+
 /* Ленивый попап: разметка собирается при открытии и читает свежие items. */
 function lazyPopupContent(entry) {
   entry.html = popupContent(entry.items)
@@ -950,7 +953,18 @@ function invalidateSize() {
     return
   }
 
-  setTimeout(() => {
+  /*
+   * Таймер один: при перетаскивании окна ResizeObserver шлёт события пачкой,
+   * и без отмены копились десятки пересчётов. id храним, чтобы снять его
+   * в destroyMap.
+   */
+  if (invalidateTimer) {
+    clearTimeout(invalidateTimer)
+  }
+
+  invalidateTimer = setTimeout(() => {
+    invalidateTimer = null
+
     /*
      * За время ожидания карту могли уничтожить (уход со страницы) —
      * тогда map уже null, и обращение к нему бросало TypeError.
@@ -967,6 +981,12 @@ function destroyMap() {
 
   clearSearchPoint()
   clearSearchRadius()
+
+  if (invalidateTimer) {
+    clearTimeout(invalidateTimer)
+    invalidateTimer = null
+  }
+
   if (renderTimer) {
     clearTimeout(renderTimer)
     renderTimer = null

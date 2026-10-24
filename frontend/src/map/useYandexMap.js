@@ -49,6 +49,11 @@ let regionRings = []
 let maskRefreshFrame = null
 
 let searchPointPlacemark = null
+
+/* Отложенные пересчёт размеров и ограничение зума (см. invalidateSize). */
+let invalidateTimer = null
+let fitZoomTimer = null
+
 let searchPointHoverHandler = null
 let searchPointClickHandler = null
 let searchRadiusCircle = null
@@ -1076,13 +1081,26 @@ async function loadRegion() {
    ========================================================= */
 
 function invalidateSize() {
-  if (!map) {
+  const current = map
+
+  if (!current) {
     return
   }
 
-  setTimeout(() => {
-    if (map && map.container) {
-      map.container.fitToViewport()
+  /* Один таймер на пачку событий ресайза, снимается в destroyMap. */
+  if (invalidateTimer) {
+    clearTimeout(invalidateTimer)
+  }
+
+  invalidateTimer = setTimeout(() => {
+    invalidateTimer = null
+
+    /*
+     * Экземпляр захватываем: иначе таймер от уничтоженной карты мог
+     * выстрелить уже в новую (после смены движка или retryInit).
+     */
+    if (map === current && current.container) {
+      current.container.fitToViewport()
     }
   }, 100)
 }
@@ -1090,6 +1108,16 @@ function invalidateSize() {
 function destroyMap() {
   searchPointHoverHandler = null
   searchPointClickHandler = null
+
+  if (invalidateTimer) {
+    clearTimeout(invalidateTimer)
+    invalidateTimer = null
+  }
+
+  if (fitZoomTimer) {
+    clearTimeout(fitZoomTimer)
+    fitZoomTimer = null
+  }
 
   clearSearchPoint()
   clearSearchRadius()
@@ -1172,10 +1200,26 @@ function flyToPoints(points, fitOptions) {
     duration: FLY_DURATION
   })
 
-  /* setBounds не принимает maxZoom — ограничиваем зум после. */
-  setTimeout(() => {
-    if (map && map.getZoom() > fitOptions.maxZoom) {
-      map.setZoom(fitOptions.maxZoom, {
+  /*
+   * setBounds не принимает maxZoom — ограничиваем зум после. Экземпляр
+   * захватываем и id помним: если карту успели пересоздать, старое
+   * намерение к ней не применяем.
+   */
+  const target = map
+
+  if (fitZoomTimer) {
+    clearTimeout(fitZoomTimer)
+  }
+
+  fitZoomTimer = setTimeout(() => {
+    fitZoomTimer = null
+
+    if (map !== target || !target) {
+      return
+    }
+
+    if (target.getZoom() > fitOptions.maxZoom) {
+      target.setZoom(fitOptions.maxZoom, {
         duration: FLY_DURATION
       })
     }
