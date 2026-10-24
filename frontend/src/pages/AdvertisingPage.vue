@@ -869,6 +869,15 @@ function onSideMonthClick(block, month) {
   toggleSideMonth(block?.items || [], month.full)
 }
 
+/* Первая (ведущая) сторона блока — как и в попапе карты. */
+function blockPrimary(block) {
+  return block?.items?.[0] || {}
+}
+
+function blockType(block) {
+  return String(blockPrimary(block).type || 'Конструкция').trim()
+}
+
 /* Подпись стороны блока: динамика — сторона блока, иначе своя подпись. */
 function blockSide(block) {
   const item = blockPrimary(block)
