@@ -347,7 +347,8 @@ import {
   monthsFromItems,
   dedupeSides,
   groupByPoint,
-  groupSides
+  groupSides,
+  parentSide
 } from '../../utils/constructionGroups'
 import { getAvailabilityState, isFree } from '../../utils/availability'
 import { availableMode } from '../../config/availableMode'
@@ -451,7 +452,13 @@ const chatMonths = computed(() => {
   }
 
   if (names.size) {
-    return buildMonthList([...names])
+    /* Порядок — календарный, а не по упоминанию в вопросе («ноябрь и
+       октябрь» должны дать ОКТ, НОЯ, как на карте и в списке). */
+    const ordered = [...names].sort(
+      (left, right) => MONTH_ORDER.indexOf(left) - MONTH_ORDER.indexOf(right)
+    )
+
+    return buildMonthList(ordered)
   }
 
   const fallback = monthsFromItems(items)
@@ -493,6 +500,7 @@ const {
   isSelectionMode,
   toggleSelectionMode,
   toggleMonth,
+  toggleSideMonth,
   removeSurface
 } = usePortfolio()
 
@@ -693,7 +701,12 @@ function surfaceOf(item) {
     lng: item.lng,
     address: item.address,
     city: item.city,
-    side: item.side,
+    /*
+     * Подпись стороны — сразу без индекса поверхности: в портфель позиция
+     * уходит стороной, и на главной/«Чате» синхронизации с каталогом нет,
+     * поэтому нормализовать больше негде.
+     */
+    side: parentSide(item.side, item.type || item.media_type),
     type: item.type || item.media_type,
     size: item.size,
     price: item.price,
@@ -830,7 +843,12 @@ function onPointToggle(point) {
 }
 
 function onRowMonthClick(side, row, month) {
-  if (!isBlockActive(side) || rowLocked(row, month.full)) {
+  if (!isBlockActive(side)) {
+    return
+  }
+
+  /* Снять месяц можно всегда — даже если он перестал быть свободным. */
+  if (!isMonthSelected(row.id, month.full) && rowLocked(row, month.full)) {
     return
   }
 
@@ -920,10 +938,18 @@ function isSideMonthSelected(side, monthFull) {
   return (side?.items || []).some(row => isMonthSelected(row.id, monthFull))
 }
 
+/*
+ * Клик по месяцу свёрнутой стороны: в портфеле одна позиция на сторону,
+ * поэтому месяц добавляет/снимает toggleSideMonth. Раньше он уходил КАЖДОЙ
+ * поверхности стороны — у призматрона одна сторона превращалась в 2–3
+ * позиции с двойной суммой в заявке и выгрузке.
+ */
 function onSideMonthClick(side, month) {
-  for (const row of side?.items || []) {
-    onRowMonthClick(side, row, month)
+  if (!isBlockActive(side)) {
+    return
   }
+
+  toggleSideMonth(side?.items || [], month.full)
 }
 
 /* Загруженность поверхности (для строки динамической стороны). */
