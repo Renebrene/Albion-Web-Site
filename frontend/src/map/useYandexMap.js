@@ -69,6 +69,12 @@ let resizeObserver = null
 /* Кадр троттлинга boundschange (см. handleBoundsChange). */
 let centerFrame = null
 
+/* Контейнер карты: по его размеру понимаем, видима ли карта (v-show). */
+let mapElement = null
+
+/* Центр, отложенный до появления размера у контейнера (см. setMapCenter). */
+let pendingCenter = null
+
 /* =========================================================
    HELPERS
    ========================================================= */
@@ -240,6 +246,9 @@ function createMap(element) {
   if (!element) {
     throw new Error('Map element not found')
   }
+
+  /* Контейнер запоминаем: по его размеру понимаем, видима ли карта. */
+  mapElement = element
 
   if (map) {
     return map
@@ -831,6 +840,28 @@ function clearSearchRadius() {
   searchRadiusCircle = null
 }
 
+/* Карта получила размер (вкладка «Карта» видима)? */
+function hasMapSize() {
+  return Boolean(
+    mapElement && mapElement.clientWidth > 0 && mapElement.clientHeight > 0
+  )
+}
+
+/* Применяет отложенный центр, когда карта стала видимой. */
+function applyPendingCenter() {
+  if (!pendingCenter || !map || !hasMapSize()) {
+    return
+  }
+
+  const { lat, lng, zoom } = pendingCenter
+
+  pendingCenter = null
+
+  map.setCenter([lat, lng], zoom, {
+    duration: FLY_DURATION
+  })
+}
+
 function setMapCenter(lat, lng, zoom = 14) {
   if (!map) {
     return
@@ -842,6 +873,15 @@ function setMapCenter(lat, lng, zoom = 14) {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return
   }
+
+  /* Скрытая карта («Список»): центрируем, когда появится размер. */
+  if (!hasMapSize()) {
+    pendingCenter = { lat: latitude, lng: longitude, zoom }
+    invalidateSize()
+    return
+  }
+
+  pendingCenter = null
 
   map.setCenter([latitude, longitude], zoom, {
     duration: FLY_DURATION
@@ -1131,6 +1171,9 @@ function invalidateSize() {
      */
     if (map === current && current.container) {
       current.container.fitToViewport()
+
+      /* Размер появился — можно применить отложенный центр. */
+      applyPendingCenter()
     }
   }, 100)
 }
@@ -1138,6 +1181,9 @@ function invalidateSize() {
 function destroyMap() {
   searchPointHoverHandler = null
   searchPointClickHandler = null
+
+  mapElement = null
+  pendingCenter = null
 
   if (invalidateTimer) {
     clearTimeout(invalidateTimer)

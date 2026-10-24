@@ -30,6 +30,16 @@ let selectedMonths = []
 let renderTimer = null
 /* Кадр троттлинга события центра карты (см. map.on('move')). */
 let centerFrame = null
+
+/* Контейнер карты: нужен, чтобы отличить скрытую карту (v-show). */
+let mapElement = null
+
+/*
+ * Центр, который не удалось применить к скрытой карте.
+ * Пока контейнер нулевого размера, Leaflet не знает pixel origin и
+ * flyTo падает с «Invalid LatLng (NaN, NaN)».
+ */
+let pendingCenter = null
 let resizeObserver = null
 
 /* =========================================================
@@ -245,6 +255,9 @@ function createMap(element) {
   if (!element) {
     throw new Error('Map element not found')
   }
+
+  /* Контейнер запоминаем: по его размеру понимаем, видима ли карта. */
+  mapElement = element
 
   if (map) {
     return map
@@ -799,6 +812,31 @@ function clearSearchRadius() {
   searchRadiusCircle = null
 }
 
+/* Карта получила размер (вкладка «Карта» видима)? */
+function hasMapSize() {
+  return Boolean(
+    mapElement && mapElement.clientWidth > 0 && mapElement.clientHeight > 0
+  )
+}
+
+/*
+ * Применяет отложенный центр, когда карта стала видимой: страница может
+ * попросить центрирование, пока открыт «Список» (карта скрыта v-show).
+ */
+function applyPendingCenter() {
+  if (!pendingCenter || !map || !hasMapSize()) {
+    return
+  }
+
+  const { lat, lng, zoom } = pendingCenter
+
+  pendingCenter = null
+
+  map.flyTo([lat, lng], zoom, {
+    duration: 0.8
+  })
+}
+
 function setMapCenter(lat, lng, zoom = 14) {
   if (!map) {
     return
@@ -810,6 +848,15 @@ function setMapCenter(lat, lng, zoom = 14) {
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
     return
   }
+
+  /* Скрытая карта: запоминаем цель и ждём появления размера. */
+  if (!hasMapSize()) {
+    pendingCenter = { lat: latitude, lng: longitude, zoom }
+    invalidateSize()
+    return
+  }
+
+  pendingCenter = null
 
   map.flyTo([latitude, longitude], zoom, {
     duration: 0.8
@@ -986,6 +1033,9 @@ function invalidateSize() {
      */
     if (map === current) {
       current.invalidateSize()
+
+      /* Размер появился — можно применить отложенный центр. */
+      applyPendingCenter()
     }
   }, 100)
 }
@@ -996,6 +1046,9 @@ function destroyMap() {
 
   clearSearchPoint()
   clearSearchRadius()
+
+  mapElement = null
+  pendingCenter = null
 
   if (invalidateTimer) {
     clearTimeout(invalidateTimer)
