@@ -785,32 +785,49 @@ function applyShared(shared, constructions, { replace = false } = {}) {
   const byId = new Map(
     catalog.map(construction => [keyOf(construction?.id), construction])
   )
+  const sideGroups = buildSideGroups(catalog)
 
   list.forEach(sharedItem => {
-    const construction = byId.get(keyOf(sharedItem?.surfaceId))
+    const sharedSurface = byId.get(keyOf(sharedItem?.surfaceId))
 
-    if (!construction) {
+    if (!sharedSurface) {
       result.skipped += 1
       return
     }
 
-    const existed = Boolean(findItem(sharedItem.surfaceId))
+    /*
+     * Единица портфеля — сторона, поэтому месяц ищем и добавляем по стороне:
+     * у получателя та же сторона могла быть уже открыта другой поверхностью
+     * (свободная в каждом месяце бывает своя), и проверка по одному
+     * surfaceId добавляла вторую строку на ту же сторону с двойной суммой.
+     */
+    const group = sideGroups.get(keyOf(sharedItem.surfaceId)) || [sharedSurface]
+
+    const existed = group.some(surface =>
+      isInPortfolio(toSurfaceId(surface?.id))
+    )
 
     const monthsToAdd = (
       Array.isArray(sharedItem.months) ? sharedItem.months : []
-    ).filter(
-      monthFull =>
-        monthFull && !isMonthSelected(sharedItem.surfaceId, monthFull)
-    )
+    ).filter(monthFull => monthFull && !isSideMonthSelected(group, monthFull))
 
-    /* Позиция без выбранных месяцев в портфеле тоже ценна: «ничего не выбрано». */
-    if (!existed && !monthsToAdd.length) {
-      ensureItem(construction)
+    if (existed) {
+      /* Позиция стороны уже есть — дополняем её месяцами. */
+      monthsToAdd.forEach(monthFull => toggleSideMonth(group, monthFull))
+    } else if (monthsToAdd.length) {
+      toggleSideMonth(group, monthsToAdd[0])
+      monthsToAdd
+        .slice(1)
+        .forEach(monthFull => toggleSideMonth(group, monthFull))
+    } else {
+      /* Позиция без выбранных месяцев тоже ценна: «ничего не выбрано». */
+      ensureItem(sidePassport(sharedSurface))
     }
 
-    monthsToAdd.forEach(monthFull => toggleMonth(construction, monthFull))
-
-    if (!existed) {
+    if (
+      !existed &&
+      group.some(surface => isInPortfolio(toSurfaceId(surface?.id)))
+    ) {
       result.added += 1
     }
 

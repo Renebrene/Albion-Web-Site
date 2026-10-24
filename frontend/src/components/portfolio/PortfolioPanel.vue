@@ -228,7 +228,7 @@
           dense
           class="portfolio-icon"
           icon="link"
-          :disable="!count"
+          :disable="!count || Boolean(busy)"
           aria-label="Ссылка на портфель"
           @click="sharePortfolioLink"
         >
@@ -293,9 +293,12 @@
           <div class="request-title">Отправить заявку</div>
 
           <p class="request-hint">
-            {{ count }}
-            {{ count === 1 ? 'позиция' : 'позиции' }} из портфеля — мы свяжемся
-            по указанному телефону или e-mail.
+            {{ count }} {{ positionsWord }} из портфеля — мы свяжемся по
+            указанному телефону или e-mail.
+          </p>
+
+          <p v-if="requestLimitNotice" class="request-hint request-hint--warn">
+            {{ requestLimitNotice }}
           </p>
 
           <q-input
@@ -1006,6 +1009,11 @@ onBeforeUnmount(() => {
     clearTimeout(linkCopiedTimer)
     linkCopiedTimer = null
   }
+
+  if (toastTimer) {
+    clearTimeout(toastTimer)
+    toastTimer = null
+  }
 })
 
 /* ЛК: сохраняем при авторизации, иначе отправляем на вход. */
@@ -1126,13 +1134,46 @@ function validateRequestForm() {
   return !requestFieldErrors.name && contactValid
 }
 
-/* Позиции портфеля → короткий список для заявки. */
+/*
+ * Позиции портфеля → короткий список для заявки.
+ *
+ * Лимит — только защитный (как у выгрузки на сервере, 500 позиций): раньше
+ * стояло 60, и портфель больше 60 молча уходил менеджеру обрезанным, хотя
+ * в диалоге было написано «N позиций из портфеля». Если позиций больше,
+ * число ушедших видно прямо в диалоге (см. requestLimitNotice).
+ */
+const REQUEST_ITEMS_LIMIT = 500
+
 function requestItems() {
-  return items.value.slice(0, 60).map(item => ({
+  return items.value.slice(0, REQUEST_ITEMS_LIMIT).map(item => ({
     id: Number(item.surfaceId) || null,
     title: [item.type, item.address].filter(Boolean).join(' · ')
   }))
 }
+
+/* «1 позиция», «2 позиции», «80 позиций» — как в остальных счётчиках. */
+const positionsWord = computed(() => {
+  const value = Math.abs(Number(count.value) || 0)
+  const mod10 = value % 10
+  const mod100 = value % 100
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return 'позиция'
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) {
+    return 'позиции'
+  }
+
+  return 'позиций'
+})
+
+/* В заявку уходит не больше REQUEST_ITEMS_LIMIT позиций — предупреждаем. */
+const requestLimitNotice = computed(() =>
+  count.value > REQUEST_ITEMS_LIMIT
+    ? `В заявку уйдут первые ${REQUEST_ITEMS_LIMIT} позиций — остальные выгрузите файлом.`
+    : ''
+)
 
 async function submitRequest() {
   requestError.value = ''
@@ -1832,6 +1873,11 @@ function handleClear() {
 }
 
 /* --------------------------------------------------------- Тост */
+
+/* Предупреждение в диалоге заявки: портфель больше лимита заявки. */
+.request-hint--warn {
+  color: #b3261e;
+}
 
 .portfolio-toast {
   display: flex;
