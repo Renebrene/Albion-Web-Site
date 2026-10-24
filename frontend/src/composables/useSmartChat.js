@@ -152,9 +152,21 @@ function createStore(key) {
 
   restore()
 
+  /*
+   * Результат send() — не «ответ или нет», а что именно произошло:
+   *   { status: 'ok', response } — ответ получен;
+   *   { status: 'stopped' }      — пользователь нажал «Стоп»: сообщение убрано
+   *                                из ленты, текст можно вернуть в поле ввода;
+   *   { status: 'error' }        — ошибка или таймаут: вопрос остался в ленте
+   *                                и рядом плашка с «Повторить»;
+   *   { status: 'ignored' }      — запрос устарел (чат сброшен) или отправка
+   *                                уже идёт.
+   * Текст в поле ввода возвращается только при 'stopped': в остальных случаях
+   * вопрос уже отражён в ленте, и возврат текста его задваивал.
+   */
   async function send(message, context = {}) {
     const text = String(message || '').trim()
-    if (!text || loading.value) return null
+    if (!text || loading.value) return { status: 'ignored' }
 
     const requestGeneration = generation
     const controller = new AbortController()
@@ -185,7 +197,7 @@ function createStore(key) {
 
       /* Чат очистили/пересоздали, пока шёл запрос — ответ уже не нужен. */
       if (generation !== requestGeneration) {
-        return null
+        return { status: 'ignored' }
       }
 
       sessionId.value = response.session_id
@@ -202,23 +214,22 @@ function createStore(key) {
         warnings: response.warnings
       })
       persist()
-      return response
+      return { status: 'ok', response }
     } catch (exc) {
       if (generation !== requestGeneration) {
-        return null
+        return { status: 'ignored' }
       }
 
       /*
        * Пользователь нажал «Стоп»: считаем, что сообщение не отправлено, —
-       * убираем его из ленты. Текст в поле вернёт панель ввода (send
-       * возвращает null так же, как при ошибке).
+       * убираем его из ленты и разрешаем панели вернуть текст в поле.
        */
       if (stopRequested || exc?.code === 'aborted') {
         if (messages.value[messageIndex]?.role === 'user') {
           messages.value.splice(messageIndex, 1)
         }
 
-        return null
+        return { status: 'stopped' }
       }
 
       error.value =
@@ -234,11 +245,11 @@ function createStore(key) {
       persist()
 
       /*
-       * После таймаута сообщение пользователя остаётся в истории: запрос
-       * мог дойти до сервера. Текст в поле ввода не возвращаем, иначе он
-       * задвоится, — панель отличает таймаут от прочих ошибок по результату.
+       * И при ошибке, и при таймауте вопрос остаётся в истории (после
+       * таймаута запрос мог дойти до сервера), рядом — плашка с «Повторить».
+       * Текст в поле ввода не возвращаем: он бы задвоил вопрос.
        */
-      return exc?.code === 'timeout' ? { timedOut: true } : null
+      return { status: 'error' }
     } finally {
       if (activeController === controller) {
         activeController = null
@@ -248,6 +259,29 @@ function createStore(key) {
         loading.value = false
       }
     }
+  }
+
+  /*
+   * Убрать из ленты модуль «вопрос + ответы на него».
+   * Нужно для повтора неудачного запроса: иначе вопрос, отправленный
+   * заново, показывался в ленте дважды, а рядом оставалась плашка ошибки.
+   */
+  function dropExchange(question) {
+    const index = messages.value.indexOf(question)
+
+    if (index === -1) {
+      return
+    }
+
+    /* Модуль тянется до следующего вопроса (или до конца ленты). */
+    let end = index + 1
+
+    while (end < messages.value.length && messages.value[end].role !== 'user') {
+      end += 1
+    }
+
+    messages.value.splice(index, end - index)
+    persist()
   }
 
   /* Пользователь прервал ожидание ответа (кнопка «Стоп»). */
@@ -304,6 +338,7 @@ function createStore(key) {
     send,
     stop,
     reset,
+    dropExchange,
     persist,
     invalidate
   }

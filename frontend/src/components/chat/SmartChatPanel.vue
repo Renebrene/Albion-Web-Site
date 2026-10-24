@@ -430,9 +430,8 @@ const expanded = ref(false)
 const collapseToSides = computed(
   () => props.variant === 'compact' || availableMode.value === 'sides'
 )
-const { messages, loading, lastResponse, send, stop, reset } = useSmartChat(
-  props.chatKey
-)
+const { messages, loading, lastResponse, send, stop, reset, dropExchange } =
+  useSmartChat(props.chatKey)
 
 /*
  * Месяцы чата — из месяцев его результатов (а не из глобального списка):
@@ -577,7 +576,10 @@ watch(
   }
 )
 
-/* Повтор неудачного запроса: отправляем тот же вопрос заново. */
+/*
+ * Повтор неудачного запроса: неудавшийся модуль (вопрос и плашку ошибки)
+ * убираем и отправляем тот же вопрос заново — иначе вопрос задваивался.
+ */
 function retryExchange(exchange) {
   const text = String(exchange?.question?.text || '').trim()
 
@@ -585,6 +587,7 @@ function retryExchange(exchange) {
     return
   }
 
+  dropExchange(exchange.question)
   void send(text)
 }
 let copyTimer = null
@@ -614,7 +617,7 @@ async function copyMessage(message, key) {
 function submit() {
   const text = draft.value.trim()
 
-  /* send() молча вернёт null, если этот чат уже загружается. */
+  /* При идущей отправке send() ничего не сделает — не теряем черновик. */
   if (!text || loading.value) {
     return
   }
@@ -622,8 +625,11 @@ function submit() {
   draft.value = ''
 
   void send(text).then(result => {
-    /* Ошибка сети: возвращаем текст, если пользователь ещё ничего не ввёл. */
-    if (result === null && !draft.value) {
+    /*
+     * Текст возвращаем только после «Стоп» — при ошибке вопрос уже остался
+     * в ленте с плашкой, и возврат текста его бы задвоил.
+     */
+    if (result?.status === 'stopped' && !draft.value) {
       draft.value = text
     }
   })
