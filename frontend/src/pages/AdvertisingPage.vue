@@ -3247,12 +3247,25 @@ function applySharedPortfolioFromUrl() {
   }
 }
 
+/*
+ * Поколение загрузок: быстрый повторный вызов не должен перезаписывать
+ * свежие данные более старым ответом.
+ */
+let reloadSeq = 0
+
 async function reloadConstructions() {
+  const seq = ++reloadSeq
+
   loading.value = true
   loadError.value = ''
 
   try {
     const data = await getConstructions()
+
+    /* Пока ждали ответ, запустили более свежую загрузку. */
+    if (seq !== reloadSeq) {
+      return
+    }
 
     if (!Array.isArray(data)) {
       throw new Error('Некорректный ответ /api/constructions')
@@ -3281,12 +3294,22 @@ async function reloadConstructions() {
      */
     clearPopupContentCache()
   } catch (error) {
-    constructions.value = []
+    if (seq !== reloadSeq) {
+      return
+    }
+
+    /*
+     * Уже показанный каталог не выбрасываем: ошибка обновления не повод
+     * терять данные, с которыми работает пользователь. Пустой будет
+     * только первая загрузка.
+     */
     loadError.value =
       'Не удалось загрузить конструкции. Проверьте соединение и повторите.'
     console.error('Albion page: ошибка загрузки конструкций:', error)
   } finally {
-    loading.value = false
+    if (seq === reloadSeq) {
+      loading.value = false
+    }
   }
 }
 
