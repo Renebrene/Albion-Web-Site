@@ -558,6 +558,29 @@ const inputValid = computed(() => {
 })
 
 let pollTimer = null
+/* Опрос статуса: не даём запросам накладываться друг на друга. */
+let pollInFlight = false
+/* Ошибку показал именно опрос — её и снимаем при восстановлении связи. */
+let pollError = false
+
+const POLL_INTERVAL_MS = 2000
+/* Статус — короткий запрос: зависший не должен замораживать опрос. */
+const POLL_TIMEOUT_MS = 10000
+
+function ensurePolling() {
+  if (pollTimer) {
+    return
+  }
+
+  pollTimer = window.setInterval(pollStatus, POLL_INTERVAL_MS)
+}
+
+function stopPolling() {
+  if (pollTimer) {
+    window.clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
 
 const errorsText = computed(() => {
   const errors = updateState.value.errors || []
@@ -690,7 +713,7 @@ async function startUpdate() {
       method: 'POST'
     })
 
-    pollTimer = window.setInterval(pollStatus, 2000)
+    /* Интервал поднимет pollStatus по фактическому статусу. */
     await pollStatus()
   } catch (exc) {
     error.value = String(exc)
@@ -715,34 +738,68 @@ async function stopUpdate() {
 }
 
 async function pollStatus() {
-  try {
-    const status = await request('/api/admin/base/update/status')
-
-    // медиа-счётчики копируем целиком
-    updateState.value = {
-      ...updateState.value,
-      ...status
-    }
-
-    inputReady.value = Boolean(status.input_ready)
-
-    if (status.state === 'running') {
-      return
-    }
-
-    // завершилось
-    window.clearInterval(pollTimer)
-    pollTimer = null
-    updateRunning.value = false
-
-    await loadArchives()
-    await loadLogs()
-  } catch (exc) {
-    window.clearInterval(pollTimer)
-    pollTimer = null
-    updateRunning.value = false
-    error.value = String(exc)
+  /* Предыдущий запрос ещё в полёте — не наслаиваем новый. */
+  if (pollInFlight) {
+    return
   }
+
+  pollInFlight = true
+
+  let status = null
+  let failure = null
+
+  try {
+    status = await request('/api/admin/base/update/status', {
+      timeoutMs: POLL_TIMEOUT_MS
+    })
+  } catch (exc) {
+    failure = exc
+  } finally {
+    pollInFlight = false
+  }
+
+  if (failure) {
+    /*
+     * Разовая ошибка сети не должна «отворачивать» интерфейс от идущего
+     * на сервере обновления: опрос продолжается до финального статуса.
+     */
+    error.value = String(failure)
+    pollError = true
+    ensurePolling()
+    return
+  }
+
+  /* Связь восстановилась — снимаем ошибку, которую показывал опрос. */
+  if (pollError) {
+    pollError = false
+    error.value = ''
+  }
+
+  // медиа-счётчики копируем целиком
+  updateState.value = {
+    ...updateState.value,
+    ...status
+  }
+
+  inputReady.value = Boolean(status.input_ready)
+
+  if (status.state === 'running') {
+    /*
+     * Интервал поднимаем по фактическому статусу: после перезагрузки
+     * страницы во время обновления onMounted делает один опрос, и без
+     * этого прогресс замирал, а «Обновить» снова становилась активной.
+     */
+    updateRunning.value = true
+    ensurePolling()
+    return
+  }
+
+  // завершилось
+  stopPolling()
+  updateRunning.value = false
+
+  await loadArchives()
+  await loadLogs()
 }
 
 /* ========================================================================
@@ -900,10 +957,7 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (pollTimer) {
-    window.clearInterval(pollTimer)
-    pollTimer = null
-  }
+  stopPolling()
 })
 </script>
 

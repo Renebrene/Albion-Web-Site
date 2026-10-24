@@ -124,19 +124,46 @@ function handleUnauthorized() {
  *
  * credentials задаём явно: в cookie-режиме сессия уходит только с
  * same-origin-запросами.
+ *
+ * timeoutMs — опциональный предохранитель для коротких запросов (опрос
+ * статуса). По умолчанию таймаута нет: загрузки и выгрузки бывают
+ * долгими, и обрезать их нельзя.
  */
 export async function adminFetch(path, options = {}) {
-  const response = await fetch(path, {
-    ...options,
-    credentials: 'same-origin',
-    headers: adminHeaders(options.headers || {})
-  })
+  const { timeoutMs, ...rest } = options
 
-  if (response.status === 401) {
-    handleUnauthorized()
+  let controller = null
+  let timer = null
+
+  if (Number.isFinite(timeoutMs) && timeoutMs > 0) {
+    controller = new AbortController()
+    timer = setTimeout(() => controller.abort(), timeoutMs)
   }
 
-  return response
+  try {
+    const response = await fetch(path, {
+      ...rest,
+      credentials: 'same-origin',
+      signal: controller ? controller.signal : rest.signal,
+      headers: adminHeaders(rest.headers || {})
+    })
+
+    if (response.status === 401) {
+      handleUnauthorized()
+    }
+
+    return response
+  } catch (error) {
+    if (controller && error?.name === 'AbortError') {
+      throw new Error('Сервер не ответил вовремя')
+    }
+
+    throw error
+  } finally {
+    if (timer) {
+      clearTimeout(timer)
+    }
+  }
 }
 
 /*
