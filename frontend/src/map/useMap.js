@@ -9,6 +9,7 @@ import { mapDotColors, mapColorMode } from '../config/mapColors'
 import { SEARCH_POINT_ICON, searchPointIconHref } from './searchPointIcon'
 import { lazyPopups } from '../config/lazyPopups'
 import { mapDebug } from './mapDebug'
+import { normalizeCoordinates } from './coordinates'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -72,12 +73,7 @@ function constructionKey(item) {
 
 function normalizeItems(items) {
   return Array.isArray(items)
-    ? items.filter(item => {
-        const lat = Number(item?.lat)
-        const lng = Number(item?.lng)
-
-        return Number.isFinite(lat) && Number.isFinite(lng)
-      })
+    ? items.filter(item => normalizeCoordinates(item?.lat, item?.lng) !== null)
     : []
 }
 
