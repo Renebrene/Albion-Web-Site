@@ -179,7 +179,7 @@ def get_public_geo() -> dict:
     attraction_by_id = {a['id']: a for a in attractions}
 
     location_stats = get_geo_location_stats()
-    empty_stats = {'constructions': 0, 'formats': []}
+    empty_stats = {'constructions': 0, 'surfaces': 0, 'formats': []}
 
     locations = []
     for row in location_rows:

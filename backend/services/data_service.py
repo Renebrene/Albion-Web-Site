@@ -624,8 +624,10 @@ def get_constructions_stats() -> dict:
 def get_geo_location_stats() -> dict:
     """Статистика по городам/районам для geo-слайда главной.
 
-    Возвращает словарь ``{имя_города_lower: {"constructions": N, "formats": [...]}}``:
+    Возвращает словарь ``{имя_города_lower: {"constructions": N,
+    "surfaces": M, "formats": [...]}}``:
     ``constructions`` — число физических конструкций (см. ``_PHYSICAL_KEY``),
+    ``surfaces`` — общее число поверхностей,
     ``formats`` — число ПОВЕРХНОСТЕЙ по формату (как в списке «Возможности»).
     """
     with get_connection() as conn:
@@ -653,5 +655,8 @@ def get_geo_location_stats() -> dict:
 
     for item in result.values():
         item["formats"].sort(key=lambda f: (-f["count"], f["name"]))
+        # Для карточек на главной показываем общее число поверхностей,
+        # а не физических конструкций.
+        item["surfaces"] = sum(int(f["count"]) for f in item["formats"])
 
     return result

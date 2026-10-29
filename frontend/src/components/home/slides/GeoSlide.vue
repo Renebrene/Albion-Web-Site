@@ -210,13 +210,14 @@
 
           <div
             v-if="
-              expanded.location.stats && expanded.location.stats.constructions
+              expanded.location.stats &&
+              totalSurfaces(expanded.location.stats) > 0
             "
             class="geo-modal-stats"
           >
             <div class="geo-modal-stats-total">
-              <span class="geo-modal-stats-label">Конструкции:</span>
-              <b>{{ expanded.location.stats.constructions }}</b>
+              <span class="geo-modal-stats-label">Всего поверхностей:</span>
+              <b>{{ totalSurfaces(expanded.location.stats) }}</b>
             </div>
             <div class="geo-modal-formats">
               <span
@@ -500,6 +501,30 @@ function formatPlural(name) {
   const key = String(name || '').trim()
 
   return FORMAT_PLURALS[key] || key
+}
+
+/*
+ * Общее число поверхностей для карточки локации. Бэкенд отдаёт готовое
+ * поле surfaces; fallback — сумма по форматам (старые кэши/CMS).
+ */
+function totalSurfaces(stats) {
+  const raw = stats?.surfaces
+  const value = Number(raw)
+
+  if (
+    raw !== null &&
+    raw !== undefined &&
+    raw !== '' &&
+    Number.isFinite(value) &&
+    value > 0
+  ) {
+    return value
+  }
+
+  return (stats?.formats || []).reduce(
+    (sum, item) => sum + (Number(item?.count) || 0),
+    0
+  )
 }
 
 /* Краткая выжимка для карточки колоды: первый абзац описания локации. */
