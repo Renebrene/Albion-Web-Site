@@ -246,7 +246,6 @@
                     v-for="side in point.blocks"
                     :key="side.key"
                     class="chat-side"
-                    :class="{ 'is-pf-mode': isBlockActive(side) }"
                   >
                     <!-- Свёрнутый режим «по сторонам»: одна строка на сторону,
                          месяц свободен, если свободна хоть одна поверхность. -->
@@ -288,7 +287,7 @@
 
                         <div class="chat-months">
                           <button
-                            v-for="month in rowMonthChips(side, row)"
+                            v-for="month in rowMonthChips(row)"
                             :key="month.full"
                             type="button"
                             class="chat-month"
@@ -299,7 +298,7 @@
                             }"
                             :disabled="!month.canPick"
                             :title="month.title"
-                            @click="onRowMonthClick(side, row, month)"
+                            @click="onRowMonthClick(row, month)"
                           >
                             {{ month.short }}
                           </button>
@@ -309,23 +308,6 @@
                       </div>
                     </template>
                   </div>
-
-                  <!-- «Портфель» общий для всех сторон конструкции.
-                       Кнопка только включает/выключает выбор месяцев. -->
-                  <button
-                    type="button"
-                    class="chat-pf-toggle"
-                    :class="{ 'is-active': isPointActive(point) }"
-                    :title="
-                      isPointActive(point)
-                        ? 'Убрать из портфеля'
-                        : 'Добавить в портфель'
-                    "
-                    @click="onPointToggle(point)"
-                  >
-                    <q-icon name="work_outline" size="16px" />
-                    <span>Портфель</span>
-                  </button>
                 </div>
               </article>
             </div>
@@ -572,15 +554,7 @@ function openChatResults(message, mode) {
 
   router.push({ path: '/vozmozhnosti', query: { chat: '1', mode } })
 }
-const {
-  isInPortfolio,
-  isMonthSelected,
-  isSelectionMode,
-  toggleSelectionMode,
-  toggleMonth,
-  toggleSideMonth,
-  removeSurface
-} = usePortfolio()
+const { isMonthSelected, toggleMonth, toggleSideMonth } = usePortfolio()
 
 /*
  * Сессия — список независимых модулей: один модуль = один вопрос
@@ -924,50 +898,7 @@ function resultBlocks(message) {
 
 /* --- портфель --- */
 
-function isBlockActive(side) {
-  return side.items.some(item => {
-    const id = Number(item.id)
-
-    return isInPortfolio(id) || isSelectionMode(id)
-  })
-}
-
-/* «Портфель» — общий для всех сторон конструкции. */
-function pointIds(point) {
-  return point.blocks.flatMap(side => side.items.map(item => Number(item.id)))
-}
-
-function isPointActive(point) {
-  const ids = pointIds(point)
-
-  return ids.some(id => isInPortfolio(id) || isSelectionMode(id))
-}
-
-function onPointToggle(point) {
-  const ids = pointIds(point)
-
-  if (isPointActive(point)) {
-    // Активна — сбрасываем все поверхности конструкции.
-    ids.forEach(id => removeSurface(id))
-    return
-  }
-
-  // Неактивна — включаем режим выбора месяцев (как в каталоге):
-  // по первой поверхности каждой стороны.
-  point.blocks.forEach(side => {
-    const first = side.items[0]
-
-    if (first) {
-      toggleSelectionMode(Number(first.id))
-    }
-  })
-}
-
-function onRowMonthClick(side, row, month) {
-  if (!isBlockActive(side)) {
-    return
-  }
-
+function onRowMonthClick(row, month) {
   /* Снять месяц можно всегда — даже если он перестал быть свободным. */
   if (!isMonthSelected(row.id, month.full) && rowLocked(row, month.full)) {
     return
@@ -1013,8 +944,6 @@ function sideMonthPrice(side, monthFull) {
 }
 
 function sideMonthChips(side) {
-  const active = isBlockActive(side)
-
   return chatMonths.value.map(month => {
     const state = isSideFree(side, month.full) ? 'free' : 'busy'
     const selected = isSideMonthSelected(side, month.full)
@@ -1025,16 +954,14 @@ function sideMonthChips(side) {
       short: month.short,
       state,
       selected,
-      canPick: active && (selected || state === 'free'),
+      canPick: selected || state === 'free',
       title: monthTitle(month.full, price, state, selected)
     }
   })
 }
 
 /* Строка поверхности: своя доступность и цена. */
-function rowMonthChips(side, row) {
-  const active = isBlockActive(side)
-
+function rowMonthChips(row) {
   return chatMonths.value.map(month => {
     const state = getAvailabilityState(row, month.full)
     const selected = isMonthSelected(row.id, month.full)
@@ -1045,7 +972,7 @@ function rowMonthChips(side, row) {
       short: month.short,
       state,
       selected,
-      canPick: active && (selected || state === 'free'),
+      canPick: selected || state === 'free',
       title: monthTitle(month.full, price, state, selected)
     }
   })
@@ -1066,10 +993,6 @@ function isSideMonthSelected(side, monthFull) {
  * позиции с двойной суммой в заявке и выгрузке.
  */
 function onSideMonthClick(side, month) {
-  if (!isBlockActive(side)) {
-    return
-  }
-
   toggleSideMonth(side?.items || [], month.full)
 }
 
@@ -1537,32 +1460,6 @@ function loadLabel(row) {
 .chat-month.is-selected:hover {
   filter: brightness(0.94);
 }
-.chat-pf-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 6px 11px;
-  border: 1px solid #dce2e6;
-  border-radius: 8px;
-  background: #fff;
-  color: #52606a;
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  cursor: pointer;
-  transition: 0.15s ease;
-}
-.chat-pf-toggle:hover {
-  border-color: var(--albion-accent);
-  color: var(--albion-accent);
-}
-.chat-pf-toggle.is-active {
-  border-color: var(--albion-accent);
-  background: #fdeceb;
-  color: var(--albion-accent);
-}
 /* Composer: поле и круглая кнопка отправки в одной рамке. */
 .chat-composer {
   display: flex;
@@ -1819,15 +1716,6 @@ function loadLabel(row) {
   font-size: 8px;
 }
 .chat-panel--compact .chat-side-load {
-  font-size: 9px;
-}
-/* «Портфель» — под блоком месяцев, во всю ширину карточки. */
-.chat-panel--compact .chat-pf-toggle {
-  align-self: stretch;
-  width: 100%;
-
-  padding: 5px 9px;
-
   font-size: 9px;
 }
 .chat-panel--compact .chat-input {
