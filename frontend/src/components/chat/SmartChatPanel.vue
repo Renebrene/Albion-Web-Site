@@ -4,7 +4,7 @@
     :class="[`chat-panel--${variant}`, { 'is-expanded': expanded }]"
     aria-label="Спроси помощника"
   >
-    <div class="chat-title">
+    <div v-if="variant !== 'compact'" class="chat-title">
       <span
         v-if="variant !== 'compact'"
         class="chat-title-icon"
@@ -56,8 +56,31 @@
       role="log"
       aria-live="polite"
     >
-      <div v-if="!messages.length && variant === 'compact'" class="chat-empty">
-        Спросите про конструкции, цену, доступность или загрузку.
+      <div
+        v-if="!messages.length && variant === 'compact'"
+        class="chat-greeting"
+      >
+        <span class="chat-avatar" aria-hidden="true">✦</span>
+
+        <div class="chat-greeting-body">
+          <div class="chat-greeting-text">
+            Здравствуйте! Подберу конструкции по городу, формату, цене и
+            доступности. Можно спросить обычными словами.
+          </div>
+
+          <div class="chat-suggestions">
+            <button
+              v-for="prompt in quickPrompts"
+              :key="prompt"
+              type="button"
+              class="chat-suggestion"
+              :disabled="loading"
+              @click="send(prompt)"
+            >
+              {{ prompt }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <article
@@ -93,6 +116,13 @@
             :class="{ 'chat-message-error': message.error }"
           >
             <div class="chat-message-row">
+              <span
+                v-if="variant === 'compact'"
+                class="chat-avatar chat-avatar--sm"
+                aria-hidden="true"
+              >
+                ✦
+              </span>
               <div class="chat-bubble">{{ message.text }}</div>
               <button
                 type="button"
@@ -187,6 +217,12 @@
                 <div class="chat-result-info">
                   <div class="chat-result-line chat-result-format">
                     <span class="chat-result-type">{{ point.type }}</span>
+                    <span
+                      v-if="variant === 'compact' && point.price != null"
+                      class="chat-result-price"
+                    >
+                      {{ formatPrice(point.price) }} ₽
+                    </span>
                   </div>
                   <div
                     v-if="point.city"
@@ -322,35 +358,46 @@
     <form class="chat-input" @submit.prevent="submit">
       <!-- Поле остаётся доступным, пока ждём ответ: можно набирать
            следующий вопрос (отправка всё равно заблокирована). -->
-      <textarea
-        v-model="draft"
-        rows="2"
-        maxlength="2000"
-        placeholder="Например: свободные пиллары на декабрь"
-        @keydown.ctrl.enter.prevent="submit"
-      />
-      <div class="chat-input-actions">
+      <div class="chat-composer">
+        <textarea
+          v-model="draft"
+          rows="1"
+          maxlength="2000"
+          placeholder="Напишите вопрос..."
+          @keydown.ctrl.enter.prevent="submit"
+        />
+
         <q-btn
           unelevated
+          round
           dense
-          no-caps
-          color="primary"
-          label="Спросить"
+          class="chat-send"
+          icon="send"
           type="submit"
+          aria-label="Отправить"
           :loading="loading"
           :disable="!draft.trim() || loading"
         />
-        <!-- Пока ждём ответ, даём прервать ожидание: иначе зависший запрос
-             блокировал бы чат до перезагрузки страницы. -->
-        <q-btn v-if="loading" flat dense no-caps label="Стоп" @click="stop" />
-        <q-btn
-          flat
-          dense
-          no-caps
-          label="Очистить"
-          :disable="loading || (!messages.length && !draft)"
-          @click="reset"
-        />
+      </div>
+
+      <div class="chat-input-actions">
+        <span class="chat-composer-hint">
+          <kbd>Ctrl+Enter</kbd> — отправить
+        </span>
+
+        <div class="chat-input-tools">
+          <!-- Пока ждём ответ, даём прервать ожидание: иначе зависший запрос
+               блокировал бы чат до перезагрузки страницы. -->
+          <q-btn v-if="loading" flat dense no-caps label="Стоп" @click="stop" />
+          <q-btn
+            flat
+            dense
+            no-caps
+            label="Очистить"
+            :disable="loading || (!messages.length && !draft)"
+            @click="reset"
+          />
+        </div>
       </div>
     </form>
   </section>
@@ -418,6 +465,13 @@ const props = defineProps({
 defineEmits(['close'])
 
 const draft = ref(props.initialDraft)
+
+/* Быстрые запросы в пустом компактном окне. */
+const quickPrompts = [
+  'Свободные щиты на декабрь',
+  'Пиллары до 40 000 ₽',
+  'Загрузка в декабре'
+]
 
 /* Развёрнут ли чат вниз (до конца страницы). */
 const expanded = ref(false)
@@ -1124,6 +1178,91 @@ function loadLabel(row) {
   color: #5b6873;
   font-size: 13px;
 }
+
+/* Аватар ассистента в ленте компактного окна. */
+.chat-avatar {
+  display: grid;
+  place-items: center;
+
+  flex: 0 0 auto;
+
+  width: 30px;
+  height: 30px;
+
+  border-radius: 9px;
+
+  background: linear-gradient(145deg, #17212b, #33414e);
+  color: #fff;
+
+  font-size: 13px;
+}
+.chat-avatar--sm {
+  width: 26px;
+  height: 26px;
+
+  margin-top: 1px;
+
+  border-radius: 8px;
+
+  font-size: 11px;
+}
+
+/* Приветствие в пустом окне. */
+.chat-greeting {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+
+  margin-bottom: 18px;
+}
+.chat-greeting-body {
+  min-width: 0;
+}
+.chat-greeting-text {
+  padding: 11px 13px;
+
+  border-radius: 4px 14px 14px 14px;
+
+  background: #f4f6f7;
+
+  color: #26323d;
+
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.chat-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  margin-top: 8px;
+}
+.chat-suggestion {
+  padding: 7px 10px;
+
+  border: 1px solid #dfe5e8;
+  border-radius: 999px;
+
+  background: #fff;
+  color: #4d5b66;
+
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: 0.15s ease;
+}
+.chat-suggestion:hover:not(:disabled) {
+  border-color: var(--albion-accent);
+  background: #fff6f5;
+  color: var(--albion-accent);
+}
+.chat-suggestion:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
 .chat-message-user {
   align-self: flex-end;
 }
@@ -1424,17 +1563,91 @@ function loadLabel(row) {
   background: #fdeceb;
   color: var(--albion-accent);
 }
-.chat-input textarea {
-  width: 100%;
-  resize: vertical;
+/* Composer: поле и круглая кнопка отправки в одной рамке. */
+.chat-composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+
+  padding: 7px 7px 7px 13px;
+
   border: 1px solid #dce2e6;
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: 15px;
+
+  background: #fafbfb;
+
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
+}
+.chat-composer:focus-within {
+  border-color: #9aa6ad;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(23, 33, 43, 0.05);
+}
+.chat-composer textarea {
+  flex: 1 1 auto;
+
+  min-width: 0;
+  max-height: 88px;
+
+  padding: 6px 0;
+
+  border: 0;
+  outline: 0;
+
+  background: transparent;
+
+  color: #17212b;
+
   font: inherit;
+  font-size: 12.5px;
+  line-height: 1.45;
+
+  resize: none;
+}
+.chat-composer textarea::placeholder {
+  color: #9da8af;
+}
+.chat-send {
+  flex: 0 0 auto;
+
+  width: 34px;
+  height: 34px;
+  min-height: 34px;
+
+  background: var(--albion-accent);
+  color: #fff;
+
+  box-shadow: 0 6px 14px rgba(225, 42, 31, 0.25);
+}
+.chat-send:hover {
+  background: var(--albion-accent);
+  filter: brightness(0.94);
 }
 .chat-input-actions {
+  display: flex;
+  align-items: center;
   justify-content: space-between;
+  gap: 10px;
+
   margin-top: 7px;
+}
+.chat-input-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.chat-composer-hint {
+  color: #9aa5ac;
+
+  font-size: 9.5px;
+  font-weight: 600;
+}
+.chat-composer-hint kbd {
+  font: inherit;
+  color: #7b878f;
 }
 /* ============================================================
  * Варианты окна: стилизуются независимо.
@@ -1443,18 +1656,187 @@ function loadLabel(row) {
  * Общие правила выше применяются к обоим вариантам; здесь — отличия.
  * ============================================================ */
 
-/* Маленькое окно: ограничено высотой выпадающего меню, одна колонка. */
+/* Маленькое окно — единая лента сообщений, без карточек-модулей. */
+.chat-panel--compact {
+  height: 100%;
+  gap: 0;
+}
 .chat-panel--compact .chat-session {
   grid-template-columns: minmax(0, 1fr);
-  max-height: 50vh;
+  gap: 0;
+
+  flex: 1 1 auto;
+  max-height: none;
+
+  padding: 16px 18px 6px;
+}
+.chat-panel--compact .chat-module {
+  gap: 10px;
+
+  padding: 0;
+
+  border: 0;
+  border-radius: 0;
+
+  background: transparent;
+
+  overflow: visible;
+}
+.chat-panel--compact .chat-module + .chat-module {
+  margin-top: 18px;
+}
+.chat-panel--compact .chat-message {
+  max-width: 100%;
+}
+.chat-panel--compact .chat-message-user {
+  max-width: 88%;
+}
+.chat-panel--compact .chat-message-assistant {
+  max-width: 94%;
+}
+.chat-panel--compact .chat-bubble {
+  max-width: 100%;
+
+  padding: 10px 13px;
+
+  border-radius: 4px 14px 14px 14px;
+
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.chat-panel--compact .chat-message-user .chat-bubble {
+  border-radius: 14px 4px 14px 14px;
+}
+.chat-panel--compact .chat-message-row {
+  gap: 7px;
 }
 .chat-panel--compact .chat-module .chat-results {
-  max-height: 220px;
+  max-height: none;
 }
-/* «Портфель» — под блоком месяцев, во всю ширину стороны. */
+.chat-panel--compact .chat-results {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.chat-panel--compact .chat-block-title {
+  grid-column: 1 / -1;
+  margin: 2px 0 0;
+}
+/* Компактная карточка конструкции: фото · формат/адрес/цена · месяцы. */
+.chat-panel--compact .chat-result {
+  grid-template-columns: 14px 56px minmax(0, 1fr);
+  gap: 8px;
+
+  padding: 8px;
+
+  border-color: #e8ecee;
+  border-radius: 12px;
+
+  background: #fff;
+
+  box-shadow: 0 2px 6px rgba(20, 30, 40, 0.04);
+}
+.chat-panel--compact .chat-result-num {
+  padding-top: 2px;
+
+  color: #93a0a8;
+
+  font-size: 10px;
+}
+.chat-panel--compact .chat-result-photo,
+.chat-panel--compact .chat-result-photo.is-empty {
+  width: 56px;
+  height: 56px;
+  aspect-ratio: 1;
+
+  border-radius: 8px;
+
+  background: #eef2f4;
+}
+.chat-panel--compact .chat-result-photo.is-empty {
+  border: 1px solid #e8ecee;
+}
+.chat-panel--compact .chat-result-photo-price {
+  display: none;
+}
+.chat-panel--compact .chat-result-info {
+  gap: 2px;
+  max-width: none;
+}
+.chat-panel--compact .chat-result-type {
+  overflow: hidden;
+
+  font-size: 11px;
+
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-panel--compact .chat-result-price {
+  margin-left: auto;
+
+  color: var(--albion-accent);
+
+  font-size: 10.5px;
+  font-weight: 900;
+
+  white-space: nowrap;
+}
+.chat-panel--compact .chat-result-address {
+  display: -webkit-box;
+  overflow: hidden;
+
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+
+  font-size: 10.5px;
+  font-weight: 700;
+
+  line-height: 1.3;
+}
+.chat-panel--compact .chat-result-city,
+.chat-panel--compact .chat-result-side {
+  font-size: 10px;
+}
+.chat-panel--compact .chat-result-sides {
+  grid-column: 1 / -1;
+
+  gap: 5px;
+
+  min-width: 0;
+}
+.chat-panel--compact .chat-side {
+  gap: 4px;
+
+  padding-top: 6px;
+  margin-top: 6px;
+}
+.chat-panel--compact .chat-side-row {
+  gap: 5px;
+}
+.chat-panel--compact .chat-month {
+  padding: 2px 5px;
+
+  font-size: 8px;
+}
+.chat-panel--compact .chat-side-load {
+  font-size: 9px;
+}
+/* «Портфель» — под блоком месяцев, во всю ширину карточки. */
 .chat-panel--compact .chat-pf-toggle {
   align-self: stretch;
   width: 100%;
+
+  padding: 5px 9px;
+
+  font-size: 9px;
+}
+.chat-panel--compact .chat-input {
+  flex: 0 0 auto;
+
+  padding: 10px 16px 12px;
+
+  border-top: 1px solid #e7ebee;
+  background: #fff;
 }
 
 /* Большое окно: на всю ширину страницы, число столбцов — из переключателя. */

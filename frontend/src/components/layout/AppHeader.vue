@@ -159,21 +159,48 @@
       >
         <div class="smart-chat-panel">
           <div class="smart-chat-head">
-            <span class="smart-chat-head-icon">✦</span>
-            <span class="smart-chat-head-title">УМНЫЙ ЧАТ</span>
+            <span class="smart-chat-avatar" aria-hidden="true">✦</span>
 
-            <ChatSaveButton compact class="smart-chat-save" />
+            <div class="smart-chat-id">
+              <span class="smart-chat-head-title">Умный чат</span>
+              <span class="smart-chat-status">
+                <i aria-hidden="true"></i>
+                Онлайн · подбор по каталогу
+              </span>
+            </div>
+
+            <div class="smart-chat-head-actions">
+              <ChatSaveButton compact class="smart-chat-save" />
+              <q-btn
+                flat
+                dense
+                no-caps
+                class="smart-chat-open"
+                label="Открыть на странице"
+                to="/chat"
+                @click="chatOpen = false"
+              />
+              <q-btn
+                flat
+                dense
+                round
+                class="smart-chat-close"
+                icon="close"
+                aria-label="Закрыть чат"
+                @click="chatOpen = false"
+              />
+            </div>
           </div>
 
           <div class="smart-chat-body">
             <SmartChatPanel
-              v-for="(chat, index) in chats"
+              v-for="chat in chats"
               :key="chat.key"
               variant="compact"
               :chat-key="chat.key"
               :chat-number="chat.number"
               :initial-draft="chat.draft"
-              :page-link="index === 0"
+              :page-link="false"
               @close="chatOpen = false"
             />
 
@@ -863,53 +890,137 @@ onMounted(async () => {
   font-size: 12px;
 }
 
-/* Окно «Умного чата» — размер как у панели портфеля. */
+/* Окно «Умного чата» — компактная панель ассистента. */
 .smart-chat-panel {
   display: flex;
   flex-direction: column;
-  gap: 12px;
 
-  width: min(760px, 92vw);
-  min-height: 320px;
-  max-height: 70vh;
+  width: min(620px, 94vw);
+  height: min(660px, 74vh);
+  min-height: 480px;
 
   overflow: hidden;
 
-  padding: 16px 18px;
+  padding: 0;
 
   background: #fff;
   color: #17212b;
+
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(20, 30, 40, 0.18);
 }
 
 .smart-chat-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 11px;
 
-  flex-shrink: 0;
+  flex: 0 0 auto;
 
-  font-size: 12px;
+  padding: 14px 16px;
+
+  border-bottom: 1px solid #e7ebee;
+}
+
+.smart-chat-avatar {
+  display: grid;
+  place-items: center;
+
+  flex: 0 0 auto;
+
+  width: 38px;
+  height: 38px;
+
+  border-radius: 12px;
+
+  background: linear-gradient(145deg, #17212b, #33414e);
+  color: #fff;
+
+  font-size: 17px;
+
+  box-shadow: 0 6px 14px rgba(23, 33, 43, 0.22);
+}
+
+.smart-chat-id {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  min-width: 0;
+}
+
+.smart-chat-head-title {
+  color: #17212b;
+
+  font-size: 13.5px;
   font-weight: 900;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.01em;
 }
 
-.smart-chat-head-icon {
-  font-size: 14px;
+.smart-chat-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+
+  color: #6f7a82;
+
+  font-size: 10.5px;
+  font-weight: 700;
 }
 
-/* Кнопка «Сохранить» в шапке окна — прижата вправо. */
-.smart-chat-save {
+.smart-chat-status i {
+  width: 6px;
+  height: 6px;
+
+  border-radius: 50%;
+
+  background: #3fb26d;
+  box-shadow: 0 0 0 3px rgba(63, 178, 109, 0.14);
+}
+
+.smart-chat-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
   margin-left: auto;
 }
 
+.smart-chat-open {
+  color: #3d4a55;
+
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0;
+
+  text-transform: none;
+}
+
+.smart-chat-close {
+  color: #75818a;
+}
+
 .smart-chat-body {
+  display: flex;
   flex: 1 1 auto;
+
   min-height: 0;
 
   overflow-y: auto;
 
   color: #64748b;
   font-size: 14px;
+}
+
+@media (max-width: 620px) {
+  .smart-chat-panel {
+    width: calc(100vw - 20px);
+    height: min(640px, 80vh);
+  }
+
+  .smart-chat-open {
+    display: none;
+  }
 }
 
 /* Пустое состояние маленького окна после очистки чатов. */
