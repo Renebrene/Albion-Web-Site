@@ -896,7 +896,7 @@ onMounted(async () => {
   flex-direction: column;
 
   width: min(620px, 94vw);
-  height: min(660px, 74vh);
+  height: calc(100dvh - 112px);
   min-height: 480px;
 
   overflow: hidden;
@@ -911,6 +911,10 @@ onMounted(async () => {
 }
 
 .smart-chat-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+
   display: flex;
   align-items: center;
   gap: 11px;
@@ -920,6 +924,7 @@ onMounted(async () => {
   padding: 14px 16px;
 
   border-bottom: 1px solid #e7ebee;
+  background: #fff;
 }
 
 .smart-chat-avatar {
@@ -1015,7 +1020,7 @@ onMounted(async () => {
 @media (max-width: 620px) {
   .smart-chat-panel {
     width: calc(100vw - 20px);
-    height: min(640px, 80vh);
+    height: calc(100dvh - 90px);
   }
 
   .smart-chat-open {
@@ -1459,6 +1464,14 @@ onMounted(async () => {
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+/* Меню чата: высотой управляет панель, иначе q-menu ограничивает её
+   и прокручивает вместе с шапкой. */
+.smart-chat-menu {
+  max-height: none !important;
+  overflow: visible !important;
+  border-radius: 16px;
 }
 
 /* Меню портфеля рендерится в портале — нужны глобальные стили */
