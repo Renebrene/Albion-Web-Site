@@ -1,5 +1,15 @@
 import { computed, onScopeDispose, ref, watch } from 'vue'
 import { isFree } from '../utils/availability'
+import {
+  buildSearchTokenGroups,
+  matchesSearchGroups,
+  normalizeSearchText
+} from '../utils/searchText'
+import {
+  buildVocabulary,
+  correctTokenGroups,
+  groupsChanged
+} from '../utils/fuzzySearch'
 
 const MONTH_ORDER = [
   'Январь',
@@ -29,19 +39,6 @@ const MONTH_SHORT = {
   Октябрь: 'окт.',
   Ноябрь: 'нояб.',
   Декабрь: 'дек.'
-}
-
-/*
- * Нормализация поиска: регистр, «ё», пунктуация и лишние пробелы.
- * Дефис в «Ростов-на-Дону» становится пробелом, поэтому запрос
- * «Ростов на Дону» находит город.
- */
-function normalize(value) {
-  return String(value ?? '')
-    .toLowerCase()
-    .replace(/ё/g, 'е')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
-    .trim()
 }
 
 function formatMonth(month, year) {
@@ -250,7 +247,7 @@ export function useConstructionsFilter(constructions) {
           item?.type,
           item?.number
         ]
-          .map(normalize)
+          .map(normalizeSearchText)
           .join(' ')
       )
     }
@@ -258,10 +255,16 @@ export function useConstructionsFilter(constructions) {
     return map
   })
 
-  const filteredConstructions = computed(() => {
-    const query = normalize(appliedQuery.value)
+  const vocabulary = computed(() => buildVocabulary(constructions.value))
 
-    const result = (constructions.value || []).filter(item => {
+  const filteredConstructions = computed(() => {
+    /*
+     * Латиница автоматически проверяется и в кириллическом варианте:
+     * «Kurchatova» находит «Курчатова», «Rostov» — «Ростов-на-Дону».
+     */
+    const tokenGroups = buildSearchTokenGroups(appliedQuery.value)
+
+    const matchesFilters = (item, groups) => {
       /*
        * МЕСЯЦЫ
        *
@@ -306,19 +309,36 @@ export function useConstructionsFilter(constructions) {
       /*
        * ПОИСК
        */
-      if (query) {
+      if (groups.length) {
         const haystack = searchIndex.value.get(item) || ''
 
-        /* Порядок слов не важен: «Курчатова Волгодонск» = «Волгодонск Курчатова». */
-        const tokens = query.split(' ').filter(Boolean)
-
-        if (!tokens.every(token => haystack.includes(token))) {
+        /*
+         * Порядок слов не важен: «Курчатова Волгодонск» =
+         * «Волгодонск Курчатова». Достаточно совпадения одного варианта
+         * запроса (латиница или её кириллическая транслитерация).
+         */
+        if (!matchesSearchGroups(haystack, groups)) {
           return false
         }
       }
 
       return true
-    })
+    }
+
+    const items = constructions.value || []
+    const result = items.filter(item => matchesFilters(item, tokenGroups))
+
+    /*
+     * Точных совпадений нет — пробуем исправить опечатки по словарю
+     * базы. Например, «Курчатово» → «Курчатова».
+     */
+    if (!result.length && tokenGroups.length) {
+      const corrected = correctTokenGroups(tokenGroups, vocabulary.value)
+
+      if (groupsChanged(tokenGroups, corrected)) {
+        return items.filter(item => matchesFilters(item, corrected))
+      }
+    }
 
     return result
   })

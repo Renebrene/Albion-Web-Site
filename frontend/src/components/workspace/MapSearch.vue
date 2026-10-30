@@ -60,7 +60,7 @@
       {{ error }}
     </div>
 
-    <!-- Подсказки геокодера: только в режиме поиска по точке и адресу. -->
+    <!-- Подсказки адреса: выпадающий список по режиму поиска. -->
     <div
       v-if="showSuggestions"
       id="search-suggestions"
@@ -126,6 +126,18 @@ const props = defineProps({
     default: false
   },
 
+  /* map | list | point — от него зависит набор подсказок. */
+  workspaceMode: {
+    type: String,
+    default: 'map'
+  },
+
+  /* Синхронные подсказки по адресам конструкций (каталог). */
+  constructionSuggestions: {
+    type: Function,
+    default: null
+  },
+
   mode: {
     type: String,
     default: 'coords'
@@ -159,7 +171,7 @@ const emit = defineEmits([
 
 const placeholder = computed(() => {
   if (!props.showMode) {
-    return 'Город, улица или формат'
+    return 'Адрес, город, улица или формат'
   }
 
   return props.mode === 'coords'
@@ -170,8 +182,8 @@ const placeholder = computed(() => {
 const disabledPlaceholder = 'Фильтры недоступны в результатах чата'
 
 /*
- * Подсказки — только для геокодера (режим точки). В карте и списке строка
- * остаётся обычным фильтром по базе: там подсказки не запрашиваются.
+ * В карте и списке подсказки — адреса конструкций из каталога.
+ * Геокодер используется только в режиме точки.
  */
 const suggestions = ref([])
 const suggestLoading = ref(false)
@@ -207,11 +219,24 @@ function clearBlurTimer() {
   }
 }
 
-const isAddressMode = computed(() => props.showMode && props.mode === 'address')
+/*
+ * Набор подсказок зависит от режима:
+ *   список и карта — только адреса конструкций из каталога;
+ *   точка — только геокодер (в режиме «Адрес»).
+ */
+const isPointMode = computed(() => props.workspaceMode === 'point')
+
+const canGeocode = computed(() => isPointMode.value && props.mode === 'address')
+
+const canUseConstruction = computed(
+  () => props.workspaceMode === 'map' || props.workspaceMode === 'list'
+)
+
+const canSuggest = computed(() => canGeocode.value || canUseConstruction.value)
 
 const showSuggestions = computed(
   () =>
-    isAddressMode.value &&
+    canSuggest.value &&
     (suggestLoading.value || suggestError.value || suggestions.value.length > 0)
 )
 
@@ -264,6 +289,13 @@ function onKeydown(event) {
       return
     }
 
+    /* Enter без стрелок выбирает первую подсказку — сразу переход к точке. */
+    if (suggestions.value.length) {
+      event.preventDefault()
+      selectSuggestion(suggestions.value[0])
+      return
+    }
+
     onSearch()
     return
   }
@@ -312,14 +344,20 @@ async function loadSuggestions(query) {
       return
     }
 
-    suggestions.value = Array.isArray(result?.suggestions)
-      ? result.suggestions
-      : []
+    const local = suggestions.value.filter(
+      suggestion => suggestion.kind === 'construction'
+    )
+    const remote = Array.isArray(result?.suggestions) ? result.suggestions : []
+    const seen = new Set(local.map(item => item.display_name))
+
+    suggestions.value = [
+      ...local,
+      ...remote.filter(item => !seen.has(item.display_name))
+    ]
 
     activeIndex.value = -1
   } catch (error) {
-    if (seq === suggestSeq) {
-      suggestions.value = []
+    if (seq === suggestSeq && !suggestions.value.length) {
       suggestError.value = 'Не удалось получить подсказки адреса'
     }
   } finally {
@@ -335,7 +373,21 @@ function onInput(event) {
   emit('update:modelValue', value)
   clearSuggestions()
 
-  if (!isAddressMode.value || value.trim().length < 3) {
+  if (!canSuggest.value || value.trim().length < 3) {
+    return
+  }
+
+  /* Адреса конструкций показываем сразу, без запроса к геокодеру. */
+  if (
+    canUseConstruction.value &&
+    typeof props.constructionSuggestions === 'function'
+  ) {
+    const local = props.constructionSuggestions(value)
+
+    suggestions.value = Array.isArray(local) ? local : []
+  }
+
+  if (!canGeocode.value) {
     return
   }
 
@@ -346,7 +398,11 @@ function onInput(event) {
 }
 
 function selectSuggestion(suggestion) {
-  emit('update:modelValue', suggestion?.display_name || suggestion?.query || '')
+  /*
+   * Само поле не перезаписываем: в карте/списке пользователь продолжает
+   * видеть свой запрос, а в point-режиме адрес в поле выставит родитель
+   * (там он же фиксирует точку).
+   */
   clearSuggestions()
   emit('select-suggestion', suggestion)
 }
@@ -376,7 +432,7 @@ function onSearch() {
 }
 
 watch(
-  () => [props.mode, props.showMode],
+  () => [props.mode, props.showMode, props.workspaceMode],
   () => clearSuggestions()
 )
 

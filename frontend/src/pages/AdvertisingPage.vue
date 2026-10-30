@@ -91,9 +91,13 @@
             v-model="topSearchValue"
             :count="toolbarCount"
             :show-mode="workspaceMode === 'point'"
+            :workspace-mode="workspaceMode"
             :mode="topSearchMode"
+            :construction-suggestions="constructionAddressSuggestions"
             :error="topSearchError"
-            :loading="workspaceMode === 'point' && addressLoading"
+            :loading="
+              workspaceMode === 'point' ? addressLoading : mapAddressLoading
+            "
             :disabled="chatResultsActive"
             @update:mode="topSearchMode = $event"
             @select-suggestion="onTopSuggestionSelect"
@@ -882,6 +886,16 @@ import { showDynCount } from '../config/dynCount'
 import { urlStateMode, urlStateTokenFormat } from '../config/urlStateMode'
 import { decodeUrlState, encodeUrlState } from '../utils/urlState'
 import { decodePortfolioLink } from '../utils/portfolioLink'
+import {
+  buildSearchTokenGroups,
+  matchesSearchGroups,
+  normalizeSearchText
+} from '../utils/searchText'
+import {
+  buildVocabulary,
+  correctTokenGroups,
+  groupsChanged
+} from '../utils/fuzzySearch'
 import { computed, ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
@@ -1287,6 +1301,11 @@ const addressLoading = ref(false)
 const addressError = ref('')
 /* Номер последнего geocode-запроса: старые ответы не должны перезаписывать новые. */
 let addressRequestSeq = 0
+
+/* Адресный переход в карте/списке (выбор подсказки из верхней строки). */
+const mapAddressLoading = ref(false)
+const mapAddressError = ref('')
+let mapAddressRequestSeq = 0
 /* То же для обратного геокодера (адрес по координатам точки). */
 let reverseRequestSeq = 0
 const pointRadius = ref(DEFAULT_POINT_RADIUS)
@@ -2169,9 +2188,9 @@ function resetAllFilters() {
  */
 const topSearchMode = ref('address')
 
-/* Ошибка поиска показывается только в режиме точки — там работает геокодер. */
+/* Ошибка адресного поиска: геокодер точки или переход по подсказке. */
 const topSearchError = computed(() =>
-  workspaceMode.value === 'point' ? addressError.value : ''
+  workspaceMode.value === 'point' ? addressError.value : mapAddressError.value
 )
 
 const topSearchValue = computed({
@@ -2197,6 +2216,8 @@ const topSearchValue = computed({
     } else {
       /* В карте и списке строка поиска — обычный фильтр по базе.
          Зафиксированная ранее точка не должна сужать его выдачу. */
+      mapAddressError.value = ''
+
       if (pointSelectionState.value === 'fixed') {
         /* Пользователь начал новый поиск — отложенные старые фильтры не возвращаем. */
         searchStashed = false
@@ -2291,9 +2312,39 @@ async function fillAddressForPoint(lat, lng) {
   }
 }
 
-/* Выбор подсказки в верхней строке: сразу геокодируем выбранный адрес. */
+/*
+ * Выбор подсказки в верхней строке.
+ *
+ * В точке — обычный геокодер и фиксация точки. В карте/списке — только
+ * перемещение карты к выбранному адресу: геокодируем, переключаемся на
+ * карту и центрируем. Точку и радиус не создаём.
+ */
 function onTopSuggestionSelect(suggestion) {
-  if (workspaceMode.value !== 'point') {
+  /* Адрес конструкции: фильтруем по нему, на карте — ещё и перелетаем. */
+  if (suggestion?.kind === 'construction') {
+    const address = String(
+      suggestion.query || suggestion.title || suggestion.display_name || ''
+    ).trim()
+
+    if (!address) {
+      return
+    }
+
+    searchQuery.value = address
+
+    /* Снимаем прежний город и отмечаем город выбранной конструкции. */
+    const city = String(suggestion.city || '').trim()
+    selectedCities.value = city ? [city] : []
+
+    if (workspaceMode.value === 'map') {
+      const lat = Number(suggestion.lat)
+      const lng = Number(suggestion.lng)
+
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        mapViewRef.value?.setMapCenter(lat, lng, 16)
+      }
+    }
+
     return
   }
 
@@ -2305,9 +2356,219 @@ function onTopSuggestionSelect(suggestion) {
     return
   }
 
-  topSearchMode.value = 'address'
-  pointAddress.value = address
-  void executeAddressSearch()
+  if (workspaceMode.value === 'point') {
+    topSearchMode.value = 'address'
+    pointAddress.value = address
+    void executeAddressSearch()
+    return
+  }
+
+  void focusMapOnAddress(address, suggestion)
+}
+
+function normalizeCityLabel(value) {
+  return String(value ?? '')
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+}
+
+/* Город/район из ответа геокодера или текста подсказки. */
+function findCityForAddress(parts) {
+  const haystack = ` ${normalizeCityLabel(parts.filter(Boolean).join(' '))} `
+  let best = ''
+
+  for (const city of cities.value) {
+    const label = normalizeCityLabel(city)
+
+    if (!label || !haystack.includes(` ${label} `)) {
+      continue
+    }
+
+    if (label.length > normalizeCityLabel(best).length) {
+      best = city
+    }
+  }
+
+  return best || null
+}
+
+/*
+ * Адреса рекламных конструкций для подсказок в списке и на карте.
+ * Возвращаем до 6 уникальных адресов из текущего каталога.
+ */
+const constructionVocabulary = computed(() =>
+  buildVocabulary(constructions.value)
+)
+
+function constructionAddressSuggestions(query) {
+  const exactGroups = buildSearchTokenGroups(query)
+
+  if (!exactGroups.length) {
+    return []
+  }
+
+  const result = []
+  const seen = new Set()
+
+  const collect = (groups, corrected) => {
+    for (const item of constructions.value || []) {
+      const address = String(item?.address || '').trim()
+
+      if (!address) {
+        continue
+      }
+
+      const haystack = normalizeSearchText(
+        [item?.address, item?.city, item?.district, item?.type]
+          .filter(Boolean)
+          .join(' ')
+      )
+
+      if (!matchesSearchGroups(haystack, groups)) {
+        continue
+      }
+
+      const key = `${address}|${item?.city || ''}`.toLowerCase()
+
+      if (seen.has(key)) {
+        continue
+      }
+
+      seen.add(key)
+      result.push({
+        id: `construction-${item?.id ?? key}`,
+        kind: 'construction',
+        title: address,
+        subtitle:
+          [item?.city, item?.type].filter(Boolean).join(' · ') +
+          (corrected ? ' · исправлено' : ''),
+        display_name: [address, item?.city].filter(Boolean).join(', '),
+        query: address,
+        corrected,
+        city: String(item?.city || '').trim(),
+        lat: item?.lat,
+        lng: item?.lng
+      })
+    }
+  }
+
+  collect(exactGroups, false)
+
+  /*
+   * Точных совпадений нет — пробуем исправить опечатки по словарю
+   * каталога: «Курчатово» → «Курчатова», «Зимивники» → «Зимовники».
+   */
+  let correctedGroups = exactGroups
+
+  if (!result.length) {
+    correctedGroups = correctTokenGroups(
+      exactGroups,
+      constructionVocabulary.value
+    )
+
+    if (groupsChanged(exactGroups, correctedGroups)) {
+      collect(correctedGroups, true)
+    }
+  }
+
+  /*
+   * Сначала точные совпадения, затем исправленные. Если запрос совпал
+   * с названием города — его адреса выше; иначе выбранный город, затем
+   * Ростов-на-Дону.
+   */
+  const queryTokens = new Set(
+    [...exactGroups, ...correctedGroups].flatMap(tokens => tokens)
+  )
+  const preferred = new Set(
+    (selectedCities.value.length
+      ? selectedCities.value
+      : ['Ростов-на-Дону']
+    ).map(normalizeCityLabel)
+  )
+
+  result.sort((a, b) => {
+    const ca = a.corrected ? 1 : 0
+    const cb = b.corrected ? 1 : 0
+
+    if (ca !== cb) {
+      return ca - cb
+    }
+
+    const cityA = queryTokens.has(normalizeCityLabel(a.city)) ? 0 : 1
+    const cityB = queryTokens.has(normalizeCityLabel(b.city)) ? 0 : 1
+
+    if (cityA !== cityB) {
+      return cityA - cityB
+    }
+
+    const pa = preferred.has(normalizeCityLabel(a.city)) ? 0 : 1
+    const pb = preferred.has(normalizeCityLabel(b.city)) ? 0 : 1
+
+    return pa - pb
+  })
+
+  return result.slice(0, 6)
+}
+
+async function focusMapOnAddress(address, suggestion) {
+  const seq = ++mapAddressRequestSeq
+  mapAddressLoading.value = true
+  mapAddressError.value = ''
+
+  try {
+    const result = await geocodeAddress(address)
+
+    if (seq !== mapAddressRequestSeq) {
+      return
+    }
+
+    const lat = Number(result.lat)
+    const lng = Number(result.lon)
+
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new Error('Геокодер вернул некорректные координаты')
+    }
+
+    /*
+     * При перелёте снимаем отметки у прежних городов и отмечаем город
+     * новой локации. Если сопоставить не удалось — снимаем все отметки
+     * (пустой набор = все города).
+     */
+    const city = findCityForAddress([
+      result.district,
+      result.city,
+      result.address,
+      suggestion?.subtitle,
+      suggestion?.title,
+      suggestion?.display_name
+    ])
+
+    selectedCities.value = city ? [city] : []
+
+    /*
+     * Только перемещаем карту: точку, радиус и механизм установки
+     * точки не трогаем. Если открыт список, карта скрыта — setMapCenter
+     * запомнит центр и применит его после появления размера.
+     */
+    mapViewRef.value?.setMapCenter(lat, lng, 14)
+
+    if (workspaceMode.value !== 'map') {
+      setWorkspaceMode('map')
+    }
+
+    await nextTick()
+  } catch (error) {
+    if (seq === mapAddressRequestSeq) {
+      mapAddressError.value =
+        error?.message || 'Не удалось найти адрес в Ростовской области.'
+    }
+  } finally {
+    if (seq === mapAddressRequestSeq) {
+      mapAddressLoading.value = false
+    }
+  }
 }
 
 async function executeAddressSearch() {
