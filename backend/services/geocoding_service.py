@@ -32,6 +32,18 @@ ROSTOV_CENTER_LAT = 47.2357
 ROSTOV_BIAS_LL = f"{ROSTOV_CENTER_LON},{ROSTOV_CENTER_LAT}"
 ROSTOV_BIAS_SPN = "0.5,0.5"
 
+
+def _suggestion_in_rostov_oblast(*parts: str) -> bool:
+    """Подсказка относится к Ростовской области (или самому Ростову)."""
+    text = " ".join(str(part or "") for part in parts)
+    text = text.casefold().replace("ё", "е")
+
+    return (
+        "ростовская область" in text
+        or "ростов-на-дону" in text
+        or "ростов на дону" in text
+    )
+
 TIMEOUT_SECONDS = 5.0
 CACHE_TTL_SECONDS = 300.0
 _CACHE: dict[str, tuple[float, Any]] = {}
@@ -213,6 +225,10 @@ async def suggest_address(query: str, limit: int = 8) -> list[dict[str, str]]:
         # содержит название и рубрику, а не адрес.
         if uri.startswith("ymapsbm1://org"):
             continue
+        # Подсказки только по Ростовской области: Москва, Краснодар и
+        # соседние регионы в списке не нужны.
+        if not _suggestion_in_rostov_oblast(title, subtitle, display):
+            continue
         seen.add(display.casefold())
         suggestions.append(
             {
@@ -319,6 +335,8 @@ async def geocode_address(query: str) -> dict[str, Any]:
         "lat": lat,
         "lon": lon,
         "address": address,
+        "city": _component_by_kinds(metadata, {"locality"}) or None,
+        "district": _component_by_kinds(metadata, {"district", "area"}) or None,
         "precision": precision,
         "source": "Yandex Geocoder",
     }

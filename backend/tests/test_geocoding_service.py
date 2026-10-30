@@ -83,7 +83,13 @@ SUGGEST_PAYLOAD = {
             "subtitle": {"text": "улица"},
             "displayText": "Ростов-на-Дону, Большая Садовая",
             "uri": "ymapsbm1://geo?text=...",
-        }
+        },
+        {
+            "title": {"text": "улица Курчатова"},
+            "subtitle": {"text": "Москва"},
+            "displayText": "улица Курчатова, Москва",
+            "uri": "ymapsbm1://geo?moscow",
+        },
     ]
 }
 
@@ -133,8 +139,10 @@ def test_suggest_normalizes_yandex_payload(monkeypatch):
 
     result = asyncio.run(geo.suggest_address("Большая"))
 
+    assert len(result) == 1
     assert result[0]["title"] == "Ростов-на-Дону, Большая Садовая"
     assert result[0]["display_name"] == "Ростов-на-Дону, Большая Садовая"
+    assert all("Москва" not in item["display_name"] for item in result)
 
     params = client.calls[0][1]
     assert params["ll"] == geo.ROSTOV_BIAS_LL
