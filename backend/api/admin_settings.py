@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from backend.services import settings_service as svc
+from backend.services import synonyms_service as synonyms
 from backend.services.auth_api import require_admin
 
 
@@ -25,6 +26,10 @@ class SettingsSavePayload(BaseModel):
 
 class PresetPayload(BaseModel):
     name: str = ""
+
+
+class SynonymsPayload(BaseModel):
+    dictionary: dict = Field(default_factory=dict)
 
 
 # ---------------------------------------------------------------- admin
@@ -86,6 +91,33 @@ def admin_delete_preset(
 def admin_reset_settings(auth=Depends(require_admin)):
     try:
         return {"success": True, **svc.reset_to_defaults()}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/synonyms")
+def admin_get_synonyms(auth=Depends(require_admin)):
+    try:
+        return {"success": True, **synonyms.get_synonyms()}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.put("/synonyms")
+def admin_save_synonyms(
+    payload: SynonymsPayload,
+    auth=Depends(require_admin),
+):
+    try:
+        return {"success": True, **synonyms.save_synonyms(payload.dictionary)}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/synonyms/reset")
+def admin_reset_synonyms(auth=Depends(require_admin)):
+    try:
+        return {"success": True, **synonyms.reset_synonyms()}
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 

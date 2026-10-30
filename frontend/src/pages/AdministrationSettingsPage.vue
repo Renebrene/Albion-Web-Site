@@ -162,6 +162,246 @@
         </div>
       </section>
 
+      <!-- ============ СЛОВАРИ СИНОНИМОВ ============ -->
+      <section class="section-card">
+        <div class="section-title">
+          <div>Словари синонимов</div>
+        </div>
+
+        <p class="section-hint">
+          Используются парсером запросов и умным чатом: какие слова считать
+          форматом конструкции, городом и ключевым словом.
+        </p>
+
+        <div v-if="synonymsError" class="error-text">{{ synonymsError }}</div>
+
+        <div v-if="synonymsLoading" class="synonyms-loading">
+          <q-spinner size="22px" />
+        </div>
+
+        <template v-else>
+          <q-tabs
+            v-model="synonymsTab"
+            dense
+            no-caps
+            align="left"
+            class="synonyms-tabs"
+          >
+            <q-tab name="types" label="Форматы" />
+            <q-tab name="cities" label="Города" />
+            <q-tab name="keywords" label="Ключевые слова" />
+          </q-tabs>
+
+          <q-tab-panels v-model="synonymsTab" animated class="synonyms-panels">
+            <q-tab-panel name="types">
+              <div
+                v-for="entry in activeSynonyms"
+                :key="entry.uid"
+                class="synonym-entry"
+              >
+                <div class="synonym-entry-head">
+                  <q-input
+                    v-model="entry.name"
+                    outlined
+                    dense
+                    label="Название формата"
+                  />
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="negative"
+                    icon="delete"
+                    label="Удалить"
+                    @click="removeSynonymEntry(entry)"
+                  />
+                </div>
+
+                <div class="synonym-aliases">
+                  <q-chip
+                    v-for="(alias, index) in entry.aliases"
+                    :key="`${entry.uid}-${index}`"
+                    removable
+                    dense
+                    @remove="entry.aliases.splice(index, 1)"
+                  >
+                    {{ alias }}
+                  </q-chip>
+                  <span v-if="!entry.aliases.length" class="field-hint">
+                    Синонимов пока нет
+                  </span>
+                </div>
+
+                <div class="synonym-add">
+                  <q-input
+                    v-model="entry.newAlias"
+                    outlined
+                    dense
+                    placeholder="Добавить синоним"
+                    @keyup.enter="addAlias(entry)"
+                  />
+                  <q-btn
+                    outline
+                    no-caps
+                    dense
+                    color="primary"
+                    label="Добавить"
+                    @click="addAlias(entry)"
+                  />
+                </div>
+              </div>
+
+              <q-btn
+                outline
+                no-caps
+                dense
+                color="primary"
+                icon="add"
+                label="Добавить формат"
+                @click="addSynonymEntry('types')"
+              />
+            </q-tab-panel>
+
+            <q-tab-panel name="cities">
+              <div
+                v-for="entry in activeSynonyms"
+                :key="entry.uid"
+                class="synonym-entry"
+              >
+                <div class="synonym-entry-head">
+                  <q-input
+                    v-model="entry.name"
+                    outlined
+                    dense
+                    label="Название города / района"
+                  />
+                  <q-btn
+                    flat
+                    dense
+                    no-caps
+                    color="negative"
+                    icon="delete"
+                    label="Удалить"
+                    @click="removeSynonymEntry(entry)"
+                  />
+                </div>
+
+                <div class="synonym-aliases">
+                  <q-chip
+                    v-for="(alias, index) in entry.aliases"
+                    :key="`${entry.uid}-${index}`"
+                    removable
+                    dense
+                    @remove="entry.aliases.splice(index, 1)"
+                  >
+                    {{ alias }}
+                  </q-chip>
+                  <span v-if="!entry.aliases.length" class="field-hint">
+                    Синонимов пока нет
+                  </span>
+                </div>
+
+                <div class="synonym-add">
+                  <q-input
+                    v-model="entry.newAlias"
+                    outlined
+                    dense
+                    placeholder="Добавить синоним"
+                    @keyup.enter="addAlias(entry)"
+                  />
+                  <q-btn
+                    outline
+                    no-caps
+                    dense
+                    color="primary"
+                    label="Добавить"
+                    @click="addAlias(entry)"
+                  />
+                </div>
+              </div>
+
+              <q-btn
+                outline
+                no-caps
+                dense
+                color="primary"
+                icon="add"
+                label="Добавить город"
+                @click="addSynonymEntry('cities')"
+              />
+            </q-tab-panel>
+
+            <q-tab-panel name="keywords">
+              <p class="field-hint">
+                Слово из запроса → каноническое название формата. Например,
+                «статика» → «Щит».
+              </p>
+
+              <div
+                v-for="(row, index) in synonymKeywords"
+                :key="row.uid"
+                class="keyword-row"
+              >
+                <q-input
+                  v-model="row.alias"
+                  outlined
+                  dense
+                  label="Слово или фраза"
+                />
+                <q-select
+                  v-model="row.canonical"
+                  :options="synonymTypeNames"
+                  outlined
+                  dense
+                  label="Формат"
+                  use-input
+                  new-value-mode="add-unique"
+                />
+                <q-btn
+                  flat
+                  dense
+                  color="negative"
+                  icon="delete"
+                  @click="synonymKeywords.splice(index, 1)"
+                />
+              </div>
+
+              <q-btn
+                outline
+                no-caps
+                dense
+                color="primary"
+                icon="add"
+                label="Добавить ключевое слово"
+                @click="addKeywordRow"
+              />
+            </q-tab-panel>
+          </q-tab-panels>
+
+          <div class="save-row">
+            <q-btn
+              unelevated
+              no-caps
+              color="primary"
+              label="Сохранить словари"
+              :loading="synonymsSaving"
+              @click="saveSynonyms"
+            />
+            <q-btn
+              outline
+              no-caps
+              color="negative"
+              label="Вернуть стандартные"
+              :disable="!synonymsCustom"
+              @click="resetSynonyms"
+            />
+            <span v-if="synonymsUpdatedAt" class="field-hint">
+              Изменено: {{ formatDate(synonymsUpdatedAt) }}
+            </span>
+          </div>
+        </template>
+      </section>
+
       <!-- ============ ФАЙЛОХРАНИЛИЩЕ ALBION ============ -->
       <section class="section-card">
         <div class="section-title">
@@ -472,8 +712,36 @@ function markKeySaved(key) {
   }
 }
 
+/* ---------- Словари синонимов ---------- */
+const synonymsTab = ref('types')
+const synonymsLoading = ref(true)
+const synonymsSaving = ref(false)
+const synonymsError = ref('')
+const synonymsCustom = ref(false)
+const synonymsUpdatedAt = ref(null)
+const synonymTypes = ref([])
+const synonymCities = ref([])
+const synonymKeywords = ref([])
+const synonymsSnapshot = ref(null)
+
+function synonymsState() {
+  return JSON.stringify({
+    types: synonymTypes.value,
+    cities: synonymCities.value,
+    keywords: synonymKeywords.value
+  })
+}
+
+const synonymsDirty = computed(
+  () =>
+    synonymsSnapshot.value !== null &&
+    synonymsState() !== synonymsSnapshot.value
+)
+
 const dirty = computed(
-  () => savedSnapshot.value !== null && snapshotState() !== savedSnapshot.value
+  () =>
+    (savedSnapshot.value !== null && snapshotState() !== savedSnapshot.value) ||
+    synonymsDirty.value
 )
 
 onBeforeRouteLeave(() => {
@@ -882,6 +1150,211 @@ async function onFieldChange(key, value) {
   }
 }
 
+/* ---------- Словари синонимов: загрузка, правка, сохранение ---------- */
+let synonymUid = 0
+
+function toSynonymEntries(source) {
+  return Object.entries(source || {}).map(([name, config]) => ({
+    uid: ++synonymUid,
+    name,
+    aliases: Array.isArray(config?.aliases) ? [...config.aliases] : [],
+    newAlias: ''
+  }))
+}
+
+const activeSynonyms = computed(() =>
+  synonymsTab.value === 'cities' ? synonymCities.value : synonymTypes.value
+)
+
+const synonymTypeNames = computed(() =>
+  synonymTypes.value.map(entry => entry.name.trim()).filter(Boolean)
+)
+
+function applySynonyms(data) {
+  const dictionary = data?.dictionary || {}
+
+  synonymTypes.value = toSynonymEntries(dictionary.types)
+  synonymCities.value = toSynonymEntries(dictionary.cities)
+  synonymKeywords.value = Object.entries(dictionary.keywords || {}).map(
+    ([alias, canonical]) => ({
+      uid: ++synonymUid,
+      alias,
+      canonical: String(canonical || '')
+    })
+  )
+
+  synonymsCustom.value = Boolean(data?.is_custom)
+  synonymsUpdatedAt.value = data?.updated_at || null
+  synonymsSnapshot.value = synonymsState()
+}
+
+async function loadSynonyms() {
+  synonymsLoading.value = true
+  synonymsError.value = ''
+
+  try {
+    const data = await request('/api/admin/settings/synonyms')
+    applySynonyms(data)
+  } catch (exc) {
+    synonymsError.value = String(exc)
+  } finally {
+    synonymsLoading.value = false
+  }
+}
+
+function addAlias(entry) {
+  const alias = String(entry.newAlias || '').trim()
+
+  if (!alias) {
+    return
+  }
+
+  if (!entry.aliases.includes(alias)) {
+    entry.aliases.push(alias)
+  }
+
+  entry.newAlias = ''
+}
+
+function addSynonymEntry(kind) {
+  const target = kind === 'cities' ? synonymCities : synonymTypes
+
+  target.value.push({
+    uid: ++synonymUid,
+    name: '',
+    aliases: [],
+    newAlias: ''
+  })
+}
+
+function removeSynonymEntry(entry) {
+  const target = synonymsTab.value === 'cities' ? synonymCities : synonymTypes
+
+  target.value = target.value.filter(item => item.uid !== entry.uid)
+}
+
+function addKeywordRow() {
+  synonymKeywords.value.push({
+    uid: ++synonymUid,
+    alias: '',
+    canonical: synonymTypeNames.value[0] || ''
+  })
+}
+
+function entriesToObject(entries, label) {
+  const result = {}
+
+  for (const entry of entries) {
+    const name = String(entry.name || '').trim()
+
+    if (!name) {
+      throw new Error(`Укажите название в разделе «${label}»`)
+    }
+
+    if (Object.prototype.hasOwnProperty.call(result, name)) {
+      throw new Error(`«${name}» повторяется в разделе «${label}»`)
+    }
+
+    result[name] = {
+      aliases: [
+        ...new Set(
+          entry.aliases.map(alias => String(alias).trim()).filter(Boolean)
+        )
+      ]
+    }
+  }
+
+  return result
+}
+
+function buildSynonymsPayload() {
+  const keywords = {}
+
+  for (const row of synonymKeywords.value) {
+    const alias = String(row.alias || '').trim()
+    const canonical = String(row.canonical || '').trim()
+
+    if (!alias && !canonical) {
+      continue
+    }
+
+    if (!alias || !canonical) {
+      throw new Error(
+        'У ключевого слова должны быть заполнены и фраза, и формат'
+      )
+    }
+
+    if (Object.prototype.hasOwnProperty.call(keywords, alias)) {
+      throw new Error(`Ключевое слово «${alias}» повторяется`)
+    }
+
+    keywords[alias] = canonical
+  }
+
+  return {
+    types: entriesToObject(synonymTypes.value, 'Форматы'),
+    cities: entriesToObject(synonymCities.value, 'Города'),
+    keywords
+  }
+}
+
+async function saveSynonyms() {
+  if (synonymsSaving.value) {
+    return
+  }
+
+  synonymsSaving.value = true
+  synonymsError.value = ''
+
+  try {
+    const data = await request('/api/admin/settings/synonyms', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dictionary: buildSynonymsPayload() })
+    })
+
+    applySynonyms(data)
+    notify('Словари синонимов сохранены.')
+  } catch (exc) {
+    const message = String(exc?.message || exc)
+
+    synonymsError.value = message
+    notify(message, 'error')
+  } finally {
+    synonymsSaving.value = false
+  }
+}
+
+async function resetSynonyms() {
+  if (
+    !(await askConfirm(
+      'Вернуть стандартные словари синонимов? Пользовательские правки будут удалены.',
+      'Вернуть стандартные'
+    ))
+  ) {
+    return
+  }
+
+  synonymsSaving.value = true
+  synonymsError.value = ''
+
+  try {
+    const data = await request('/api/admin/settings/synonyms/reset', {
+      method: 'POST'
+    })
+
+    applySynonyms(data)
+    notify('Возвращены стандартные словари.')
+  } catch (exc) {
+    const message = String(exc?.message || exc)
+
+    synonymsError.value = message
+    notify(message, 'error')
+  } finally {
+    synonymsSaving.value = false
+  }
+}
+
 async function createPreset() {
   const name = newPresetName.value.trim()
   if (!name) {
@@ -972,6 +1445,7 @@ onMounted(() => {
   window.addEventListener('beforeunload', onBeforeUnload)
   load()
   loadAlbion()
+  loadSynonyms()
 })
 
 onBeforeUnmount(() => {
@@ -1261,6 +1735,84 @@ onBeforeUnmount(() => {
   line-height: 1.45;
 }
 
+/* ---------- словари синонимов ---------- */
+.section-hint {
+  margin: 0 0 14px;
+  color: #6f7a82;
+  font-size: 13px;
+}
+
+.synonyms-loading {
+  padding: 16px 0;
+}
+
+.synonyms-tabs {
+  margin-bottom: 8px;
+  border-bottom: 1px solid #eceff1;
+}
+
+.synonyms-panels {
+  background: transparent;
+}
+
+.synonyms-panels :deep(.q-tab-panel) {
+  padding: 12px 0 0;
+}
+
+.synonym-entry {
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid #e6eaec;
+  border-radius: 10px;
+  background: #fafbfb;
+}
+
+.synonym-entry-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.synonym-entry-head .q-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.synonym-aliases {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  min-height: 28px;
+}
+
+.synonym-add {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.synonym-add .q-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.keyword-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 220px) 36px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.save-row {
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 @media (max-width: 700px) {
   .form-grid {
     grid-template-columns: 1fr;
@@ -1269,6 +1821,10 @@ onBeforeUnmount(() => {
   .preset-create {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .keyword-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>

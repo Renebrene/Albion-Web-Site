@@ -18,15 +18,27 @@ class SynonymDictionary:
         "keywords",
     }
 
-    def __init__(self, filename: str | Path):
-        self.filename = Path(filename)
+    def __init__(self, filename: str | Path | None = None):
+        self.filename = Path(filename) if filename is not None else None
         self.data: dict = {}
 
         self.type_map: dict[str, str] = {}
         self.city_map: dict[str, str] = {}
         self.keyword_map: dict[str, str] = {}
 
-        self.load()
+        if self.filename is not None:
+            self.load()
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "SynonymDictionary":
+        """Build a dictionary from an already parsed JSON object.
+
+        Used by the admin editor: the payload is validated without writing
+        a temporary file.
+        """
+        dictionary = cls()
+        dictionary.load_data(data)
+        return dictionary
 
     @staticmethod
     def _normalize(value: str) -> str:
@@ -45,7 +57,48 @@ class SynonymDictionary:
             )
 
         with self.filename.open("r", encoding="utf-8") as file:
-            self.data = json.load(file)
+            data = json.load(file)
+
+        self.load_data(data)
+
+    def load_data(self, data: dict):
+        if not isinstance(data, dict):
+            raise ValueError("Словарь должен быть JSON-объектом")
+
+        for category in self.CATEGORIES:
+            value = data.get(category, {})
+            if not isinstance(value, dict):
+                raise ValueError(
+                    f"Раздел словаря «{category}» должен быть объектом"
+                )
+            data[category] = value
+
+        for category in ("types", "cities"):
+            for canonical, config in data[category].items():
+                if not isinstance(config, dict):
+                    raise ValueError(
+                        f"Запись словаря «{category}» / «{canonical}» "
+                        "должна быть объектом"
+                    )
+
+                aliases = config.get("aliases", [])
+                if not isinstance(aliases, list) or any(
+                    not isinstance(alias, str) for alias in aliases
+                ):
+                    raise ValueError(
+                        f"Поле aliases у «{canonical}» должно быть "
+                        "списком строк"
+                    )
+
+        if any(
+            not isinstance(value, str)
+            for value in data["keywords"].values()
+        ):
+            raise ValueError(
+                "Значения раздела keywords должны быть строками"
+            )
+
+        self.data = data
 
         for category in self.CATEGORIES:
             if category not in self.data:

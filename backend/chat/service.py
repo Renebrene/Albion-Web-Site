@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.resources
 import re
+import threading
 from dataclasses import replace
 from datetime import date
 from pathlib import Path
@@ -32,6 +33,10 @@ from backend.chat.models import (
 from backend.chat.store import ChatSession, ChatStore, chat_store
 from backend.search.bridge import AlbionSearchBridge
 from backend.services.chat_log_service import log_turn
+from backend.services.synonyms_service import (
+    PACKAGED_VERSION,
+    load_active_dictionary,
+)
 
 
 class ChatService:
@@ -47,6 +52,29 @@ class ChatService:
         self.store = store or chat_store
         self.dictionary = self._load_dictionary()
         self.parser = QueryParser(self.dictionary)
+        self._dictionary_version = PACKAGED_VERSION
+        self._dictionary_lock = threading.Lock()
+
+    def _refresh_dictionary(self) -> None:
+        """Подхватывает словарь, изменённый в админке.
+
+        Версия — ``updated_at`` записи ``site_settings``. Проверка стоит
+        перед каждым сообщением: словарь небольшой, а один лишний SELECT
+        несущественен на фоне поиска и LLM. Все воркеры видят правку,
+        потому что источник — БД, а не файл в процессе.
+        """
+        dictionary, version = load_active_dictionary()
+
+        if version == self._dictionary_version:
+            return
+
+        with self._dictionary_lock:
+            if version == self._dictionary_version:
+                return
+
+            self.dictionary = dictionary
+            self.parser = QueryParser(dictionary)
+            self._dictionary_version = version
 
     @staticmethod
     def _load_dictionary() -> SynonymDictionary:
@@ -476,6 +504,8 @@ class ChatService:
         return result
 
     def message(self, payload: ChatMessageRequest) -> ChatMessageResponse:
+        self._refresh_dictionary()
+
         # Serialize turns of the same session. In PostgreSQL mode the lock is
         # an advisory lock, so it also works across uvicorn workers.
         if payload.session_id is None:
