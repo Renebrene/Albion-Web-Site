@@ -7,19 +7,31 @@
       aria-label="Использование cookie и веб-аналитики"
     >
       <p class="cookie-text">
-        Используя настоящий сайт, вы предоставляете согласие на обработку ваших
-        персональных данных с помощью сервисов веб-аналитики.
+        Мы используем файлы cookie. Это позволяет нам анализировать
+        взаимодействие посетителей с сайтом и делать его лучше. Продолжая
+        пользоваться сайтом, вы соглашаетесь с использованием файлов cookie и
+        нашей
+        <a
+          :href="privacyUrl || '#'"
+          class="cookie-link"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Политикой конфиденциальности</a
+        >.
       </p>
 
       <button type="button" class="cookie-accept" @click="accept">
-        Согласен
+        ПРИНЯТЬ
       </button>
     </aside>
   </transition>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+
+import { safeCmsUrl } from '../../utils/safeCmsUrl'
 
 /*
  * Плашка о cookie и веб-аналитике. Показывается один раз: факт согласия
@@ -40,6 +52,23 @@ function readConsent() {
 
 const visible = ref(!readConsent())
 
+/* Ссылка на политику берётся из того же меню подвала, что и в футере. */
+const privacyUrl = ref('')
+
+onMounted(async () => {
+  try {
+    const response = await fetch('/api/site-menu')
+    const data = await response.json()
+    const item = (data?.footer || []).find(entry => entry.key === 'privacy')
+
+    if (item) {
+      privacyUrl.value = safeCmsUrl(item.url) || ''
+    }
+  } catch (error) {
+    /* без ссылки плашка всё равно остаётся рабочей */
+  }
+})
+
 function accept() {
   visible.value = false
 
@@ -58,70 +87,71 @@ function accept() {
      у них нет — с меньшим z-index плашку закрывали тайлы. Выше оверлея
      состояния рабочей области (1600), но ниже диалогов Quasar. */
   position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: calc(var(--albion-footer-h, 46px) + 16px);
+  right: 18px;
+  bottom: calc(var(--albion-footer-h, 46px) + 14px);
   z-index: 1700;
 
   display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px 20px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
 
-  max-width: 660px;
-  margin: 0 auto;
-  padding: 12px 16px;
+  width: min(360px, calc(100vw - 24px));
 
-  border-radius: var(--albion-radius-cards, 18px);
+  padding: 12px 14px;
 
-  /* Полупрозрачная плашка: акцент берём из настроек, поэтому прозрачность
-     добавляем через color-mix, а не жёстким rgba. Размытие подложки
-     сохраняет читаемость белого текста над фото и картой. */
-  background: color-mix(
-    in srgb,
-    var(--albion-accent, #e12a1f) 88%,
-    transparent
-  );
-  color: #fff;
+  border: 1px solid #e3e8eb;
+  border-radius: 12px;
 
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  background: rgba(255, 255, 255, 0.98);
+  color: #17212b;
 
-  box-shadow: 0 12px 32px rgba(23, 33, 43, 0.3);
+  box-shadow: 0 12px 32px rgba(23, 33, 43, 0.18);
 
-  font-size: 13px;
+  font-size: 11.5px;
   line-height: 1.45;
 }
 
 .cookie-text {
-  flex: 1 1 420px;
-
   margin: 0;
 }
 
-.cookie-accept {
-  flex: 0 0 auto;
+.cookie-link {
+  color: var(--albion-accent, #e12a1f);
 
-  padding: 9px 22px;
+  font-weight: 700;
+
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.cookie-link:hover {
+  text-decoration-thickness: 2px;
+}
+
+.cookie-accept {
+  align-self: flex-end;
+
+  padding: 7px 16px;
 
   border: 0;
-  border-radius: var(--albion-radius-buttons, 10px);
+  border-radius: 8px;
 
-  background: #fff;
-  color: var(--albion-accent, #e12a1f);
+  background: var(--albion-accent, #e12a1f);
+  color: #fff;
 
   cursor: pointer;
 
   font-family: inherit;
-  font-size: 13px;
+  font-size: 10.5px;
   font-weight: 800;
+  letter-spacing: 0.04em;
 
-  transition: background 0.15s ease;
+  transition: filter 0.15s ease;
 }
 
 .cookie-accept:hover {
-  background: rgba(255, 255, 255, 0.88);
+  filter: brightness(0.94);
 }
 
 /* Появление/скрытие: плавный подъём снизу. */
@@ -147,11 +177,12 @@ function accept() {
 
 @media (max-width: 640px) {
   .cookie-consent {
-    left: 10px;
     right: 10px;
     bottom: calc(var(--albion-footer-h, 46px) + 10px);
 
-    padding: 13px 15px;
+    width: calc(100vw - 20px);
+
+    padding: 12px 14px;
   }
 }
 </style>
