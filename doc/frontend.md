@@ -8,15 +8,17 @@
 - Quasar 2.29 + Vue 3 + vue-router; сборка — Quasar CLI (Vite).
 - `frontend/quasar.config.js`:
   - `boot: ['tracking']`, `css: ['app.scss']`, `extras: ['material-icons']`
-    (`roboto-font` убран — шрифты грузятся лениво, см. `config/fontLoader.js`);
+    (`roboto-font` убран; веб-шрифты лежат локально в `src/assets/fonts`
+    и объявлены в `src/css/fonts.scss`);
   - `build.vueRouterMode: 'history'`;
   - `build.env.clientPrefix: ['QCLI_', 'VITE_']` — добавляет `VITE_` к дефолтному
     `QCLI_`, чтобы `VITE_YANDEX_MAPS_KEY` попадал в бандл (значение **вшивается при сборке**);
   - `devServer.proxy`: `/api` и `/storage` → `http://127.0.0.1:8000`;
   - `allowedHosts: ['albion.cloudpub.ru']`.
-- `frontend/index.html` — CSP в meta (домены Яндекса, OSM-тайлы, Google Fonts;
-  в dev добавляются `localhost`/`127.0.0.1`). Новые внешние хосты — правка и здесь,
-  и в `deploy/nginx.conf.example`.
+- `frontend/index.html` — CSP в meta (домены Яндекса, OSM-тайлы; шрифты
+  раздаются с домена сайта, внешние font-хосты не нужны; в dev добавляются
+  `localhost`/`127.0.0.1`). Новые внешние хосты — правка и здесь, и в
+  `deploy/nginx.conf.example`.
 - Скрипты (`package.json`): `dev`, `build`, `lint` (`oxfmt && oxlint --fix`),
   `lint:check` (`oxfmt --check && oxlint`). `engines.node: ^22.22.0 || ^24.0.0`.
 
@@ -116,8 +118,9 @@
 ## Config-модули (`src/config/`)
 
 `mapConfig` (движок карты + ключ Яндекса), `mapColors` (цвета/режим точек),
-`availableMode` (режим доступности: `surfaces`/`sides`), `dynCount` (показ «динамика (N)»),
-`fontLoader` (ленивая загрузка шрифтов).
+`availableMode` (режим доступности: `surfaces`/`sides`), `dynCount` (показ «динамика (N)»).
+Веб-шрифты подключаются локально через `src/css/fonts.scss`; лицензии —
+в `src/assets/fonts/LICENSES.md`.
 
 ## Медиатеки сайта и конструкций
 

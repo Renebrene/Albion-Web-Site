@@ -19,10 +19,9 @@ export default defineConfig((/* ctx */) => {
     // https://github.com/quasarframework/quasar/tree/dev/extras
     //
     // 'roboto-font' убран: тема сайта по умолчанию использует системный
-    // шрифт (font_family/font_heading = 'system'), а сам Roboto тянул в
-    // бандл ~160 КБ (6 начертаний woff). Нужный шрифт теперь лениво
-    // грузится с Google Fonts, только если он выбран в настройках
-    // (см. src/config/fontLoader.js).
+    // шрифт (font_family/font_heading = 'system'). Доступные веб-шрифты
+    // лежат локально в src/assets/fonts и объявлены в src/css/fonts.scss:
+    // внешние запросы к Google Fonts не нужны.
     extras: [
       'material-icons' // optional, you are not bound to it
     ],

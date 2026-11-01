@@ -19,10 +19,9 @@ import { setAvailableMode } from '../config/availableMode'
 import { setShowDynCount } from '../config/dynCount'
 import { setLazyPopups } from '../config/lazyPopups'
 import { setUrlStateMode, setUrlStateTokenFormat } from '../config/urlStateMode'
-import { applySiteFonts } from '../config/fontLoader'
 
 const SYSTEM_FONT_STACK =
-  "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif"
+  "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, 'Noto Sans', sans-serif"
 
 function resolveFont(value) {
   if (!value || value === 'system') {
@@ -147,11 +146,10 @@ export function applyAppearanceSettings(settings) {
   set('--albion-map-mixed', mapDotColors.value.mixed)
 
   /*
-   * Веб-шрифты (Inter/Roboto/PT Sans/…) больше не в бандле — подгружаем
-   * нужное семейство с Google Fonts только если выбран не 'system'.
+   * Шрифты Inter/Roboto/PT Sans/… лежат локально в src/assets/fonts и
+   * объявлены в css/fonts.scss. Браузер загрузит файл только когда
+   * семейство реально применено — отдельный загрузчик не нужен.
    */
-  applySiteFonts(settings)
-
   return settings
 }
 

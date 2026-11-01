@@ -126,8 +126,9 @@
 
 ## Грабли
 
-- **CSP**: `frontend/index.html` разрешает домены Яндекса, OSM и Google Fonts;
-  новые внешние хосты добавлять и здесь, и в `deploy/nginx.conf.example`.
+- **CSP**: `frontend/index.html` разрешает домены Яндекса и OSM; шрифты
+  раздаются локально с домена сайта. Новые внешние хосты добавлять и здесь,
+  и в `deploy/nginx.conf.example`.
 - **Ключ**: пустой `VITE_YANDEX_MAPS_KEY` → тихий откат на Leaflet. Значение
   вшивается в сборку (префикс `VITE_` через `build.env.clientPrefix`) — после смены
   ключа нужна пересборка.
