@@ -1,16 +1,22 @@
 /*
- * Растровый слой PMTiles для Leaflet.
+ * Слой PMTiles для Leaflet.
  *
  * PMTiles-архив — один файл с тайлами и оглавлением. Браузер запрашивает
  * только нужные диапазоны байт (HTTP Range), поэтому вся карта региона
  * не загружается в память.
  *
- * Поддерживаются растровые архивы (PNG/JPEG/WebP/AVIF). Векторный PMTiles
- * (MVT) этим слоем не рендерится: для него нужен MapLibre/protomaps-leaflet
- * и отдельный слой маркеров.
+ * Векторные архивы (MVT) рисует protomaps-leaflet: он даёт улицы,
+ * подписи городов и районов, сохраняя поверх слой маркеров Leaflet.
+ * Растровые архивы (PNG/JPEG/WebP/AVIF) рисует собственный GridLayer.
  */
 import L from 'leaflet'
 import { PMTiles, TileType } from 'pmtiles'
+import { leafletLayer } from 'protomaps-leaflet'
+
+/* protomaps-leaflet использует глобальный L, как и оригинальный Leaflet. */
+if (typeof window !== 'undefined') {
+  window.L = L
+}
 
 const MIME_BY_TILE_TYPE = {
   [TileType.Png]: 'image/png',
@@ -35,12 +41,27 @@ export async function createPmtilesLayer(url, options = {}) {
   const source = new PMTiles(String(url))
   const header = await source.getHeader()
 
+  if (header.tileType === TileType.Mvt || header.tileType === TileType.Mlt) {
+    const layer = leafletLayer({
+      url: String(url),
+      flavor: 'light',
+      lang: 'ru',
+      maxDataZoom: header.maxZoom,
+      maxZoom: 19,
+      attribution: PMTILES_ATTRIBUTION,
+      ...options
+    })
+
+    layer.pmtilesHeader = header
+    return layer
+  }
+
   const mimeType = MIME_BY_TILE_TYPE[header.tileType]
 
   if (!mimeType) {
     throw new Error(
-      'PMTiles: архив содержит векторные тайлы. Нужен растровый PMTiles ' +
-        '(PNG/JPEG/WebP) либо движок MapLibre.'
+      'PMTiles: неизвестный тип тайлов. Нужен растровый архив ' +
+        '(PNG/JPEG/WebP) или векторный MVT.'
     )
   }
 

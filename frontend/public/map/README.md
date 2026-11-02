@@ -1,26 +1,39 @@
 # Оффлайн-карта PMTiles
 
-Положите сюда растровый PMTiles-архив Ростовской области:
+Рабочий архив лежит вне Git, в `storage/map/rostov.pmtiles`:
 
 ```text
-frontend/public/map/rostov.pmtiles
+<проект>/storage/map/rostov.pmtiles
 ```
 
-Путь по умолчанию — `/map/rostov.pmtiles`. Его можно изменить в админке:
-**Настройки → Карта → «URL PMTiles-файла»**.
+Путь по умолчанию — `/storage/map/rostov.pmtiles`. Его можно изменить в
+админке: **Настройки → Карта → «URL PMTiles-файла»**.
+
+Поддерживаются:
+
+- **векторный PMTiles (MVT)** — рисуется через `protomaps-leaflet`:
+  улицы, подписи городов и районов, поверх остаются маркеры Leaflet;
+- **растровый PMTiles** (PNG / JPEG / WebP / AVIF) — рисуется собственным
+  GridLayer.
 
 Требования:
 
-- PMTiles v3 с растровыми тайлами PNG / JPEG / WebP / AVIF (не MVT);
-- сервер должен поддерживать HTTP Range-запросы (nginx поддерживает их для
-  статических файлов);
-- архив желательно ограничить границей Ростовской области — слой сам
-  выставляет `maxBounds` по заголовку архива;
+- сервер должен поддерживать HTTP Range-запросы (nginx и FastAPI/Starlette
+  для `/storage/` это умеют);
+- архив ограничен границей Ростовской области, карта выставляет `maxBounds`
+  по заголовку архива;
 - данные OpenStreetMap требуют атрибуции «© OpenStreetMap contributors».
 
-Для растрового PMTiles карта продолжает работать на Leaflet: маркеры,
-кластеры и попапы остаются прежними. Векторный архив этим слоем не
-рендерится — для него нужен MapLibre/protomaps-leaflet.
+Пример сборки архива из OSM-выгрузки:
+
+```bash
+# 1. Скачать актуальный PMTiles-экстракт Protomaps или собрать свой tilemaker.
+# 2. Вырезать Ростовскую область по frontend/public/rostov-region.geojson:
+pmtiles extract https://build.protomaps.com/YYYYMMDD.pmtiles \
+  storage/map/rostov.pmtiles \
+  --region=frontend/public/rostov-region.geojson \
+  --maxzoom=15
+```
 
 В оффлайн-режиме геокодер недоступен: поиск по адресу отключается,
 остаётся поиск по координатам и по адресам конструкций из базы.

@@ -115,7 +115,7 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "label": "URL PMTiles-файла (оффлайн-карта)",
         "type": "text",
         "group": "map",
-        "default": "/map/rostov.pmtiles",
+        "default": "/storage/map/rostov.pmtiles",
     },
     # Логика цвета точек на карте:
     #   three — три цвета (свободно / частично занято / занято);

@@ -16,7 +16,7 @@ import { ref } from 'vue'
 export const DEFAULT_MAP_ENGINE = 'osm'
 
 /* URL PMTiles-архива для оффлайн-карты (из админ-настроек). */
-export const DEFAULT_PMTILES_URL = '/map/rostov.pmtiles'
+export const DEFAULT_PMTILES_URL = '/storage/map/rostov.pmtiles'
 export const mapPmtilesUrl = ref(DEFAULT_PMTILES_URL)
 
 /* Ошибка загрузки оффлайн-карты — показывается поверх карты. */
