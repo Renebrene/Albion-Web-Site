@@ -905,6 +905,7 @@ import PointSearchPanel from '../components/workspace/PointSearchPanel.vue'
 import MapView from '../map/MapView.vue'
 import { clearPopupContentCache } from '../map/popupContent'
 import { SEARCH_POINT_ICON } from '../map/searchPointIcon'
+import { mapEngine } from '../config/mapConfig'
 
 import { getConstructions } from '../services/api'
 import { geocodeAddress, reverseGeocode } from '../services/geoApi'
@@ -1297,6 +1298,8 @@ const DEFAULT_POINT_RADIUS = 1000
 
 const pointCoordinates = ref(DEFAULT_POINT_COORDINATES)
 const pointAddress = ref('')
+/* Оффлайн-карта PMTiles: геокодер недоступен. */
+const isOfflineMap = computed(() => mapEngine.value === 'pmtiles')
 const addressLoading = ref(false)
 const addressError = ref('')
 /* Номер последнего geocode-запроса: старые ответы не должны перезаписывать новые. */
@@ -2283,6 +2286,11 @@ function executePointSearch() {
 }
 
 async function fillAddressForPoint(lat, lng) {
+  /* В оффлайн-режиме адрес по координатам не определяется. */
+  if (isOfflineMap.value) {
+    return
+  }
+
   const seq = ++reverseRequestSeq
 
   try {
@@ -2513,6 +2521,12 @@ function constructionAddressSuggestions(query) {
 }
 
 async function focusMapOnAddress(address, suggestion) {
+  if (isOfflineMap.value) {
+    mapAddressError.value =
+      'Геокодер недоступен в оффлайн-режиме: используйте координаты.'
+    return
+  }
+
   const seq = ++mapAddressRequestSeq
   mapAddressLoading.value = true
   mapAddressError.value = ''
@@ -2572,6 +2586,13 @@ async function focusMapOnAddress(address, suggestion) {
 }
 
 async function executeAddressSearch() {
+  if (isOfflineMap.value) {
+    addressLoading.value = false
+    addressError.value =
+      'Геокодер недоступен в оффлайн-режиме: используйте координаты.'
+    return
+  }
+
   const seq = ++addressRequestSeq
   /* Новый адресный поиск отменяет незавершённый reverse-geocode. */
   reverseRequestSeq += 1

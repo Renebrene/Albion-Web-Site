@@ -16,6 +16,10 @@
     <div v-if="engineFallback" class="map-engine-note" role="status">
       Карта работает на OpenStreetMap: Яндекс.Карты недоступны
     </div>
+
+    <div v-if="mapOfflineError" class="map-engine-note" role="alert">
+      {{ mapOfflineError }}
+    </div>
   </div>
 </template>
 
@@ -29,7 +33,7 @@ import {
   nextTick
 } from 'vue'
 
-import { mapEngine } from '../config/mapConfig'
+import { mapEngine, mapOfflineError } from '../config/mapConfig'
 import { availableMode } from '../config/availableMode'
 import { showDynCount } from '../config/dynCount'
 import { lazyPopups } from '../config/lazyPopups'

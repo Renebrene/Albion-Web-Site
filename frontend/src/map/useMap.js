@@ -10,6 +10,12 @@ import { SEARCH_POINT_ICON, searchPointIconHref } from './searchPointIcon'
 import { lazyPopups } from '../config/lazyPopups'
 import { mapDebug } from './mapDebug'
 import { normalizeCoordinates } from './coordinates'
+import { createPmtilesLayer } from './pmtilesLayer'
+import {
+  mapEngine,
+  mapPmtilesUrl,
+  setMapOfflineError
+} from '../config/mapConfig'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
@@ -255,6 +261,10 @@ function createMap(element) {
     center: DEFAULT_CENTER,
     zoom: DEFAULT_ZOOM,
 
+    /* Нужен markercluster: без maxZoom он падает при добавлении маркеров,
+       если тайловый слой (PMTiles) ещё не успел подключиться. */
+    maxZoom: 19,
+
     zoomControl: true,
 
     preferCanvas: true,
@@ -295,13 +305,64 @@ function createMap(element) {
     })
   })
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
+  if (mapEngine.value === 'pmtiles') {
+    setMapOfflineError('')
 
-    attribution: '&copy; OpenStreetMap contributors',
+    createPmtilesLayer(mapPmtilesUrl.value, {
+      onError: error => {
+        console.error('Albion map: ошибка тайлов PMTiles.', error)
+        setMapOfflineError(
+          'Не удалось загрузить тайлы оффлайн-карты. Проверьте PMTiles-файл.'
+        )
+      }
+    })
+      .then(layer => {
+        if (!map) {
+          return
+        }
 
-    crossOrigin: true
-  }).addTo(map)
+        layer.addTo(map)
+
+        /*
+         * Ограничиваем карту границами архива: за пределы Ростовской
+         * области не уезжаем, пустых серых тайлов не показываем.
+         */
+        const header = layer.pmtilesHeader
+
+        if (
+          header &&
+          header.minLon < header.maxLon &&
+          header.minLat < header.maxLat
+        ) {
+          map.setMaxBounds(
+            L.latLngBounds(
+              [header.minLat, header.minLon],
+              [header.maxLat, header.maxLon]
+            ).pad(0.03)
+          )
+
+          /* Не опускаем текущий зум ниже максимума архива (например,
+             тестовый z3-архив при стартовом зуме 10). */
+          if (header.maxZoom && header.maxZoom >= map.getZoom()) {
+            map.setMaxZoom(header.maxZoom)
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Albion map: не удалось открыть PMTiles.', error)
+        setMapOfflineError(
+          'Оффлайн-карта недоступна: не удалось открыть PMTiles-файл.'
+        )
+      })
+  } else {
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+
+      attribution: '&copy; OpenStreetMap contributors',
+
+      crossOrigin: true
+    }).addTo(map)
+  }
 
   clusterGroup = L.markerClusterGroup({
     chunkedLoading: true,

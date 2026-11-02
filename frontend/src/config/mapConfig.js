@@ -2,10 +2,11 @@
  * Оператор карты.
  *
  * Значение приходит из админ-настроек (ключ `map_engine` в /api/settings):
- *   'osm'    — Leaflet + OpenStreetMap;
- *   'yandex' — Yandex Maps JS API 2.1.
+ *   'osm'     — Leaflet + OpenStreetMap (онлайн);
+ *   'pmtiles' — Leaflet + локальный PMTiles (оффлайн, Ростовская область);
+ *   'yandex'  — Yandex Maps JS API 2.1.
  *
- * Архитектура сохранена: оба движка на месте, выбор — по этому флагу,
+ * Архитектура сохранена: движки на месте, выбор — по этому флагу,
  * при недоступности Яндекс-API карта молча откатывается на Leaflet
  * (см. src/map/MapView.vue).
  */
@@ -13,6 +14,22 @@ import { ref } from 'vue'
 
 /* Значение по умолчанию, пока настройки не загрузились / недоступны. */
 export const DEFAULT_MAP_ENGINE = 'osm'
+
+/* URL PMTiles-архива для оффлайн-карты (из админ-настроек). */
+export const DEFAULT_PMTILES_URL = '/map/rostov.pmtiles'
+export const mapPmtilesUrl = ref(DEFAULT_PMTILES_URL)
+
+/* Ошибка загрузки оффлайн-карты — показывается поверх карты. */
+export const mapOfflineError = ref('')
+
+export function setMapPmtilesUrl(value) {
+  const url = String(value || '').trim()
+  mapPmtilesUrl.value = url || DEFAULT_PMTILES_URL
+}
+
+export function setMapOfflineError(value) {
+  mapOfflineError.value = String(value || '')
+}
 
 /*
  * Ключ Yandex Maps JS API 2.1.
@@ -30,7 +47,8 @@ export const YANDEX_MAPS_KEY =
 /* Активный оператор карты (реактивно). */
 export const mapEngine = ref(DEFAULT_MAP_ENGINE)
 
-/* Допустимые значения — 'osm' | 'yandex'. */
+/* Допустимые значения — 'osm' | 'pmtiles' | 'yandex'. */
 export function setMapEngine(value) {
-  mapEngine.value = value === 'yandex' ? 'yandex' : 'osm'
+  mapEngine.value = value === 'yandex' || value === 'pmtiles' ? value : 'osm'
+  mapOfflineError.value = ''
 }

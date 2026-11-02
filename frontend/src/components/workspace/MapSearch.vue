@@ -22,6 +22,7 @@
 
       <div v-if="showMode" class="search-mode">
         <button
+          v-if="!isOfflineMap"
           type="button"
           :class="{ active: mode === 'address' }"
           @click="setMode('address')"
@@ -58,6 +59,13 @@
     <div v-if="loading" class="search-hint" role="status">Ищем адрес…</div>
     <div v-else-if="error" class="search-hint search-hint--error" role="alert">
       {{ error }}
+    </div>
+    <div
+      v-else-if="isPointMode && isOfflineMap"
+      class="search-hint"
+      role="status"
+    >
+      Оффлайн-карта: геокодер недоступен, поиск по адресу отключён.
     </div>
 
     <!-- Подсказки адреса: выпадающий список по режиму поиска. -->
@@ -106,6 +114,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
+import { mapEngine } from '../../config/mapConfig'
 import { suggestAddress } from '../../services/geoApi'
 
 const props = defineProps({
@@ -169,9 +178,16 @@ const emit = defineEmits([
   'select-suggestion'
 ])
 
+/* Оффлайн-карта (PMTiles) работает без геокодера. */
+const isOfflineMap = computed(() => mapEngine.value === 'pmtiles')
+
 const placeholder = computed(() => {
   if (!props.showMode) {
     return 'Адрес, город, улица или формат'
+  }
+
+  if (isOfflineMap.value) {
+    return 'Геокодер недоступен в оффлайн-режиме'
   }
 
   return props.mode === 'coords'
@@ -226,7 +242,9 @@ function clearBlurTimer() {
  */
 const isPointMode = computed(() => props.workspaceMode === 'point')
 
-const canGeocode = computed(() => isPointMode.value && props.mode === 'address')
+const canGeocode = computed(
+  () => isPointMode.value && props.mode === 'address' && !isOfflineMap.value
+)
 
 const canUseConstruction = computed(
   () => props.workspaceMode === 'map' || props.workspaceMode === 'list'
@@ -434,6 +452,17 @@ function onSearch() {
 watch(
   () => [props.mode, props.showMode, props.workspaceMode],
   () => clearSuggestions()
+)
+
+/* В оффлайн-режиме адресный геокодер недоступен — остаются координаты. */
+watch(
+  isOfflineMap,
+  offline => {
+    if (offline && props.mode === 'address') {
+      emit('update:mode', 'coords')
+    }
+  },
+  { immediate: true }
 )
 
 onBeforeUnmount(clearSuggestions)

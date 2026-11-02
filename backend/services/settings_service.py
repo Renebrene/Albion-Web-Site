@@ -102,9 +102,20 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "group": "map",
         "options": [
             {"label": "OpenStreetMap (Leaflet)", "value": "osm"},
+            {
+                "label": "PMTiles — оффлайн-карта Ростовской области",
+                "value": "pmtiles",
+            },
             {"label": "Яндекс.Карты", "value": "yandex"},
         ],
         "default": "osm",
+    },
+    {
+        "key": "map_pmtiles_url",
+        "label": "URL PMTiles-файла (оффлайн-карта)",
+        "type": "text",
+        "group": "map",
+        "default": "/map/rostov.pmtiles",
     },
     # Логика цвета точек на карте:
     #   three — три цвета (свободно / частично занято / занято);

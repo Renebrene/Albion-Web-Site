@@ -8,7 +8,14 @@
 
 - Конфиг `config/mapConfig.js`: `DEFAULT_MAP_ENGINE = 'osm'`, реактивный `mapEngine`,
   `setMapEngine()`. Значение приходит из настроек (`map_engine`) через
-  `boot/settings.js`.
+  `boot/settings.js`: `osm` (онлайн), `pmtiles` (оффлайн) или `yandex`.
+- **Оффлайн-режим:** `pmtiles` использует Leaflet + растровый PMTiles
+  (`map/pmtilesLayer.js`). URL архива — настройка `map_pmtiles_url`
+  (по умолчанию `/map/rostov.pmtiles`). Границы карты ограничиваются
+  заголовком архива. Геокодер в этом режиме отключён: поиск по адресу
+  недоступен, работают координаты и поиск по адресам конструкций из базы.
+  Поддерживается только растровый PMTiles (PNG/JPEG/WebP/AVIF); для
+  векторного нужен MapLibre/protomaps-leaflet.
 - `MapView.vue` при монтировании: если `mapEngine === 'yandex'` — грузит Яндекс-движок;
   при **любой** ошибке (нет ключа, таймаут, ошибка `createMap`) — **тихий откат на
   Leaflet**. Модули движков грузятся динамически; CSS Leaflet — только для Leaflet.

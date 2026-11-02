@@ -9,7 +9,7 @@
 // базовые стили (см. src/css/app.scss). При любой ошибке тихо выходим,
 // оставляя значения по умолчанию, объявленные в :root.
 
-import { setMapEngine } from '../config/mapConfig'
+import { setMapEngine, setMapPmtilesUrl } from '../config/mapConfig'
 import {
   mapDotColors,
   setMapDotColors,
@@ -116,8 +116,9 @@ export function applyAppearanceSettings(settings) {
     set('--albion-radius-buttons', radiusButtons)
   }
 
-  /* Оператор карты: 'osm' | 'yandex' (см. config/mapConfig.js). */
+  /* Оператор карты: 'osm' | 'pmtiles' | 'yandex' (см. config/mapConfig.js). */
   setMapEngine(settings.map_engine)
+  setMapPmtilesUrl(settings.map_pmtiles_url)
 
   /* Логика цвета точек: 'three' | 'two' (см. config/mapColors.js). */
   setMapColorMode(settings.map_color_mode)
