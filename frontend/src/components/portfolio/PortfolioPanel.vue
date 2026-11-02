@@ -134,13 +134,13 @@
 
     <!-- ДЕЙСТВИЯ -->
     <div class="portfolio-actions">
-      <!-- Полный вывод: фото и карта добавляются автоматически
-           (отдельные галочки «Фото»/«Карта» убраны). -->
+      <!-- Галочка «Фото»: включает фото и карту в документе.
+           Подпись постоянная и не зависит от состояния. -->
       <q-checkbox
         v-model="fullOutput"
         dense
         class="portfolio-photos-toggle portfolio-full-output-toggle"
-        :label="fullOutput ? 'Полный вывод' : 'Краткий вывод'"
+        label="Фото"
         :disable="!count"
       />
 
@@ -180,70 +180,53 @@
           :key="badge.value"
           flat
           dense
-          class="portfolio-icon"
+          no-caps
+          class="portfolio-export-btn"
           :disable="!count || Boolean(busy)"
           :loading="busy === badge.value"
           :aria-label="badge.title"
           @click="exportAs(badge.value)"
         >
-          <span class="portfolio-file-badge" :class="`is-${badge.value}`">
-            {{ badge.badge }}
-          </span>
+          <q-icon
+            :name="badge.icon"
+            size="18px"
+            class="portfolio-export-btn__icon"
+            :class="`is-${badge.value}`"
+          />
+          <span class="portfolio-export-btn__label">{{ badge.label }}</span>
 
           <q-tooltip>{{ badge.title }}</q-tooltip>
         </q-btn>
 
-        <q-btn-dropdown
-          flat
-          dense
-          class="portfolio-icon"
-          :disable="!count || Boolean(busy)"
-          aria-label="Остальные форматы"
-        >
-          <template #label>
-            <span class="portfolio-more">…</span>
-
-            <q-tooltip>Остальные форматы</q-tooltip>
-          </template>
-
-          <q-list dense class="portfolio-export-menu">
-            <q-item
-              v-for="option in extraExportOptions"
-              :key="option.value"
-              v-close-popup
-              clickable
-              @click="exportAs(option.value)"
-            >
-              <q-item-section>
-                <q-item-label>{{ option.label }}</q-item-label>
-              </q-item-section>
-            </q-item>
-          </q-list>
-        </q-btn-dropdown>
-
         <q-btn
           flat
           dense
-          class="portfolio-icon"
-          icon="print"
+          no-caps
+          class="portfolio-export-btn"
           :disable="!count || Boolean(busy)"
           :loading="busy === 'print'"
           aria-label="Печать"
           @click="handlePrint"
         >
-          <q-tooltip>Печать</q-tooltip>
+          <q-icon name="print" size="18px" class="portfolio-export-btn__icon" />
+          <span class="portfolio-export-btn__label">Печать</span>
         </q-btn>
 
         <q-btn
           flat
           dense
-          class="portfolio-icon"
-          icon="mail_outline"
+          no-caps
+          class="portfolio-export-btn"
           :disable="!count || Boolean(busy)"
-          aria-label="Отправить письмом"
+          aria-label="Почта"
           @click="handleEmail"
         >
-          <q-tooltip>Отправить письмом</q-tooltip>
+          <q-icon
+            name="mail_outline"
+            size="18px"
+            class="portfolio-export-btn__icon"
+          />
+          <span class="portfolio-export-btn__label">Почта</span>
         </q-btn>
 
         <!--
@@ -253,12 +236,15 @@
         <q-btn
           flat
           dense
-          class="portfolio-icon"
-          icon="link"
+          no-caps
+          class="portfolio-export-btn"
           :disable="!count || Boolean(busy)"
           aria-label="Ссылка на портфель"
           @click="sharePortfolioLink"
         >
+          <q-icon name="link" size="18px" class="portfolio-export-btn__icon" />
+          <span class="portfolio-export-btn__label">Ссылка</span>
+
           <q-tooltip ref="linkTip" :offset="[0, 6]">
             {{
               linkCopied
@@ -886,9 +872,8 @@ const busyLabel = computed(() =>
 )
 
 /*
- * «Полный вывод»: фото и карта добавляются в документ автоматически
- * (отдельных галочек «Фото»/«Карта» больше нет). Выключен по умолчанию;
- * влияет на выгрузку и печать.
+ * Галочка «Фото»: включает фото и карту в документе (отдельных галочек
+ * «Фото»/«Карта» нет). Выключена по умолчанию; влияет на выгрузку и печать.
  */
 const fullOutput = ref(false)
 
@@ -922,16 +907,31 @@ const exportOptions = [
   { label: 'JSON — данные', value: 'json' }
 ]
 
-/* Три частых формата — отдельными иконками, остальные уходят в «…». */
+/*
+ * Три частых формата — отдельными кнопками с пиктограммами.
+ * Остальные форматы остаются в exportOptions и доступны через exportAs/
+ * серверный экспорт; в интерфейсе отдельного меню «Доп. форматы» нет.
+ */
 const fileBadges = [
-  { value: 'pdf', badge: 'PDF', title: 'Скачать PDF' },
-  { value: 'xlsx', badge: 'XLS', title: 'Скачать Excel (XLSX)' },
-  { value: 'docx', badge: 'DOC', title: 'Скачать Word (DOCX)' }
+  {
+    value: 'pdf',
+    label: 'PDF',
+    icon: 'picture_as_pdf',
+    title: 'Скачать PDF'
+  },
+  {
+    value: 'xlsx',
+    label: 'Excel',
+    icon: 'table_chart',
+    title: 'Скачать Excel (XLSX)'
+  },
+  {
+    value: 'docx',
+    label: 'Word',
+    icon: 'description',
+    title: 'Скачать Word (DOCX)'
+  }
 ]
-
-const extraExportOptions = exportOptions.filter(
-  option => !fileBadges.some(badge => badge.value === option.value)
-)
 
 function removeItem(item) {
   const snapshot = removeSurface(item.surfaceId)
@@ -1858,14 +1858,15 @@ function confirmClear() {
 }
 
 /*
- * Иконки вывода и действий: три формата (PDF/XLSX/DOCX), «…» для
- * редких, принтер, почта и ссылка на портфель.
+ * Кнопки вывода и действий: PDF, Excel, Word, печать, почта и ссылка.
+ * Одинаковый размер и шрифт у всех шести.
  */
 .portfolio-icons {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
 
-  gap: 2px;
+  gap: 6px;
 }
 
 /* Статус долгой операции (сборка файла на сервере). */
@@ -1876,54 +1877,60 @@ function confirmClear() {
   white-space: nowrap;
 }
 
-.portfolio-icon {
-  min-width: 28px;
-  min-height: 28px;
-  padding: 0 5px;
+.portfolio-export-btn {
+  width: 96px;
+  min-width: 96px;
+  height: 38px;
+  min-height: 38px;
 
-  border-radius: 8px;
+  padding: 0 10px;
 
+  border: 1px solid #dfe6ea;
+  border-radius: 9px;
+
+  background: #fff;
   color: #455a64;
-}
 
-/* Бейджи форматов: буквы вместо картинок — узнаваемо и без внешних файлов. */
-.portfolio-file-badge {
-  padding: 2px 4px;
-
-  border-radius: 4px;
-
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 800;
-  line-height: 1.2;
 
   letter-spacing: 0.02em;
 }
 
-.portfolio-file-badge.is-pdf {
-  background: #fdecea;
+.portfolio-export-btn:hover {
+  border-color: var(--albion-accent);
+  color: var(--albion-accent);
+}
 
+.portfolio-export-btn :deep(.q-btn__content) {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.portfolio-export-btn__icon {
+  flex: 0 0 auto;
+
+  color: #546e7a;
+}
+
+.portfolio-export-btn__icon.is-pdf {
   color: #c62828;
 }
 
-.portfolio-file-badge.is-xlsx {
-  background: #e6f4ea;
-
+.portfolio-export-btn__icon.is-xlsx {
   color: #1e6f43;
 }
 
-.portfolio-file-badge.is-docx {
-  background: #e8eefb;
-
+.portfolio-export-btn__icon.is-docx {
   color: #2b579a;
 }
 
-/* «…» — единственный символ, поэтому крупнее буквенных бейджей. */
-.portfolio-more {
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1;
+.portfolio-export-btn__label {
+  white-space: nowrap;
 
-  color: #546e7a;
+  text-transform: uppercase;
 }
 
 /* Обёртка «Сохранить»: нужна, чтобы тултип показывался и когда кнопка
@@ -1938,26 +1945,6 @@ function confirmClear() {
   pointer-events: none;
 }
 
-/* Список редких форматов («…») — с прокруткой. */
-.portfolio-export-menu {
-  max-height: 320px;
-  overflow-y: auto;
-}
-
-/* Пункты меню — тем же кеглем и весом, что подписи кнопок портфеля,
-   чтобы меню выглядело компактнее. */
-.portfolio-export-menu :deep(.q-item__label) {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-}
-
-.portfolio-export-menu :deep(.q-item) {
-  min-height: 30px;
-  padding-top: 2px;
-  padding-bottom: 2px;
-}
-
 /* Галочка «Фото» — по размеру кнопок действий. */
 .portfolio-photos-toggle {
   align-self: center;
@@ -1969,13 +1956,8 @@ function confirmClear() {
 }
 
 /*
- * Подпись «Полный вывод» — жирная (жирнее «Фото»/«Карта»). Класс задаёт
- * вес только этой подписи; шрифт остальных галочек не меняется.
- */
-/*
- * Переключатель режима вывода. Подпись меняется («Краткий вывод» /
- * «Полный вывод») и намеренно отличается от галочек «Фото»/«Карта»:
- * отделена чертой, набрана прописными и акцентным цветом.
+ * Галочка «Фото»: подпись постоянная, не меняется при включении.
+ * Отделена чертой и набрана акцентным цветом.
  */
 .portfolio-full-output-toggle {
   padding-left: 10px;
@@ -1992,7 +1974,7 @@ function confirmClear() {
   letter-spacing: 0.04em;
 }
 
-/* Переключатель «2/3 на лист» — компактный, рядом с «Полным выводом». */
+/* Переключатель «2/3 на лист» — компактный, рядом с галочкой «Фото». */
 .portfolio-per-page {
   margin-left: 8px;
   border: 1px solid #dfe6ea;

@@ -172,6 +172,61 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onViewerKeydown)
 })
 
+/*
+ * Перекодирование в JPEG: окно превью должно скачивать именно .jpg,
+ * даже если исходник — PNG, WebP или HEIC, который браузер уже показал.
+ * Прозрачность заливаем белым: JPEG её не поддерживает.
+ */
+async function convertToJpeg(blob) {
+  const sourceUrl = URL.createObjectURL(blob)
+
+  try {
+    const image = new Image()
+
+    image.decoding = 'async'
+    image.src = sourceUrl
+    await image.decode()
+
+    const width = image.naturalWidth || image.width
+    const height = image.naturalHeight || image.height
+
+    if (!width || !height) {
+      throw new Error('не удалось определить размер изображения')
+    }
+
+    const canvas = document.createElement('canvas')
+
+    canvas.width = width
+    canvas.height = height
+
+    const context = canvas.getContext('2d')
+
+    if (!context) {
+      throw new Error('canvas недоступен')
+    }
+
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, width, height)
+    context.drawImage(image, 0, 0, width, height)
+
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        jpeg => {
+          if (jpeg) {
+            resolve(jpeg)
+          } else {
+            reject(new Error('не удалось закодировать JPEG'))
+          }
+        },
+        'image/jpeg',
+        0.92
+      )
+    })
+  } finally {
+    URL.revokeObjectURL(sourceUrl)
+  }
+}
+
 /* Временная ссылка -> клик -> освобождение blob-URL. */
 function triggerDownload(href, name) {
   const link = document.createElement('a')
@@ -209,7 +264,8 @@ async function handleDownload() {
    * уже другое фото под старым именем.
    */
   const targetUrl = url.value
-  const targetName = sanitizeFileName(base, targetUrl)
+  const originalName = sanitizeFileName(base, targetUrl)
+  const targetName = originalName.replace(/\.[a-z0-9]+$/i, '.jpg')
 
   downloading.value = true
 
@@ -221,7 +277,8 @@ async function handleDownload() {
     }
 
     const blob = await response.blob()
-    const objectUrl = URL.createObjectURL(blob)
+    const jpeg = await convertToJpeg(blob)
+    const objectUrl = URL.createObjectURL(jpeg)
 
     triggerDownload(objectUrl, targetName)
 
@@ -238,7 +295,8 @@ async function handleDownload() {
     )
 
     try {
-      triggerDownload(targetUrl, targetName)
+      /* Резервный путь без перекодирования: сохраняем исходный формат. */
+      triggerDownload(targetUrl, originalName)
     } catch (fallbackError) {
       console.error('[PhotoViewer] скачивание не удалось:', fallbackError)
     }
