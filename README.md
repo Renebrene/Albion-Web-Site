@@ -24,7 +24,7 @@
 | Backend | Python, FastAPI, Uvicorn, Pydantic |
 | База данных | PostgreSQL, PostGIS, psycopg 3 |
 | Frontend | Vue 3, Quasar, Vite |
-| Карты | Leaflet/OpenStreetMap, Яндекс.Карты |
+| Карты | Leaflet/OpenStreetMap, Яндекс.Карты, оффлайн PMTiles по Ростовской области |
 | Поиск | собственный движок `albion-search` |
 | Умный чат | правила разбора + опциональная LLM (локальная или OpenAI-compatible) |
 | Документы | DOCX, XLSX, PDF и другие форматы через LibreOffice |

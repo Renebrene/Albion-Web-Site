@@ -76,5 +76,8 @@ uv run --with websockets python deploy/browser-smoke.py --base http://localhost:
   префиксы `QCLI_`/`VITE_` (см. `build.env` в `frontend/quasar.config.js`).
   Без ключа карта тихо откатывается на Leaflet. Значение **вшивается в бандл** —
   после правки `.env.local` нужен рестарт dev / пересборка.
+- PMTiles: оффлайн-карта (`map_engine=pmtiles`) читает только **растровый** архив
+  из `frontend/public/map/rostov.pmtiles` (URL — настройка `map_pmtiles_url`).
+  Нужны HTTP Range-запросы. Геокодер в этом режиме отключён.
 - CSP задан в `frontend/index.html` и в `deploy/nginx.conf.example` — новые внешние
   хосты добавлять в оба места.
