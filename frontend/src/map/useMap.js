@@ -14,11 +14,54 @@ import { createPmtilesLayer } from './pmtilesLayer'
 import {
   mapEngine,
   mapPmtilesUrl,
+  setMapAutoOffline,
   setMapOfflineError
 } from '../config/mapConfig'
 
 const DEFAULT_CENTER = [47.2357, 39.7015]
 const DEFAULT_ZOOM = 10
+
+/* Базовый онлайн-слой OSM. */
+const OSM_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+const OSM_ATTRIBUTION = '&copy; OpenStreetMap contributors'
+
+/*
+ * Проверка доступности OSM: один маленький тайл вне кэша.
+ * Нужна потому, что navigator.onLine == true ещё не значит,
+ * что тайлы OSM реально отвечают.
+ */
+const OSM_PROBE_URL = 'https://a.tile.openstreetmap.org/0/0/0.png'
+const OSM_PROBE_TIMEOUT = 6000
+
+/* Сколько подряд ошибок тайлов считаем признаком недоступности OSM. */
+const OSM_ERROR_LIMIT = 4
+
+/* Первая проверка после ухода в офлайн и максимальный интервал (backoff). */
+const OSM_RETRY_MIN_DELAY = 15000
+const OSM_RETRY_MAX_DELAY = 120000
+
+const OSM_MAX_ZOOM = 19
+
+/* Текущий базовый слой карты: 'osm' | 'pmtiles'. */
+let baseLayer = null
+let baseLayerKind = ''
+
+/* Счётчик подряд идущих ошибок тайлов OSM (успешная загрузка сбрасывает). */
+let osmTileErrors = 0
+
+/* Идёт асинхронное переключение на PMTiles — не запускаем второе. */
+let offlineSwitchInProgress = false
+
+/* OSM уже подводил: продолжаем проверять его, даже если PMTiles не открылся. */
+let osmLikelyDown = false
+
+/* Таймер и номер попытки проверки восстановления OSM. */
+let onlineProbeTimer = null
+let onlineProbeAttempt = 0
+
+/* Подписки на события браузера (снимаются в destroyMap). */
+let browserOnlineHandler = null
+let browserOfflineHandler = null
 
 let map = null
 let clusterGroup = null
@@ -242,6 +285,320 @@ function markerIconFor(color) {
 }
 
 /* =========================================================
+   BASE LAYER (OSM ⇄ PMTiles)
+   ========================================================= */
+
+/*
+ * Меняет базовый слой, не трогая карту, маркеры и текущий вид.
+ * Новый слой добавляем раньше, чем убираем старый: при переключении
+ * не мигает пустое полотно.
+ */
+function replaceBaseLayer(layer, kind) {
+  if (!map || !layer) {
+    return
+  }
+
+  const previous = baseLayer
+
+  baseLayer = layer
+  baseLayerKind = kind
+
+  layer.addTo(map)
+
+  if (previous && previous !== layer) {
+    map.removeLayer(previous)
+  }
+}
+
+/* Снимает ограничения, которые ставил PMTiles-архив. */
+function resetMapBounds() {
+  if (!map) {
+    return
+  }
+
+  map.setMaxBounds(null)
+  map.setMaxZoom(OSM_MAX_ZOOM)
+}
+
+/*
+ * Онлайн-слой OSM.
+ *
+ * Ошибки тайлов считаем подряд: одиночный сбой (прокси, отмена при
+ * панорамировании) не должен переключать карту. Любая успешная
+ * загрузка сбрасывает счётчик.
+ */
+function addOsmBaseLayer() {
+  if (!map) {
+    return
+  }
+
+  osmTileErrors = 0
+
+  const layer = L.tileLayer(OSM_TILE_URL, {
+    maxZoom: OSM_MAX_ZOOM,
+
+    attribution: OSM_ATTRIBUTION,
+
+    crossOrigin: true
+  })
+
+  layer.on('tileload', () => {
+    if (baseLayer === layer) {
+      osmTileErrors = 0
+      osmLikelyDown = false
+    }
+  })
+
+  layer.on('load', () => {
+    osmTileErrors = 0
+    osmLikelyDown = false
+  })
+
+  layer.on('tileerror', () => {
+    /* Старый слой мог прислать событие уже после замены. */
+    if (baseLayer !== layer || offlineSwitchInProgress) {
+      return
+    }
+
+    osmTileErrors += 1
+
+    if (osmTileErrors >= OSM_ERROR_LIMIT) {
+      osmTileErrors = 0
+      switchToOfflineMap('osm-tiles-unreachable')
+    }
+  })
+
+  resetMapBounds()
+  replaceBaseLayer(layer, 'osm')
+}
+
+/* Ограничиваем карту границами архива: за пределы области не уезжаем. */
+function applyPmtilesBounds(layer) {
+  if (!map) {
+    return
+  }
+
+  const header = layer?.pmtilesHeader
+
+  if (
+    !header ||
+    !(header.minLon < header.maxLon && header.minLat < header.maxLat)
+  ) {
+    return
+  }
+
+  map.setMaxBounds(
+    L.latLngBounds(
+      [header.minLat, header.minLon],
+      [header.maxLat, header.maxLon]
+    ).pad(0.03)
+  )
+
+  /* Не опускаем текущий зум ниже максимума архива (например,
+     тестовый z3-архив при стартовом зуме 10). */
+  if (header.maxZoom && header.maxZoom >= map.getZoom()) {
+    map.setMaxZoom(header.maxZoom)
+  }
+}
+
+/*
+ * OSM не отвечает → переключаемся на локальный PMTiles.
+ * Настройка mapEngine не меняется, поэтому возврат на OSM возможен.
+ */
+function switchToOfflineMap(reason) {
+  if (
+    !map ||
+    offlineSwitchInProgress ||
+    baseLayerKind === 'pmtiles' ||
+    mapEngine.value === 'pmtiles'
+  ) {
+    return
+  }
+
+  offlineSwitchInProgress = true
+  osmLikelyDown = true
+  setMapOfflineError('')
+
+  /* Карту могли пересоздать, пока читался PMTiles-архив. */
+  const currentMap = map
+
+  createPmtilesLayer(mapPmtilesUrl.value, {
+    onError: error => {
+      console.error('Albion map: ошибка тайлов PMTiles.', error)
+      setMapOfflineError(
+        'Не удалось загрузить тайлы офлайн-карты. Проверьте PMTiles-файл.'
+      )
+    }
+  })
+    .then(layer => {
+      if (!map || map !== currentMap) {
+        return
+      }
+
+      replaceBaseLayer(layer, 'pmtiles')
+      applyPmtilesBounds(layer)
+      setMapAutoOffline(true)
+
+      console.warn(
+        `Albion map: OpenStreetMap недоступен (${reason}), ` +
+          'включена офлайн-карта PMTiles.'
+      )
+
+      scheduleOnlineProbe(OSM_RETRY_MIN_DELAY)
+    })
+    .catch(error => {
+      console.error(
+        'Albion map: не удалось переключиться на офлайн-карту.',
+        error
+      )
+
+      setMapOfflineError(
+        'Нет связи с OpenStreetMap, офлайн-карта тоже недоступна.'
+      )
+
+      /* PMTiles не открылся, но связь может вернуться — продолжаем ждать. */
+      if (map === currentMap) {
+        scheduleOnlineProbe(OSM_RETRY_MIN_DELAY)
+      }
+    })
+    .finally(() => {
+      offlineSwitchInProgress = false
+    })
+}
+
+/* Один тайл вне кэша: navigator.onLine ещё не гарантирует доступность OSM. */
+function probeOsmTile() {
+  return new Promise(resolve => {
+    if (
+      typeof window === 'undefined' ||
+      typeof Image === 'undefined' ||
+      (typeof navigator !== 'undefined' && navigator.onLine === false)
+    ) {
+      resolve(false)
+      return
+    }
+
+    const image = new Image()
+    let timer = null
+    let settled = false
+
+    const finish = available => {
+      if (settled) {
+        return
+      }
+
+      settled = true
+      clearTimeout(timer)
+      image.onload = null
+      image.onerror = null
+      resolve(available)
+    }
+
+    timer = setTimeout(() => finish(false), OSM_PROBE_TIMEOUT)
+    image.onload = () => finish(true)
+    image.onerror = () => finish(false)
+    image.src = `${OSM_PROBE_URL}?_=${Date.now()}`
+  })
+}
+
+function clearOnlineProbe() {
+  if (onlineProbeTimer !== null) {
+    clearTimeout(onlineProbeTimer)
+    onlineProbeTimer = null
+  }
+}
+
+function scheduleOnlineProbe(delay) {
+  clearOnlineProbe()
+
+  if (!map || !osmLikelyDown || mapEngine.value === 'pmtiles') {
+    return
+  }
+
+  onlineProbeTimer = setTimeout(runOnlineProbe, Math.max(0, delay))
+}
+
+/*
+ * Пока карта в офлайн-режиме, периодически проверяем OSM.
+ * Интервал растёт (15 → 30 → 60 → 120 c), чтобы не долбить сеть.
+ */
+async function runOnlineProbe() {
+  onlineProbeTimer = null
+
+  if (!map || !osmLikelyDown || mapEngine.value === 'pmtiles') {
+    return
+  }
+
+  const available = await probeOsmTile()
+
+  if (available && map && osmLikelyDown) {
+    restoreOnlineBaseLayer()
+    return
+  }
+
+  const delay = Math.min(
+    OSM_RETRY_MIN_DELAY * 2 ** onlineProbeAttempt,
+    OSM_RETRY_MAX_DELAY
+  )
+
+  onlineProbeAttempt = Math.min(onlineProbeAttempt + 1, 4)
+  scheduleOnlineProbe(delay)
+}
+
+/* OSM снова отвечает → возвращаем онлайн-слой. */
+function restoreOnlineBaseLayer() {
+  if (!map || mapEngine.value === 'pmtiles') {
+    return
+  }
+
+  clearOnlineProbe()
+  onlineProbeAttempt = 0
+  osmLikelyDown = false
+
+  /*
+   * Если PMTiles так и не открылся, на карте остался слой OSM —
+   * он сам подхватит тайлы, как только они пойдут. Иначе возвращаем OSM.
+   */
+  if (baseLayerKind === 'osm') {
+    /* Слой остался на карте — просим перезагрузить упавшие тайлы. */
+    baseLayer?.redraw?.()
+  } else {
+    addOsmBaseLayer()
+  }
+
+  setMapAutoOffline(false)
+  setMapOfflineError('')
+
+  console.info(
+    'Albion map: OpenStreetMap снова доступен, включена онлайн-карта.'
+  )
+}
+
+function setupConnectivityWatchers() {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  browserOnlineHandler = () => {
+    if (
+      (baseLayerKind === 'pmtiles' || osmLikelyDown) &&
+      mapEngine.value !== 'pmtiles'
+    ) {
+      scheduleOnlineProbe(0)
+    }
+  }
+
+  browserOfflineHandler = () => {
+    if (baseLayerKind === 'osm') {
+      switchToOfflineMap('browser-offline')
+    }
+  }
+
+  window.addEventListener('online', browserOnlineHandler)
+  window.addEventListener('offline', browserOfflineHandler)
+}
+
+/* =========================================================
    MAP
    ========================================================= */
 
@@ -307,12 +664,13 @@ function createMap(element) {
 
   if (mapEngine.value === 'pmtiles') {
     setMapOfflineError('')
+    setMapAutoOffline(false)
 
     createPmtilesLayer(mapPmtilesUrl.value, {
       onError: error => {
         console.error('Albion map: ошибка тайлов PMTiles.', error)
         setMapOfflineError(
-          'Не удалось загрузить тайлы оффлайн-карты. Проверьте PMTiles-файл.'
+          'Не удалось загрузить тайлы офлайн-карты. Проверьте PMTiles-файл.'
         )
       }
     })
@@ -321,32 +679,8 @@ function createMap(element) {
           return
         }
 
-        layer.addTo(map)
-
-        /*
-         * Ограничиваем карту границами архива: за пределы Ростовской
-         * области не уезжаем, пустых серых тайлов не показываем.
-         */
-        const header = layer.pmtilesHeader
-
-        if (
-          header &&
-          header.minLon < header.maxLon &&
-          header.minLat < header.maxLat
-        ) {
-          map.setMaxBounds(
-            L.latLngBounds(
-              [header.minLat, header.minLon],
-              [header.maxLat, header.maxLon]
-            ).pad(0.03)
-          )
-
-          /* Не опускаем текущий зум ниже максимума архива (например,
-             тестовый z3-архив при стартовом зуме 10). */
-          if (header.maxZoom && header.maxZoom >= map.getZoom()) {
-            map.setMaxZoom(header.maxZoom)
-          }
-        }
+        replaceBaseLayer(layer, 'pmtiles')
+        applyPmtilesBounds(layer)
       })
       .catch(error => {
         console.error('Albion map: не удалось открыть PMTiles.', error)
@@ -355,13 +689,13 @@ function createMap(element) {
         )
       })
   } else {
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-
-      attribution: '&copy; OpenStreetMap contributors',
-
-      crossOrigin: true
-    }).addTo(map)
+    /*
+     * Онлайн-слой OSM с автопереключением: при недоступности тайлов
+     * карта уйдёт на локальный PMTiles и вернётся на OSM, когда связь
+     * восстановится (см. BASE LAYER выше).
+     */
+    addOsmBaseLayer()
+    setupConnectivityWatchers()
   }
 
   clusterGroup = L.markerClusterGroup({
@@ -1137,6 +1471,30 @@ function invalidateSize() {
 }
 
 function destroyMap() {
+  /* Автопереключение OSM ⇄ PMTiles: снимаем таймеры и подписки. */
+  clearOnlineProbe()
+  onlineProbeAttempt = 0
+  offlineSwitchInProgress = false
+  osmLikelyDown = false
+  osmTileErrors = 0
+
+  if (typeof window !== 'undefined') {
+    if (browserOnlineHandler) {
+      window.removeEventListener('online', browserOnlineHandler)
+    }
+
+    if (browserOfflineHandler) {
+      window.removeEventListener('offline', browserOfflineHandler)
+    }
+  }
+
+  browserOnlineHandler = null
+  browserOfflineHandler = null
+
+  baseLayer = null
+  baseLayerKind = ''
+  setMapAutoOffline(false)
+
   searchPointHoverHandler = null
   searchPointClickHandler = null
 

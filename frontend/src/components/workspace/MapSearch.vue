@@ -114,7 +114,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
-import { mapEngine } from '../../config/mapConfig'
+import { mapEffectiveEngine } from '../../config/mapConfig'
 import { suggestAddress } from '../../services/geoApi'
 
 const props = defineProps({
@@ -179,7 +179,7 @@ const emit = defineEmits([
 ])
 
 /* Оффлайн-карта (PMTiles) работает без геокодера. */
-const isOfflineMap = computed(() => mapEngine.value === 'pmtiles')
+const isOfflineMap = computed(() => mapEffectiveEngine.value === 'pmtiles')
 
 const placeholder = computed(() => {
   if (!props.showMode) {

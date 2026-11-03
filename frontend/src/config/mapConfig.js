@@ -10,7 +10,7 @@
  * при недоступности Яндекс-API карта молча откатывается на Leaflet
  * (см. src/map/MapView.vue).
  */
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 
 /* Значение по умолчанию, пока настройки не загрузились / недоступны. */
 export const DEFAULT_MAP_ENGINE = 'osm'
@@ -47,8 +47,28 @@ export const YANDEX_MAPS_KEY =
 /* Активный оператор карты (реактивно). */
 export const mapEngine = ref(DEFAULT_MAP_ENGINE)
 
+/*
+ * Автоматический офлайн-режим.
+ *
+ * Если настроен онлайн-движок ('osm' или 'yandex'), но тайлы OSM не
+ * загружаются (нет интернета / OSM недоступен), карта сама переключается
+ * на локальный PMTiles. Как только OSM снова отвечает — возвращается назад.
+ * Сам флаг mapEngine при этом не меняется: это настройка оператора.
+ */
+export const mapAutoOffline = ref(false)
+
+/* Движок, который карта реально показывает прямо сейчас. */
+export const mapEffectiveEngine = computed(() =>
+  mapAutoOffline.value ? 'pmtiles' : mapEngine.value
+)
+
+export function setMapAutoOffline(value) {
+  mapAutoOffline.value = Boolean(value)
+}
+
 /* Допустимые значения — 'osm' | 'pmtiles' | 'yandex'. */
 export function setMapEngine(value) {
   mapEngine.value = value === 'yandex' || value === 'pmtiles' ? value : 'osm'
+  mapAutoOffline.value = false
   mapOfflineError.value = ''
 }

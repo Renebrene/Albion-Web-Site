@@ -905,7 +905,7 @@ import PointSearchPanel from '../components/workspace/PointSearchPanel.vue'
 import MapView from '../map/MapView.vue'
 import { clearPopupContentCache } from '../map/popupContent'
 import { SEARCH_POINT_ICON } from '../map/searchPointIcon'
-import { mapEngine } from '../config/mapConfig'
+import { mapEffectiveEngine } from '../config/mapConfig'
 
 import { getConstructions } from '../services/api'
 import { geocodeAddress, reverseGeocode } from '../services/geoApi'
@@ -1299,7 +1299,7 @@ const DEFAULT_POINT_RADIUS = 1000
 const pointCoordinates = ref(DEFAULT_POINT_COORDINATES)
 const pointAddress = ref('')
 /* Оффлайн-карта PMTiles: геокодер недоступен. */
-const isOfflineMap = computed(() => mapEngine.value === 'pmtiles')
+const isOfflineMap = computed(() => mapEffectiveEngine.value === 'pmtiles')
 const addressLoading = ref(false)
 const addressError = ref('')
 /* Номер последнего geocode-запроса: старые ответы не должны перезаписывать новые. */

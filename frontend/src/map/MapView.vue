@@ -10,10 +10,19 @@
     </div>
 
     <!--
+      OpenStreetMap не отвечает: карта автоматически перешла на локальный
+      PMTiles и вернётся на OSM, когда связь восстановится.
+    -->
+    <div v-if="mapAutoOffline" class="map-engine-note" role="status">
+      OpenStreetMap недоступен — показана офлайн-карта. Вернёмся на онлайн
+      автоматически, когда связь восстановится.
+    </div>
+
+    <!--
       Яндекс был настроен, но не поднялся: карта молча работала на OSM.
       Оператору об этом стоит знать.
     -->
-    <div v-if="engineFallback" class="map-engine-note" role="status">
+    <div v-else-if="engineFallback" class="map-engine-note" role="status">
       Карта работает на OpenStreetMap: Яндекс.Карты недоступны
     </div>
 
@@ -33,7 +42,7 @@ import {
   nextTick
 } from 'vue'
 
-import { mapEngine, mapOfflineError } from '../config/mapConfig'
+import { mapAutoOffline, mapEngine, mapOfflineError } from '../config/mapConfig'
 import { availableMode } from '../config/availableMode'
 import { showDynCount } from '../config/dynCount'
 import { lazyPopups } from '../config/lazyPopups'
