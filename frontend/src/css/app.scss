@@ -774,10 +774,48 @@ h6 {
 
 .popup-side-top {
   display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  margin-bottom: 3px;
+}
+
+.popup-card-address {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding: 3px 5px;
+  border-radius: 5px;
+  background: #f0f3f5;
+  color: #43535d;
+  font-size: 12px;
+  font-weight: 850;
+  line-height: 14px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.popup-side-line {
+  display: flex;
+  min-width: 0;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 3px;
+  gap: 6px;
+}
+
+.popup-side-line .popup-side-badge {
+  flex: 0 0 auto;
+}
+
+.popup-side-line .popup-price {
+  flex: 0 0 auto;
+  margin-bottom: 0;
 }
 
 .popup-side {
@@ -977,15 +1015,15 @@ h6 {
   color: #fff;
 }
 
-/* Бейдж стороны (буква) — без слова «сторона», все буквы тёмно-серые */
+/* Бейдж стороны */
 .popup-side-badge {
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
+  gap: 3px;
   min-width: 22px;
-  height: 22px;
-  padding: 0 5px;
-  margin-bottom: 6px;
+  min-height: 22px;
+  padding: 4px 6px;
 
   border-radius: 6px;
   background: #e6e9ec;
@@ -994,6 +1032,17 @@ h6 {
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
+}
+
+.popup-side-badge .popup-side-label {
+  color: #59636a;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.popup-side-badge strong {
+  font-size: 12px;
+  font-weight: 850;
 }
 
 /* Поля «подсветка» и «статика/динамика» */

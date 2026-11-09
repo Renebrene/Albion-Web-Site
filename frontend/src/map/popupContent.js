@@ -175,14 +175,27 @@ function priceBlock(item) {
   `
 }
 
+function cardAddressBlock(item) {
+  const address = String(item?.address || item?.name || '').trim()
+
+  if (!address) return ''
+
+  return `
+    <div class="popup-card-address" title="${escapeHtml(address)}">
+      ${escapeHtml(address)}
+    </div>
+  `
+}
+
 function sideBlock(item) {
-  const side = sideLabel(item)
+  const side = parentSide(sideLabel(item), item?.type)
 
   if (!side) return ''
 
   return `
     <span class="popup-side-badge" title="Сторона">
-      Сторона ${escapeHtml(side)}
+      <span class="popup-side-label">Сторона</span>
+      <strong>${escapeHtml(side)}</strong>
     </span>
   `
 }
@@ -338,8 +351,11 @@ function sideCard(item) {
   return `
     <section class="popup-side-card">
       <div class="popup-side-top">
-        ${sideBlock(item)}
-        ${priceBlock(item)}
+        ${cardAddressBlock(item)}
+        <div class="popup-side-line">
+          ${sideBlock(item)}
+          ${priceBlock(item)}
+        </div>
       </div>
       ${typeBlock(item)}
       ${featuresBlock(item, false)}
@@ -423,8 +439,11 @@ function dynamicBlock(group) {
   return `
     <section class="popup-side-card popup-side-card--dynamic">
       <div class="popup-side-top">
-        ${sideBlock({ ...first, side: parentSide(sideLabel(first), first.type) })}
-        ${priceBlock(first)}
+        ${cardAddressBlock(first)}
+        <div class="popup-side-line">
+          ${sideBlock({ ...first, side: parentSide(sideLabel(first), first.type) })}
+          ${priceBlock(first)}
+        </div>
       </div>
       ${typeBlock(first)}
       ${featuresBlock(first, true, group.items.length)}
@@ -439,8 +458,11 @@ function videoBlock(item) {
   return `
     <section class="popup-side-card popup-side-card--video">
       <div class="popup-side-top">
-        ${sideBlock(item)}
-        ${priceBlock(item)}
+        ${cardAddressBlock(item)}
+        <div class="popup-side-line">
+          ${sideBlock(item)}
+          ${priceBlock(item)}
+        </div>
       </div>
       ${typeBlock(item)}
       ${featuresBlock(item, true)}
@@ -469,23 +491,10 @@ function renderGroup(group) {
 function commonHeader(items) {
   const first = items[0] || {}
 
-  const address = String(first?.address || first?.name || '').trim()
-
   const place = String(first?.city || first?.district || '').trim()
 
   return `
     <div class="popup-header">
-
-      ${
-        address
-          ? `
-            <div class="popup-title">
-              <strong>${escapeHtml(address)}</strong>
-            </div>
-          `
-          : ''
-      }
-
       ${
         place
           ? `
