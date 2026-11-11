@@ -2,15 +2,18 @@
   <title>Вертикальный рекламный щит на опоре</title>
   <desc>Вертикальное красное табло в чёрной рамке на чёрной стойке с опорой. Прозрачный фон.</desc>
 
+  <!-- тень на земле -->
+  <ellipse class="icon-ground-shadow" cx="63" cy="205" rx="46" ry="7" fill="#000000" opacity="0.3"/>
+
   <!-- лицевая сторона щита -->
-  <rect x="14" y="16" fill="#E31E24"/>
+  <rect x="14" y="16" width="84" height="140" fill="#E31E24"/>
 
   <!-- рамка щита -->
-  <rect x="10" y="12" fill="none" stroke="#000000" stroke-width="8"/>
+  <rect x="10" y="12" width="92" height="148" fill="none" stroke="#000000" stroke-width="8"/>
 
   <!-- стойка и опора -->
   <g fill="#000000">
-    <rect x="46" y="164"/>
+    <rect x="46" y="164" width="20" height="26"/>
     <path d="M16 190 H110 L116 206 H10 Z"/>
   </g>
 </svg>

@@ -577,6 +577,27 @@ export function popupLayout(input) {
  * Нормализация и группировка входа попапа — общая для разметки и для
  * сигнатуры кэша (см. popupContent / signatureOf).
  */
+/* Ранг стороны для сортировки карточек: A → B → C → остальные. */
+function sideRank(group) {
+  const label = String(group?.parent || group?.items?.[0]?.side || '')
+    .toUpperCase()
+    .trim()
+
+  const letter = label.match(/[A-ZА-Я]/)?.[0] || ''
+
+  if (letter === 'A' || letter === 'А') return 0
+  if (letter === 'B' || letter === 'Б') return 1
+  if (letter === 'C' || letter === 'В') return 2
+
+  return 3
+}
+
+function isShieldGroup(group) {
+  return String(group?.type || '')
+    .toLowerCase()
+    .includes('щит')
+}
+
 function prepare(input) {
   const items = normalizeSides(input)
 
@@ -597,7 +618,25 @@ function prepare(input) {
   // Так разные форматы на одном адресе не смешиваются и не теряются.
   const groups = groupSides(sides)
 
-  const visibleGroups = groups.slice(0, maxBlocks)
+  /*
+   * Порядок карточек — по букве стороны: A → B → C.
+   * Если на одной букве сошлись два формата (например, щит A и призматрон A),
+   * первым ставим щит.
+   */
+  const orderedGroups = [...groups].sort((left, right) => {
+    const bySide = sideRank(left) - sideRank(right)
+
+    if (bySide !== 0) {
+      return bySide
+    }
+
+    const leftShield = isShieldGroup(left) ? 0 : 1
+    const rightShield = isShieldGroup(right) ? 0 : 1
+
+    return leftShield - rightShield
+  })
+
+  const visibleGroups = orderedGroups.slice(0, maxBlocks)
   const allSides = visibleGroups.flatMap(group => group.items)
 
   const layout = popupLayout(items)

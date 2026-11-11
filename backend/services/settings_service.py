@@ -162,6 +162,13 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "default": "false",
     },
     {
+        "key": "map_construction_icons",
+        "label": "Значки конструкций (последние 3 уровня увеличения)",
+        "type": "toggle",
+        "group": "map",
+        "default": "true",
+    },
+    {
         "key": "map_color_mixed",
         "label": "Цвет точки: частично занято",
         "type": "color",

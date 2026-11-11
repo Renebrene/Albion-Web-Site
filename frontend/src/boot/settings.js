@@ -18,6 +18,7 @@ import {
 import { setAvailableMode } from '../config/availableMode'
 import { setShowDynCount } from '../config/dynCount'
 import { setLazyPopups } from '../config/lazyPopups'
+import { setShowConstructionIcons } from '../config/mapConstructionIcons'
 import { setUrlStateMode, setUrlStateTokenFormat } from '../config/urlStateMode'
 
 const SYSTEM_FONT_STACK =
@@ -131,6 +132,9 @@ export function applyAppearanceSettings(settings) {
 
   /* Ленивые попапы карты (см. config/lazyPopups.js). */
   setLazyPopups(settings.map_lazy_popups)
+
+  /* SVG-значки конструкций на крупном зуме (см. config/mapConstructionIcons.js). */
+  setShowConstructionIcons(settings.map_construction_icons)
 
   /* Формат ссылок: читаемый или компактный токен (см. config/urlStateMode.js). */
   setUrlStateMode(settings.url_state_mode)

@@ -20,52 +20,71 @@ import pilonSvg from '../assets/construction-icons/pilon.svg?raw'
 import prismatronSvg from '../assets/construction-icons/prismatron.svg?raw'
 import scrollerSvg from '../assets/construction-icons/scroller.svg?raw'
 
-/* С какого зума вместо точек показываем модели конструкций. */
-export const CONSTRUCTION_ICONS_MIN_ZOOM = 16
+/*
+ * На скольких последних уровнях увеличения показываем модели конструкций.
+ * Порог считается от фактического maxZoom карты (для OSM это 19 → 17–19).
+ */
+export const CONSTRUCTION_ICONS_LAST_ZOOMS = 3
 
 /* Цвет табло в исходных SVG; заменяется на цвет доступности. */
 const SOURCE_PANEL_COLOR = '#E31E24'
+
+/* Общая высота всех значков: ширина считается по пропорциям модели. */
+const ICON_HEIGHT = 34
+
+/*
+ * Разброс анимации появления/исчезновения: значки не «прыгают» все
+ * одновременно. Задержка и скорость — в миллисекундах, разные для
+ * каждой иконки.
+ */
+const ANIMATION_DELAY_MAX = 180
+const ANIMATION_DURATION_MIN = 280
+const ANIMATION_DURATION_MAX = 500
+
+function animationTiming() {
+  const delay = Math.round(Math.random() * ANIMATION_DELAY_MAX)
+  const duration = Math.round(
+    ANIMATION_DURATION_MIN +
+      Math.random() * (ANIMATION_DURATION_MAX - ANIMATION_DURATION_MIN)
+  )
+
+  return { delay, duration }
+}
 
 const MODELS = {
   /* Щит: широкая панель на стойке (250 × 212). */
   billbord: {
     svg: billbordSvg,
-    width: 40,
     ratio: 250 / 212
   },
 
   /* Видеоэкран с треугольником (129 × 139). */
   digital: {
     svg: digitalSvg,
-    width: 34,
     ratio: 129 / 139
   },
 
   /* Пиллар: вертикальная панель на основании (99 × 152). */
   pillar: {
     svg: pillarSvg,
-    width: 28,
     ratio: 99 / 152
   },
 
   /* Пилон: вертикальный щит на опоре (122 × 214). */
   pilon: {
     svg: pilonSvg,
-    width: 26,
     ratio: 122 / 214
   },
 
   /* Призматрон: щит с рёбрами (250 × 212). */
   prismatron: {
     svg: prismatronSvg,
-    width: 40,
     ratio: 250 / 212
   },
 
   /* Скроллер: горизонтальная панель на стойке (125 × 105). */
   scroller: {
     svg: scrollerSvg,
-    width: 38,
     ratio: 125 / 105
   }
 }
@@ -90,25 +109,74 @@ function colorize(svg, color) {
   return String(svg).replaceAll(SOURCE_PANEL_COLOR, color)
 }
 
+/* Одна грань значка: своя модель конструкции. */
+function faceHtml(type, color, className) {
+  const model = MODELS[iconKind(type)] || MODELS.billbord
+
+  return `
+    <div class="albion-construction-face ${className}">
+      ${colorize(model.svg, color)}
+    </div>
+  `
+}
+
 /*
  * Готовый divIcon для Leaflet.
  *
- * animate — включить анимацию «вырастания из точки» (при переходе карты
- * на крупный зум или при появлении новой конструкции). При обычной смене
+ * types — форматы, стоящие в одной точке. Если их два, значок получает две
+ * грани: при повороте показывается модель соответствующего формата
+ * (как у призматрона), а не зеркальное отражение той же картинки.
+ *
+ * animate — включить анимацию «вырастания из точки». При обычной смене
  * цвета/фильтра анимацию не перезапускаем.
  */
-export function constructionIcon({ type, color, animate = false }) {
-  const model = MODELS[iconKind(type)] || MODELS.billbord
+export function constructionIcon({
+  type,
+  types,
+  color,
+  animate = false,
+  spin = false
+}) {
+  const formats = (Array.isArray(types) && types.length ? types : [type]).slice(
+    0,
+    2
+  )
 
-  const width = model.width
-  const height = Math.round(width / model.ratio)
+  const frontType = formats[0]
+  const backType = formats[1]
+
+  const model = MODELS[iconKind(frontType)] || MODELS.billbord
+
+  /* Высота едина у всех форматов, ширина — по пропорциям модели. */
+  const height = ICON_HEIGHT
+  const width = Math.round(height * model.ratio)
+
+  const classes = [
+    'albion-construction-icon',
+    animate ? 'is-growing' : '',
+    spin && backType ? 'is-spinning' : ''
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const faces =
+    spin && backType
+      ? faceHtml(frontType, color, 'is-front') +
+        faceHtml(backType, color, 'is-back')
+      : faceHtml(frontType, color, 'is-front')
+
+  const timing = animationTiming()
 
   return L.divIcon({
     className: 'albion-construction-wrapper',
 
     html: `
-      <div class="albion-construction-icon${animate ? ' is-growing' : ''}" aria-hidden="true">
-        ${colorize(model.svg, color)}
+      <div
+        class="${classes}"
+        style="--albion-icon-delay:${timing.delay}ms;--albion-icon-duration:${timing.duration}ms"
+        aria-hidden="true"
+      >
+        ${faces}
       </div>
     `,
 

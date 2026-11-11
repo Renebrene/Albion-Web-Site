@@ -291,6 +291,153 @@ h6 {
 }
 
 /* =========================================================
+   ALBION MAP MARKERS — SVG CONSTRUCTIONS (ZOOM >= 16)
+   ========================================================= */
+
+.albion-construction-wrapper {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+  perspective: 260px;
+}
+
+/*
+ * Значок растёт из основания опоры, то есть из самой координаты
+ * конструкции на карте. Внутренний transform не конфликтует с
+ * позиционированием маркера Leaflet (оно живёт на внешнем элементе).
+ */
+.albion-construction-icon {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: 50% 100%;
+  pointer-events: none;
+}
+
+/*
+ * Грани значка. У обычной конструкции одна (лицевая), у точки с двумя
+ * форматами — две: при повороте показывается модель второго формата.
+ */
+.albion-construction-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.albion-construction-face.is-back {
+  transform: rotateY(180deg);
+}
+
+.albion-construction-face svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.albion-construction-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 4px 3px rgba(0, 0, 0, 0.45));
+}
+
+/* Тень на земле внутри SVG — размываем, чтобы читалась как объём. */
+.albion-construction-icon .icon-ground-shadow {
+  filter: blur(1.4px);
+}
+
+/*
+ * Анимация живёт на вложенном SVG, а не на контейнере: контейнер держит
+ * изометрический разворот, и keyframes его не перезаписывают.
+ */
+.albion-construction-icon.is-growing svg {
+  transform-origin: 50% 100%;
+  animation: albion-construction-grow 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.25)
+    both;
+  /* Задержка и скорость — индивидуальные, задаются в разметке значка. */
+  animation-delay: var(--albion-icon-delay, 0ms);
+  animation-duration: var(--albion-icon-duration, 0.32s);
+}
+
+@keyframes albion-construction-grow {
+  0% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+
+  55% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+
+  78% {
+    transform: scale(0.96);
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/*
+ * Две стороны разных форматов в одной точке: значок медленно
+ * поворачивается вокруг своей оси, как призматрон.
+ */
+.albion-construction-icon.is-spinning {
+  transform-style: preserve-3d;
+  animation: albion-construction-spin 6s linear infinite;
+}
+
+@keyframes albion-construction-spin {
+  from {
+    transform: rotateY(0deg);
+  }
+
+  to {
+    transform: rotateY(360deg);
+  }
+}
+
+/* Отдаление карты: значок чуть подрастает и сжимается обратно в точку. */
+.albion-construction-icon.is-shrinking svg {
+  transform-origin: 50% 100%;
+  animation: albion-construction-shrink 0.3s ease-in forwards;
+  animation-delay: var(--albion-icon-delay, 0ms);
+  animation-duration: var(--albion-icon-duration, 0.3s);
+}
+
+@keyframes albion-construction-shrink {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  25% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(0.15);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .albion-construction-icon.is-growing svg,
+  .albion-construction-icon.is-shrinking svg,
+  .albion-construction-icon.is-spinning {
+    animation: none;
+  }
+}
+
+/* =========================================================
    ALBION — SINGLE / DOUBLE SIDE POPUP
    ========================================================= */
 
@@ -363,6 +510,17 @@ h6 {
 .popup-side-single .popup-side-card {
   border: 0;
   padding: 0;
+}
+
+/*
+ * Одинарный попап: адресный бейдж центрирован, поэтому расстояние
+ * от бейджа до левого и правого края карточки одинаковое.
+ */
+.popup-single .popup-card-address {
+  width: fit-content;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .popup-side {
@@ -552,8 +710,13 @@ h6 {
 }
 
 .albion-popup-single .leaflet-popup-content {
-  width: 300px !important;
-  max-width: 300px !important;
+  /*
+   * Контент занимает всю ширину обёртки (340 px). Раньше здесь было
+   * 300 px — справа оставалась полоса 40 px, и карточка стороны была
+   * смещена влево относительно попапа.
+   */
+  width: 340px !important;
+  max-width: 340px !important;
   margin: 0 !important;
 }
 
@@ -709,7 +872,9 @@ h6 {
 }
 
 .popup-single {
-  width: 300px;
+  width: 340px;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .popup-double {
@@ -786,14 +951,12 @@ h6 {
   height: 34px;
   box-sizing: border-box;
   overflow: hidden;
-  padding: 3px 5px;
-  border-radius: 5px;
-  background: #f0f3f5;
+  padding: 3px 0;
   color: #43535d;
   font-size: 12px;
   font-weight: 850;
   line-height: 14px;
-  text-align: left;
+  text-align: center;
   overflow-wrap: anywhere;
   display: -webkit-box;
   -webkit-box-orient: vertical;
@@ -802,19 +965,22 @@ h6 {
 }
 
 .popup-side-line {
-  display: flex;
+  display: grid;
+  width: 100%;
   min-width: 0;
+  grid-template-columns: max-content minmax(0, 1fr) max-content;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  box-sizing: border-box;
 }
 
 .popup-side-line .popup-side-badge {
-  flex: 0 0 auto;
+  grid-column: 1;
+  justify-self: start;
 }
 
 .popup-side-line .popup-price {
-  flex: 0 0 auto;
+  grid-column: 3;
+  justify-self: end;
   margin-bottom: 0;
 }
 

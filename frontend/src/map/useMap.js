@@ -12,6 +12,11 @@ import { mapDebug } from './mapDebug'
 import { normalizeCoordinates } from './coordinates'
 import { createPmtilesLayer } from './pmtilesLayer'
 import {
+  CONSTRUCTION_ICONS_LAST_ZOOMS,
+  constructionIcon
+} from './constructionIcons'
+import { showConstructionIcons } from '../config/mapConstructionIcons'
+import {
   mapEngine,
   mapPmtilesUrl,
   setMapAutoOffline,
@@ -265,7 +270,43 @@ function markerColor(items) {
   return mapDotColors.value.mixed
 }
 
-function markerIconFor(color) {
+/* На крупном зуме вместо точки — схематичная SVG-модель конструкции. */
+let constructionIconsActive = false
+
+/*
+ * В одной точке могут стоять стороны разных форматов (например, щит и
+ * призматрон). Такой значок «прокручиваем» вокруг вертикальной оси.
+ */
+function mixedFormatsOf(items) {
+  const types = new Map()
+
+  for (const item of items || []) {
+    const raw = String(item?.type || '').trim()
+    const key = raw.toLowerCase()
+
+    if (raw && !types.has(key)) {
+      types.set(key, raw)
+    }
+  }
+
+  return [...types.values()]
+}
+
+function hasMixedFormats(items) {
+  return mixedFormatsOf(items).length > 1
+}
+
+function markerIconFor(items, color, animate = false) {
+  if (constructionIconsActive && showConstructionIcons.value) {
+    return constructionIcon({
+      type: items?.[0]?.type,
+      types: mixedFormatsOf(items),
+      color,
+      animate,
+      spin: hasMixedFormats(items)
+    })
+  }
+
   return L.divIcon({
     className: 'albion-dot-wrapper',
 
@@ -282,6 +323,109 @@ function markerIconFor(color) {
     iconAnchor: [9, 9],
     popupAnchor: [0, -9]
   })
+}
+
+/*
+ * Максимальная длительность «сжатия» перед возвратом к точкам:
+ * индивидуальная задержка (до 180 мс) + скорость (до 500 мс).
+ */
+const ICON_SHRINK_MS = 700
+
+let iconShrinkTimer = null
+
+function clearIconShrink() {
+  if (iconShrinkTimer === null) {
+    return
+  }
+
+  clearTimeout(iconShrinkTimer)
+  iconShrinkTimer = null
+
+  document
+    .querySelectorAll('.albion-construction-icon.is-shrinking')
+    .forEach(element => element.classList.remove('is-shrinking'))
+}
+
+/*
+ * Переход через порог зума: точки ⇄ модели.
+ * setIcon вызываем только при смене режима, а не на каждом zoomend.
+ *
+ * При приближении значки «вырастают» из точки, при отдалении — сначала
+ * сжимаются обратно в точку и только потом заменяются точками.
+ */
+/* Порог значков — три последних уровня относительно maxZoom карты. */
+function constructionIconsMinZoom() {
+  const maxZoom = Number(map?.getMaxZoom?.()) || 19
+
+  return Math.max(0, maxZoom - (CONSTRUCTION_ICONS_LAST_ZOOMS - 1))
+}
+
+function refreshMarkerIconsForZoom() {
+  if (!map) {
+    return
+  }
+
+  const active = map.getZoom() >= constructionIconsMinZoom()
+
+  /* Вернулись на крупный зум, пока шло сжатие — отменяем его. */
+  if (active) {
+    clearIconShrink()
+
+    if (constructionIconsActive) {
+      return
+    }
+
+    constructionIconsActive = true
+
+    for (const entry of markerByKey.values()) {
+      entry.marker.setIcon(markerIconFor(entry.items, entry.color, true))
+    }
+
+    return
+  }
+
+  if (!constructionIconsActive || iconShrinkTimer !== null) {
+    return
+  }
+
+  /*
+   * Сразу переключаем режим: маркеры, которые появятся во время
+   * анимации (например, при раскрытии кластеров), будут точками,
+   * а не полноразмерными значками. Уже нарисованные значки остаются
+   * в DOM и плавно сжимаются.
+   */
+  constructionIconsActive = false
+
+  for (const entry of markerByKey.values()) {
+    const element = entry.marker
+      .getElement()
+      ?.querySelector('.albion-construction-icon')
+
+    if (!element) {
+      /*
+       * Маркер сейчас вне видимой области и появится при отдалении
+       * (раскрытие кластеров). Сразу отдаём ему точку, чтобы он не
+       * появился полноразмерным значком посреди анимации.
+       */
+      entry.marker.setIcon(markerIconFor(entry.items, entry.color))
+      continue
+    }
+
+    element.classList.remove('is-growing')
+    element.classList.add('is-shrinking')
+  }
+
+  iconShrinkTimer = setTimeout(() => {
+    iconShrinkTimer = null
+
+    if (!map || map.getZoom() >= constructionIconsMinZoom()) {
+      return
+    }
+
+    for (const entry of markerByKey.values()) {
+      entry.marker.setIcon(markerIconFor(entry.items, entry.color))
+    }
+  }, ICON_SHRINK_MS)
 }
 
 /* =========================================================
@@ -637,6 +781,13 @@ function createMap(element) {
   map.attributionControl.setPrefix(false)
 
   /*
+   * Достаточно крупный масштаб — точки раскрываются в SVG-модели
+   * конструкций. Порог общий с подгрузкой значков, см. constructionIcons.
+   */
+  constructionIconsActive = map.getZoom() >= constructionIconsMinZoom()
+  map.on('zoomend', refreshMarkerIconsForZoom)
+
+  /*
    * Событие приходит на каждый кадр панорамирования. Страница на нём
    * делает getBoundingClientRect и реактивные записи, поэтому считаем
    * центр не чаще одного раза за кадр.
@@ -851,7 +1002,7 @@ function buildMarker(items, layout, lazy) {
   const color = markerColor(items)
 
   const marker = L.marker([lat, lng], {
-    icon: markerIconFor(color),
+    icon: markerIconFor(items, color, constructionIconsActive),
 
     keyboard: true,
 
@@ -868,6 +1019,7 @@ function buildMarker(items, layout, lazy) {
     layout,
     lazy,
     color,
+    spin: hasMixedFormats(items),
     lat,
     lng
   }
@@ -964,9 +1116,12 @@ function renderMarkers() {
       entry.lng = lng
     }
 
-    if (entry.color !== color) {
-      entry.marker.setIcon(markerIconFor(color))
+    const spin = hasMixedFormats(items)
+
+    if (entry.color !== color || entry.spin !== spin) {
+      entry.marker.setIcon(markerIconFor(items, color))
       entry.color = color
+      entry.spin = spin
     }
 
     if (entry.lazy !== lazy || entry.layout !== layout) {
@@ -1471,6 +1626,8 @@ function invalidateSize() {
 }
 
 function destroyMap() {
+  clearIconShrink()
+
   /* Автопереключение OSM ⇄ PMTiles: снимаем таймеры и подписки. */
   clearOnlineProbe()
   onlineProbeAttempt = 0
@@ -1550,6 +1707,7 @@ function destroyMap() {
 
   map = null
   centerChangeHandler = null
+  constructionIconsActive = false
   constructions = []
   selectedMonths = []
 }
