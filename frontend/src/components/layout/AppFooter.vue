@@ -105,4 +105,14 @@ onMounted(async () => {
     align-items: flex-start;
   }
 }
+
+/*
+ * На мобильном подвал скрыт: его ссылки переезжают в бургер
+ * (см. mobile-footer-links в AppHeader), дубли не показываем.
+ */
+@media (max-width: 900px) {
+  .site-footer {
+    display: none;
+  }
+}
 </style>

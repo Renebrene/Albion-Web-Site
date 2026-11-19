@@ -10,6 +10,7 @@ import {
   correctTokenGroups,
   groupsChanged
 } from '../utils/fuzzySearch'
+import { searchQueryForCatalog } from '../utils/layout'
 
 const MONTH_ORDER = [
   'Январь',
@@ -69,7 +70,7 @@ export function useConstructionsFilter(constructions) {
 
     searchTimer = setTimeout(() => {
       searchTimer = null
-      appliedQuery.value = value
+      appliedQuery.value = searchQueryForCatalog(value)
     }, SEARCH_DEBOUNCE_MS)
   })
 
@@ -244,8 +245,7 @@ export function useConstructionsFilter(constructions) {
           item?.name,
           item?.address,
           item?.side,
-          item?.type,
-          item?.number
+          item?.type
         ]
           .map(normalizeSearchText)
           .join(' ')

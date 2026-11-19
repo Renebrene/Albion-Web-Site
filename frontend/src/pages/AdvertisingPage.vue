@@ -2410,6 +2410,37 @@ const constructionVocabulary = computed(() =>
   buildVocabulary(constructions.value)
 )
 
+/*
+ * Номер дома для сортировки подсказок: первое число в адресе.
+ * «Космонавтов пр-кт 14А-16А» → 14, «Космонавтов 11» → 11.
+ * Без номера (перекрёстки) — в конец группы.
+ */
+function houseNumberOf(address) {
+  const match = String(address || '').match(/\d+/)
+
+  return match ? Number(match[0]) : Number.POSITIVE_INFINITY
+}
+
+/*
+ * «Уличная» часть адреса — всё до первого числа. Если токен запроса
+ * найден в ней, адрес упоминает улицу запроса как ОСНОВНУЮ
+ * («Космонавтов пр-кт 42»); иначе — как дополнение
+ * («Комарова ул. 13 В - Космонавтов пр-кт»).
+ */
+function isPrimaryStreetMatch(address, queryTokens) {
+  const text = String(address || '')
+  const digitMatch = text.match(/\d/)
+  const streetPart = normalizeSearchText(
+    digitMatch ? text.slice(0, digitMatch.index) : text
+  )
+
+  if (!streetPart) {
+    return false
+  }
+
+  return [...queryTokens].some(token => streetPart.includes(token))
+}
+
 function constructionAddressSuggestions(query) {
   const exactGroups = buildSearchTokenGroups(query)
 
@@ -2482,9 +2513,10 @@ function constructionAddressSuggestions(query) {
   }
 
   /*
-   * Сначала точные совпадения, затем исправленные. Если запрос совпал
-   * с названием города — его адреса выше; иначе выбранный город, затем
-   * Ростов-на-Дону.
+   * Сначала точные совпадения, затем исправленные. Приоритет адресов:
+   * токен запроса в ОСНОВНОЙ улице → раньше; внутри группы — по
+   * возрастанию номера дома; токен как дополнение к чужому адресу —
+   * последним. Если запрос совпал с названием города — его адреса выше.
    */
   const queryTokens = new Set(
     [...exactGroups, ...correctedGroups].flatMap(tokens => tokens)
@@ -2504,6 +2536,19 @@ function constructionAddressSuggestions(query) {
       return ca - cb
     }
 
+    const primaryA = isPrimaryStreetMatch(a.title, queryTokens) ? 0 : 1
+    const primaryB = isPrimaryStreetMatch(b.title, queryTokens) ? 0 : 1
+
+    if (primaryA !== primaryB) {
+      return primaryA - primaryB
+    }
+
+    const houseDiff = houseNumberOf(a.title) - houseNumberOf(b.title)
+
+    if (houseDiff !== 0) {
+      return houseDiff
+    }
+
     const cityA = queryTokens.has(normalizeCityLabel(a.city)) ? 0 : 1
     const cityB = queryTokens.has(normalizeCityLabel(b.city)) ? 0 : 1
 
@@ -2514,10 +2559,15 @@ function constructionAddressSuggestions(query) {
     const pa = preferred.has(normalizeCityLabel(a.city)) ? 0 : 1
     const pb = preferred.has(normalizeCityLabel(b.city)) ? 0 : 1
 
-    return pa - pb
+    if (pa !== pb) {
+      return pa - pb
+    }
+
+    return a.title.localeCompare(b.title, 'ru')
   })
 
-  return result.slice(0, 6)
+  /* Без лимита: дропдаун прокручивается, показываем все совпадения. */
+  return result
 }
 
 async function focusMapOnAddress(address, suggestion) {
@@ -3101,10 +3151,17 @@ const listPoints = computed(() => {
     const city = String(first.city || '').trim() || '—'
 
     for (const block of groupSides(deduped)) {
+      /*
+       * Название — у каждой стороны своё: адрес первой записи блока
+       * (как в попапах карты). Откат — на адрес точки.
+       */
+      const blockFirst = block.items?.[0] || first
+
       cards.push({
         key: `${point.key}|${block.type}|${block.parent}`,
-        address,
-        city,
+        address:
+          String(blockFirst.address || blockFirst.name || '').trim() || address,
+        city: String(blockFirst.city || '').trim() || city,
         blocks: [block]
       })
     }

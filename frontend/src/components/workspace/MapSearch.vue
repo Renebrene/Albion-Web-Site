@@ -116,6 +116,7 @@ import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import { mapEffectiveEngine } from '../../config/mapConfig'
 import { suggestAddress } from '../../services/geoApi'
+import { searchQueryForCatalog } from '../../utils/layout'
 
 const props = defineProps({
   modelValue: {
@@ -351,12 +352,18 @@ async function loadSuggestions(query) {
     return
   }
 
+  /*
+   * Набрали латиницей («rjcvjyfdnjd»)? Геокодер понимает только
+   * русский текст — переводим раскладку и спрашиваем его уже по-русски.
+   */
+  const geocodeQuery = searchQueryForCatalog(value)
+
   const seq = ++suggestSeq
   suggestLoading.value = true
   suggestError.value = ''
 
   try {
-    const result = await suggestAddress(value)
+    const result = await suggestAddress(geocodeQuery)
 
     if (seq !== suggestSeq) {
       return
@@ -400,7 +407,7 @@ function onInput(event) {
     canUseConstruction.value &&
     typeof props.constructionSuggestions === 'function'
   ) {
-    const local = props.constructionSuggestions(value)
+    const local = props.constructionSuggestions(searchQueryForCatalog(value))
 
     suggestions.value = Array.isArray(local) ? local : []
   }
@@ -446,6 +453,17 @@ function onFocus() {
 
 function onSearch() {
   clearSuggestions()
+
+  /*
+   * Отправка латиницей: подставляем в поле русский вариант, чтобы
+   * и поиск, и URL содержали то, что реально ищется в каталоге.
+   */
+  const converted = searchQueryForCatalog(props.modelValue)
+
+  if (converted && converted !== String(props.modelValue || '').trim()) {
+    emit('update:modelValue', converted)
+  }
+
   emit('search')
 }
 

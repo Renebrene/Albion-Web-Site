@@ -373,6 +373,32 @@
             albion3@albion.su
           </a>
         </div>
+
+        <!--
+          Подвал на мобильном скрыт: его ссылки живу́т здесь, в бургере.
+          Дубли навигации и ссылки-заглушки (#) не показываем.
+        -->
+        <nav
+          v-if="mobileFooterItems.length"
+          class="mobile-footer-links"
+          aria-label="Дополнительно"
+        >
+          <template v-for="item in mobileFooterItems" :key="item.key">
+            <a
+              v-if="isExternalCmsUrl(item.href)"
+              :href="item.href"
+              class="mobile-footer-link"
+              target="_blank"
+              rel="noopener"
+              >{{ item.label }}</a
+            >
+            <RouterLink v-else :to="item.href" class="mobile-footer-link">
+              {{ item.label }}
+            </RouterLink>
+          </template>
+
+          <div class="mobile-footer-brand">{{ currentYear }} © АЛЬБИОН</div>
+        </nav>
       </div>
     </Transition>
   </header>
@@ -450,6 +476,36 @@ const navItems = computed(() =>
     .filter(item => item.safeUrl && !isPortfolioUrl(item.safeUrl))
 )
 
+/*
+ * Ссылки подвала на мобильном переезжают в бургер. Дубли навигации и
+ * ссылки-заглушки («#» — «раздел в разработке») в бургер не попадают.
+ */
+const DEFAULT_FOOTER = [
+  { key: 'privacy', label: 'Политика конфиденциальности', url: '#' },
+  { key: 'tech-requirements', label: 'Технические требования', url: '#' },
+  { key: 'sitemap', label: 'Карта сайта', url: '#' },
+  { key: 'legal', label: 'Юридическая информация', url: '#' }
+]
+
+const footerItems = ref(DEFAULT_FOOTER)
+
+const currentYear = new Date().getFullYear()
+
+function normalizeUrl(url) {
+  return String(url || '').replace(/\/+$/, '')
+}
+
+const mobileFooterItems = computed(() => {
+  const navUrls = new Set(
+    navItems.value.map(item => normalizeUrl(item.safeUrl))
+  )
+
+  return footerItems.value
+    .map(item => ({ ...item, href: safeCmsUrl(item.url) }))
+    .filter(item => item.href && item.href !== '#')
+    .filter(item => !navUrls.has(normalizeUrl(item.href)))
+})
+
 function isExternalCmsUrl(url) {
   return /^(https?:|mailto:|tel:)/i.test(String(url || ''))
 }
@@ -508,6 +564,10 @@ onMounted(async () => {
 
     if (data?.main?.length) {
       menuItems.value = data.main
+    }
+
+    if (data?.footer?.length) {
+      footerItems.value = data.footer
     }
   } catch (exc) {
     /* остаёмся на значениях по умолчанию */
@@ -1364,6 +1424,45 @@ onMounted(async () => {
 
   .mobile-contact-link:hover {
     color: var(--albion-accent);
+  }
+
+  /* Ссылки подвала, переехавшие в бургер */
+  .mobile-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+
+    gap: 10px 18px;
+
+    padding-top: 14px;
+
+    border-top: 1px solid #eef1f3;
+  }
+
+  .mobile-footer-link {
+    color: #5b6873;
+
+    font-size: 12px;
+    font-weight: 700;
+
+    text-decoration: none;
+
+    transition: color 0.15s ease;
+  }
+
+  .mobile-footer-link:hover,
+  .mobile-footer-link.router-link-exact-active {
+    color: var(--albion-accent);
+  }
+
+  .mobile-footer-brand {
+    flex-basis: 100%;
+
+    color: #8b959e;
+
+    font-size: 11px;
+    font-weight: 800;
+
+    letter-spacing: 0.12em;
   }
 }
 
