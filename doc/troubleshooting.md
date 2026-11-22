@@ -4,6 +4,21 @@
 
 ## Карта
 
+**«Не удалось загрузить карту. Проверьте соединение и повторите попытку.»**
+Причина: dev-сервер Vite отдаёт **504 Outdated Optimize Dep** на `leaflet`,
+`pmtiles`, `protomaps-leaflet` и т.п. — процесс держит в памяти старый хэш
+оптимизированных зависимостей, а на диске (`frontend/node_modules/.q-cache`)
+уже новый. Так бывает после `bun install` (добавили зависимости) без перезапуска
+dev-сервера: динамический импорт `src/map/useMap.js` падает, `MapView` показывает
+ошибку инициализации.
+Проверить: в консоли браузера `504 (Outdated Optimize Dep)` и
+`Failed to fetch dynamically imported module: …/src/map/useMap.js`.
+Сравнить хэши: `jq .hash frontend/node_modules/.q-cache/dev-spa/vite-spa/deps/_metadata.json`
+и `?v=` из URL в консоли.
+Что делать: `systemctl --user restart albion-frontend.service`. Если не помогло —
+удалить `frontend/node_modules/.q-cache` и перезапустить сервис. Бэкенд
+перезапускать не нужно: модули карты грузятся на клиенте.
+
 **Пропали маркеры / карта пустая.**
 Причина: упал бэкенд (dev-прокси отдаёт 502) или ошибка в `/api/constructions`.
 Проверить: `curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8000/api/home`.
