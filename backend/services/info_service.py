@@ -11,7 +11,7 @@ from typing import Any
 from backend.services.data_service import get_connection
 
 
-TAB_KINDS = ("text", "geo")
+TAB_KINDS = ("text", "geo", "traffic-light")
 
 
 def _tab_dict(row) -> dict:

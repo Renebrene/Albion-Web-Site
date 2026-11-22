@@ -1,11 +1,6 @@
 <template>
   <q-page class="info-page">
     <div class="info-shell">
-      <header class="info-head">
-        <div class="info-kicker">ALBION</div>
-        <h1>Информация</h1>
-      </header>
-
       <nav v-if="tabs.length" class="info-tabs" role="tablist">
         <button
           v-for="tab in tabs"
@@ -30,8 +25,16 @@
       </div>
 
       <section v-else class="info-body" role="tabpanel">
+        <!-- 3D Светофор -->
+        <div
+          v-if="activeTab.kind === 'traffic-light'"
+          class="traffic-light-layout"
+        >
+          <TrafficLight3D :height="420" :auto-cycle="true" :cycle-speed="1" />
+        </div>
+
         <!-- Города и районы: слева список, справа описание из базы -->
-        <div v-if="activeTab.kind === 'geo'" class="geo-layout">
+        <div v-else-if="activeTab.kind === 'geo'" class="geo-layout">
           <aside class="geo-list" aria-label="Города и районы">
             <button
               v-for="location in geoLocations"
@@ -152,6 +155,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import TrafficLight3D from '@/components/common/TrafficLight3D.vue'
 
 const route = useRoute()
 
@@ -281,26 +285,6 @@ onMounted(load)
   width: min(1720px, 96%);
   margin: 0 auto;
   padding: 34px 0 44px;
-}
-
-.info-head {
-  text-align: center;
-  margin-bottom: 22px;
-}
-
-.info-kicker {
-  color: var(--albion-accent);
-  font-size: 9px;
-  font-weight: 900;
-  letter-spacing: 1.6px;
-}
-
-.info-head h1 {
-  margin: 8px 0 0;
-  color: #17212b;
-  font-size: 30px;
-  line-height: 1.05;
-  font-weight: 900;
 }
 
 /* ---- Закладки ---- */
@@ -583,6 +567,16 @@ onMounted(load)
 .geo-card-credit a {
   margin: 0 4px;
   color: rgba(255, 255, 255, 0.75);
+}
+
+/* ---- 3D Светофор ---- */
+
+.traffic-light-layout {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 420px;
+  padding: 20px;
 }
 
 @media (max-width: 820px) {

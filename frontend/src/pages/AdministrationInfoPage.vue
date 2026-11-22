@@ -126,9 +126,13 @@
           />
         </label>
 
-        <div v-else class="geo-note">
+        <div v-else-if="tab.kind === 'geo'" class="geo-note">
           Города, районы и описания редактируются в разделе «Главная страница» →
           «Города, районы и достопримечательности».
+        </div>
+
+        <div v-else-if="tab.kind === 'traffic-light'" class="geo-note">
+          Интерактивный 3D светофор. Текст не используется.
         </div>
       </section>
 
@@ -148,7 +152,8 @@ const router = useRouter()
 
 const KIND_OPTIONS = [
   { label: 'Текст', value: 'text' },
-  { label: 'Города и районы (из базы)', value: 'geo' }
+  { label: 'Города и районы (из базы)', value: 'geo' },
+  { label: '3D Светофор', value: 'traffic-light' }
 ]
 
 const tabs = ref([])
@@ -217,7 +222,8 @@ async function save() {
       tabs: tabs.value.map((tab, index) => ({
         title: tab.title,
         kind: tab.kind,
-        content: tab.kind === 'geo' ? '' : tab.content,
+        content:
+          tab.kind === 'geo' || tab.kind === 'traffic-light' ? '' : tab.content,
         is_active: tab.is_active,
         sort_order: (index + 1) * 10
       }))
