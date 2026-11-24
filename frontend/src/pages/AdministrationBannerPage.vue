@@ -400,6 +400,48 @@
                 <small>{{ settingValue(key) ? 'включено' : 'выключено' }}</small>
               </button>
             </div>
+
+            <h4 class="pc-group-title">Предустановки</h4>
+            <div class="pc-presets">
+              <q-input
+                v-model="presetName"
+                dense
+                outlined
+                class="pc-preset-name"
+                placeholder="Имя пресета"
+              />
+              <q-select
+                v-model="selectedPreset"
+                :options="presetOptions"
+                emit-value
+                map-options
+                dense
+                outlined
+                class="pc-select"
+                placeholder="Выберите пресет"
+              />
+              <q-btn
+                no-caps
+                icon="save"
+                label="Сохранить текущий"
+                @click="saveCameraPreset"
+              />
+              <q-btn
+                no-caps
+                icon="check"
+                label="Применить"
+                :disable="!selectedPreset"
+                @click="applyCameraPresetSaved"
+              />
+              <q-btn
+                no-caps
+                flat
+                icon="delete"
+                label="Удалить"
+                :disable="!selectedPreset"
+                @click="deleteCameraPreset"
+              />
+            </div>
           </div>
 
           <div v-else class="pc-section">
@@ -446,6 +488,19 @@
               dense
               outlined
             />
+          </div>
+          <div v-if="aiSettings.weather_provider !== 'open-meteo'" class="setting-item">
+            <label>
+              Ключ {{ aiSettings.weather_provider === 'gismeteo' ? 'Gismeteo' : 'Я.Погоды' }}
+            </label>
+            <q-input
+              v-model="aiSettings[aiSettings.weather_provider === 'gismeteo' ? 'gismeteo_key' : 'yandex_weather_key']"
+              type="password"
+              dense
+              outlined
+              placeholder="GISMETEO_KEY / YANDEX_WEATHER_KEY"
+            />
+            <small class="hint">Без ключа используется Open-Meteo.</small>
           </div>
           <div class="setting-item">
             <label>Провайдер пробок</label>
@@ -674,15 +729,16 @@
             <span class="hint">изменения применяются сразу</span>
           </div>
 
-          <iframe
-            v-if="slide.has_code"
-            :key="previewKey"
-            :src="previewUrl"
-            class="preview-frame"
-            sandbox="allow-scripts"
-            referrerpolicy="no-referrer"
-            title="Предпросмотр баннера-дороги"
-          ></iframe>
+          <div v-if="slide.has_code" class="preview-stage">
+            <iframe
+              :key="previewKey"
+              :src="previewUrl"
+              class="preview-frame"
+              sandbox="allow-scripts"
+              referrerpolicy="no-referrer"
+              title="Предпросмотр баннера-дороги"
+            ></iframe>
+          </div>
           <p v-else class="hint">Код баннера пуст.</p>
         </section>
       </div>
@@ -816,9 +872,88 @@ const trafficKnobKeys = [
   'countChangeMin', 'countChangeMax'
 ]
 
+/* Предустановки камеры и сцены. */
+const cameraPresets = ref({})
+const selectedPreset = ref('')
+const presetName = ref('')
+const presetOptions = computed(() =>
+  Object.keys(cameraPresets.value).map(name => ({ label: name, value: name }))
+)
+
+const presetKeys = [
+  'tilt', 'rotation', 'scale', 'quality', 'shadows', 'grid', 'buses',
+  'speedFactor', 'flowDensity', 'speedWave', 'speedWavePeriod',
+  'dayNightPeriod', 'trafficMin', 'trafficMax',
+  'trafficChangeMin', 'trafficChangeMax', 'carMin', 'carMax',
+  'pedMin', 'pedMax', 'countChangeMin', 'countChangeMax'
+]
+
+function currentPresetValues() {
+  const values = {}
+  presetKeys.forEach(key => {
+    if (settingsByKey.value[key]) values[key] = settingValue(key)
+  })
+  return values
+}
+
+async function loadCameraPresets() {
+  try {
+    const data = await request('/api/roadrunner/camera-presets')
+    cameraPresets.value = data.presets || {}
+  } catch {
+    cameraPresets.value = {}
+  }
+}
+
+async function saveCameraPreset() {
+  const name = String(presetName.value || '').trim()
+  if (!name) {
+    error.value = 'Введите имя предустановки'
+    return
+  }
+
+  try {
+    await request('/api/roadrunner/camera-presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name.trim(),
+        settings: currentPresetValues()
+      })
+    })
+    await loadCameraPresets()
+    selectedPreset.value = name.trim()
+  } catch (exc) {
+    error.value = `Не удалось сохранить пресет: ${exc}`
+  }
+}
+
+function applyCameraPresetSaved() {
+  const values = cameraPresets.value[selectedPreset.value]
+  if (!values) return
+  Object.entries(values).forEach(([key, value]) => setSetting(key, value))
+}
+
+async function deleteCameraPreset() {
+  if (!selectedPreset.value) return
+
+  try {
+    await request(
+      `/api/roadrunner/camera-presets/${encodeURIComponent(selectedPreset.value)}`,
+      { method: 'DELETE' }
+    )
+    selectedPreset.value = ''
+    await loadCameraPresets()
+  } catch (exc) {
+    error.value = `Не удалось удалить пресет: ${exc}`
+  }
+}
+
 /* Настройки AI и источников (бывший отдельный модуль «Настройки»). */
 const aiSettings = ref({
   weather_provider: 'open-meteo',
+  yandex_weather_key: '',
+  gismeteo_key: '',
   traffic_provider: 'model',
   llm_provider: 'ollama',
   llm_model: 'qwen2.5:7b',
@@ -833,7 +968,8 @@ const aiSettings = ref({
 
 const weatherProviderOptions = [
   { label: 'Open-Meteo (без ключа)', value: 'open-meteo' },
-  { label: 'Яндекс Погода', value: 'yandex' }
+  { label: 'Яндекс Погода', value: 'yandex' },
+  { label: 'Gismeteo', value: 'gismeteo' }
 ]
 const trafficProviderOptions = [
   { label: 'Модель (по часам пик)', value: 'model' },
@@ -1063,7 +1199,7 @@ function randomize() {
       const max = Number(item.max)
       const step = Number(item.step) || 1
       const raw = min + Math.random() * (max - min)
-      item.value = Math.round(raw / step) * step
+      item.value = Number((Math.round(raw / step) * step).toFixed(2))
     }
   })
   syncCodeFromSettings()
@@ -1072,6 +1208,8 @@ function randomize() {
 
 function resetProjection() {
   settings.value.forEach(item => {
+    // Режим «По умолчанию/Произвольный» не сбрасываем — он независим.
+    if (item.key === 'mode') return
     if (Object.prototype.hasOwnProperty.call(defaultValues.value, item.key)) {
       item.value = defaultValues.value[item.key]
     }
@@ -1378,6 +1516,7 @@ onBeforeRouteLeave(() => {
 onMounted(() => {
   load()
   loadAiSettings()
+  loadCameraPresets()
 })
 
 onBeforeUnmount(() => {
@@ -1544,11 +1683,32 @@ h1 {
   display: block;
   width: 100%;
   /* Та же доля экрана, что и у баннера на главной. */
-  height: 30vh;
-  min-height: 180px;
+  height: 50vh;
+  min-height: 200px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 0;
   background: #9fd4ec;
+  pointer-events: none;
+}
+
+/* Такой же верхний градиент, как у баннера на слайде. */
+.preview-stage {
+  position: relative;
+  overflow: hidden;
+}
+
+.preview-stage::after {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: clamp(20px, 3.5vh, 38px);
+  background: linear-gradient(
+    180deg,
+    rgba(20, 24, 29, 0.58),
+    rgba(20, 24, 29, 0)
+  );
+  pointer-events: none;
 }
 
 .code-panel {
@@ -1758,6 +1918,17 @@ h1 {
   background: #101a29;
 }
 
+.pc-preset-name {
+  width: 180px;
+}
+
+.pc-presets {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
 .pc-toggles {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
@@ -1924,11 +2095,6 @@ h1 {
   border-radius: 0;
   border-left: 0;
   border-right: 0;
-}
-
-.preview-frame {
-  height: 30vh;
-  min-height: 180px;
 }
 
 @media (max-width: 900px) {

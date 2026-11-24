@@ -21,9 +21,9 @@
   /* HUD — оверлей с погодой, пробками, временем (минималистичный) */
   #hud {
     position: absolute;
-    /* HUD висит над дорогой, а не над небом/газоном. */
-    top: 30%;
-    left: 12px;
+    /* У верхнего края баннера, но с отступом от левого края страницы. */
+    top: 10px;
+    left: clamp(16px, 6%, 80px);
     right: 12px;
     z-index: 5;
     display: flex;
@@ -58,23 +58,18 @@
   }
 
   #stage canvas {
-    --rr-crop-left: 12%;
-    --rr-crop-scale: 1.14;
+    --rr-crop-left: 18%;
+    --rr-crop-scale: 1.22;
     transform: scaleX(var(--rr-crop-scale)) translateX(calc(-1 * var(--rr-crop-left)));
     transform-origin: left center;
   }
 
   .hud-weather {
-    font-size: 13px;
-  }
-
-  .hud-weather-text {
-    color: #cbd5e1;
-    font-size: 11px;
+    font-size: 26px;
   }
 
   .hud-temp {
-    font-size: 14px;
+    font-size: 22px;
     font-weight: 700;
   }
 
@@ -89,12 +84,12 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 22px;
-    height: 22px;
+    width: 44px;
+    height: 44px;
     border-radius: 50%;
     background: #2fd27d;
     color: #08120c;
-    font-size: 12px;
+    font-size: 22px;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
     line-height: 1;
@@ -239,7 +234,6 @@
   <div class="hud-item hud-weather" id="hudWeather">
     <span id="hudWeatherEmoji">☀️</span>
     <span id="hudTempValue">—°</span>
-    <span id="hudWeatherText" class="hud-weather-text"></span>
   </div>
   <div class="hud-item hud-traffic" id="hudTraffic">
     <span id="hudTrafficDot" class="hud-traffic-dot level-free" title="Пробки: —">—</span>
@@ -481,7 +475,7 @@ function windowTex(){
   const c = document.createElement('canvas'); c.width = 64; c.height = 128;
   const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0,0,64,128);
   for(let y=6; y<122; y+=10) for(let x=5; x<58; x+=10){
-    if(Math.random() < .55){ g.fillStyle = Math.random() < .8 ? '#ffd9a0' : '#bfe0ff'; g.fillRect(x,y,6,7); }
+    if(Math.random() < .22){ g.fillStyle = Math.random() < .8 ? '#ffd9a0' : '#bfe0ff'; g.fillRect(x,y,6,7); }
   }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
@@ -502,6 +496,22 @@ function drawAd(){
   adTex.needsUpdate = true;
 }
 drawAd();
+
+/* Неоновая вывеска на фасаде (одна надпись на здание). */
+function neonTex(text, color) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(5,9,20,0.94)'; g.fillRect(0,0,512,128);
+  g.strokeStyle = color; g.lineWidth = 4; g.strokeRect(10,10,492,108);
+  g.shadowColor = color; g.shadowBlur = 18;
+  g.fillStyle = color; g.textAlign = 'center'; g.textBaseline = 'middle';
+  let size = text.length > 9 ? 54 : 70;
+  g.font = `900 ${size}px 'Arial Black', Arial, sans-serif`;
+  g.fillText(text, 256, 68);
+  g.shadowBlur = 0;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 // Знак остановки
 const signCanvas = document.createElement('canvas'); signCanvas.width = signCanvas.height = 128;
 { const g = signCanvas.getContext('2d');
@@ -693,6 +703,27 @@ bData.forEach((b,i) => {
   buildings.setColorAt(i, new THREE.Color(bColors[i%5]));
 });
 buildings.instanceMatrix.needsUpdate = true; buildings.instanceColor.needsUpdate = true; scene.add(buildings);
+
+/* Две неоновые вывески: по одной на разных домах. */
+const facadeSigns = [
+  { index: 3, text: 'ВМЕСТЕ', color: '#ff3b8d', width: 4.4 },
+  { index: 4, text: "O'Key Home", color: '#2fd27d', width: 5.2 }
+];
+facadeSigns.forEach(sign => {
+  const target = bData[sign.index];
+  if (!target) return;
+  const mat = new THREE.MeshBasicMaterial({
+    map: neonTex(sign.text, sign.color),
+    transparent: true,
+    toneMapped: false
+  });
+  const plate = new THREE.Mesh(
+    new THREE.PlaneGeometry(sign.width, sign.width / 4),
+    mat
+  );
+  plate.position.set(target.x, target.h * 0.62, target.z + 2.56);
+  scene.add(plate);
+});
 
 // солнце, звёзды, облака
 const sun = new THREE.Mesh(new THREE.CircleGeometry(5,32), new THREE.MeshBasicMaterial({ color:0xffd98a, fog:false }));
@@ -995,7 +1026,7 @@ function applyTheme(t){
   M.lampHead.emissiveIntensity = lerp(.15,2.2,t);
   M.head.emissiveIntensity = lerp(.25,2.5,t);
   M.tail.emissiveIntensity = lerp(.4,1.8,t);
-  bMat.emissiveIntensity = lerp(0,1.5,t);
+  bMat.emissiveIntensity = lerp(0,1.0,t);
   stars.material.opacity = lerp(0,.9,t);
   sun.material.color.copy(cTmp.lerpColors(sunDay, sunDusk, t));
   sunGlow.material.color.copy(sun.material.color);
@@ -1538,8 +1569,8 @@ function finishScenario() {
 }
 
 function startScenario(payload) {
-  if (!CUSTOM) return;
-
+  // Сценарий из умного чата выполняется независимо от ручного режима:
+  // после завершения страница перезагрузится и вернётся к код БД.
   const state = payload || {};
   const scenario = state.scenario || {};
   const id = scenario.id || 'scenario';
@@ -1689,14 +1720,16 @@ async function fetchWeather() {
   }
 }
 
-function weatherCodeToEmoji(code) {
-  if (code === 0) return '☀️';
-  if (code <= 3) return '⛅';
+function weatherCodeToEmoji(code, temperature, isNight) {
+  const warm = Number(temperature) > 2;
+
+  if (code === 0) return isNight ? '🌙' : '☀️';
+  if (code <= 3) return isNight ? '🌙' : '⛅';
   if (code <= 48) return '🌫️';
   if (code <= 67) return '🌧️';
-  if (code <= 77) return '❄️';
+  if (code <= 77) return warm ? '🌧️' : '❄️';   // снег только при минусе
   if (code <= 82) return '🌦️';
-  if (code <= 86) return '🌨️';
+  if (code <= 86) return warm ? '🌧️' : '🌨️';
   return '⛈️'; // гроза
 }
 
@@ -1714,15 +1747,17 @@ function weatherCodeToText(code) {
 function updateWeatherHUD() {
   const emojiEl = document.getElementById('hudWeatherEmoji');
   const tempEl = document.getElementById('hudTempValue');
-  const textEl = document.getElementById('hudWeatherText');
   const precipEl = document.getElementById('hudPrecip');
   const precipEmojiEl = document.getElementById('hudPrecipEmoji');
   const precipValueEl = document.getElementById('hudPrecipValue');
 
   if (weatherData) {
-    emojiEl.textContent = weatherCodeToEmoji(weatherData.weatherCode);
+    emojiEl.textContent = weatherCodeToEmoji(
+      weatherData.weatherCode,
+      weatherData.temperature,
+      themeT > 0.5
+    );
     tempEl.textContent = `${Math.round(weatherData.temperature)}°`;
-    textEl.textContent = weatherCodeToText(weatherData.weatherCode);
     // Плашка осадков появляется только когда они есть.
     const hasPrecip = weatherData.precipitation > 0;
     precipEl.hidden = !hasPrecip;
@@ -1928,8 +1963,11 @@ function loop(now){
       night = 0.5 - 0.5 * Math.cos(dayPhase * Math.PI * 2);
     }
     if(Math.abs(night - themeT) > 0.0005){
+      const wasNight = themeT > 0.5;
       themeT = night;
       applyTheme(themeT);
+      // Иконка погоды меняется на луну/солнце при смене дня и ночи.
+      if((night > 0.5) !== wasNight) updateWeatherHUD();
       animating = true;
     }
   }

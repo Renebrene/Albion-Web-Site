@@ -172,6 +172,21 @@ def test_chat_enters_and_exits_roadrunner_mode():
     assert "выход" in data["prompt_suggestions"]
     assert len(data["prompt_suggestions"]) >= 4
 
+    from backend.chat.roadrunner_trigger import EXAMPLE_PROMPTS
+    from backend.roadrunner.services import scenario_state
+
+    scenario_state.clear_active_scenario()
+    applied = client.post(
+        "/api/chat/message",
+        json={"message": EXAMPLE_PROMPTS[0], "mode": "roadrunner"},
+    )
+
+    assert applied.status_code == 200
+    assert applied.json()["answer"].startswith("✅ Применён сценарий")
+    active = scenario_state.get_active_scenario()
+    assert active is not None
+    scenario_state.clear_active_scenario()
+
     exited = client.post(
         "/api/chat/message",
         json={"message": "выход", "mode": "roadrunner"},

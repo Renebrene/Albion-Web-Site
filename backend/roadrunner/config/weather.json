@@ -13,6 +13,13 @@
       "url": "https://weather.yandex.ru/api",
       "required_keys": ["YANDEX_WEATHER_KEY"],
       "fallback": false
+    },
+    {
+      "id": "gismeteo",
+      "name": "Gismeteo",
+      "url": "https://api.gismeteo.net/v2/weather/current/",
+      "required_keys": ["GISMETEO_KEY"],
+      "fallback": false
     }
   ],
   "current": {

@@ -16,7 +16,10 @@
         {{ chatNumber }}
       </span>
 
-      <span v-if="roadrunnerActive" class="chat-rr-badge">
+      <span
+        v-if="lastResponse?.roadrunner_mode === 'active'"
+        class="chat-rr-badge"
+      >
         🚦 Roadrunner · 15 мин
       </span>
 
@@ -152,7 +155,11 @@
 
             <!-- Готовые сценарии Roadrunner: нажатие отправляет промт в чат. -->
             <div
-              v-if="message.promptSuggestions?.length"
+              v-if="
+                message.promptSuggestions?.length &&
+                ai === exchange.answers.length - 1 &&
+                index === exchanges.length - 1
+              "
               class="chat-prompt-suggestions"
             >
               <button

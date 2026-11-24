@@ -77,6 +77,25 @@ class WeatherService:
         with CITY_CONFIG_PATH.open(encoding="utf-8") as f:
             return json.load(f)
 
+    @staticmethod
+    def _weather_settings() -> dict:
+        """Настройки погоды из админки."""
+        try:
+            from backend.roadrunner.services.db_json import as_dict
+            from backend.services.data_service import get_connection
+
+            with get_connection() as conn:
+                row = conn.execute(
+                    "SELECT settings FROM roadrunner_settings WHERE key = 'roadrunner'"
+                ).fetchone()
+
+            if row:
+                return as_dict(row[0])
+        except Exception:
+            pass
+
+        return {}
+
     async def get_current(self) -> WeatherData:
         """Получить текущую погоду."""
         cache_key = "current"
@@ -85,6 +104,22 @@ class WeatherService:
             cached = self._cache[cache_key]
             if time.time() - cached.cached_at < CACHE_TTL:
                 return cached
+
+        settings = self._weather_settings()
+        provider = str(settings.get("weather_provider") or "open-meteo")
+
+        # Gismeteo — по явному выбору в админке; требует ключ API.
+        if provider == "gismeteo":
+            key = settings.get("gismeteo_key") or os.getenv("GISMETEO_KEY")
+            if key:
+                try:
+                    data = await self._fetch_gismeteo(key)
+                    self._cache[cache_key] = data
+                    return data
+                except Exception as exc:
+                    logger.warning("Gismeteo не доступен: %s", exc)
+            else:
+                logger.warning("GISMETEO_KEY не задан — используется Open-Meteo")
 
         # Пробуем Open-Meteo (без ключа)
         try:
@@ -133,6 +168,61 @@ class WeatherService:
             wind_speed_kmh=current["wind_speed_10m"],
             precipitation_mm=current.get("precipitation", 0),
             source="open-meteo",
+            cached_at=time.time(),
+        )
+
+    async def _fetch_gismeteo(self, key: str) -> WeatherData:
+        """Gismeteo API v2 (требуется X-Gismeteo-Token)."""
+        coords = self._city_config["coordinates"]
+        async with httpx.AsyncClient(timeout=10) as client:
+            response = await client.get(
+                "https://api.gismeteo.net/v2/weather/current/",
+                params={
+                    "latitude": coords["lat"],
+                    "longitude": coords["lon"],
+                },
+                headers={"X-Gismeteo-Token": key},
+            )
+            response.raise_for_status()
+            payload = response.json()
+
+        results = (payload.get("response") or {}).get("results") or []
+        if not results:
+            raise ValueError("Gismeteo: пустой ответ")
+
+        item = results[0]
+        code = int(item.get("weather", {}).get("code") or 0)
+        description = str(
+            (item.get("description") or {}).get("full") or ""
+        ).lower()
+
+        if "гроз" in description or code in (95, 96, 99):
+            condition = "rain"
+        elif "снег" in description:
+            condition = "snow"
+        elif "туман" in description:
+            condition = "fog"
+        elif "дожд" in description or "ливень" in description:
+            condition = "rain"
+        elif "облач" in description or "пасмур" in description:
+            condition = "cloudy"
+        else:
+            condition = "clear"
+
+        air = (item.get("temperature") or {}).get("air") or {}
+        temperature = float(air.get("C") or air.get("F") or 0)
+        humidity = int((item.get("humidity") or {}).get("percent") or 0)
+        wind = (item.get("wind") or {}).get("speed") or {}
+        wind_speed = float(wind.get("km_h") or wind.get("m_s", 0) * 3.6 or 0)
+        precip = ((item.get("precipitation") or {}).get("amount") or {}).get("mm") or 0
+
+        return WeatherData(
+            condition=condition,
+            temperature_c=temperature,
+            humidity=humidity,
+            wind_speed_kmh=wind_speed,
+            precipitation_mm=float(precip),
+            source="gismeteo",
             cached_at=time.time(),
         )
 

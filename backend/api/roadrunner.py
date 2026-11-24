@@ -351,6 +351,77 @@ async def generate_scenario(
         )
 
 
+PRESETS_KEY = "camera_presets"
+
+
+def _load_camera_presets() -> dict:
+    """Пресеты камеры/сцены из настроек Roadrunner."""
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT settings FROM roadrunner_settings WHERE key = %s",
+                (PRESETS_KEY,),
+            ).fetchone()
+    except Exception as exc:
+        logger.warning("Не удалось загрузить пресеты: %s", exc)
+        return {}
+
+    if not row:
+        return {}
+
+    from backend.roadrunner.services.db_json import as_dict
+
+    return as_dict(row[0])
+
+
+def _save_camera_presets(presets: dict) -> None:
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO roadrunner_settings (key, settings)
+            VALUES (%s, %s)
+            ON CONFLICT (key) DO UPDATE SET settings = EXCLUDED.settings
+            """,
+            (PRESETS_KEY, json.dumps(presets, ensure_ascii=False)),
+        )
+
+
+@router.get("/camera-presets")
+async def list_camera_presets(auth=Depends(require_admin)):
+    return {"success": True, "presets": _load_camera_presets()}
+
+
+@router.post("/camera-presets")
+async def save_camera_preset(payload: dict, auth=Depends(require_admin)):
+    from urllib.parse import unquote
+
+    name = str(payload.get("name") or "").strip()
+    values = payload.get("settings") or {}
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Не указано имя пресета")
+    if not isinstance(values, dict):
+        raise HTTPException(status_code=400, detail="Некорректные настройки")
+
+    presets = _load_camera_presets()
+    presets[unquote(name)] = values
+    _save_camera_presets(presets)
+    return {"success": True, "name": unquote(name)}
+
+
+@router.delete("/camera-presets/{name}")
+async def delete_camera_preset(name: str, auth=Depends(require_admin)):
+    from urllib.parse import unquote
+
+    presets = _load_camera_presets()
+    if unquote(name) not in presets:
+        raise HTTPException(status_code=404, detail="Пресет не найден")
+
+    del presets[unquote(name)]
+    _save_camera_presets(presets)
+    return {"success": True}
+
+
 OLLAMA_MODEL_CATALOG = (
     "qwen2.5:7b",
     "llama3.1:8b",

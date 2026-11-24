@@ -536,9 +536,11 @@ class ChatService:
         # Проверка триггера Roadrunner (ключевые слова "светофор", "дорога" и т.д.)
         from backend.chat.roadrunner_trigger import (
             EXIT_PROMPT,
+            EXAMPLE_PROMPTS,
             check_roadrunner_trigger,
             format_roadrunner_suggestion,
             is_exit_command,
+            match_example_scenario,
         )
         from uuid import uuid4
 
@@ -562,6 +564,12 @@ class ChatService:
         # работают все ключевые слова Roadrunner и готовые сценарии.
         entered = "светофор" in payload.message.lower()
         trigger = check_roadrunner_trigger(payload.message)
+        # Готовый сценарий может не содержать ключевых слов Roadrunner —
+        # ищем его по точному тексту подсказки отдельно.
+        matched_scenario = (
+            match_example_scenario(payload.message) if in_roadrunner_mode else None
+        )
+        active_scenario = trigger.scenario or matched_scenario
 
         if in_roadrunner_mode or entered:
             if entered:
@@ -583,15 +591,15 @@ class ChatService:
 
             # Точный выбор готового сценария применяется сразу; баннер сам
             # вернётся к настройкам из БД после окончания сценария.
-            if trigger.scenario:
+            if active_scenario:
                 try:
                     from backend.roadrunner.services.scenario_state import (
                         apply_scenario,
                     )
 
-                    state = apply_scenario(trigger.scenario)
+                    state = apply_scenario(active_scenario)
                     response_text = (
-                        f"✅ Применён сценарий «{trigger.scenario['name']}» "
+                        f"✅ Применён сценарий «{active_scenario['name']}» "
                         f"({state['duration']} с).\n\n"
                         "После завершения баннер вернётся к поведению по "
                         "умолчанию, прописанному в базе данных."
@@ -610,7 +618,10 @@ class ChatService:
                 answer=response_text,
                 source="rules",
                 pending=False,
-                prompt_suggestions=[*trigger.prompts, EXIT_PROMPT],
+                prompt_suggestions=[
+                    *(trigger.prompts or EXAMPLE_PROMPTS),
+                    EXIT_PROMPT,
+                ],
                 roadrunner_mode="active",
             )
 
