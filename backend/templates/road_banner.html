@@ -1,0 +1,1406 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Альбион — светофорные объекты</title>
+<!--
+  Код 3D-баннера для слайда главной «Светофорные объекты».
+  Редактируется в отдельной закладке админки «Баннер-дорога».
+  Это самостоятельный HTML-документ: он открывается в sandbox-iframe
+  поверх нижней части слайда. Внешние скрипты — только three.js с CDN.
+-->
+<style>
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #9fd4ec; }
+  #stage { position: fixed; inset: 0; overflow: hidden; background: #9fd4ec; }
+  #stage canvas { display: block; width: 100%; height: 100%; }
+  #fallback { display: none; position: absolute; inset: 0; z-index: 3; }
+  #fallback svg { width: 100%; height: 100%; display: block; }
+  .fallback-note { position: absolute; bottom: 12px; right: 14px; font: 12px/1.4 system-ui, sans-serif; color: #f5ead9; background: rgba(13, 18, 32, .7); padding: 5px 11px; border-radius: 99px; }
+
+  /* HUD — оверлей с погодой, пробками, временем (минималистичный) */
+  #hud {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    right: 12px;
+    z-index: 5;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    pointer-events: none;
+  }
+
+  .hud-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: rgba(13, 18, 32, 0.65);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: 6px;
+    color: #f5ead9;
+    font: 11px/1.3 system-ui, sans-serif;
+    pointer-events: auto;
+  }
+
+  .hud-item b {
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .hud-weather {
+    font-size: 13px;
+  }
+
+  .hud-temp {
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .hud-traffic {
+    min-width: 80px;
+  }
+
+  /* Балл пробок — круг с числом по шкале Яндекса (0-3 / 4-6 / 7-9 / 10). */
+  .hud-traffic-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: #2fd27d;
+    color: #08120c;
+    font-size: 12px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
+    transition: background 0.3s;
+  }
+
+  .hud-traffic-dot.level-free {
+    background: #2fd27d;
+    color: #08120c;
+  }
+
+  .hud-traffic-dot.level-moderate {
+    background: #ffb020;
+    color: #241600;
+  }
+
+  .hud-traffic-dot.level-jam {
+    background: #ff4d5e;
+    color: #fff;
+  }
+
+  .hud-traffic-dot.level-gridlock {
+    background: #9b111e;
+    color: #fff;
+  }
+
+  .hud-holiday {
+    color: #ffe9a8;
+  }
+
+  .hud-holiday[hidden] {
+    display: none;
+  }
+
+  .hud-precip {
+    font-size: 12px;
+  }
+</style>
+
+<!--
+  Настройки поведения. Админка читает этот блок, показывает поля и
+  записывает изменения обратно в код. Баннер применяет значения при
+  запуске. Формат элемента: { value, label, min, max, step, unit, type }.
+-->
+<script type="application/json" id="banner-settings">
+{
+  "tilt": { "value": 32, "label": "Наклон камеры", "min": 5, "max": 85, "step": 1, "unit": "°" },
+  "rotation": { "value": 38, "label": "Поворот камеры", "min": -180, "max": 180, "step": 1, "unit": "°" },
+  "scale": { "value": 1, "label": "Масштаб", "min": 0.5, "max": 2, "step": 0.05, "unit": "×" },
+  "dayNightPeriod": { "value": 48, "label": "Цикл день/ночь", "min": 10, "max": 180, "step": 1, "unit": "с" },
+  "speedWave": { "value": 0.35, "label": "Амплитуда скорости", "min": 0, "max": 0.8, "step": 0.05, "unit": "×" },
+  "speedWavePeriod": { "value": 19.6, "label": "Период волны скорости", "min": 4, "max": 60, "step": 0.5, "unit": "с" },
+  "trafficMin": { "value": 0.55, "label": "Плотность трафика, мин", "min": 0.2, "max": 1, "step": 0.05, "unit": "×" },
+  "trafficMax": { "value": 1.9, "label": "Плотность трафика, макс", "min": 1, "max": 3, "step": 0.05, "unit": "×" },
+  "trafficChangeMin": { "value": 5, "label": "Смена плотности, мин", "min": 1, "max": 60, "step": 1, "unit": "с" },
+  "trafficChangeMax": { "value": 12, "label": "Смена плотности, макс", "min": 2, "max": 120, "step": 1, "unit": "с" },
+  "carMin": { "value": 6, "label": "Машин, мин", "min": 1, "max": 14, "step": 1 },
+  "carMax": { "value": 13, "label": "Машин, макс", "min": 1, "max": 14, "step": 1 },
+  "pedMin": { "value": 1, "label": "Пешеходов, мин", "min": 0, "max": 8, "step": 1 },
+  "pedMax": { "value": 5, "label": "Пешеходов, макс", "min": 0, "max": 8, "step": 1 },
+  "countChangeMin": { "value": 6, "label": "Смена количества, мин", "min": 1, "max": 60, "step": 1, "unit": "с" },
+  "countChangeMax": { "value": 14, "label": "Смена количества, макс", "min": 2, "max": 120, "step": 1, "unit": "с" },
+  "buses": { "value": true, "label": "Автобусы", "type": "boolean" },
+  "syncWeather": { "value": true, "label": "Реальная погода", "type": "boolean" },
+  "syncTime": { "value": true, "label": "Время суток по часам", "type": "boolean" },
+  "syncTraffic": { "value": true, "label": "Пробки Яндекса", "type": "boolean" },
+  "syncHolidays": { "value": true, "label": "Праздничное оформление", "type": "boolean" },
+  "quality": { "value": "eco", "label": "Качество", "type": "select", "options": [
+    { "value": "eco", "label": "Эко" },
+    { "value": "balanced", "label": "Баланс" },
+    { "value": "max", "label": "Макс" }
+  ] }
+}
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<!-- HUD: погода, пробки, праздник (время и дата не отображаются) -->
+<div id="hud">
+  <div class="hud-item hud-weather" id="hudWeather">
+    <span id="hudWeatherEmoji">☀️</span>
+    <span id="hudTempValue">—°</span>
+  </div>
+  <div class="hud-item hud-traffic" id="hudTraffic">
+    <span id="hudTrafficDot" class="hud-traffic-dot level-free" title="Пробки: —">—</span>
+  </div>
+  <div class="hud-item hud-holiday" id="hudHoliday" hidden></div>
+  <div class="hud-item hud-precip" id="hudPrecip">
+    <span id="hudPrecipEmoji">—</span>
+    <span id="hudPrecipValue">—</span>
+  </div>
+</div>
+
+<div id="stage">
+  <div id="fallback">
+        <svg viewBox="0 0 1200 340" preserveAspectRatio="xMidYMid slice">
+          <defs><linearGradient id="fsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9fd4ec"/><stop offset="1" stop-color="#cfe9f4"/></linearGradient></defs>
+          <rect width="1200" height="340" fill="url(#fsky)"/>
+          <rect y="230" width="1200" height="110" fill="#6f9e63"/>
+          <rect y="180" width="1200" height="60" fill="#3b4254"/>
+          <rect y="176" width="1200" height="5" fill="#9aa3b5"/>
+          <g fill="#f5f2e8"><rect x="20" y="207" width="46" height="5"/><rect x="110" y="207" width="46" height="5"/><rect x="200" y="207" width="46" height="5"/><rect x="290" y="207" width="46" height="5"/><rect x="380" y="207" width="46" height="5"/><rect x="470" y="207" width="46" height="5"/><rect x="560" y="207" width="46" height="5"/><rect x="650" y="207" width="46" height="5"/><rect x="740" y="207" width="46" height="5"/><rect x="830" y="207" width="46" height="5"/><rect x="920" y="207" width="46" height="5"/><rect x="1010" y="207" width="46" height="5"/><rect x="1100" y="207" width="46" height="5"/></g>
+          <g><rect x="330" y="120" width="7" height="60" fill="#2c3450"/><rect x="322" y="96" width="23" height="46" rx="5" fill="#20263a"/><circle cx="333" cy="106" r="6" fill="#ff3b4d"/><circle cx="333" cy="119" r="6" fill="#4a3a15"/><circle cx="333" cy="132" r="6" fill="#14532d"/></g>
+          <g><rect x="830" y="120" width="7" height="60" fill="#2c3450"/><rect x="822" y="96" width="23" height="46" rx="5" fill="#20263a"/><circle cx="833" cy="106" r="6" fill="#5a1a20"/><circle cx="833" cy="119" r="6" fill="#4a3a15"/><circle cx="833" cy="132" r="6" fill="#2fe07d"/></g>
+          <g><rect x="600" y="132" width="130" height="6" fill="#20263a"/><rect x="606" y="138" width="4" height="38" fill="#20263a"/><rect x="720" y="138" width="4" height="38" fill="#20263a"/><rect x="600" y="138" width="130" height="34" fill="#9fc8e8" opacity=".3"/><rect x="640" y="126" width="52" height="10" fill="#20263a"/><text x="666" y="134" font-size="8" fill="#ffb020" text-anchor="middle" font-family="Arial" font-weight="bold">ЦУМ</text></g>
+          <g><rect x="640" y="176" width="150" height="36" rx="8" fill="#ffb020"/><rect x="652" y="182" width="118" height="12" rx="3" fill="#223044"/><rect x="656" y="186" width="14" height="10" fill="#101418"/><text x="663" y="194" font-size="9" fill="#ffb020" text-anchor="middle" font-family="Consolas" font-weight="bold">1</text><circle cx="668" cy="214" r="9" fill="#1c2230"/><circle cx="762" cy="214" r="9" fill="#1c2230"/></g>
+          <g><rect x="480" y="188" width="70" height="22" rx="7" fill="#ff5a3c"/><rect x="494" y="176" width="36" height="16" rx="6" fill="#ff5a3c"/><rect x="498" y="179" width="28" height="10" rx="3" fill="#223044"/><circle cx="496" cy="212" r="8" fill="#1c2230"/><circle cx="536" cy="212" r="8" fill="#1c2230"/></g>
+          <g><rect x="150" y="86" width="10" height="94" fill="#2c3450"/><rect x="146" y="60" width="18" height="52" fill="#fff" stroke="#e03131" stroke-width="3"/><rect x="150" y="78" width="10" height="16" fill="#e03131"/></g>
+          <g fill="#3f7d4e"><path d="M1050 176l16-42 16 42z"/><path d="M1120 176l14-36 14 36z"/></g>
+          <g fill="#6b4a35"><rect x="1063" y="176" width="6" height="12"/><rect x="1131" y="176" width="6" height="12"/></g>
+        </svg>
+        <span class="fallback-note">WebGL недоступен — статичный резервный баннер</span>
+      </div>
+</div>
+<script>
+  window.__ROAD_READY__ = false;
+  setTimeout(function () {
+    if (!window.__ROAD_READY__) {
+      var f = document.getElementById('fallback');
+      if (f) f.style.display = 'block';
+    }
+  }, 8000);
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+/* ================= НАСТРОЙКИ ИЗ КОДА ================= */
+// Админка редактирует блок #banner-settings; здесь он превращается
+// в плоский объект значений.
+function readSettings(){
+  const el = document.getElementById('banner-settings');
+  if(!el) return {};
+
+  try {
+    const raw = JSON.parse(el.textContent || '{}');
+    const values = {};
+    Object.entries(raw).forEach(([key, item]) => {
+      values[key] = (item && typeof item === 'object' && 'value' in item)
+        ? item.value
+        : item;
+    });
+    return values;
+  } catch (e) {
+    return {};
+  }
+}
+const SET = readSettings();
+const num = (key, fallback, min, max) => {
+  const value = Number(SET[key]);
+  if(!Number.isFinite(value)) return fallback;
+  return Math.max(min, Math.min(max, value));
+};
+const flag = (key, fallback) => (
+  SET[key] === undefined ? fallback : Boolean(SET[key])
+);
+
+/* Синхронизация с внешними данными. По умолчанию включена: баннер показывает
+   реальную погоду, пробки, текущее время суток и праздничные даты. */
+const LIVE = {
+  weather: flag('syncWeather', true),
+  time: flag('syncTime', true),
+  traffic: flag('syncTraffic', true),
+  holidays: flag('syncHolidays', true)
+};
+
+/* ================= КОНФИГ ================= */
+const QUALITY = ['eco','balanced','max'].includes(String(SET.quality))
+  ? String(SET.quality)
+  : 'eco';
+const DEFAULTS = {
+  speed:1, density:1, theme:'day', parallax:false,
+  quality:QUALITY, paused:false, mode:'iso', buses:flag('buses', true)
+};
+const CFG = { ...DEFAULTS };
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+if (RM) { CFG.paused = true; CFG.parallax = false; }
+
+const CYCLE = { g:9, y:2.2, r:8 }; CYCLE.total = CYCLE.g + CYCLE.y + CYCLE.r;
+const IX = [ { x:-24, phase:0 }, { x:24, phase:7.5 } ];
+const ROAD_HALF = 58, LANE_Z = 1.8, STOP_OFF = 7.2, ZEBRA_OFF = 4.6;
+const CAR_LEN = 2.4, BUS_LEN = 5.8, ACCEL = 3.2, DECEL = 7.5, BRAKE_A = 5.5;
+// Остановка на ДАЛЬНЕЙ стороне (−Z): автобусы идут справа налево (dir = −1)
+const SHELTER_X = 12, BUS_STOP_X = SHELTER_X + 1.55, BAY_Z = -3.95, WAIT_Z = -6.15;
+const CAR_COLORS = [0xff5a3c, 0xffb020, 0x2fd27d, 0x4da3ff, 0xff5ea8, 0xe8ecf5];
+
+const $ = id => document.getElementById(id);
+const stage = $('stage');
+const rand = (a,b) => a + Math.random()*(b-a);
+const clamp = (v,a,b) => Math.max(a, Math.min(b, v));
+const lerp = (a,b,t) => a + (b-a)*t;
+
+/* ================= РАКУРС ИЗ НАСТРОЕК ================= */
+const CAM_TARGET = new THREE.Vector3(-12, 4.5, -2);
+const CAM_TILT = num('tilt', 32, 5, 85);           // наклон над горизонтом
+const CAM_ROTATION = num('rotation', 38, -180, 180); // поворот вокруг цели
+const CAM_SCALE = num('scale', 1, 0.5, 2);         // >1 — ближе
+const CAM_RADIUS = 63.4;
+const camElev = CAM_TILT * Math.PI / 180;
+const camAzim = CAM_ROTATION * Math.PI / 180;
+const CAM_ISO_POS = new THREE.Vector3(
+  CAM_TARGET.x + CAM_RADIUS * Math.cos(camElev) * Math.sin(camAzim),
+  CAM_TARGET.y + CAM_RADIUS * Math.sin(camElev),
+  CAM_TARGET.z + CAM_RADIUS * Math.cos(camElev) * Math.cos(camAzim)
+);
+
+/* ================= RENDERER ================= */
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+} catch(e) {
+  $('fallback').style.display = 'block';
+  throw e;
+}
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.15;
+stage.prepend(renderer.domElement);
+renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault(); $('fallback').style.display='block'; });
+renderer.domElement.addEventListener('webglcontextrestored', () => { $('fallback').style.display='none'; });
+
+const scene = new THREE.Scene();
+const skyDay = new THREE.Color(0x9fd4ec), skyDusk = new THREE.Color(0x131a30);
+scene.background = skyDay.clone();
+scene.fog = new THREE.Fog(skyDay.clone(), 70, 165);
+
+const camera = new THREE.OrthographicCamera(-1,1,1,-1,0.1,300);
+const CAM = {
+  iso:  { pos:CAM_ISO_POS, tgt:CAM_TARGET, zoom:1, minH:21 },
+  side: { pos:new THREE.Vector3(8,10,52), tgt:new THREE.Vector3(0,2,0), zoom:1, minH:15 }
+};
+let camFrom = { pos:CAM.iso.pos.clone(), tgt:CAM.iso.tgt.clone(), zoom:1 };
+let camTo = CAM.iso, camT = 1;
+// dirty — нужен перерендер в паузе; inView — не рендерить вне вьюпорта.
+let dirty = true;
+let inView = true;
+let frames = 0;
+let last = performance.now();
+const curTgt = CAM.iso.tgt.clone();
+const parallax = { x:0, y:0, tx:0, ty:0 };
+
+/* ================= СВЕТ ================= */
+const hemi = new THREE.HemisphereLight(0xbfe3ff, 0x7a8a6a, 0.9); scene.add(hemi);
+const sunLight = new THREE.DirectionalLight(0xfff2dd, 1.6); sunLight.position.set(35,55,25); scene.add(sunLight);
+
+/* ================= ПРОЦЕДУРНЫЕ ТЕКСТУРЫ ================= */
+function radialTex(inner, outer){
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64,64,4,64,64,62);
+  gr.addColorStop(0, inner); gr.addColorStop(1, outer);
+  g.fillStyle = gr; g.fillRect(0,0,128,128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const shadowTex = radialTex('rgba(10,12,20,0.42)','rgba(10,12,20,0)');
+const glowTex   = radialTex('rgba(255,255,255,1)','rgba(255,255,255,0)');
+function windowTex(){
+  const c = document.createElement('canvas'); c.width = 64; c.height = 128;
+  const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0,0,64,128);
+  for(let y=6; y<122; y+=10) for(let x=5; x<58; x+=10){
+    if(Math.random() < .55){ g.fillStyle = Math.random() < .8 ? '#ffd9a0' : '#bfe0ff'; g.fillRect(x,y,6,7); }
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+// Щит «АЛЬБИОН»: белый фон, красная надпись
+const adCanvas = document.createElement('canvas'); adCanvas.width = 1024; adCanvas.height = 512;
+const adTex = new THREE.CanvasTexture(adCanvas); adTex.colorSpace = THREE.SRGBColorSpace;
+function drawAd(){
+  const g = adCanvas.getContext('2d'), w = 1024, h = 512;
+  g.fillStyle = '#ffffff'; g.fillRect(0,0,w,h);
+  g.strokeStyle = '#e03131'; g.lineWidth = 14; g.strokeRect(18,18,w-36,h-36);
+  g.fillStyle = '#e03131'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  let size = 230;
+  g.font = `900 ${size}px 'Arial Black', Arial, sans-serif`;
+  const maxW = w - 120;
+  const tw = g.measureText('АЛЬБИОН').width;
+  if(tw > maxW){ size = Math.floor(size * maxW / tw); g.font = `900 ${size}px 'Arial Black', Arial, sans-serif`; }
+  g.fillText('АЛЬБИОН', w/2, h/2 + size*.04);
+  adTex.needsUpdate = true;
+}
+drawAd();
+// Знак остановки
+const signCanvas = document.createElement('canvas'); signCanvas.width = signCanvas.height = 128;
+{ const g = signCanvas.getContext('2d');
+  g.fillStyle = '#4da3ff'; g.beginPath(); g.roundRect(4,4,120,120,14); g.fill();
+  g.fillStyle = '#fff'; g.beginPath(); g.roundRect(28,30,72,52,8); g.fill();
+  g.fillStyle = '#4da3ff'; g.fillRect(34,38,60,18); g.fillRect(78,60,14,20);
+  g.fillStyle = '#fff'; g.beginPath(); g.arc(44,92,8,0,7); g.arc(84,92,8,0,7); g.fill();
+}
+const signTex = new THREE.CanvasTexture(signCanvas); signTex.colorSpace = THREE.SRGBColorSpace;
+// Табличка «ЦУМ»
+const nameCanvas = document.createElement('canvas'); nameCanvas.width = 256; nameCanvas.height = 48;
+const nameTex = new THREE.CanvasTexture(nameCanvas); nameTex.colorSpace = THREE.SRGBColorSpace;
+function drawName(){
+  const g = nameCanvas.getContext('2d');
+  g.fillStyle = '#20263a'; g.fillRect(0,0,256,48);
+  g.fillStyle = '#ffb020'; g.fillRect(0,0,6,48);
+  g.fillStyle = '#f5ead9'; g.font = '800 24px Manrope, Arial, sans-serif'; g.textBaseline = 'middle';
+  g.fillText('ЦУМ', 18, 17);
+  g.fillStyle = '#93a0bd'; g.font = '700 12px Manrope, Arial, sans-serif';
+  g.fillText('остановка · маршрут 1', 18, 37);
+  nameTex.needsUpdate = true;
+}
+drawName();
+// Табличка маршрута «1»
+const routeCanvas = document.createElement('canvas'); routeCanvas.width = 64; routeCanvas.height = 32;
+{ const g = routeCanvas.getContext('2d');
+  g.fillStyle = '#101418'; g.fillRect(0,0,64,32);
+  g.fillStyle = '#ffb020'; g.font = '900 26px Consolas, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('1', 32, 17);
+}
+const routeTex = new THREE.CanvasTexture(routeCanvas); routeTex.colorSpace = THREE.SRGBColorSpace;
+// Разметка «A» в кармане
+const markACanvas = document.createElement('canvas'); markACanvas.width = markACanvas.height = 128;
+{ const g = markACanvas.getContext('2d');
+  g.clearRect(0,0,128,128);
+  g.fillStyle = '#f5f2e8'; g.font = '900 104px Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText('A', 64, 70);
+}
+const markATex = new THREE.CanvasTexture(markACanvas); markATex.colorSpace = THREE.SRGBColorSpace;
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { drawAd(); drawName(); });
+
+/* ================= МАТЕРИАЛЫ ================= */
+const M = {
+  grass:   new THREE.MeshStandardMaterial({ color:0x6f9e63, roughness:1, flatShading:true }),
+  asphalt: new THREE.MeshStandardMaterial({ color:0x3b4254, roughness:.95, flatShading:true }),
+  walk:    new THREE.MeshStandardMaterial({ color:0x9aa3b5, roughness:.9, flatShading:true }),
+  mark:    new THREE.MeshStandardMaterial({ color:0xf5f2e8, roughness:.8 }),
+  markY:   new THREE.MeshStandardMaterial({ color:0xffcf5a, roughness:.8 }),
+  pole:    new THREE.MeshStandardMaterial({ color:0x2c3450, roughness:.7, flatShading:true }),
+  housing: new THREE.MeshStandardMaterial({ color:0x20263a, roughness:.7, flatShading:true }),
+  glass:   new THREE.MeshStandardMaterial({ color:0x223044, roughness:.35, metalness:.2, flatShading:true }),
+  shelterGlass: new THREE.MeshStandardMaterial({ color:0x9fc8e8, roughness:.1, metalness:.1, transparent:true, opacity:.22, depthWrite:false, side:THREE.DoubleSide }),
+  wood:    new THREE.MeshStandardMaterial({ color:0x8a6a4a, roughness:.9, flatShading:true }),
+  wheel:   new THREE.MeshStandardMaterial({ color:0x1c2230, roughness:.9, flatShading:true }),
+  trunk:   new THREE.MeshStandardMaterial({ color:0x6b4a35, roughness:1, flatShading:true }),
+  cloud:   new THREE.MeshStandardMaterial({ color:0xffffff, roughness:1, flatShading:true }),
+  lampHead:new THREE.MeshStandardMaterial({ color:0x44506e, emissive:0xffd9a0, emissiveIntensity:.15 }),
+  head:    new THREE.MeshStandardMaterial({ color:0xfff7cc, emissive:0xfff7cc, emissiveIntensity:.25 }),
+  tail:    new THREE.MeshStandardMaterial({ color:0xff3b4d, emissive:0xff3b4d, emissiveIntensity:.4 }),
+  busRoof: new THREE.MeshStandardMaterial({ color:0xe8ecf5, roughness:.6, flatShading:true }),
+};
+const shelterLightMat = new THREE.MeshStandardMaterial({ color:0xfff2cc, emissive:0xfff2cc, emissiveIntensity:.08 });
+const adMat = new THREE.MeshStandardMaterial({ map:adTex, emissive:0xffffff, emissiveMap:adTex, emissiveIntensity:.05, roughness:.8 });
+const carMats = CAR_COLORS.map(c => new THREE.MeshStandardMaterial({ color:c, roughness:.55, metalness:.1, flatShading:true }));
+const busMats = [0xffb020, 0x4da3ff].map(c => new THREE.MeshStandardMaterial({ color:c, roughness:.5, metalness:.1, flatShading:true }));
+const pedMats = [0xffb020,0x4da3ff,0xff5ea8,0x2fd27d,0xe8ecf5,0xff5a3c].map(c => new THREE.MeshStandardMaterial({ color:c, roughness:.9, flatShading:true }));
+const skinMat = new THREE.MeshStandardMaterial({ color:0xe8b88a, roughness:.9, flatShading:true });
+const bulbGeo = new THREE.SphereGeometry(.16, 12, 10);
+const bulbMats = {};
+[['r',0xff3b4d],['y',0xffc233],['g',0x2fe07d]].forEach(([k,c]) => {
+  bulbMats[k] = {
+    on:  new THREE.MeshStandardMaterial({ color:c, emissive:c, emissiveIntensity:2.4 }),
+    off: new THREE.MeshStandardMaterial({ color:new THREE.Color(c).multiplyScalar(.22), emissive:c, emissiveIntensity:.06 })
+  };
+});
+function blobShadow(w, d){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,d),
+    new THREE.MeshBasicMaterial({ map:shadowTex, transparent:true, depthWrite:false }));
+  m.rotation.x = -Math.PI/2; m.position.y = .015; m.renderOrder = 1; return m;
+}
+function glowSprite(color, scale, opacity){
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, color, transparent:true, opacity, blending:THREE.AdditiveBlending, depthWrite:false, fog:false }));
+  s.scale.setScalar(scale); return s;
+}
+
+/* ================= СТАТИКА МИРА ================= */
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(240,110), M.grass);
+ground.rotation.x = -Math.PI/2; ground.position.y = -.06; scene.add(ground);
+
+const road = new THREE.Mesh(new THREE.BoxGeometry(ROAD_HALF*2, .1, 7), M.asphalt);
+road.position.y = -.05; scene.add(road);
+IX.forEach(ix => {
+  const side = new THREE.Mesh(new THREE.BoxGeometry(7, .08, 34), M.asphalt);
+  side.position.set(ix.x, -.055, 0); scene.add(side);
+});
+
+// автобусный карман + задний тротуар на ДАЛЬНЕЙ стороне
+const bay = new THREE.Mesh(new THREE.BoxGeometry(12.4, .1, 2.3), M.asphalt);
+bay.position.set(SHELTER_X, -.05, -4.35); scene.add(bay);
+const backWalk = new THREE.Mesh(new THREE.BoxGeometry(12.4, .24, 1.9), M.walk);
+backWalk.position.set(SHELTER_X, 0, -6.35); scene.add(backWalk);
+[9, 15].forEach(x => {
+  const a = new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.5),
+    new THREE.MeshBasicMaterial({ map:markATex, transparent:true, depthWrite:false }));
+  a.rotation.x = -Math.PI/2; a.rotation.z = Math.PI; a.position.set(x, .013, -4.3); scene.add(a);
+});
+
+// кромки и тротуары: разрывы на перекрёстках, на дальней стороне — ещё и у кармана
+const segsNear = [[-ROAD_HALF,-28.2],[-19.8,19.8],[28.2,ROAD_HALF]];
+const segsFar  = [[-ROAD_HALF,-28.2],[-19.8,5.8],[18.2,19.8],[28.2,ROAD_HALF]];
+function edgeWalk(segs, zEdge, zWalk){
+  segs.forEach(([a,b]) => {
+    const len = b-a, cx = (a+b)/2;
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(len,.02,.14), M.mark);
+    edge.position.set(cx,.011,zEdge); scene.add(edge);
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(len,.24,2.2), M.walk);
+    walk.position.set(cx,0,zWalk); scene.add(walk);
+  });
+}
+edgeWalk(segsNear, 3.3, 4.6);
+edgeWalk(segsFar, -3.3, -4.6);
+
+// разметка
+const dummy = new THREE.Object3D();
+function instanced(geo, mat, transforms){
+  const im = new THREE.InstancedMesh(geo, mat, transforms.length);
+  transforms.forEach((tr,i) => {
+    dummy.position.set(tr.x, tr.y ?? .012, tr.z);
+    dummy.rotation.set(0, tr.ry ?? 0, 0);
+    dummy.scale.setScalar(1); dummy.updateMatrix();
+    im.setMatrixAt(i, dummy.matrix);
+  });
+  im.instanceMatrix.needsUpdate = true; scene.add(im); return im;
+}
+const dashTr = [];
+for(let x=-56; x<=56; x+=4){
+  if(IX.some(ix => Math.abs(x-ix.x) < 5.5)) continue;
+  dashTr.push({ x, z:0 });
+}
+IX.forEach(ix => { for(let z=-14; z<=14; z+=4){ if(Math.abs(z) < 5.5) continue; dashTr.push({ x:ix.x, z, ry:Math.PI/2 }); } });
+instanced(new THREE.BoxGeometry(1.7,.02,.18), M.markY, dashTr);
+const zebraTr = [];
+IX.forEach(ix => [-ZEBRA_OFF, ZEBRA_OFF].forEach(off => {
+  for(let i=0; i<5; i++) zebraTr.push({ x:ix.x+off+(i-2)*.95, z:0 });
+}));
+instanced(new THREE.BoxGeometry(.5,.02,6.9), M.mark, zebraTr);
+const stopTr = [];
+IX.forEach(ix => { stopTr.push({ x:ix.x-STOP_OFF, z:LANE_Z }); stopTr.push({ x:ix.x+STOP_OFF, z:-LANE_Z }); });
+instanced(new THREE.BoxGeometry(.45,.02,3.3), M.mark, stopTr);
+
+// деревья
+const treePos = [[-50,7.6],[-33,-8.9],[-14,8.8],[-2,-7.4],[10,9.8],[34,-8.8],[46,7.4],[52,-8.2],[-55,-7.8],[-32,8.4],[16,-10.2],[40,8.6]];
+const trunkIM = new THREE.InstancedMesh(new THREE.CylinderGeometry(.12,.17,1,6), M.trunk, treePos.length);
+const folA = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1,0), new THREE.MeshStandardMaterial({ color:0xffffff, roughness:1, flatShading:true }), treePos.length);
+const folB = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(.62,0), folA.material, treePos.length);
+const folColors = [0x3f7d4e,0x4c8a58,0x356b45];
+treePos.forEach(([x,z],i) => {
+  const s = rand(.8,1.25);
+  dummy.rotation.set(0,rand(0,6),0);
+  dummy.position.set(x,.5*s,z); dummy.scale.setScalar(s); dummy.updateMatrix(); trunkIM.setMatrixAt(i,dummy.matrix);
+  dummy.position.set(x,1.55*s,z); dummy.scale.set(s,s*1.25,s); dummy.updateMatrix(); folA.setMatrixAt(i,dummy.matrix);
+  dummy.position.set(x,2.45*s,z); dummy.scale.setScalar(s); dummy.updateMatrix(); folB.setMatrixAt(i,dummy.matrix);
+  const c = new THREE.Color(folColors[i%3]); folA.setColorAt(i,c); folB.setColorAt(i,c.clone().multiplyScalar(1.15));
+});
+[trunkIM,folA,folB].forEach(m => { m.instanceMatrix.needsUpdate = true; if(m.instanceColor) m.instanceColor.needsUpdate = true; scene.add(m); });
+
+// skyline
+const bData = [];
+[-52,-38,-26,-12,2,16,30,44].forEach(x => bData.push({ x, z:-21, h:rand(6,13) }));
+[-46,-30,-16,0,14,28,42].forEach(x => bData.push({ x, z:-33, h:rand(10,20) }));
+const bMat = new THREE.MeshStandardMaterial({ color:0xffffff, roughness:.9, flatShading:true, emissive:0xffffff, emissiveMap:windowTex(), emissiveIntensity:0 });
+const buildings = new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1), bMat, bData.length);
+const bColors = [0x5b6b8c,0x4a5a78,0x6b7a99,0x3e4d6b,0x7787a5];
+bData.forEach((b,i) => {
+  dummy.position.set(b.x, b.h/2-.05, b.z); dummy.rotation.set(0,0,0);
+  dummy.scale.set(rand(5,8), b.h, 5); dummy.updateMatrix();
+  buildings.setMatrixAt(i, dummy.matrix);
+  buildings.setColorAt(i, new THREE.Color(bColors[i%5]));
+});
+buildings.instanceMatrix.needsUpdate = true; buildings.instanceColor.needsUpdate = true; scene.add(buildings);
+
+// солнце, звёзды, облака
+const sun = new THREE.Mesh(new THREE.CircleGeometry(5,32), new THREE.MeshBasicMaterial({ color:0xffd98a, fog:false }));
+sun.position.set(-44,32,-62); scene.add(sun);
+const sunGlow = glowSprite(0xffd98a, 24, .5); sunGlow.position.copy(sun.position); scene.add(sunGlow);
+const starGeo = new THREE.BufferGeometry();
+{ const p = new Float32Array(140*3);
+  for(let i=0;i<140;i++){ p[i*3]=rand(-80,80); p[i*3+1]=rand(13,46); p[i*3+2]=rand(-58,-46); }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(p,3)); }
+const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color:0xcfe0ff, size:.55, transparent:true, opacity:0, fog:false }));
+scene.add(stars);
+const clouds = [];
+for(let i=0;i<4;i++){
+  const g = new THREE.Group();
+  for(let j=0;j<3;j++){
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(1,0), M.cloud);
+    b.position.set(j*1.9-1.9, rand(-.3,.3), rand(-.5,.5));
+    b.scale.set(rand(1.6,2.4), rand(.7,1), rand(1,1.5)); g.add(b);
+  }
+  g.position.set(rand(-65,65), rand(16,25), rand(-45,-26));
+  scene.add(g); clouds.push(g);
+}
+
+// фонари
+const lamps = [];
+[[-40,4.7],[-8,-4.7],[2,4.7],[40,-4.7]].forEach(([x,z]) => {
+  const g = new THREE.Group(); const dir = z > 0 ? -1 : 1;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,4.4,6), M.pole); pole.position.y = 2.2; g.add(pole);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(.09,.09,1.2), M.pole); arm.position.set(0,4.35,dir*.6); g.add(arm);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(.24,.12,.5), M.lampHead); head.position.set(0,4.3,dir*1.15); g.add(head);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(1.7,3.9,12,1,true),
+    new THREE.MeshBasicMaterial({ color:0xffd9a0, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, side:THREE.DoubleSide, fog:false }));
+  cone.position.set(0,2.35,dir*1.15); g.add(cone);
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(1.6,20),
+    new THREE.MeshBasicMaterial({ map:glowTex, color:0xffc880, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false }));
+  pool.rotation.x = -Math.PI/2; pool.position.set(0,.02,dir*1.15); g.add(pool);
+  g.position.set(x,0,z); scene.add(g); lamps.push({ cone, pool });
+});
+
+/* ================= ОСТАНОВКА «ЦУМ» — дальняя сторона ================= */
+let shelterGlow;
+{
+  const g = new THREE.Group();
+  [[-2.6,-.85],[-2.6,.85],[2.6,-.85],[2.6,.85]].forEach(([x,z]) => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(.1,2.5,.1), M.pole); post.position.set(x,1.25,z); g.add(post);
+  });
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(5.7,.14,2.0), M.housing); roof.position.y = 2.55; g.add(roof);
+  const roofEdge = new THREE.Mesh(new THREE.BoxGeometry(5.7,.07,.09), new THREE.MeshStandardMaterial({ color:0xffb020, roughness:.6 })); roofEdge.position.set(0,2.5,1.0); g.add(roofEdge);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(5.3,1.8,.05), M.shelterGlass); back.position.set(0,1.15,-.9); g.add(back);
+  [-2.65,2.65].forEach(x => { const side = new THREE.Mesh(new THREE.BoxGeometry(.05,1.8,1.7), M.shelterGlass); side.position.set(x,1.15,0); g.add(side); });
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(4.0,.09,.42), M.wood); bench.position.set(0,.62,-.55); g.add(bench);
+  [-1.7,1.7].forEach(x => { const leg = new THREE.Mesh(new THREE.BoxGeometry(.08,.55,.35), M.pole); leg.position.set(x,.3,-.55); g.add(leg); });
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(4.8,.05,.08), shelterLightMat); strip.position.set(0,2.42,.6); g.add(strip);
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.6,.42), new THREE.MeshBasicMaterial({ map:nameTex })); plate.position.set(0,2.28,1.02); g.add(plate);
+  shelterGlow = glowSprite(0xfff2cc, 3.2, 0); shelterGlow.position.set(0,2.3,.4); g.add(shelterGlow);
+  const bin = new THREE.Mesh(new THREE.CylinderGeometry(.22,.26,.6,8), M.pole); bin.position.set(3.1,.3,.6); g.add(bin);
+  g.position.set(SHELTER_X, 0, -6.35); scene.add(g);
+  const sg = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,3.1,6), M.pole); pole.position.y = 1.55; sg.add(pole);
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(.75,.75,.05), new THREE.MeshStandardMaterial({ map:signTex, roughness:.6 })); sign.position.y = 2.95; sg.add(sign);
+  sg.position.set(7.4, 0, -5.5); scene.add(sg);
+}
+
+/* ================= ЩИТ «АЛЬБИОН» — перпендикулярно дороге, одна нога ================= */
+let bbGlow;
+{
+  const g = new THREE.Group();
+  // единственная опора
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(.24,.34,4.8,10), M.pole); leg.position.y = 2.4; g.add(leg);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(.6,.7,.25,10), M.housing); base.position.y = .12; g.add(base);
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(11.3,5.3,.14), M.housing); frame.position.set(0,5.7,-.12); g.add(frame);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(11,5,.25), adMat); panel.position.set(0,5.7,0); g.add(panel);
+  [-3,3].forEach(x => {
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(.08,.08,.8), M.pole); arm.position.set(x,8.35,.4); g.add(arm);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(.34,.14,.22), M.lampHead); head.position.set(x,8.3,.75); g.add(head);
+  });
+  bbGlow = new THREE.Mesh(new THREE.PlaneGeometry(11.6,5.4),
+    new THREE.MeshBasicMaterial({ map:glowTex, color:0xffffff, transparent:true, opacity:0, blending:THREE.AdditiveBlending, depthWrite:false, fog:false }));
+  bbGlow.position.set(0,5.7,.3); g.add(bbGlow);
+  g.position.set(-38, 0, -11);
+  g.rotation.y = Math.PI/2;   // плоскость щита перпендикулярна дороге, лицо к потоку
+  scene.add(g);
+}
+
+/* ================= СВЕТОФОРЫ ================= */
+const lights = [];
+IX.forEach((ix,ixIdx) => {
+  [[-6.9, 4.15],[6.9,-4.15]].forEach(([off,z]) => {
+    const g = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.06,.08,3.1,6), M.pole); pole.position.y = 1.55; g.add(pole);
+    const housing = new THREE.Mesh(new THREE.BoxGeometry(.55,1.35,.4), M.housing); housing.position.y = 3.5; g.add(housing);
+    const bulbs = { r:[], y:[], g:[] };
+    [['r',3.92],['y',3.5],['g',3.08]].forEach(([k,y]) => {
+      [.2,-.2].forEach(bz => { const b = new THREE.Mesh(bulbGeo, bulbMats[k].off); b.position.set(0,y,bz); g.add(b); bulbs[k].push(b); });
+    });
+    const glow = glowSprite(0x2fe07d, 1.5, .55); glow.position.set(0,3.08,.32); g.add(glow);
+    g.position.set(ix.x+off, 0, z); scene.add(g);
+    lights.push({ ixIdx, bulbs, glow });
+  });
+});
+const BULB_Y = { r:3.92, y:3.5, g:3.08 }, BULB_C = { r:0xff3b4d, y:0xffc233, g:0x2fe07d };
+function lightState(ix, t){
+  const p = (t + ix.phase) % CYCLE.total;
+  return p < CYCLE.g ? 'g' : p < CYCLE.g + CYCLE.y ? 'y' : 'r';
+}
+
+/* ================= МАШИНЫ (пул) ================= */
+function buildCar(){
+  const g = new THREE.Group();
+  const bodyG = new THREE.Group(); g.add(bodyG);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.3,.5,1.15), carMats[0]); body.position.y = .45; bodyG.add(body);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.15,.45,.95), M.glass); cabin.position.set(-.1,.9,0); bodyG.add(cabin);
+  const wGeos = [];
+  [[.72,.56],[.72,-.56],[-.72,.56],[-.72,-.56]].forEach(([x,z]) => {
+    const w = new THREE.CylinderGeometry(.26,.26,.22,10); w.rotateX(Math.PI/2); w.translate(x,.26,z); wGeos.push(w);
+  });
+  g.add(new THREE.Mesh(mergeGeometries(wGeos), M.wheel));
+  const hGeos = []; [.35,-.35].forEach(z => { const h = new THREE.BoxGeometry(.07,.12,.2); h.translate(1.16,.5,z); hGeos.push(h); });
+  bodyG.add(new THREE.Mesh(mergeGeometries(hGeos), M.head));
+  const tGeos = []; [.35,-.35].forEach(z => { const t = new THREE.BoxGeometry(.07,.12,.2); t.translate(-1.16,.5,z); tGeos.push(t); });
+  bodyG.add(new THREE.Mesh(mergeGeometries(tGeos), M.tail));
+  const glow = glowSprite(0xffe9b0, 1.8, 0); glow.position.set(1.4,.5,0); bodyG.add(glow);
+  g.add(blobShadow(2.9,1.7));
+  g.visible = false; scene.add(g);
+  return { g, bodyG, body, glow, active:false, x:0, z:LANE_Z, dir:1, speed:0, max:6, len:CAR_LEN, seed:Math.random()*10, prevSpeed:0 };
+}
+const carPool = Array.from({ length:14 }, buildCar);
+const cars = [];
+function spawnCar(dir, atX){
+  const c = carPool.find(c => !c.active); if(!c) return false;
+  const spawnX = atX ?? -dir*(ROAD_HALF+2);
+  if(cars.some(o => o.dir === dir && Math.abs(o.x - spawnX) < 7)) return false;
+  if(buses.some(b => Math.abs(b.x - spawnX) < 9)) return false;
+  c.active = true; c.dir = dir; c.x = spawnX; c.z = dir > 0 ? LANE_Z : -LANE_Z;
+  c.max = rand(5.2,6.8); c.speed = atX ? c.max*.8 : c.max*.5; c.prevSpeed = c.speed;
+  c.body.material = carMats[Math.floor(Math.random()*carMats.length)];
+  c.g.position.set(c.x, 0, c.z);
+  c.g.rotation.y = dir > 0 ? 0 : Math.PI;
+  c.g.visible = true; cars.push(c); return true;
+}
+function despawnCar(c){ c.active = false; c.g.visible = false; cars.splice(cars.indexOf(c),1); }
+
+/* ================= АВТОБУС №1 (пул, редкие, dir = −1) ================= */
+function buildBus(livery){
+  const g = new THREE.Group();
+  const bodyG = new THREE.Group(); g.add(bodyG);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(5.8,1.5,1.6), busMats[livery]); body.position.y = 1.1; bodyG.add(body);
+  const skirt = new THREE.Mesh(new THREE.BoxGeometry(5.82,.22,1.62), M.housing); skirt.position.y = .62; bodyG.add(skirt);
+  const windows = new THREE.Mesh(new THREE.BoxGeometry(4.8,.55,1.64), M.glass); windows.position.set(-.3,1.5,0); bodyG.add(windows);
+  const windshield = new THREE.Mesh(new THREE.BoxGeometry(.05,.6,1.4), M.glass); windshield.position.set(2.92,1.45,0); bodyG.add(windshield);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(5.7,.14,1.5), M.busRoof); roof.position.y = 1.92; bodyG.add(roof);
+  const route = new THREE.Mesh(new THREE.PlaneGeometry(.95,.32), new THREE.MeshBasicMaterial({ map:routeTex }));
+  route.rotation.y = Math.PI/2; route.position.set(2.94,1.72,0); bodyG.add(route);
+  const wGeos = [];
+  [[1.95,.82],[1.95,-.82],[-1.95,.82],[-1.95,-.82]].forEach(([x,z]) => {
+    const w = new THREE.CylinderGeometry(.34,.34,.24,10); w.rotateX(Math.PI/2); w.translate(x,.34,z); wGeos.push(w);
+  });
+  g.add(new THREE.Mesh(mergeGeometries(wGeos), M.wheel));
+  const hGeos = []; [.55,-.55].forEach(z => { const h = new THREE.BoxGeometry(.07,.14,.24); h.translate(2.92,.55,z); hGeos.push(h); });
+  bodyG.add(new THREE.Mesh(mergeGeometries(hGeos), M.head));
+  const tGeos = []; [.55,-.55].forEach(z => { const t = new THREE.BoxGeometry(.07,.14,.24); t.translate(-2.92,.55,z); tGeos.push(t); });
+  bodyG.add(new THREE.Mesh(mergeGeometries(tGeos), M.tail));
+  // дверь на локальной +Z стороне: при развороте на dir=−1 она смотрит на дальнюю сторону (−Z)
+  const doorFrame = new THREE.Mesh(new THREE.BoxGeometry(1.2,1.3,.05), M.housing); doorFrame.position.set(1.55,.95,.81); bodyG.add(doorFrame);
+  const doorL = new THREE.Mesh(new THREE.BoxGeometry(.52,1.2,.06), M.glass); doorL.position.set(1.28,.95,.85); bodyG.add(doorL);
+  const doorR = new THREE.Mesh(new THREE.BoxGeometry(.52,1.2,.06), M.glass); doorR.position.set(1.82,.95,.85); bodyG.add(doorR);
+  const glow = glowSprite(0xffe9b0, 2.2, 0); glow.position.set(3.15,.55,0); bodyG.add(glow);
+  g.add(blobShadow(6.4,2.1));
+  g.rotation.y = Math.PI;   // автобус всегда идёт справа налево
+  g.visible = false; scene.add(g);
+  return { g, bodyG, doorL, doorR, glow, active:false, x:0, z:-LANE_Z, dir:-1, speed:0, max:4.3, len:BUS_LEN,
+           state:'run', willStop:true, doorT:0, dwellT:0, boardTimer:0, seed:Math.random()*10, prevSpeed:0 };
+}
+const busPool = [buildBus(0), buildBus(1)];
+const buses = [];
+let busSpawnT = rand(30,46);
+function spawnBus(atX){
+  const b = busPool.find(b => !b.active); if(!b) return false;
+  const x = atX ?? (ROAD_HALF+3);
+  if(cars.some(c => c.dir === -1 && Math.abs(c.x - x) < 9)) return false;
+  if(buses.some(o => Math.abs(o.x - x) < 14)) return false;
+  b.active = true; b.x = x; b.z = -LANE_Z; b.speed = b.max*.6; b.prevSpeed = b.speed;
+  b.state = 'run'; b.willStop = true; b.doorT = 0; b.dwellT = 0; b.boardTimer = .7;
+  b.g.position.set(b.x,0,b.z); b.g.visible = true; buses.push(b);
+  flashBus('Автобус 1 вышел на маршрут');
+  return true;
+}
+function despawnBus(b){ b.active = false; b.g.visible = false; buses.splice(buses.indexOf(b),1); }
+let flashT = null;
+function flashBus(txt){
+  const el = $('busFlash'); if(!el) return;
+  el.textContent = txt; el.classList.add('show');
+  clearTimeout(flashT); flashT = setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+/* ================= ПЕШЕХОДЫ: ПЕРЕХОД (пул) ================= */
+function buildPed(){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(.34,.6,.24), pedMats[0]); body.position.y = .5; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(.15,10,8), skinMat); head.position.y = .95; g.add(head);
+  g.add(blobShadow(.7,.5));
+  g.visible = false; scene.add(g);
+  return { g, body, active:false, x:0, z:0, dz:1, speed:2.2, seed:Math.random()*10 };
+}
+const pedPool = Array.from({ length:6 }, buildPed);
+const peds = [];
+function spawnPed(ix){
+  const p = pedPool.find(p => !p.active); if(!p) return;
+  const zx = ix.x + (Math.random() < .5 ? -ZEBRA_OFF : ZEBRA_OFF);
+  if(cars.some(c => Math.abs(c.x - zx) < 5.5)) return;
+  if(buses.some(b => Math.abs(b.x - zx) < 7)) return;
+  const startZ = Math.random() < .5 ? 5.3 : -5.3;
+  p.active = true; p.x = zx + rand(-1.4,1.4); p.z = startZ; p.dz = -Math.sign(startZ);
+  p.speed = rand(2,2.6);
+  p.body.material = pedMats[Math.floor(Math.random()*pedMats.length)];
+  p.g.position.set(p.x,0,p.z); p.g.visible = true; peds.push(p);
+}
+
+/* ================= ПЕШЕХОДЫ: ОСТАНОВКА «ЦУМ» (пул) ================= */
+function buildStopPed(){
+  const p = buildPed();
+  return Object.assign(p, { state:'in', tx:0, tz:WAIT_Z, outDir:1, boardT:0, bus:null });
+}
+const stopPool = Array.from({ length:8 }, buildStopPed);
+const stopPeds = [];
+let pedSpawnT = 2;
+function waitSpot(){ return { x:SHELTER_X + rand(-2.2,2.2), z:WAIT_Z }; }
+function spawnStopPed(state, x, z){
+  const p = stopPool.find(p => !p.active); if(!p) return null;
+  const spot = waitSpot();
+  p.active = true; p.state = state; p.x = x; p.z = z; p.tx = spot.x; p.tz = spot.z;
+  p.speed = rand(1.4,1.8); p.boardT = 0; p.bus = null; p.outDir = Math.random() < .5 ? -1 : 1;
+  p.body.material = pedMats[Math.floor(Math.random()*pedMats.length)];
+  p.g.scale.setScalar(1); p.g.position.set(x,0,z); p.g.visible = true;
+  stopPeds.push(p); return p;
+}
+function despawnStopPed(p){ p.active = false; p.g.visible = false; p.bus = null; stopPeds.splice(stopPeds.indexOf(p),1); }
+function sidewalkZ(x){ return Math.abs(x - SHELTER_X) < 7 ? WAIT_Z : -5.0; }
+function movePed(p, tx, tz, sp, wdt){
+  const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx,dz);
+  if(d > .001){
+    const step = Math.min(d, sp*wdt);
+    p.x += dx/d*step; p.z += dz/d*step;
+    p.g.rotation.y = Math.atan2(dx,dz);
+  }
+  return d;
+}
+for(let i=0;i<3;i++){
+  const s = waitSpot();
+  const p = spawnStopPed('idle', s.x, s.z);
+  if(p){ p.tx = s.x; p.tz = s.z; }
+}
+
+/* ================= ТЕМА ================= */
+let themeT = 0;
+let dayPhase = 0;
+const DAY_NIGHT_PERIOD = num('dayNightPeriod', 48, 10, 180);
+const cTmp = new THREE.Color();
+const cloudDay = new THREE.Color(0xffffff), cloudDusk = new THREE.Color(0x9aa6c8);
+const sunDay = new THREE.Color(0xffd98a), sunDusk = new THREE.Color(0xe6ecff);
+const hemiSkyDay = new THREE.Color(0xbfe3ff), hemiSkyDusk = new THREE.Color(0x2a3a66);
+const hemiGndDay = new THREE.Color(0x7a8a6a), hemiGndDusk = new THREE.Color(0x1a2030);
+const sunColDay = new THREE.Color(0xfff2dd), sunColDusk = new THREE.Color(0x7a8fd0);
+function applyTheme(t){
+  scene.background.copy(cTmp.lerpColors(skyDay, skyDusk, t));
+  scene.fog.color.copy(scene.background);
+  hemi.intensity = lerp(.9,.5,t);
+  hemi.color.copy(cTmp.lerpColors(hemiSkyDay, hemiSkyDusk, t));
+  hemi.groundColor.copy(cTmp.lerpColors(hemiGndDay, hemiGndDusk, t));
+  sunLight.intensity = lerp(1.6,.35,t);
+  sunLight.color.copy(cTmp.lerpColors(sunColDay, sunColDusk, t));
+  renderer.toneMappingExposure = lerp(1.15,.9,t);
+  M.lampHead.emissiveIntensity = lerp(.15,2.2,t);
+  M.head.emissiveIntensity = lerp(.25,2.5,t);
+  M.tail.emissiveIntensity = lerp(.4,1.8,t);
+  bMat.emissiveIntensity = lerp(0,1.5,t);
+  stars.material.opacity = lerp(0,.9,t);
+  sun.material.color.copy(cTmp.lerpColors(sunDay, sunDusk, t));
+  sunGlow.material.color.copy(sun.material.color);
+  sunGlow.material.opacity = lerp(.5,.3,t);
+  M.cloud.color.copy(cTmp.lerpColors(cloudDay, cloudDusk, t));
+  lamps.forEach(l => { l.cone.material.opacity = lerp(0,.12,t); l.pool.material.opacity = lerp(0,.4,t); });
+  carPool.forEach(c => c.glow.material.opacity = lerp(0,.5,t));
+  busPool.forEach(b => b.glow.material.opacity = lerp(0,.5,t));
+  lights.forEach(l => l.glow.material.opacity = lerp(.55,.95,t));
+  shelterLightMat.emissiveIntensity = lerp(.08,2.2,t);
+  shelterGlow.material.opacity = lerp(0,.3,t);
+  adMat.emissiveIntensity = lerp(.05,1.1,t);
+  bbGlow.material.opacity = lerp(0,.14,t);
+}
+
+/* ================= СИМУЛЯЦИЯ ================= */
+let simTime = 0;
+const spawnT = [1, 2.2];
+const prevState = ['g','g'];
+
+// «Живой» трафик: плотность и количество меняются случайно, а скорость
+// плавно ходит волной. Светофорный цикл при этом остаётся ровным.
+const trafficLow = num('trafficMin', 0.55, 0.2, 3);
+const trafficHigh = num('trafficMax', 1.9, 0.2, 3);
+const TRAFFIC_MIN = Math.min(trafficLow, trafficHigh);
+const TRAFFIC_MAX = Math.max(trafficLow, trafficHigh);
+const trafficTimeLow = num('trafficChangeMin', 5, 1, 120);
+const trafficTimeHigh = num('trafficChangeMax', 12, 1, 120);
+const TRAFFIC_TIME_MIN = Math.min(trafficTimeLow, trafficTimeHigh);
+const TRAFFIC_TIME_MAX = Math.max(trafficTimeLow, trafficTimeHigh);
+const carLow = Math.floor(num('carMin', 6, 1, 14));
+const carHigh = Math.floor(num('carMax', 13, 1, 14));
+const CAR_MIN = Math.min(carLow, carHigh);
+const CAR_MAX = Math.max(carLow, carHigh);
+const pedLow = Math.floor(num('pedMin', 1, 0, 8));
+const pedHigh = Math.floor(num('pedMax', 5, 0, 8));
+const PED_MIN = Math.min(pedLow, pedHigh);
+const PED_MAX = Math.max(pedLow, pedHigh);
+const countTimeLow = num('countChangeMin', 6, 1, 120);
+const countTimeHigh = num('countChangeMax', 14, 1, 120);
+const COUNT_TIME_MIN = Math.min(countTimeLow, countTimeHigh);
+const COUNT_TIME_MAX = Math.max(countTimeLow, countTimeHigh);
+const SPEED_WAVE_AMP = num('speedWave', 0.35, 0, 0.8);
+const SPEED_WAVE_FREQ = 2 * Math.PI / num('speedWavePeriod', 19.6, 4, 60);
+
+let trafficDensity = TRAFFIC_MIN;
+let trafficTimer = rand(TRAFFIC_TIME_MIN, TRAFFIC_TIME_MAX);
+let carTarget = Math.floor(rand(CAR_MIN, CAR_MAX + 1));
+let pedTarget = Math.floor(rand(PED_MIN, PED_MAX + 1));
+let countTimer = rand(COUNT_TIME_MIN, COUNT_TIME_MAX);
+spawnCar(1,-50); spawnCar(1,-26); spawnCar(1,-4);
+spawnCar(-1,50); spawnCar(-1,26); spawnCar(-1,4);
+spawnBus(40);
+
+function vehicleObstacleDist(v, front){
+  let dist = Infinity;
+  IX.forEach(ix => {
+    const lineX = ix.x - v.dir*STOP_OFF;
+    const d = (lineX - front)*v.dir;
+    if(d <= -.3) return;
+    const st = lightState(ix, simTime);
+    if(st === 'r' || (st === 'y' && d > 2.0)) dist = Math.min(dist, d);
+  });
+  cars.forEach(o => {
+    if(o === v || o.dir !== v.dir) return;
+    const dx = (o.x - v.x)*v.dir;
+    if(dx > 0) dist = Math.min(dist, dx - (o.len + v.len)/2 - .35);
+  });
+  buses.forEach(o => {
+    if(o === v || Math.abs(o.z) > 2.9) return;   // автобус в кармане — поток объезжает
+    const dx = (o.x - v.x)*v.dir;
+    if(dx > 0) dist = Math.min(dist, dx - (o.len + v.len)/2 - .45);
+  });
+  peds.forEach(p => {
+    if(Math.abs(p.z) > 3.9) return;
+    const d = (p.x - front)*v.dir;
+    if(d > -.8 && d < 7) dist = Math.min(dist, d - 1.0);
+  });
+  return dist;
+}
+function drive(v, dist, wdt, accel, decel, speedScale = 1){
+  const maxSpeed = v.max * speedScale;
+  const target = dist <= .35 ? 0 : Math.min(maxSpeed, Math.sqrt(2*BRAKE_A*Math.max(0, dist-.35)) * speedScale);
+  v.prevSpeed = v.speed;
+  v.speed = target > v.speed ? Math.min(target, v.speed + accel*speedScale*wdt) : Math.max(target, v.speed - decel*speedScale*wdt);
+  v.x += v.dir*v.speed*wdt;
+}
+function doorWorld(b){ return { x:b.x - 1.55, z:b.z - 1.15 }; }
+
+function step(wdt, dt){
+  simTime += wdt;
+
+  // Скорость потока плавно «дышит» по настройкам из кода.
+  const speedWave = 1 + SPEED_WAVE_AMP * Math.sin(simTime * SPEED_WAVE_FREQ);
+
+  // Плотность трафика меняется в случайном порядке.
+  trafficTimer -= wdt;
+  if(trafficTimer <= 0){
+    trafficDensity = rand(TRAFFIC_MIN, TRAFFIC_MAX);
+    trafficTimer = rand(TRAFFIC_TIME_MIN, TRAFFIC_TIME_MAX);
+  }
+
+  // Количество машин и ожидающих пешеходов — тоже случайное.
+  countTimer -= wdt;
+  if(countTimer <= 0){
+    carTarget = Math.floor(rand(CAR_MIN, CAR_MAX + 1));
+    pedTarget = Math.floor(rand(PED_MIN, PED_MAX + 1));
+    countTimer = rand(COUNT_TIME_MIN, COUNT_TIME_MAX);
+  }
+
+  IX.forEach((ix,i) => {
+    const st = lightState(ix, simTime);
+    if(st === 'r' && prevState[i] !== 'r' && Math.random() < .65){ spawnPed(ix); if(Math.random() < .4) spawnPed(ix); }
+    prevState[i] = st;
+  });
+  lights.forEach(l => {
+    const st = lightState(IX[l.ixIdx], simTime);
+    ['r','y','g'].forEach(k => l.bulbs[k].forEach(b => b.material = bulbMats[k][k === st ? 'on' : 'off']));
+    l.glow.material.color.setHex(BULB_C[st]); l.glow.position.y = BULB_Y[st];
+  });
+
+  [1,-1].forEach((dir,i) => {
+    spawnT[i] -= wdt;
+    if(spawnT[i] <= 0){
+      const spawned = cars.length < carTarget ? spawnCar(dir) : false;
+      spawnT[i] = spawned ? rand(2.2,4.4)/trafficDensity : .6;
+    }
+  });
+  if(CFG.buses){
+    busSpawnT -= wdt;
+    if(busSpawnT <= 0) busSpawnT = spawnBus() ? rand(30,46)/trafficDensity : 3;
+  }
+
+  for(let i=cars.length-1; i>=0; i--){
+    const c = cars[i];
+    const front = c.x + c.dir*(c.len/2);
+    drive(c, vehicleObstacleDist(c, front), wdt, ACCEL, DECEL, speedWave);
+    c.g.position.set(c.x, 0, c.z);
+    const acc = wdt > 0 ? (c.speed - c.prevSpeed)/wdt : 0;
+    c.bodyG.rotation.z = lerp(c.bodyG.rotation.z, clamp(acc*.006,-.05,.05)*c.dir, .12);
+    c.bodyG.position.y = Math.sin(simTime*6 + c.seed)*.012;
+    if(Math.abs(c.x) > ROAD_HALF+3) despawnCar(c);
+  }
+
+  // автобус №1: справа налево, карман на дальней стороне
+  for(let i=buses.length-1; i>=0; i--){
+    const b = buses[i];
+    const front = b.x + b.dir*(b.len/2);
+    let zTarget = -LANE_Z;
+
+    if(b.state === 'run'){
+      let dist = vehicleObstacleDist(b, front);
+      if(b.willStop && b.x > BUS_STOP_X - .5){
+        const d = b.x - BUS_STOP_X;
+        if(d > -.3) dist = Math.min(dist, d);
+        if(b.x < BUS_STOP_X + 15) zTarget = BAY_Z;
+      }
+      drive(b, dist, wdt, 2.2, 6, speedWave);
+      if(b.willStop && Math.abs(b.x - BUS_STOP_X) < .35 && b.speed < .25){
+        b.x = BUS_STOP_X; b.speed = 0; b.state = 'dwell'; b.dwellT = 0; b.boardTimer = .7;
+        const n = Math.random() < .3 ? 0 : (Math.random() < .6 ? 1 : 2);
+        for(let k=0;k<n;k++){
+          const dw = doorWorld(b);
+          const p = spawnStopPed('alight', dw.x + rand(-.2,.2), dw.z);
+          if(p) p.speed = rand(1.5,1.9);
+        }
+        flashBus('Автобус 1 на остановке «ЦУМ»');
+      }
+    }
+    else if(b.state === 'dwell'){
+      zTarget = BAY_Z; b.speed = 0;
+      b.doorT = Math.min(1, b.doorT + wdt*2.5);
+      b.dwellT += wdt;
+      if(b.doorT > .8){
+        b.boardTimer -= wdt;
+        if(b.boardTimer <= 0){
+          const idle = stopPeds.filter(p => p.state === 'idle');
+          if(idle.length){
+            const dw = doorWorld(b);
+            idle.sort((a,c) => Math.abs(a.x-dw.x) - Math.abs(c.x-dw.x));
+            idle[0].state = 'toBus'; idle[0].bus = b;
+            b.boardTimer = .8;
+          }
+        }
+      }
+      const busy = stopPeds.some(p => p.bus === b && (p.state === 'toBus' || p.state === 'board'));
+      const idleLeft = stopPeds.some(p => p.state === 'idle');
+      if(b.dwellT > 2.4 && !busy && (!idleLeft || b.dwellT > 9)) b.state = 'close';
+    }
+    else if(b.state === 'close'){
+      zTarget = BAY_Z; b.speed = 0;
+      b.doorT = Math.max(0, b.doorT - wdt*2.5);
+      if(b.doorT <= .05){ b.state = 'leave'; b.willStop = false; flashBus('Автобус 1 отправляется'); }
+    }
+    else if(b.state === 'leave'){
+      let dist = vehicleObstacleDist(b, front);
+      if(b.x > BUS_STOP_X - 8 && cars.some(c => c.dir === -1 && Math.abs(c.x - b.x) < 5.5)) dist = Math.min(dist, 0);
+      zTarget = b.x > BUS_STOP_X - 8 ? BAY_Z : -LANE_Z;
+      drive(b, dist, wdt, 2.0, 6, speedWave);
+      if(b.x < BUS_STOP_X - 16) b.state = 'run';
+    }
+
+    b.z = lerp(b.z, zTarget, Math.min(1, wdt*1.6));
+    b.g.position.set(b.x, 0, b.z);
+    b.doorL.position.x = 1.28 - b.doorT*.3;
+    b.doorR.position.x = 1.82 + b.doorT*.3;
+    const acc = wdt > 0 ? (b.speed - b.prevSpeed)/wdt : 0;
+    b.bodyG.rotation.z = lerp(b.bodyG.rotation.z, clamp(acc*.004,-.03,.03), .1);
+    b.bodyG.position.y = Math.sin(simTime*5 + b.seed)*.01;
+    if(Math.abs(b.x) > ROAD_HALF+4) despawnBus(b);
+  }
+
+  for(let i=peds.length-1; i>=0; i--){
+    const p = peds[i];
+    const hurry = IX.some(ix => Math.abs(p.x-ix.x) < 7 && lightState(ix, simTime) !== 'r') ? 1.7 : 1;
+    p.z += p.dz*p.speed*hurry*wdt;
+    p.g.position.set(p.x, Math.abs(Math.sin(simTime*8+p.seed))*.05, p.z);
+    p.g.rotation.y = p.dz > 0 ? 0 : Math.PI;
+    if(Math.abs(p.z) > 5.5){ p.active = false; p.g.visible = false; peds.splice(i,1); }
+  }
+
+  const waiting = stopPeds.filter(p => p.state === 'in' || p.state === 'idle').length;
+  pedSpawnT -= wdt;
+  if(pedSpawnT <= 0){
+    pedSpawnT = rand(4,8);
+    if(waiting < pedTarget){
+      const fromLeft = Math.random() < .5;
+      spawnStopPed('in', SHELTER_X + (fromLeft ? -1 : 1)*rand(16,24), -5.0);
+    }
+  }
+  for(let i=stopPeds.length-1; i>=0; i--){
+    const p = stopPeds[i];
+    let bob = Math.abs(Math.sin(simTime*7+p.seed))*.04;
+    if(p.state === 'in'){
+      const d = movePed(p, p.tx, sidewalkZ(p.x), p.speed, wdt);
+      if(d < .25){ p.state = 'idle'; }
+    }
+    else if(p.state === 'idle'){
+      bob = Math.sin(simTime*2+p.seed)*.015 + .015;
+      p.g.rotation.y = Math.sin(simTime*.7+p.seed)*.3;
+    }
+    else if(p.state === 'toBus'){
+      if(!p.bus || !p.bus.active || p.bus.state === 'leave'){ p.state = 'idle'; p.bus = null; }
+      else {
+        const dw = doorWorld(p.bus);
+        const d = movePed(p, dw.x, dw.z, 1.9, wdt);
+        if(d < .3){ p.state = 'board'; p.boardT = 0; }
+      }
+    }
+    else if(p.state === 'board'){
+      p.boardT += wdt;
+      const k = clamp(1 - p.boardT/.35, 0, 1);
+      p.g.scale.setScalar(k);
+      if(p.bus) p.z = lerp(p.z, p.bus.z - .5, Math.min(1, wdt*6));
+      bob = 0;
+      if(k <= 0){ despawnStopPed(p); continue; }
+    }
+    else if(p.state === 'alight'){
+      const d = movePed(p, p.tx, sidewalkZ(p.x), p.speed, wdt);
+      if(d < .3){ p.state = 'out'; }
+    }
+    else if(p.state === 'out'){
+      p.x += p.outDir*p.speed*wdt;
+      p.z = lerp(p.z, sidewalkZ(p.x), Math.min(1, wdt*3));
+      p.g.rotation.y = p.outDir > 0 ? Math.PI/2 : -Math.PI/2;
+      if(Math.abs(p.x - SHELTER_X) > 26){ despawnStopPed(p); continue; }
+    }
+    p.g.position.set(p.x, bob, p.z);
+  }
+
+  clouds.forEach(cl => { cl.position.x += .4*dt; if(cl.position.x > 75) cl.position.x = -75; });
+}
+
+/* ================= КАМЕРА / RESIZE ================= */
+function setMode(mode){
+  CFG.mode = mode;
+  camFrom = { pos:camera.position.clone(), tgt:curTgt.clone(), zoom:camera.zoom };
+  camTo = CAM[mode]; camT = 0;
+  resize();
+  dirty = true;
+}
+function resize(){
+  const w = stage.clientWidth, h = stage.clientHeight;
+  if(!w || !h) return;
+  const aspect = w/h;
+  const baseHalfW = clamp(Math.max(15*aspect, camTo.minH*aspect), 32, 78);
+  const halfW = baseHalfW / CAM_SCALE, halfH = halfW/aspect;
+  camera.left = -halfW; camera.right = halfW; camera.top = halfH; camera.bottom = -halfH;
+  camera.updateProjectionMatrix();
+  renderer.setPixelRatio({ eco:1, balanced:1.5, max:Math.min(devicePixelRatio,2) }[CFG.quality]);
+  renderer.setSize(w, h, false);
+  dirty = true;
+}
+new ResizeObserver(resize).observe(stage);
+
+/* ================= LIVE-ДАННЫЕ (погода, пробки, время) ================= */
+const CITY_CONFIG = {
+  lat: 47.2357,
+  lon: 39.7230,
+  timezone: 'Europe/Moscow'
+};
+
+let weatherData = null;
+let trafficData = null;
+let weatherSource = 'модель';
+let trafficSource = 'модель';
+
+/* Сезонная модель — запасной вариант, когда синхронизация выключена или
+   API недоступен. Значения детерминированы по часу, как и на бэкенде. */
+function modelWeather() {
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const hour = now.getHours();
+  const seed = now.getFullYear() * 1000000 + month * 10000 + now.getDate() * 100 + hour;
+  const noise = mod => (seed * 2654435761) % mod;
+
+  const baseTemp = {
+    12: 5, 1: 3, 2: 5, 3: 10, 4: 15, 5: 20,
+    6: 25, 7: 28, 8: 27, 9: 22, 10: 15, 11: 8
+  }[month] || 15;
+  let offset = 0;
+  if (hour >= 6 && hour <= 9) offset = -3;
+  else if (hour >= 12 && hour <= 15) offset = 3;
+  else if (hour >= 18 && hour <= 21) offset = -2;
+
+  let weatherCode = 1;
+  if ([11, 12, 1, 2].includes(month)) weatherCode = noise(3) === 0 ? 71 : 3;
+  else if ([6, 7, 8].includes(month)) weatherCode = noise(4) === 0 ? 51 : 0;
+  else weatherCode = noise(2) === 0 ? 3 : 0;
+
+  weatherData = {
+    temperature: baseTemp + offset + (noise(5) - 2),
+    humidity: 50 + noise(30),
+    windSpeed: 5 + noise(20),
+    precipitation: weatherCode >= 51 && weatherCode < 80 ? 0.4 : 0,
+    weatherCode
+  };
+  weatherSource = 'модель';
+  updateWeatherHUD();
+}
+
+async function fetchWeather() {
+  if (!LIVE.weather) {
+    modelWeather();
+    return;
+  }
+
+  try {
+    // Прокси через бэкенд (CSP разрешает http://127.0.0.1:*)
+    const response = await fetch('/api/roadrunner/weather-proxy');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+
+    weatherData = {
+      temperature: data.temperature_c,
+      humidity: data.humidity,
+      windSpeed: data.wind_speed_kmh,
+      precipitation: data.precipitation_mm,
+      weatherCode: data.weather_code || 0
+    };
+    weatherSource = data.source || 'модель';
+    updateWeatherHUD();
+  } catch (exc) {
+    console.warn('Погода не загружена, используется модель:', exc);
+    modelWeather();
+  }
+}
+
+function weatherCodeToEmoji(code) {
+  if (code === 0) return '☀️';
+  if (code <= 3) return '⛅';
+  if (code <= 48) return '🌫️';
+  if (code <= 67) return '🌧️';
+  if (code <= 77) return '❄️';
+  if (code <= 82) return '🌦️';
+  if (code <= 99) return '🌨️';
+  return '☀️';
+}
+
+function weatherCodeToText(code) {
+  if (code === 0) return 'ясно';
+  if (code <= 3) return 'облачно';
+  if (code <= 48) return 'туман';
+  if (code <= 67) return 'дождь';
+  if (code <= 77) return 'снег';
+  if (code <= 82) return 'ливень';
+  if (code <= 99) return 'метель';
+  return 'ясно';
+}
+
+function updateWeatherHUD() {
+  const emojiEl = document.getElementById('hudWeatherEmoji');
+  const tempEl = document.getElementById('hudTempValue');
+  const precipEmojiEl = document.getElementById('hudPrecipEmoji');
+  const precipValueEl = document.getElementById('hudPrecipValue');
+
+  if (weatherData) {
+    emojiEl.textContent = weatherCodeToEmoji(weatherData.weatherCode);
+    tempEl.textContent = `${Math.round(weatherData.temperature)}°`;
+    // Осадки: если есть — показываем иконку и значение, если нет — прочерк
+    if (weatherData.precipitation > 0) {
+      precipEmojiEl.textContent = '🌧️';
+      precipValueEl.textContent = `${weatherData.precipitation.toFixed(1)}`;
+    } else {
+      precipEmojiEl.textContent = '—';
+      precipValueEl.textContent = '0';
+    }
+  } else {
+    emojiEl.textContent = '—';
+    tempEl.textContent = '—°';
+    precipEmojiEl.textContent = '—';
+    precipValueEl.textContent = '—';
+  }
+}
+
+/* Шкала Яндекс.Пробок: 0-3 свободно, 4-6 умеренно, 7-9 пробки, 10 затор. */
+function trafficLevel(score) {
+  if (score <= 3) return { level: 'free', label: 'свободно' };
+  if (score <= 6) return { level: 'moderate', label: 'умеренно' };
+  if (score <= 9) return { level: 'jam', label: 'пробки' };
+  return { level: 'gridlock', label: 'затор' };
+}
+
+function modelTraffic() {
+  const hour = new Date().getHours();
+  let score = 2;
+  if (hour >= 7 && hour <= 10) score = 7;
+  else if (hour >= 17 && hour <= 20) score = 8;
+  else if (hour > 10 && hour < 17) score = 4;
+
+  trafficData = { score, ...trafficLevel(score) };
+  trafficSource = 'модель';
+  updateTrafficHUD();
+}
+
+async function fetchTraffic() {
+  if (!LIVE.traffic) {
+    modelTraffic();
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/roadrunner/traffic');
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const score = Math.max(0, Math.min(10, Number(data.data?.score || 0)));
+
+    trafficData = {
+      score,
+      ...trafficLevel(score),
+      label: data.data?.label || trafficLevel(score).label
+    };
+    trafficSource = data.data?.source || 'яндекс';
+    updateTrafficHUD();
+  } catch (exc) {
+    console.warn('Пробки не загружены, используется модель:', exc);
+    modelTraffic();
+  }
+}
+
+function updateTrafficHUD() {
+  const dotEl = document.getElementById('hudTrafficDot');
+
+  if (trafficData) {
+    dotEl.textContent = trafficData.score;
+    dotEl.className = `hud-traffic-dot level-${trafficData.level}`;
+    dotEl.title = `Пробки: ${trafficData.label} (${trafficData.score}/10) · ${trafficSource}`;
+  } else {
+    dotEl.textContent = '—';
+    dotEl.className = 'hud-traffic-dot level-free';
+    dotEl.title = 'Пробки: нет данных';
+  }
+}
+
+/* Тема дня/ночи по реальным часам (0 — день, 1 — ночь).
+   Плавные переходы: утро 5→8, вечер 18→21. */
+function realNightFactor() {
+  const hour = new Date().getHours() + new Date().getMinutes() / 60;
+  if (hour >= 8 && hour < 18) return 0;
+  if (hour >= 21 || hour < 5) return 1;
+  if (hour >= 5 && hour < 8) return 1 - (hour - 5) / 3;
+  return (hour - 18) / 3;
+}
+
+/* Повторяющиеся праздничные даты (месяц/день) из конфигурации Roadrunner. */
+const HOLIDAYS = [
+  { m: 1, d: 1, emoji: '🎄', name: 'Новый год' },
+  { m: 2, d: 23, emoji: '⭐', name: 'День защитника Отечества' },
+  { m: 3, d: 8, emoji: '🌷', name: '8 Марта' },
+  { m: 5, d: 9, emoji: '🎖️', name: 'День Победы' },
+  { m: 6, d: 25, emoji: '🎈', name: 'День рождения Альбион' }
+];
+
+function updateHolidayHUD() {
+  const el = document.getElementById('hudHoliday');
+  if (!el) return;
+
+  if (!LIVE.holidays) {
+    el.hidden = true;
+    return;
+  }
+
+  const now = new Date();
+  const holiday = HOLIDAYS.find(h => h.m === now.getMonth() + 1 && h.d === now.getDate());
+
+  if (!holiday) {
+    el.hidden = true;
+    return;
+  }
+
+  el.hidden = false;
+  el.textContent = `${holiday.emoji} ${holiday.name}`;
+  el.title = `Праздничное оформление: ${holiday.name}`;
+}
+
+// Загружаем данные при старте и обновляем периодически
+fetchWeather();
+fetchTraffic();
+updateHolidayHUD();
+
+setInterval(fetchWeather, 600000); // 10 минут
+setInterval(fetchTraffic, 300000); // 5 минут
+setInterval(updateHolidayHUD, 60000); // 1 минута
+new IntersectionObserver(e => { inView = e[0].isIntersecting; }, { threshold:.05 }).observe(stage);
+const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = clamp((now-last)/1000, 0, .05); last = now;
+  if(!inView || document.hidden) return;
+
+  let animating = false;
+  if(!RM){
+    // По умолчанию тема следует реальному времени суток; при выключенной
+    // синхронизации остаётся декоративный цикл за DAY_NIGHT_PERIOD секунд.
+    let night;
+    if(LIVE.time){
+      night = realNightFactor();
+    } else {
+      dayPhase = (dayPhase + dt / DAY_NIGHT_PERIOD) % 1;
+      night = 0.5 - 0.5 * Math.cos(dayPhase * Math.PI * 2);
+    }
+    if(Math.abs(night - themeT) > 0.0005){
+      themeT = night;
+      applyTheme(themeT);
+      animating = true;
+    }
+  }
+  if(camT < 1){
+    camT = Math.min(1, camT + dt/1.4);
+    const k = ease(camT);
+    camera.position.lerpVectors(camFrom.pos, camTo.pos, k);
+    curTgt.lerpVectors(camFrom.tgt, camTo.tgt, k);
+    camera.zoom = lerp(camFrom.zoom, camTo.zoom, k);
+    camera.updateProjectionMatrix();
+    animating = true;
+  }
+  parallax.x = lerp(parallax.x, CFG.parallax && !RM ? parallax.tx : 0, Math.min(1, dt*4));
+  parallax.y = lerp(parallax.y, CFG.parallax && !RM ? parallax.ty : 0, Math.min(1, dt*4));
+  camera.position.x += parallax.x; camera.position.y += parallax.y;
+  camera.lookAt(curTgt.x + parallax.x*.6, curTgt.y + parallax.y*.6, curTgt.z);
+
+  if(!CFG.paused){ step(dt, dt); renderer.render(scene, camera); frames++; }
+  else if(animating || dirty){ renderer.render(scene, camera); frames++; dirty = false; }
+
+}
+
+/* ================= ОЧИСТКА ================= */
+function dispose(){
+  clearTimeout(flashT);
+  scene.traverse(o => {
+    if(o.geometry) o.geometry.dispose();
+    if(o.material) (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => { if(m.map) m.map.dispose(); if(m.emissiveMap) m.emissiveMap.dispose(); m.dispose(); });
+  });
+  renderer.dispose();
+}
+addEventListener('pagehide', dispose);
+
+/* ================= СТАРТ ================= */
+camera.position.copy(CAM.iso.pos); curTgt.copy(CAM.iso.tgt); camera.lookAt(curTgt);
+applyTheme(0); resize();
+window.__ROAD_READY__ = true;
+requestAnimationFrame(loop);
+</script>
+<noscript><style>#fallback{display:block}</style></noscript>
+</body>
+</html>

@@ -1,0 +1,25 @@
+{
+  "id": "defenders-day",
+  "name": "23 февраля",
+  "description": "День защитника Отечества: звёзды, военная техника, торжественное оформление",
+  "duration": 110,
+  "version": "1.0",
+  "created_at": "2025-02-23T00:00:00Z",
+  "author": "albion",
+  "tags": ["holiday", "defenders-day", "stars", "military"],
+  "events": [
+    {"t": 0, "do": "change_time_of_day", "params": {"phase": "day"}},
+    {"t": 1, "do": "change_weather", "params": {"condition": "clear"}},
+    {"t": 2, "do": "add_holiday_decor", "params": {"type": "stars"}},
+    {"t": 3, "do": "change_traffic_density", "params": {"density": 1.0}},
+    {"t": 5, "do": "add_vehicle", "params": {"type": "truck", "color": "#4a5d3a"}},
+    {"t": 10, "do": "add_car", "params": {"color": "#1a1a1a", "type": "sedan"}},
+    {"t": 11, "do": "add_car", "params": {"color": "#2a2a2a", "type": "sedan"}},
+    {"t": 20, "do": "change_traffic_light_phase", "params": {"phase": "green", "intersection": 0}},
+    {"t": 30, "do": "add_pedestrian", "params": {"direction": "cross"}},
+    {"t": 31, "do": "add_pedestrian", "params": {"direction": "cross"}},
+    {"t": 50, "do": "add_holiday_decor", "params": {"type": "stars"}},
+    {"t": 80, "do": "change_speed", "params": {"factor": 0.9}},
+    {"t": 100, "do": "end"}
+  ]
+}

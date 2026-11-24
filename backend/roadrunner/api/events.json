@@ -1,0 +1,110 @@
+{
+  "events": [
+    {
+      "name": "start_traffic",
+      "description": "Начать движение транспорта",
+      "params": {"density": {"type": "number", "min": 0.1, "max": 3.0}}
+    },
+    {
+      "name": "stop_traffic",
+      "description": "Остановить движение транспорта"
+    },
+    {
+      "name": "change_traffic_density",
+      "description": "Изменить плотность трафика",
+      "params": {"density": {"type": "number", "min": 0.1, "max": 3.0}}
+    },
+    {
+      "name": "add_car",
+      "description": "Добавить машину",
+      "params": {"color": {"type": "string"}, "type": {"type": "string", "enum": ["sedan", "suv", "truck"]}}
+    },
+    {
+      "name": "remove_car",
+      "description": "Убрать машину",
+      "params": {"id": {"type": "string"}}
+    },
+    {
+      "name": "change_speed",
+      "description": "Изменить скорость движения",
+      "params": {"factor": {"type": "number", "min": 0.1, "max": 3.0}}
+    },
+    {
+      "name": "add_bus",
+      "description": "Добавить автобус",
+      "params": {"route": {"type": "string"}, "number": {"type": "number"}}
+    },
+    {
+      "name": "remove_bus",
+      "description": "Убрать автобус",
+      "params": {"id": {"type": "string"}}
+    },
+    {
+      "name": "add_pedestrian",
+      "description": "Добавить пешехода",
+      "params": {"direction": {"type": "string", "enum": ["left", "right", "cross"]}}
+    },
+    {
+      "name": "remove_pedestrian",
+      "description": "Убрать пешехода",
+      "params": {"id": {"type": "string"}}
+    },
+    {
+      "name": "change_traffic_light_phase",
+      "description": "Изменить фазу светофора",
+      "params": {"phase": {"type": "string", "enum": ["green", "yellow", "red"]}, "intersection": {"type": "number"}}
+    },
+    {
+      "name": "change_weather",
+      "description": "Изменить погоду",
+      "params": {"condition": {"type": "string", "enum": ["clear", "cloudy", "rain", "snow", "fog"]}}
+    },
+    {
+      "name": "add_holiday_decor",
+      "description": "Добавить праздничное оформление",
+      "params": {"type": {"type": "string", "enum": ["trees", "snowman", "snow", "flowers", "flags", "balloons", "confetti", "stars"]}}
+    },
+    {
+      "name": "remove_holiday_decor",
+      "description": "Убрать праздничное оформление",
+      "params": {"type": {"type": "string"}}
+    },
+    {
+      "name": "start_rain",
+      "description": "Начать дождь",
+      "params": {"intensity": {"type": "number", "min": 0, "max": 1}}
+    },
+    {
+      "name": "stop_rain",
+      "description": "Остановить дождь"
+    },
+    {
+      "name": "start_snow",
+      "description": "Начать снег",
+      "params": {"intensity": {"type": "number", "min": 0, "max": 1}}
+    },
+    {
+      "name": "stop_snow",
+      "description": "Остановить снег"
+    },
+    {
+      "name": "change_time_of_day",
+      "description": "Изменить время суток",
+      "params": {"phase": {"type": "string", "enum": ["morning", "day", "evening", "night"]}}
+    },
+    {
+      "name": "add_vehicle",
+      "description": "Добавить транспортное средство",
+      "params": {"type": {"type": "string"}, "color": {"type": "string"}}
+    },
+    {
+      "name": "remove_vehicle",
+      "description": "Убрать транспортное средство",
+      "params": {"id": {"type": "string"}}
+    },
+    {
+      "name": "end",
+      "description": "Конец сценария"
+    }
+  ]
+}

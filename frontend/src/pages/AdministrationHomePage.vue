@@ -133,6 +133,21 @@
         </label>
       </div>
 
+      <!-- Баннер-дорога: код и настройки — в отдельной закладке. -->
+      <div v-if="slide.kind === 'road-banner'" class="banner-link">
+        <div class="items-title">Баннер-дорога</div>
+        <p class="hint">
+          Код поведения, ракурс камеры и остальные настройки — в отдельной
+          закладке «Баннер-дорога».
+        </p>
+        <q-btn
+          color="primary"
+          no-caps
+          label="Открыть «Баннер-дорога»"
+          @click="router.push('/administration/roadrunner?tab=banner')"
+        />
+      </div>
+
       <div class="photo-row">
         <div
           class="photo-preview"
@@ -712,6 +727,10 @@ const loading = ref(false)
 const error = ref('')
 const savingKey = ref(null)
 
+function setSlides(list) {
+  slides.value = list || []
+}
+
 /*
  * Снимок редактируемого состояния: берём после загрузки и после каждого
  * успешного изменения на сервере. По нему видно, остались ли в форме
@@ -831,6 +850,7 @@ const EXTRA_OPTIONS = [
 const KIND_OPTIONS = [
   { label: 'Верхний (карусель о компании)', value: 'hero' },
   { label: 'Города и районы → карта', value: 'geo' },
+  { label: 'Светофорные объекты (код баннера)', value: 'road-banner' },
   { label: 'Новости', value: 'news' },
   { label: 'Форма обратной связи', value: 'form' },
   { label: 'Обычный текст', value: 'text' }
@@ -1080,7 +1100,7 @@ async function load() {
 
   try {
     const data = await requestSaved('/api/admin/home/slides')
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   } finally {
@@ -1096,7 +1116,7 @@ async function addSlide() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Новый слайд', text: '' })
     })
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   }
@@ -1112,7 +1132,7 @@ async function patchSlide(slide, payload, key) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   } finally {
@@ -1150,7 +1170,7 @@ async function removeSlide(slide) {
     const data = await requestSaved(`/api/admin/home/slides/${slide.id}`, {
       method: 'DELETE'
     })
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   }
@@ -1166,7 +1186,7 @@ async function addItem(slide) {
         body: JSON.stringify({ title: 'Новая карточка', text: '' })
       }
     )
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   }
@@ -1194,7 +1214,7 @@ async function saveItem(item) {
         extra: item.extra
       })
     })
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   } finally {
@@ -1209,7 +1229,7 @@ async function removeItem(slide, item) {
     const data = await requestSaved(`/api/admin/home/items/${item.id}`, {
       method: 'DELETE'
     })
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   }
@@ -1239,7 +1259,7 @@ async function addSlideButton(slide) {
         })
       }
     )
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   }
@@ -1261,7 +1281,7 @@ async function addItemButton(item) {
         })
       }
     )
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   }
@@ -1281,7 +1301,7 @@ async function saveButton(btn) {
         variant: btn.variant
       })
     })
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   } finally {
@@ -1296,7 +1316,7 @@ async function removeButton(btn) {
     const data = await requestSaved(`/api/admin/home/buttons/${btn.id}`, {
       method: 'DELETE'
     })
-    slides.value = data.slides || []
+    setSlides(data.slides)
   } catch (exc) {
     error.value = String(exc)
   }
@@ -1459,6 +1479,22 @@ h1 {
 .field > span {
   font-size: 12px;
   color: #64748b;
+}
+
+.banner-link {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.banner-link .items-title {
+  margin-bottom: 4px;
+}
+
+.banner-link .hint {
+  margin: 0 0 10px;
 }
 
 .photo-row {

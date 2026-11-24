@@ -289,6 +289,11 @@ const CATALOG = [
     path: '/administration/home'
   },
   {
+    title: 'Roadrunner',
+    text: '3D-баннер «Светофорные объекты»: код, сценарии, настройки и документация',
+    path: '/administration/roadrunner'
+  },
+  {
     title: 'Информация',
     text: 'Закладки страницы «Информация»: состав и содержание',
     path: '/administration/info'
@@ -359,6 +364,7 @@ const DEFAULT_ICONS = {
   '/administration/base': 'database',
   '/administration/site': 'clock',
   '/administration/home': 'home',
+  '/administration/roadrunner': 'movie',
   '/administration/info': 'info',
   '/administration/news': 'news',
   '/administration/about': 'briefcase',

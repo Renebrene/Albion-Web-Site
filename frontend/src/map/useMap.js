@@ -751,6 +751,20 @@ function createMap(element) {
     throw new Error('Map element not found')
   }
 
+  /* Ждём, пока контейнер получит размеры (защита от 0x0 при инициализации) */
+  if (element.clientWidth === 0 || element.clientHeight === 0) {
+    return new Promise(resolve => {
+      const checkSize = () => {
+        if (element.clientWidth > 0 && element.clientHeight > 0) {
+          resolve(createMap(element))
+        } else {
+          requestAnimationFrame(checkSize)
+        }
+      }
+      requestAnimationFrame(checkSize)
+    })
+  }
+
   /* Контейнер запоминаем: по его размеру понимаем, видима ли карта. */
   mapElement = element
 

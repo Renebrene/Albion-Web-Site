@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from pathlib import Path
 
@@ -24,7 +24,43 @@ _SLIDE_FIELDS = (
     "button_label",
     "button_url",
     "image_path",
+    "code",
 )
+
+# Код баннера — самостоятельный HTML-документ, который открывается в
+# sandbox-iframe на слайде главной. Ограничение защищает БД и ответы API.
+MAX_CODE_BYTES = 512 * 1024
+
+# Стартовый/эталонный код баннера: из него заполняется новый слайд и
+# кнопка «Сбросить к стандартному» в админке.
+DEFAULT_BANNER_PATH = (
+    PROJECT_DIR / "backend" / "templates" / "road_banner.html"
+)
+
+# CSP для документа баннера. Он живёт в sandbox-iframe без allow-same-origin,
+# поэтому inline-скрипты и three.js с CDN здесь разрешены, а всё остальное —
+# нет. Должна совпадать с location в deploy/nginx.conf.example.
+BANNER_CODE_CSP = (
+    "sandbox allow-scripts; "
+    "default-src 'none'; "
+    "script-src 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'unsafe-inline'; "
+    "img-src data: blob:; "
+    "font-src data:; "
+    "connect-src 'self' https://cdn.jsdelivr.net https://api.open-meteo.com http://127.0.0.1:* http://localhost:*; "
+    "worker-src blob:; "
+    "base-uri 'none'; "
+    "form-action 'none'; "
+    "frame-ancestors 'self'"
+)
+
+
+def get_default_banner_code() -> str:
+    """Эталонный HTML-код баннера (файл в репозитории)."""
+    try:
+        return DEFAULT_BANNER_PATH.read_text(encoding="utf-8")
+    except OSError:
+        return ""
 
 _ITEM_FIELDS = (
     "title",
@@ -106,7 +142,23 @@ def _slide_image(
     return url
 
 
-def _slide_dict(row, active_key: str | None = None) -> dict:
+def _clean_code(value: Any) -> str:
+    """Проверяет размер кода баннера в байтах (не символах)."""
+    code = str(value or "")
+
+    if len(code.encode("utf-8")) > MAX_CODE_BYTES:
+        raise ValueError(
+            f"Код баннера больше {MAX_CODE_BYTES // 1024} КБ"
+        )
+
+    return code
+
+
+def _slide_dict(
+    row,
+    active_key: str | None = None,
+    include_code: bool = False,
+) -> dict:
     (
         slide_id,
         sort_order,
@@ -117,12 +169,14 @@ def _slide_dict(row, active_key: str | None = None) -> dict:
         button_label,
         button_url,
         image_path,
+        code,
         is_active,
+        updated_at,
     ) = row
 
     slide_kind = kind or ("hero" if is_hero else "text")
 
-    return {
+    slide = {
         "id": slide_id,
         "sort_order": sort_order,
         "is_hero": is_hero,
@@ -133,9 +187,18 @@ def _slide_dict(row, active_key: str | None = None) -> dict:
         "button_url": button_url or "",
         "image": _slide_image(image_path, slide_kind, active_key),
         "is_active": is_active,
+        "has_code": bool(code),
+        "updated_at": updated_at.isoformat() if updated_at else None,
         "buttons": [],
         "items": [],
     }
+
+    # Публичный список не тащит сотни килобайт кода: фронтенд получает его
+    # отдельным запросом только для активного слайда.
+    if include_code:
+        slide["code"] = code or ""
+
+    return slide
 
 
 def _item_dict(row, active_key: str | None = None) -> dict:
@@ -175,7 +238,12 @@ def _item_dict(row, active_key: str | None = None) -> dict:
     }
 
 
-def _fetch_slides(conn, *, only_active: bool) -> list[dict]:
+def _fetch_slides(
+    conn,
+    *,
+    only_active: bool,
+    include_code: bool = False,
+) -> list[dict]:
     where = "WHERE is_active = TRUE" if only_active else ""
 
     # Ключ активного импорта — чтобы переписать устаревшие пути к фото
@@ -185,14 +253,18 @@ def _fetch_slides(conn, *, only_active: bool) -> list[dict]:
     rows = conn.execute(
         f"""
         SELECT id, sort_order, is_hero, kind, title, text,
-               button_label, button_url, image_path, is_active
+               button_label, button_url, image_path, code,
+               is_active, updated_at
         FROM home_slides
         {where}
         ORDER BY sort_order, id
         """
     ).fetchall()
 
-    slides = [_slide_dict(row, active_key) for row in rows]
+    slides = [
+        _slide_dict(row, active_key, include_code=include_code)
+        for row in rows
+    ]
     by_id = {slide["id"]: slide for slide in slides}
 
     if not by_id:
@@ -277,7 +349,98 @@ def get_home() -> dict:
 
 def list_slides() -> list[dict]:
     with get_connection() as conn:
-        return _fetch_slides(conn, only_active=False)
+        return _fetch_slides(conn, only_active=False, include_code=True)
+
+
+_PREVIEW_TABLE_READY = False
+
+
+def _ensure_preview_table() -> None:
+    """Лениво создать таблицу временного кода (идемпотентно)."""
+    global _PREVIEW_TABLE_READY
+
+    if _PREVIEW_TABLE_READY:
+        return
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS home_slide_previews (
+                slide_id BIGINT PRIMARY KEY,
+                code TEXT NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+
+    _PREVIEW_TABLE_READY = True
+
+
+def set_preview_code(slide_id: int, code: str) -> None:
+    """Сохранить временный код для живого предпросмотра в админке."""
+    _ensure_preview_table()
+
+    with get_connection() as conn:
+        conn.execute(
+            """
+            INSERT INTO home_slide_previews (slide_id, code, updated_at)
+            VALUES (%s, %s, NOW())
+            ON CONFLICT (slide_id) DO UPDATE
+            SET code = EXCLUDED.code, updated_at = NOW()
+            """,
+            (int(slide_id), str(code or "")),
+        )
+
+
+def get_preview_code(slide_id: int) -> Optional[str]:
+    """Временный код предпросмотра, если редактор его записал."""
+    _ensure_preview_table()
+
+    with get_connection() as conn:
+        row = conn.execute(
+            "SELECT code FROM home_slide_previews WHERE slide_id = %s",
+            (int(slide_id),),
+        ).fetchone()
+
+    return str(row[0]) if row else None
+
+
+def clear_preview_code(slide_id: int) -> None:
+    """Удалить временный код после сохранения слайда."""
+    _ensure_preview_table()
+
+    with get_connection() as conn:
+        conn.execute(
+            "DELETE FROM home_slide_previews WHERE slide_id = %s",
+            (int(slide_id),),
+        )
+
+
+def get_slide_code(
+    slide_id: int,
+    *,
+    require_active: bool = True,
+) -> Optional[str]:
+    """HTML-код баннера слайда (для sandbox-iframe).
+
+    Публично отдаём только активные слайды — как и /api/home. Админский
+    предпросмотр запрашивает код и у скрытого слайда.
+    """
+    where_active = " AND is_active = TRUE" if require_active else ""
+
+    with get_connection() as conn:
+        row = conn.execute(
+            f"""
+            SELECT code FROM home_slides
+            WHERE id = %s{where_active}
+            """,
+            (int(slide_id),),
+        ).fetchone()
+
+    if not row or not row[0]:
+        return None
+
+    return str(row[0])
 
 
 def _next_slide_order(conn) -> int:
@@ -299,6 +462,7 @@ def _next_item_order(conn, slide_id: int) -> int:
 def create_slide(data: dict) -> dict:
     values = {field: str(data.get(field) or "") for field in _SLIDE_FIELDS}
     values["button_url"] = clean_cms_url(values["button_url"])
+    values["code"] = _clean_code(values["code"])
     is_hero = bool(data.get("is_hero"))
     kind = str(data.get("kind") or ("hero" if is_hero else "text"))
 
@@ -310,8 +474,8 @@ def create_slide(data: dict) -> dict:
                 """
                 INSERT INTO home_slides
                     (sort_order, is_hero, kind, title, text,
-                     button_label, button_url, image_path)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                     button_label, button_url, image_path, code)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -323,6 +487,7 @@ def create_slide(data: dict) -> dict:
                     values["button_label"],
                     values["button_url"],
                     values["image_path"],
+                    values["code"],
                 ),
             ).fetchone()
 
@@ -340,7 +505,9 @@ def create_slide(data: dict) -> dict:
 
 def get_slide(slide_id: int) -> Optional[dict]:
     with get_connection() as conn:
-        slides = _fetch_slides(conn, only_active=False)
+        slides = _fetch_slides(
+            conn, only_active=False, include_code=True
+        )
 
     for slide in slides:
         if slide["id"] == int(slide_id):
@@ -358,6 +525,8 @@ def update_slide(slide_id: int, data: dict) -> Optional[dict]:
             value = str(data.get(field) or "")
             if field == "button_url":
                 value = clean_cms_url(value)
+            elif field == "code":
+                value = _clean_code(value)
             sets.append(f"{field} = %s")
             params.append(value)
 

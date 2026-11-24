@@ -178,7 +178,7 @@ async function initMap() {
 
     try {
       yandexApi = await loadEngineApi('yandex')
-      yandexApi.createMap(mapElement.value)
+      await yandexApi.createMap(mapElement.value)
       activeEngine.value = 'yandex'
 
       return yandexApi
@@ -204,7 +204,7 @@ async function initMap() {
   }
 
   const api = await loadEngineApi('leaflet')
-  api.createMap(mapElement.value)
+  await api.createMap(mapElement.value)
   activeEngine.value = 'leaflet'
   return api
 }

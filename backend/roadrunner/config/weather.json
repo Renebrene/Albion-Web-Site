@@ -1,0 +1,25 @@
+{
+  "providers": [
+    {
+      "id": "open-meteo",
+      "name": "Open-Meteo",
+      "url": "https://api.open-meteo.com/v1/forecast",
+      "required_keys": [],
+      "fallback": true
+    },
+    {
+      "id": "yandex-weather",
+      "name": "Яндекс Погода",
+      "url": "https://weather.yandex.ru/api",
+      "required_keys": ["YANDEX_WEATHER_KEY"],
+      "fallback": false
+    }
+  ],
+  "current": {
+    "temperature_unit": "celsius",
+    "wind_speed_unit": "km/h",
+    "precipitation_unit": "mm"
+  },
+  "forecast_hours": 24,
+  "update_interval_seconds": 600
+}

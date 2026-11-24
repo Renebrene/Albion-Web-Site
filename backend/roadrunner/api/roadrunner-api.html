@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Roadrunner API — Документация для AI-агентов</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; line-height: 1.6; }
+  h1 { color: #1a1a1a; border-bottom: 2px solid #e2231a; padding-bottom: 10px; }
+  h2 { color: #333; margin-top: 30px; }
+  h3 { color: #555; }
+  table { border-collapse: collapse; width: 100%; margin: 15px 0; }
+  th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+  th { background: #f5f5f5; }
+  code { background: #f4f4f4; padding: 2px 6px; border-radius: 3px; font-family: monospace; }
+  pre { background: #f4f4f4; padding: 12px; border-radius: 6px; overflow-x: auto; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  .badge-public { background: #e8f5e9; color: #2e7d32; }
+  .badge-admin { background: #fce4ec; color: #c62828; }
+  .note { background: #fff3cd; padding: 12px; border-left: 4px solid #ffc107; margin: 15px 0; }
+  @media print { body { font-size: 11pt; } }
+</style>
+</head>
+<body>
+
+<h1>Roadrunner API — Документация для AI-агентов</h1>
+
+<p><span class="badge badge-admin">ROADRUNNER</span> Модуль программной дороги для 3D-баннера «Светофорные объекты» на главной странице Альбион.</p>
+
+<h2>Структура</h2>
+
+<pre>
+backend/roadrunner/
+├── api/
+│   ├── schema.json          # JSON Schema для сценариев
+│   ├── events.json          # Словарь событий (20 действий)
+│   ├── scenarios/           # Готовые сценарии (JSON)
+│   ├── API.md               # Markdown-документация
+│   ├── PROMPT.md            # Промпт для LLM-генерации
+│   └── roadrunner-api.html  # Этот HTML-документ
+├── config/                  # Конфигурация (city, weather, traffic, holidays)
+├── data/                    # Кэш (погода, пробки)
+├── scenario/
+│   └── engine.py            # Движок сценариев
+├── services/
+│   ├── weather.py           # Сервис погоды (Open-Meteo)
+│   ├── traffic.py           # Сервис пробок (модель)
+│   └── llm_agent.py         # AI-агент для генерации сценариев
+└── api/roadrunner.py        # FastAPI роутер
+</pre>
+
+<h2>API Endpoints</h2>
+
+<h3>Публичные (без авторизации)</h3>
+
+<table>
+  <tr><th>Метод</th><th>Путь</th><th>Описание</th></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/weather</code></td><td>Текущая погода (Open-Meteo)</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/traffic</code></td><td>Текущие пробки (модель по времени)</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/weather-proxy</code></td><td>Прокси погоды для iframe (CSP-совместимый)</td></tr>
+</table>
+
+<h3>Админские (требуют <code>require_admin</code>)</h3>
+
+<table>
+  <tr><th>Метод</th><th>Путь</th><th>Описание</th></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/scenarios</code></td><td>Список всех сценариев (файлы + БД)</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/scenarios/{id}</code></td><td>Сценарий по id (файл или БД)</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/scenarios</code></td><td>Создать сценарий (валидация по schema)</td></tr>
+  <tr><td>DELETE</td><td><code>/api/roadrunner/scenarios/{id}</code></td><td>Удалить сценарий из БД</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/generate</code></td><td>Сгенерировать сценарий через LLM</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/upload-scenario</code></td><td>Загрузить сценарий из .json файла</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/settings</code></td><td>Настройки Roadrunner (JSON)</td></tr>
+  <tr><td>PUT</td><td><code>/api/roadrunner/settings</code></td><td>Обновить настройки</td></tr>
+</table>
+
+<h2>JSON Schema для сценариев</h2>
+
+<pre>
+{
+  "id": "string (uuid-like, lowercase)",           // Уникальный id сценария
+  "name": "string (1-100 chars)",                   // Название
+  "description": "string (0-500 chars)",            // Описание
+  "duration": "integer (30-3600)",                  // Длительность в секундах
+  "version": "string (default: '1.0')",            // Версия
+  "created_at": "ISO-8601 datetime",                // Дата создания
+  "author": "string (1-100 chars)",                 // Автор
+  "tags": ["string"],                               // Теги
+  "events": [                                       // События (упорядочены по t)
+    {
+      "t": "number (>= 0, секунды от начала)",
+      "do": "string (event name из events.json)",
+      "params": "object"
+    }
+  ]
+}
+</pre>
+
+<h2>Словарь событий (<code>api/events.json</code>)</h2>
+
+<table>
+  <tr><th>Событие</th><th>Параметры</th><th>Описание</th></tr>
+  <tr><td><code>start_traffic</code></td><td>—</td><td>Начать движение транспорта</td></tr>
+  <tr><td><code>stop_traffic</code></td><td>—</td><td>Остановить движение</td></tr>
+  <tr><td><code>change_traffic_density</code></td><td><code>density: 0.1-3.0</code></td><td>Изменить плотность трафика</td></tr>
+  <tr><td><code>add_car</code></td><td><code>color</code>, <code>type</code> (sedan/suv/truck)</td><td>Добавить машину</td></tr>
+  <tr><td><code>remove_car</code></td><td><code>id</code></td><td>Убрать машину</td></tr>
+  <tr><td><code>change_speed</code></td><td><code>factor: 0.1-3.0</code></td><td>Изменить скорость потока</td></tr>
+  <tr><td><code>add_bus</code></td><td><code>route</code>, <code>number</code></td><td>Добавить автобус</td></tr>
+  <tr><td><code>remove_bus</code></td><td><code>id</code></td><td>Убрать автобус</td></tr>
+  <tr><td><code>add_pedestrian</code></td><td><code>direction</code> (left/right/cross)</td><td>Добавить пешехода</td></tr>
+  <tr><td><code>remove_pedestrian</code></td><td><code>id</code></td><td>Убрать пешехода</td></tr>
+  <tr><td><code>change_traffic_light_phase</code></td><td><code>phase</code> (green/yellow/red), <code>intersection</code> (0-1)</td><td>Сменить фазу светофора</td></tr>
+  <tr><td><code>change_weather</code></td><td><code>condition</code> (clear/cloudy/rain/snow/fog)</td><td>Сменить погоду</td></tr>
+  <tr><td><code>add_holiday_decor</code></td><td><code>type</code> (trees/snowman/snow/flowers/flags/balloons/confetti/stars)</td><td>Добавить праздничный декор</td></tr>
+  <tr><td><code>remove_holiday_decor</code></td><td><code>type</code></td><td>Убрать праздничный декор</td></tr>
+  <tr><td><code>start_rain</code></td><td><code>intensity: 0-1</code></td><td>Начать дождь</td></tr>
+  <tr><td><code>stop_rain</code></td><td>—</td><td>Остановить дождь</td></tr>
+  <tr><td><code>start_snow</code></td><td><code>intensity: 0-1</code></td><td>Начать снег</td></tr>
+  <tr><td><code>stop_snow</code></td><td>—</td><td>Остановить снег</td></tr>
+  <tr><td><code>change_time_of_day</code></td><td><code>phase</code> (morning/day/evening/night)</td><td>Сменить время суток</td></tr>
+  <tr><td><code>add_vehicle</code></td><td><code>type</code>, <code>color</code></td><td>Добавить транспортное средство</td></tr>
+  <tr><td><code>remove_vehicle</code></td><td><code>id</code></td><td>Убрать транспортное средство</td></tr>
+  <tr><td><code>end</code></td><td>—</td><td>Конец сценария</td></tr>
+</table>
+
+<h2>Промпт для LLM-генерации (<code>api/PROMPT.md</code>)</h2>
+
+<pre>
+Ты — генератор сценариев для 3D-анимации программной дороги «АЛЬБИОН».
+
+Твоя задача — генерировать JSON-сценарии на основе описания пользователя.
+
+Формат сценария:
+{
+  "id": "unique-id",
+  "name": "Название сценария",
+  "description": "Описание",
+  "duration": 120,
+  "version": "1.0",
+  "created_at": "ISO-8601",
+  "author": "user",
+  "tags": ["tags"],
+  "events": [
+    {"t": 0, "do": "event_name", "params": {...}},
+    ...
+  ]
+}
+
+Доступные события (do):
+- start_traffic, stop_traffic
+- change_traffic_density (density: 0.1-3.0)
+- change_speed (factor: 0.1-3.0)
+- add_car, remove_car (color, type)
+- add_bus, remove_bus (route, number)
+- add_pedestrian, remove_pedestrian (direction: left/right/cross)
+- change_traffic_light_phase (phase: green/yellow/red, intersection: 0-1)
+- change_weather (condition: clear/cloudy/rain/snow/fog)
+- start_rain, stop_rain (intensity: 0-1)
+- start_snow, stop_snow (intensity: 0-1)
+- change_time_of_day (phase: morning/day/evening/night)
+- add_holiday_decor, remove_holiday_decor (type: trees/snowman/snow/flowers/flags/balloons/confetti/stars)
+- end
+
+Правила:
+1. Сценарий должен быть логичным и последовательным.
+2. Длительность — 30-300 секунд.
+3. События должны быть упорядочены по времени.
+4. Используй осмысленные id для машин/автобусов/пешеходов.
+5. Возвращай ТОЛЬКО JSON, без markdown-обёртки.
+</pre>
+
+<h2>Настройки в коде баннера</h2>
+
+<p>Блок <code>&lt;script type="application/json" id="banner-settings"&gt;</code> содержит параметры, которые админка редактирует и которые баннер применяет при запуске:</p>
+
+<table>
+  <tr><th>Параметр</th><th>Тип</th><th>Диапазон</th><th>По умолчанию</th><th>Описание</th></tr>
+  <tr><td><code>tilt</code></td><td>number</td><td>5-85°</td><td>32°</td><td>Наклон камеры над горизонтом</td></tr>
+  <tr><td><code>rotation</code></td><td>number</td><td>-180..180°</td><td>38°</td><td>Поворот камеры вокруг цели</td></tr>
+  <tr><td><code>scale</code></td><td>number</td><td>0.5-2.0×</td><td>1.0×</td><td>Масштаб (zoom) камеры</td></tr>
+  <tr><td><code>dayNightPeriod</code></td><td>number</td><td>10-180 с</td><td>48 с</td><td>Длительность цикла день/ночь</td></tr>
+  <tr><td><code>speedWave</code></td><td>number</td><td>0-0.8</td><td>0.35</td><td>Амплитуда волны скорости</td></tr>
+  <tr><td><code>speedWavePeriod</code></td><td>number</td><td>4-60 с</td><td>19.6 с</td><td>Период волны скорости</td></tr>
+  <tr><td><code>trafficMin</code></td><td>number</td><td>0.2-1.0×</td><td>0.55×</td><td>Минимальная плотность трафика</td></tr>
+  <tr><td><code>trafficMax</code></td><td>number</td><td>1-3.0×</td><td>1.9×</td><td>Максимальная плотность трафика</td></tr>
+  <tr><td><code>trafficChangeMin</code></td><td>number</td><td>1-60 с</td><td>5 с</td><td>Мин. интервал смены плотности</td></tr>
+  <tr><td><code>trafficChangeMax</code></td><td>number</td><td>2-120 с</td><td>12 с</td><td>Макс. интервал смены плотности</td></tr>
+  <tr><td><code>carMin</code></td><td>integer</td><td>1-14</td><td>6</td><td>Минимальное число машин</td></tr>
+  <tr><td><code>carMax</code></td><td>integer</td><td>1-14</td><td>13</td><td>Максимальное число машин</td></tr>
+  <tr><td><code>pedMin</code></td><td>integer</td><td>0-8</td><td>1</td><td>Минимальное число пешеходов</td></tr>
+  <tr><td><code>pedMax</code></td><td>integer</td><td>0-8</td><td>5</td><td>Максимальное число пешеходов</td></tr>
+  <tr><td><code>countChangeMin</code></td><td>number</td><td>1-60 с</td><td>6 с</td><td>Мин. интервал смены количества</td></tr>
+  <tr><td><code>countChangeMax</code></td><td>number</td><td>2-120 с</td><td>14 с</td><td>Макс. интервал смены количества</td></tr>
+  <tr><td><code>buses</code></td><td>boolean</td><td>—</td><td>true</td><td>Включить автобусы</td></tr>
+  <tr><td><code>quality</code></td><td>select</td><td>eco/balanced/max</td><td>eco</td><td>Качество рендеринга</td></tr>
+</table>
+
+<h2>Базы данных</h2>
+
+<h3>Таблица <code>roadrunner_scenarios</code></h3>
+
+<pre>
+CREATE TABLE roadrunner_scenarios (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  scenario_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  author TEXT NOT NULL DEFAULT 'system'
+);
+</pre>
+
+<h3>Таблица <code>roadrunner_settings</code></h3>
+
+<pre>
+CREATE TABLE roadrunner_settings (
+  key TEXT PRIMARY KEY,
+  settings JSONB NOT NULL
+);
+</pre>
+
+<h2>Конфигурация (<code>config/</code>)</h2>
+
+<table>
+  <tr><th>Файл</th><th>Содержимое</th></tr>
+  <tr><td><code>city.json</code></td><td>Координаты Ростова-на-Дону, зоны пробок, главная дорога</td></tr>
+  <tr><td><code>holidays.json</code></td><td>Праздники (Новый год, 9 Мая, День Альбиона и т.д.)</td></tr>
+  <tr><td><code>weather.json</code></td><td>Провайдеры погоды (Open-Meteo, Яндекс)</td></tr>
+  <tr><td><code>traffic.json</code></td><td>Провайдеры пробок (Яндекс, модель по часам пик)</td></tr>
+  <tr><td><code>provider.json</code></td><td>LLM провайдеры (Ollama, YandexGPT, OpenAI)</td></tr>
+</table>
+
+<h2>Пример сценария (<code>api/scenarios/rostov-evening-rain.json</code>)</h2>
+
+<pre>
+{
+  "id": "rostov-evening-rain",
+  "name": "Вечерний дождь в Ростове",
+  "description": "Вечерний дождь на большой садовой — классический ростовский вечер",
+  "duration": 120,
+  "version": "1.0",
+  "created_at": "2025-01-01T00:00:00Z",
+  "author": "albion",
+  "tags": ["weather", "rain", "evening", "rostov"],
+  "events": [
+    {"t": 0, "do": "change_time_of_day", "params": {"phase": "evening"}},
+    {"t": 2, "do": "change_weather", "params": {"condition": "rain"}},
+    {"t": 3, "do": "start_rain", "params": {"intensity": 0.6}},
+    {"t": 5, "do": "change_traffic_density", "params": {"density": 1.2}},
+    {"t": 10, "do": "change_speed", "params": {"factor": 0.8}},
+    {"t": 30, "do": "add_car", "params": {"color": "#ff5a3c", "type": "sedan"}},
+    {"t": 31, "do": "add_car", "params": {"color": "#4da3ff", "type": "sedan"}},
+    {"t": 35, "do": "add_bus", "params": {"route": "1", "number": 1}},
+    {"t": 40, "do": "add_pedestrian", "params": {"direction": "cross"}},
+    {"t": 60, "do": "change_traffic_light_phase", "params": {"phase": "green", "intersection": 0}},
+    {"t": 90, "do": "stop_rain"},
+    {"t": 95, "do": "change_weather", "params": {"condition": "cloudy"}},
+    {"t": 115, "do": "end"}
+  ]
+}
+</pre>
+
+<h2>Генерация сценария через LLM</h2>
+
+<pre>
+POST /api/roadrunner/generate
+Content-Type: application/json
+
+{
+  "request": "Вечерний дождь на большой садовой, машины едут медленно, пешеходы с зонтами"
+}
+
+Response:
+{
+  "success": true,
+  "scenario": { ... }
+}
+</pre>
+
+<h2>Генерация PDF</h2>
+
+<p>Для генерации PDF из этой документации:</p>
+
+<pre>
+# Chrome/Chromium
+google-chrome --headless --print-to-pdf=roadrunner-api.pdf roadrunner-api.html
+
+# wkhtmltopdf
+wkhtmltopdf roadrunner-api.html roadrunner-api.pdf
+
+# Python (weasyprint)
+pip install weasyprint
+python -c "from weasyprint import HTML; HTML('roadrunner-api.html').write_pdf('roadrunner-api.pdf')"
+</pre>
+
+<h2>Генерация через AI-агент</h2>
+
+<p>AI-агент может использовать <code>api/PROMPT.md</code> как системный промпт для генерации сценариев. Пример запроса:</p>
+
+<pre>
+"Хочу добавить Санта Клауса на санях с оленями на Новый год"
+
+→ AI генерирует сценарий:
+{
+  "id": "santa-claus-new-year",
+  "name": "Санта Клаус на Новый год",
+  "duration": 60,
+  "events": [
+    {"t": 0, "do": "change_time_of_day", "params": {"phase": "night"}},
+    {"t": 1, "do": "start_snow", "params": {"intensity": 0.8}},
+    {"t": 2, "do": "add_holiday_decor", "params": {"type": "snow"}},
+    {"t": 5, "do": "add_vehicle", "params": {"type": "sleigh", "color": "red"}},
+    {"t": 55, "do": "end"}
+  ]
+}
+</pre>
+
+<hr>
+<p><em>Документация сгенерирована из <code>backend/roadrunner/api/</code>. Последнее обновление: 2026-11-23</em></p>
+
+</body>
+</html>

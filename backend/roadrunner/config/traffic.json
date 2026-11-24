@@ -1,0 +1,23 @@
+{
+  "providers": [
+    {
+      "id": "yandex-traffic",
+      "name": "Яндекс Пробки",
+      "url": "https://traffic.yandex.ru/api",
+      "required_keys": ["YANDEX_TRAFFIC_URL"],
+      "fallback": false
+    },
+    {
+      "id": "model",
+      "name": "Модель по часу пик",
+      "url": null,
+      "required_keys": [],
+      "fallback": true
+    }
+  ],
+  "peak_hours": [
+    {"from": 7, "to": 10, "score_multiplier": 1.5},
+    {"from": 17, "to": 20, "score_multiplier": 1.8}
+  ],
+  "update_interval_seconds": 300
+}

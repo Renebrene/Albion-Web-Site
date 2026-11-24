@@ -1,0 +1,26 @@
+{
+  "id": "rostov-evening-rain",
+  "name": "Вечерний дождь в Ростове",
+  "description": "Вечерний дождь на большой садовой — классический ростовский вечер",
+  "duration": 120,
+  "version": "1.0",
+  "created_at": "2025-01-01T00:00:00Z",
+  "author": "albion",
+  "tags": ["weather", "rain", "evening", "rostov"],
+  "events": [
+    {"t": 0, "do": "change_time_of_day", "params": {"phase": "evening"}},
+    {"t": 2, "do": "change_weather", "params": {"condition": "rain"}},
+    {"t": 3, "do": "start_rain", "params": {"intensity": 0.6}},
+    {"t": 5, "do": "change_traffic_density", "params": {"density": 1.2}},
+    {"t": 10, "do": "change_speed", "params": {"factor": 0.8}},
+    {"t": 30, "do": "add_car", "params": {"color": "#ff5a3c", "type": "sedan"}},
+    {"t": 31, "do": "add_car", "params": {"color": "#4da3ff", "type": "sedan"}},
+    {"t": 35, "do": "add_bus", "params": {"route": "1", "number": 1}},
+    {"t": 40, "do": "add_pedestrian", "params": {"direction": "cross"}},
+    {"t": 41, "do": "add_pedestrian", "params": {"direction": "cross"}},
+    {"t": 60, "do": "change_traffic_light_phase", "params": {"phase": "green", "intersection": 0}},
+    {"t": 90, "do": "stop_rain"},
+    {"t": 95, "do": "change_weather", "params": {"condition": "cloudy"}},
+    {"t": 115, "do": "end"}
+  ]
+}

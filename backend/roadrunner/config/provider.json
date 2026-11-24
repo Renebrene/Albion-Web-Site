@@ -1,0 +1,36 @@
+{
+  "llm": {
+    "providers": [
+      {
+        "id": "yandexgpt-lite",
+        "name": "YandexGPT Lite 8B",
+        "url": "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+        "required_keys": ["YANDEXLLM_KEY"],
+        "model": "yandexgpt-lite/8b"
+      },
+      {
+        "id": "ollama",
+        "name": "Ollama (локальная)",
+        "url": "http://localhost:11434",
+        "required_keys": [],
+        "model": "qwen2.5:7b"
+      },
+      {
+        "id": "openai-compatible",
+        "name": "OpenAI совместимый API",
+        "url": null,
+        "required_keys": ["OPENAI_API_KEY"],
+        "model": "gpt-4o-mini"
+      }
+    ],
+    "default_provider": "ollama",
+    "temperature": 0.35,
+    "max_tokens": 2048
+  },
+  "api_keys": {
+    "YANDEX_WEATHER_KEY": null,
+    "YANDEX_TRAFFIC_URL": null,
+    "YANDEXLLM_KEY": null,
+    "OPENAI_API_KEY": null
+  }
+}

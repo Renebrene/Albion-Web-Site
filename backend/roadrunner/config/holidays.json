@@ -1,0 +1,45 @@
+{
+  "holidays": [
+    {
+      "id": "new-year",
+      "name": "Новый год",
+      "date": "2025-01-01",
+      "decor": "trees, snowman, snow",
+      "effects": ["snowfall", "lights", "confetti", "santa"],
+      "scenario": "new-year"
+    },
+    {
+      "id": "victory-day",
+      "name": "День Победы",
+      "date": "2025-05-09",
+      "decor": "flags",
+      "effects": ["parade", "fireworks", "tanks"],
+      "scenario": "victory-day"
+    },
+    {
+      "id": "albion-birthday",
+      "name": "День рождения Альбион",
+      "date": "2025-06-25",
+      "decor": "balloons, confetti",
+      "effects": ["celebration", "stars"],
+      "scenario": "albion-birthday"
+    },
+    {
+      "id": "international-women-day",
+      "name": "8 Марта",
+      "date": "2025-03-08",
+      "decor": "flowers",
+      "effects": ["flowers", "spring"],
+      "scenario": "international-women-day"
+    },
+    {
+      "id": "defenders-day",
+      "name": "23 февраля",
+      "date": "2025-02-23",
+      "decor": "stars",
+      "effects": ["stars", "military"],
+      "scenario": "defenders-day"
+    }
+  ],
+  "default_holiday": null
+}

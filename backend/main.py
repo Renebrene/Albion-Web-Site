@@ -4,7 +4,7 @@ from datetime import date
 from collections import defaultdict, deque
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -159,6 +159,10 @@ from backend.api.info import (
 app.include_router(admin_info_router)
 app.include_router(public_info_router)
 
+from backend.api.roadrunner import router as roadrunner_router
+
+app.include_router(roadrunner_router)
+
 from backend.api.admin_seo import (
     router as admin_seo_router,
     public_router as public_seo_router,
@@ -204,7 +208,12 @@ def site_menu():
     return get_public_menu()
 
 
-from backend.services.home_service import create_feedback, get_home
+from backend.services.home_service import (
+    BANNER_CODE_CSP,
+    create_feedback,
+    get_home,
+    get_slide_code,
+)
 
 
 @app.get("/api/home")
@@ -216,6 +225,29 @@ def home_content():
     конструкций цифры сразу актуальны.
     """
     return JSONResponse(content=get_home(), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/api/home/slides/{slide_id}/code", include_in_schema=False)
+def home_slide_code(slide_id: int):
+    """HTML-код 3D-баннера слайда (загружается через админку).
+
+    Отдаётся как отдельный документ для <iframe sandbox="allow-scripts">,
+    поэтому у него своя CSP, не совпадающая с CSP основного сайта.
+    """
+    code = get_slide_code(slide_id)
+
+    if code is None:
+        raise HTTPException(status_code=404, detail="Код баннера не найден")
+
+    return HTMLResponse(
+        content=code,
+        headers={
+            "Content-Security-Policy": BANNER_CODE_CSP,
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+            "Referrer-Policy": "no-referrer",
+        },
+    )
 
 
 @app.post("/api/feedback")

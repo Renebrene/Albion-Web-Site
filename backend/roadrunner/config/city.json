@@ -1,0 +1,32 @@
+{
+  "name": "Ростов-на-Дону",
+  "region": "Ростовская область",
+  "coordinates": {
+    "lat": 47.2357,
+    "lon": 39.7230
+  },
+  "timezone": "Europe/Moscow",
+  "traffic_zones": [
+    {
+      "name": "Центральный",
+      "center": [39.7230, 47.2357],
+      "radius_km": 3.0
+    },
+    {
+      "name": "Ленинский",
+      "center": [39.7500, 47.2450],
+      "radius_km": 2.5
+    },
+    {
+      "name": "Железнодорожный",
+      "center": [39.7100, 47.2250],
+      "radius_km": 2.5
+    }
+  ],
+  "main_road": {
+    "name": "ул. Большая Садовая",
+    "length_km": 2.5,
+    "lanes": 4,
+    "speed_limit_kmh": 60
+  }
+}

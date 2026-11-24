@@ -5,12 +5,7 @@
            прокручивается под ними. -->
       <div class="news-sticky">
         <header class="news-header">
-          <div>
-            <div class="news-kicker">ALBION</div>
-            <h1>Новости</h1>
-          </div>
-
-          <p> События, проекты и новые возможности компании </p>
+          <p>События, проекты и новые возможности компании</p>
         </header>
 
         <nav class="news-categories">
@@ -305,37 +300,14 @@ watch([filteredNews, loading], async () => {
 }
 
 .news-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 40px;
-  margin-bottom: 25px;
-}
-
-.news-kicker {
-  margin-bottom: 5px;
-  color: var(--albion-accent);
-  font-size: 10px;
-  font-weight: 850;
-  letter-spacing: 1.8px;
-}
-
-.news-header h1 {
-  margin: 0;
-  color: #17212b;
-  font-size: clamp(30px, 3vw, 42px);
-  line-height: 1;
-  font-weight: 900;
-  letter-spacing: -1.5px;
+  margin-bottom: 20px;
 }
 
 .news-header p {
-  max-width: 300px;
   margin: 0;
   color: #78848b;
   font-size: clamp(11px, 0.8vw, 12px);
   line-height: 1.45;
-  text-align: right;
 }
 
 .news-categories {
@@ -441,10 +413,6 @@ watch([filteredNews, loading], async () => {
 }
 
 @media (max-width: 650px) {
-  .news-header {
-    display: block;
-  }
-
   .news-header p {
     margin-top: 10px;
     text-align: left;

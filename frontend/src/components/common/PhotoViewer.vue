@@ -160,16 +160,57 @@ function onViewerKeydown(event) {
   }
 }
 
+/*
+ * Колесо мыши: прокрутка влево/вправо переключает изображения.
+ * Порог — чтобы одна «прокрутка» не пролистывала несколько фото сразу
+ * (тачпады и мыши шлют десятки событий подряд).
+ */
+let wheelLocked = false
+let wheelUnlockTimer = 0
+
+function onViewerWheel(event) {
+  if (images.value.length < 2 || wheelLocked) {
+    return
+  }
+
+  const delta = event.deltaY || event.deltaX || 0
+
+  if (Math.abs(delta) < 12) {
+    return
+  }
+
+  event.preventDefault()
+
+  if (delta > 0) {
+    nextImage()
+  } else {
+    prevImage()
+  }
+
+  wheelLocked = true
+
+  window.clearTimeout(wheelUnlockTimer)
+  wheelUnlockTimer = window.setTimeout(() => {
+    wheelLocked = false
+  }, 260)
+}
+
 watch(isOpen, open => {
   if (open) {
     document.addEventListener('keydown', onViewerKeydown)
+    document.addEventListener('wheel', onViewerWheel, { passive: false })
   } else {
     document.removeEventListener('keydown', onViewerKeydown)
+    document.removeEventListener('wheel', onViewerWheel)
+    wheelLocked = false
+    window.clearTimeout(wheelUnlockTimer)
   }
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', onViewerKeydown)
+  document.removeEventListener('wheel', onViewerWheel)
+  window.clearTimeout(wheelUnlockTimer)
 })
 
 /*

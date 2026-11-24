@@ -24,6 +24,8 @@
 | [`search-v2.md`](search-v2.md) | Поиск 2.0: каталог в памяти, типы/размеры/локации, `/api/search/v2` |
 | [`account-cabinet.md`](account-cabinet.md) | Личный кабинет и авторизация — **сейчас скрыты**, бэкенд сохранён |
 | [`frontend.md`](frontend.md) | Обзор фронтенда: роутер, страницы, boot, компоненты |
+| [`city-road-banner.md`](city-road-banner.md) | CityRoadBanner: 3D-баннер «Городская дорога» — подключение, props, устройство |
+| [`home-road-banner.md`](home-road-banner.md) | Слайд главной «Светофорные объекты»: код баннера через админку, iframe, CSP |
 | [`glossary.md`](glossary.md) | Термины: конструкция, сторона, поверхность, статусы, портфель |
 | [`troubleshooting.md`](troubleshooting.md) | Известные грабли: симптом → причина → что делать |
 | [`../deploy/README.md`](../deploy/README.md) | Деплой: env, nginx, Docker/нативно, тесты |

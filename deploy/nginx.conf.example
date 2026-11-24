@@ -118,6 +118,21 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # Код 3D-баннера главной — самостоятельный документ в sandbox-iframe.
+    # У него своя CSP (inline-скрипт + three.js с CDN), поэтому глобальный
+    # CSP сервера для этого пути не применяем. Те же заголовки выставляет
+    # backend (backend/main.py, BANNER_CODE_CSP) для запуска без nginx.
+    location ~ ^/api/home/slides/[0-9]+/code$ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        add_header Content-Security-Policy "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src 'self' https://cdn.jsdelivr.net https://api.open-meteo.com http://127.0.0.1:* http://localhost:*; worker-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Cache-Control "no-store" always;
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;

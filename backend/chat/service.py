@@ -530,6 +530,26 @@ class ChatService:
         if cached is not None:
             return ChatMessageResponse.model_validate(cached)
 
+        # Проверка триггера Roadrunner (ключевые слова "светофор", "дорога" и т.д.)
+        from backend.chat.roadrunner_trigger import (
+            check_roadrunner_trigger,
+            format_roadrunner_suggestion,
+        )
+        from uuid import uuid4
+
+        trigger = check_roadrunner_trigger(payload.message)
+        if trigger.active:
+            response_text = format_roadrunner_suggestion(trigger)
+
+            return ChatMessageResponse(
+                session_id=session.id,
+                message_id=payload.request_id or uuid4(),
+                message=payload.message,
+                answer=response_text,
+                source="rules",
+                pending=False,
+            )
+
         source = "rules"
         warnings: list[str] = []
         query: SearchQuery

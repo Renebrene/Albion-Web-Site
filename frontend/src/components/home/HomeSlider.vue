@@ -34,7 +34,7 @@
 
         <div
           class="slide-inner"
-          :class="{ 'slide-inner--bleed': slide.kind === 'hero' }"
+          :class="{ 'slide-inner--bleed': isBleedKind(slide.kind) }"
         >
           <!-- ============ ВЕРХНИЙ: вариант V1, карусель влево/вправо ============ -->
           <template v-if="slide.kind === 'hero'">
@@ -185,6 +185,13 @@
             @open-form="gotoFormSlide"
           />
 
+          <!-- ============ СВЕТОФОРНЫЕ ОБЪЕКТЫ (КОД БАННЕРА) ============ -->
+          <RoadBannerSlide
+            v-else-if="slide.kind === 'road-banner'"
+            :slide="slide"
+            :active="slideIndex === index"
+          />
+
           <!-- ============ НОВОСТИ ============ -->
           <NewsSlide
             v-else-if="slide.kind === 'news'"
@@ -232,6 +239,7 @@ import { safeCmsUrl } from '../../utils/safeCmsUrl'
 import FeedbackSlide from './slides/FeedbackSlide.vue'
 import GeoSlide from './slides/GeoSlide.vue'
 import NewsSlide from './slides/NewsSlide.vue'
+import RoadBannerSlide from './slides/RoadBannerSlide.vue'
 import TextSlide from './slides/TextSlide.vue'
 import { isFormButton, itemButtons, slideButtons } from './slides/slideButtons'
 
@@ -261,6 +269,11 @@ const loadedHeroBgs = reactive(new Set())
 const news = ref([])
 const about = ref(null)
 const netStats = ref(null)
+
+/* Слайды, которым нужен контент на всю площадь (без центрирующих отступов). */
+function isBleedKind(kind) {
+  return kind === 'hero' || kind === 'road-banner'
+}
 
 /* Автопрокрутка ТОЛЬКО горизонтальной карусели первого (hero) слайда.
    Вертикальные главные слайды сами не листаются — переключаются вручную.

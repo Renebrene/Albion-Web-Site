@@ -1,0 +1,27 @@
+{
+  "id": "new-year",
+  "name": "Новый год",
+  "description": "Новогодняя ночь: снег, ёлки, снеговик, салют, Санта Клаус",
+  "duration": 180,
+  "version": "1.0",
+  "created_at": "2025-01-01T00:00:00Z",
+  "author": "albion",
+  "tags": ["holiday", "new-year", "snow", "fireworks", "santa"],
+  "events": [
+    {"t": 0, "do": "change_time_of_day", "params": {"phase": "night"}},
+    {"t": 1, "do": "change_weather", "params": {"condition": "clear"}},
+    {"t": 2, "do": "start_snow", "params": {"intensity": 0.8}},
+    {"t": 3, "do": "add_holiday_decor", "params": {"type": "trees"}},
+    {"t": 4, "do": "add_holiday_decor", "params": {"type": "snow"}},
+    {"t": 5, "do": "add_holiday_decor", "params": {"type": "snowman"}},
+    {"t": 10, "do": "change_traffic_density", "params": {"density": 0.8}},
+    {"t": 15, "do": "change_speed", "params": {"factor": 0.7}},
+    {"t": 30, "do": "add_vehicle", "params": {"type": "sleigh", "color": "red"}},
+    {"t": 60, "do": "add_car", "params": {"color": "#ffffff", "type": "sedan"}},
+    {"t": 61, "do": "add_car", "params": {"color": "#ff5a3c", "type": "sedan"}},
+    {"t": 90, "do": "change_traffic_light_phase", "params": {"phase": "green", "intersection": 0}},
+    {"t": 120, "do": "add_holiday_decor", "params": {"type": "confetti"}},
+    {"t": 150, "do": "add_holiday_decor", "params": {"type": "stars"}},
+    {"t": 170, "do": "end"}
+  ]
+}

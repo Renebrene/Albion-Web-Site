@@ -73,6 +73,18 @@ const routes = [
       {
         path: 'portfolio',
         component: () => import('@/pages/PortfolioPage.vue')
+      },
+
+      /* Демо-страница компонента RoadBanner */
+      {
+        path: 'road-banner-demo',
+        component: () => import('@/pages/RoadBannerDemoPage.vue')
+      },
+
+      /* Демо-страница компонента CityRoadBanner */
+      {
+        path: 'city-road-banner-demo',
+        component: () => import('@/pages/CityRoadBannerDemoPage.vue')
       }
     ]
   },
@@ -169,6 +181,42 @@ const routes = [
         meta: {
           requiresAdmin: true
         }
+      },
+      {
+        path: 'roadrunner',
+        component: () => import('@/pages/AdministrationRoadrunnerPage.vue'),
+        meta: {
+          requiresAdmin: true
+        }
+      },
+      /* Старые адреса закладок ведут на объединённый раздел. */
+      {
+        path: 'banner',
+        redirect: () => ({
+          path: '/administration/roadrunner',
+          query: { tab: 'banner' }
+        })
+      },
+      {
+        path: 'roadrunner-docs',
+        redirect: () => ({
+          path: '/administration/roadrunner',
+          query: { tab: 'docs' }
+        })
+      },
+      {
+        path: 'scenario-generator',
+        redirect: () => ({
+          path: '/administration/roadrunner',
+          query: { tab: 'scenarios' }
+        })
+      },
+      {
+        path: 'roadrunner-settings',
+        redirect: () => ({
+          path: '/administration/roadrunner',
+          query: { tab: 'settings' }
+        })
       },
       {
         path: 'info',

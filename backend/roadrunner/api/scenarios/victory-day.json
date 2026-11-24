@@ -1,0 +1,26 @@
+{
+  "id": "victory-day",
+  "name": "День Победы",
+  "description": "9 Мая: флаги победы, танки, салют, вечерний парад",
+  "duration": 150,
+  "version": "1.0",
+  "created_at": "2025-05-09T00:00:00Z",
+  "author": "albion",
+  "tags": ["holiday", "victory-day", "flags", "tanks", "parade"],
+  "events": [
+    {"t": 0, "do": "change_time_of_day", "params": {"phase": "evening"}},
+    {"t": 1, "do": "change_weather", "params": {"condition": "clear"}},
+    {"t": 2, "do": "add_holiday_decor", "params": {"type": "flags"}},
+    {"t": 5, "do": "change_traffic_density", "params": {"density": 1.5}},
+    {"t": 10, "do": "add_vehicle", "params": {"type": "tank", "color": "#4a5d3a"}},
+    {"t": 20, "do": "add_car", "params": {"color": "#ffffff", "type": "sedan"}},
+    {"t": 21, "do": "add_car", "params": {"color": "#1a1a1a", "type": "sedan"}},
+    {"t": 30, "do": "change_traffic_light_phase", "params": {"phase": "green", "intersection": 0}},
+    {"t": 60, "do": "add_pedestrian", "params": {"direction": "cross"}},
+    {"t": 61, "do": "add_pedestrian", "params": {"direction": "cross"}},
+    {"t": 62, "do": "add_pedestrian", "params": {"direction": "cross"}},
+    {"t": 90, "do": "add_holiday_decor", "params": {"type": "stars"}},
+    {"t": 120, "do": "add_holiday_decor", "params": {"type": "confetti"}},
+    {"t": 140, "do": "end"}
+  ]
+}

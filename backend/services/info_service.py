@@ -3,9 +3,17 @@
 Публичная часть отдаёт только активные закладки; для закладки вида `geo`
 дополнительно подмешивается geo-контент главной (города/районы и их
 описания), чтобы страница обходилась одним запросом.
+
+Для закладки `traffic-light` поле `content` хранит JSON:
+  {
+    "image_url": "url изображения светофора",
+    "text": "основной текст",
+    "photos": [{"url": "...", "label": "..."}, ...]
+  }
 """
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from backend.services.data_service import get_connection
@@ -94,13 +102,95 @@ def _clean(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _parse_traffic_light_content(content_text: str) -> dict:
+    """Парсит JSON-контент закладки traffic-light.
+
+    Возвращает:
+      {
+        "image_url": str | None,
+        "custom_html": str,
+        "text": str,
+        "photos": [{"url": str, "label": str}, ...]
+      }
+    """
+    text = content_text.strip()
+    if not text:
+        return {
+            "image_url": None,
+            "custom_html": "",
+            "text": "",
+            "photos": [],
+        }
+
+    try:
+        data = json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        # Если не JSON — считаем весь текст обычным текстом.
+        return {
+            "image_url": None,
+            "custom_html": "",
+            "text": text,
+            "photos": [],
+        }
+
+    if not isinstance(data, dict):
+        return {
+            "image_url": None,
+            "custom_html": "",
+            "text": str(data),
+            "photos": [],
+        }
+
+    image_url = data.get("image_url") or None
+    custom_html = data.get("custom_html") or ""
+    text_content = data.get("text") or ""
+    photos_raw = data.get("photos") or []
+
+    photos = []
+    for p in photos_raw:
+        if isinstance(p, dict):
+            url = p.get("url") or ""
+            if url:
+                photos.append({
+                    "url": str(url),
+                    "label": str(p.get("label") or ""),
+                })
+
+    return {
+        "image_url": str(image_url) if image_url else None,
+        "custom_html": str(custom_html),
+        "text": str(text_content),
+        "photos": photos,
+    }
+
+
+def _build_traffic_light_content(data: dict) -> str:
+    """Сериализует данные traffic-light в JSON-строку для поля content."""
+    return json.dumps(
+        {
+            "image_url": data.get("image_url") or "",
+            "custom_html": data.get("custom_html") or "",
+            "text": data.get("text") or "",
+            "photos": data.get("photos") or [],
+        },
+        ensure_ascii=False,
+        indent=2,
+    )
+
+
 def save_tabs(items: list[dict] | None) -> dict:
-    """Заменяет список закладок целиком (порядок = порядок в списке)."""
+    """Сохраняет список закладок.
+
+    Существующие закладки обновляются по `id` (их идентификаторы не
+    меняются, поэтому ссылки вида /informaciya?tab=<id> продолжают
+    работать). Новые вставляются, отсутствующие в payload — удаляются.
+    Порядок задаётся `sort_order`.
+    """
     items = items or []
 
     with get_connection() as conn:
         with conn.transaction():
-            conn.execute("DELETE FROM info_tabs")
+            keep_ids: list[int] = []
 
             for index, item in enumerate(items):
                 title = _clean(item.get("title"))
@@ -113,19 +203,73 @@ def save_tabs(items: list[dict] | None) -> dict:
                         f"Неизвестный тип закладки: {kind}"
                     )
 
-                conn.execute(
+                content = str(item.get("content") or "")
+
+                # Для traffic-light — парсим JSON и пересобираем.
+                if kind == "traffic-light":
+                    parsed = _parse_traffic_light_content(content)
+                    # Обновляем поля из payload, если переданы.
+                    if "image_url" in item:
+                        parsed["image_url"] = str(item["image_url"]) or None
+                    if "custom_html" in item:
+                        parsed["custom_html"] = str(item["custom_html"] or "")
+                    if "text" in item:
+                        parsed["text"] = str(item["text"])
+                    if "photos" in item:
+                        parsed["photos"] = [
+                            {
+                                "url": str(p.get("url", "")),
+                                "label": str(p.get("label", "")),
+                            }
+                            for p in item["photos"]
+                            if p.get("url")
+                        ]
+                    content = _build_traffic_light_content(parsed)
+
+                sort_order = int(item.get("sort_order") or (index + 1) * 10)
+                is_active = bool(item.get("is_active", True))
+                tab_id = item.get("id")
+
+                if tab_id:
+                    conn.execute(
+                        """
+                        UPDATE info_tabs
+                        SET title = %s, kind = %s, content = %s,
+                            sort_order = %s, is_active = %s,
+                            updated_at = NOW()
+                        WHERE id = %s
+                        """,
+                        (
+                            title[:200],
+                            kind,
+                            content,
+                            sort_order,
+                            is_active,
+                            int(tab_id),
+                        ),
+                    )
+                    keep_ids.append(int(tab_id))
+                    continue
+
+                row = conn.execute(
                     """
                     INSERT INTO info_tabs
                         (title, kind, content, sort_order, is_active)
                     VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id
                     """,
-                    (
-                        title[:200],
-                        kind,
-                        str(item.get("content") or ""),
-                        int(item.get("sort_order") or (index + 1) * 10),
-                        bool(item.get("is_active", True)),
-                    ),
+                    (title[:200], kind, content, sort_order, is_active),
+                ).fetchone()
+                keep_ids.append(row[0])
+
+            # Удаляем закладки, которых нет в payload.
+            if keep_ids:
+                placeholders = ", ".join(["%s"] * len(keep_ids))
+                conn.execute(
+                    f"DELETE FROM info_tabs WHERE id NOT IN ({placeholders})",
+                    tuple(keep_ids),
                 )
+            else:
+                conn.execute("DELETE FROM info_tabs")
 
     return get_admin_info()

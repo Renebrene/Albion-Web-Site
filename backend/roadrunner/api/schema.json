@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Roadrunner Scenario",
+  "description": "Сценарий для программной дороги Альбион",
+  "type": "object",
+  "required": ["id", "name", "duration", "events"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 500
+    },
+    "duration": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 3600
+    },
+    "version": {
+      "type": "string",
+      "default": "1.0"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "author": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/event"
+      }
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "required": ["t", "do"],
+      "properties": {
+        "t": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Время в секундах от начала сценария"
+        },
+        "do": {
+          "type": "string",
+          "enum": [
+            "start_traffic",
+            "stop_traffic",
+            "change_traffic_density",
+            "add_car",
+            "remove_car",
+            "change_speed",
+            "add_bus",
+            "remove_bus",
+            "add_pedestrian",
+            "remove_pedestrian",
+            "change_traffic_light_phase",
+            "change_weather",
+            "add_holiday_decor",
+            "remove_holiday_decor",
+            "start_rain",
+            "stop_rain",
+            "start_snow",
+            "stop_snow",
+            "change_time_of_day",
+            "add_vehicle",
+            "remove_vehicle",
+            "end"
+          ]
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}
