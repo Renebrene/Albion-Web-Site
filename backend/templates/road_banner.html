@@ -60,7 +60,9 @@
   }
 
   .hud-traffic {
-    min-width: 80px;
+    min-width: 0;
+    padding: 3px 5px;
+    gap: 2px;
   }
 
   /* Балл пробок — круг с числом по шкале Яндекса (0-3 / 4-6 / 7-9 / 10). */
@@ -68,8 +70,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     background: #2fd27d;
     color: #08120c;
@@ -111,6 +113,10 @@
 
   .hud-precip {
     font-size: 12px;
+  }
+
+  .hud-precip[hidden] {
+    display: none;
   }
 </style>
 
@@ -219,7 +225,7 @@
     <span id="hudTrafficDot" class="hud-traffic-dot level-free" title="Пробки: —">—</span>
   </div>
   <div class="hud-item hud-holiday" id="hudHoliday" hidden></div>
-  <div class="hud-item hud-precip" id="hudPrecip">
+  <div class="hud-item hud-precip" id="hudPrecip" hidden>
     <span id="hudPrecipEmoji">—</span>
     <span id="hudPrecipValue">—</span>
   </div>
@@ -1647,25 +1653,24 @@ function weatherCodeToText(code) {
 function updateWeatherHUD() {
   const emojiEl = document.getElementById('hudWeatherEmoji');
   const tempEl = document.getElementById('hudTempValue');
+  const precipEl = document.getElementById('hudPrecip');
   const precipEmojiEl = document.getElementById('hudPrecipEmoji');
   const precipValueEl = document.getElementById('hudPrecipValue');
 
   if (weatherData) {
     emojiEl.textContent = weatherCodeToEmoji(weatherData.weatherCode);
     tempEl.textContent = `${Math.round(weatherData.temperature)}°`;
-    // Осадки: если есть — показываем иконку и значение, если нет — прочерк
-    if (weatherData.precipitation > 0) {
+    // Плашка осадков появляется только когда они есть.
+    const hasPrecip = weatherData.precipitation > 0;
+    precipEl.hidden = !hasPrecip;
+    if (hasPrecip) {
       precipEmojiEl.textContent = '🌧️';
       precipValueEl.textContent = `${weatherData.precipitation.toFixed(1)}`;
-    } else {
-      precipEmojiEl.textContent = '—';
-      precipValueEl.textContent = '0';
     }
   } else {
     emojiEl.textContent = '—';
     tempEl.textContent = '—°';
-    precipEmojiEl.textContent = '—';
-    precipValueEl.textContent = '—';
+    precipEl.hidden = true;
   }
 }
 
