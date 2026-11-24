@@ -25,7 +25,18 @@
 
     <p v-if="error" class="error-text">{{ error }}</p>
 
-    <div class="generator-grid">
+    <div
+      v-if="scenarioDisabled"
+      class="scenario-mode-hint"
+    >
+      Сценарии доступны в режиме «Произвольный». Переключите режим на вкладке
+      «Камера и сцена», чтобы создавать и применять сценарии.
+    </div>
+
+    <div
+      class="generator-grid"
+      :class="{ 'rr-disabled': scenarioDisabled }"
+    >
       <section class="panel prompt-panel">
         <div class="panel-head">
           <h2>Описание сценария</h2>
@@ -120,92 +131,6 @@
       </section>
     </div>
 
-    <section class="panel settings-panel">
-      <div class="panel-head">
-        <h2>Настройки AI</h2>
-        <q-btn
-          flat
-          dense
-          no-caps
-          label="Обновить"
-          @click="loadSettings"
-        />
-      </div>
-
-      <div class="settings-grid">
-        <div class="setting-item">
-          <label>Провайдер</label>
-          <q-select
-            v-model="settings.llm_provider"
-            :options="providerOptions"
-            emit-value
-            map-options
-            dense
-            outlined
-          />
-        </div>
-
-        <div class="setting-item">
-          <label>Модель</label>
-          <q-input
-            v-model="settings.llm_model"
-            dense
-            outlined
-          />
-        </div>
-
-        <div class="setting-item">
-          <label>URL API</label>
-          <q-input
-            v-model="settings.llm_url"
-            dense
-            outlined
-            placeholder="http://localhost:11434"
-          />
-        </div>
-
-        <div class="setting-item">
-          <label>API Key</label>
-          <q-input
-            v-model="settings.llm_api_key"
-            dense
-            outlined
-            type="password"
-          />
-        </div>
-
-        <div class="setting-item">
-          <label>Temperature</label>
-          <q-slider
-            v-model.number="settings.temperature"
-            :min="0"
-            :max="1"
-            :step="0.05"
-            dense
-            color="primary"
-          />
-        </div>
-
-        <div class="setting-item">
-          <label>Max tokens</label>
-          <q-input
-            v-model.number="settings.max_tokens"
-            type="number"
-            dense
-            outlined
-          />
-        </div>
-      </div>
-
-      <div class="settings-actions">
-        <q-btn
-          color="primary"
-          no-caps
-          label="Сохранить настройки"
-          @click="saveSettings"
-        />
-      </div>
-    </section>
   </component>
 </template>
 
@@ -215,9 +140,12 @@ defineProps({
   embedded: { type: Boolean, default: false }
 })
 
-import { ref, onMounted } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminRequest as request } from '../services/adminApi'
+import { roadrunnerMode } from '../composables/useRoadrunnerMode'
+
+const scenarioDisabled = computed(() => roadrunnerMode.value !== 'custom')
 
 const router = useRouter()
 
@@ -227,49 +155,6 @@ const generatedError = ref('')
 const generating = ref(false)
 const error = ref('')
 const fileInput = ref(null)
-
-const settings = ref({
-  llm_provider: 'ollama',
-  llm_model: 'qwen2.5:7b',
-  llm_url: 'http://localhost:11434',
-  llm_api_key: '',
-  temperature: 0.35,
-  max_tokens: 2048
-})
-
-const providerOptions = [
-  { label: 'Ollama (локальная)', value: 'ollama' },
-  { label: 'YandexGPT Lite 8B', value: 'yandexgpt' },
-  { label: 'OpenAI совместимый', value: 'openai' }
-]
-
-onMounted(() => {
-  loadSettings()
-})
-
-async function loadSettings() {
-  try {
-    const data = await request('/api/roadrunner/settings')
-    if (data.settings) {
-      settings.value = { ...settings.value, ...data.settings }
-    }
-  } catch (exc) {
-    error.value = `Не удалось загрузить настройки: ${exc}`
-  }
-}
-
-async function saveSettings() {
-  try {
-    await request('/api/roadrunner/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings.value)
-    })
-    error.value = ''
-  } catch (exc) {
-    error.value = `Не удалось сохранить настройки: ${exc}`
-  }
-}
 
 async function generate() {
   if (!prompt.value.trim()) return
@@ -335,6 +220,21 @@ async function onFileUpload(event) {
 </script>
 
 <style scoped>
+.scenario-mode-hint {
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 13px;
+}
+
+.rr-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
+
 .admin-scenario-generator {
   max-width: 1400px;
   margin: 0 auto;

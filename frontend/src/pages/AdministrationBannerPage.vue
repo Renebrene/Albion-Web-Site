@@ -117,7 +117,7 @@
             />
           </div>
 
-          <div class="pc-topbar-controls" :class="{ 'pc-disabled': !isCustom }">
+          <div class="pc-topbar-controls">
           <q-btn
             class="pc-play"
             no-caps
@@ -155,6 +155,7 @@
             :options="cameraPresetOptions"
             @update:model-value="applyCameraPreset"
           />
+          <div class="pc-mode-scoped" :class="{ 'pc-disabled': !isCustom }">
           <q-select
             class="pc-select"
             dense
@@ -175,6 +176,7 @@
             :options="holidayPresetOptions"
             @update:model-value="applyHolidayPreset"
           />
+          </div>
 
           <q-btn class="pc-action" no-caps icon="shuffle" label="Случайно" @click="randomize" />
           <q-btn class="pc-action" no-caps icon="restart_alt" label="Сброс" @click="resetProjection" />
@@ -182,9 +184,9 @@
         </div>
 
         <div v-if="!isCustom" class="pc-mode-hint">
-          Баннер синхронизируется с реальной погодой, временем суток, пробками
-          и праздниками. Переключитесь на «Произвольный», чтобы задавать свои
-          настройки и сценарии.
+          Погода и праздники синхронизируются с реальными данными, сценарии не
+          применяются. Камера и сцена доступны в любом режиме. Переключитесь на
+          «Произвольный», чтобы задать свою погоду, праздники и сценарий.
         </div>
 
         <q-tabs
@@ -206,7 +208,12 @@
           <q-tab name="docs" icon="description" label="API для агентов" />
         </q-tabs>
 
-        <div class="pc-body" :class="{ 'pc-disabled': !isCustom }">
+        <div
+          class="pc-body"
+          :class="{
+            'pc-disabled': !isCustom && ['weather', 'holidays'].includes(projectionTab)
+          }"
+        >
           <div v-if="projectionTab === 'scenarios'" class="pc-section">
             <h3>Генератор сценариев</h3>
             <p>
@@ -709,6 +716,7 @@ import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
 import { adminRequest as request } from '../services/adminApi'
 import SettingKnob from '../components/admin/SettingKnob.vue'
+import { roadrunnerMode, modeFromCode } from '../composables/useRoadrunnerMode'
 
 const props = defineProps({
   embedded: { type: Boolean, default: false },
@@ -853,10 +861,11 @@ const isApiProvider = computed(() =>
   ['yandexgpt', 'openai'].includes(aiSettings.value.llm_provider)
 )
 
-const isCustom = computed(() => settingValue('mode') === 'custom')
+const isCustom = computed(() => roadrunnerMode.value === 'custom')
 
 function setMode(value) {
   setSetting('mode', value)
+  roadrunnerMode.value = value
 
   if (value === 'default') {
     // Возврат к поведению по умолчанию: реальные данные вместо ручных
@@ -1128,6 +1137,7 @@ async function load() {
     code.value = found.code || ''
     savedCode.value = code.value
     parseSettings(code.value)
+    roadrunnerMode.value = modeFromCode(code.value)
     defaultValues.value = Object.fromEntries(
       settings.value.map(item => [item.key, item.value])
     )
@@ -1235,6 +1245,8 @@ function updateSetting(item, value) {
 }
 
 watch(code, value => {
+  roadrunnerMode.value = modeFromCode(value)
+
   if (syncing || value === lastSyncedCode) return
 
   if (parseTimer) window.clearTimeout(parseTimer)
@@ -1593,6 +1605,12 @@ h1 {
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
+}
+
+.pc-mode-scoped {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .pc-topbar-controls {

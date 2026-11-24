@@ -70,8 +70,9 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { loadRoadrunnerMode } from '../composables/useRoadrunnerMode'
 import AdministrationBannerPage from './AdministrationBannerPage.vue'
 import AdministrationRoadrunnerDocsPage from './AdministrationRoadrunnerDocsPage.vue'
 import AdministrationScenarioGeneratorPage from './AdministrationScenarioGeneratorPage.vue'
@@ -89,6 +90,8 @@ function fromQuery(value) {
 }
 
 const tab = ref(fromQuery(route.query.tab))
+
+onMounted(loadRoadrunnerMode)
 
 watch(tab, value => {
   if (route.query.tab === value) return
