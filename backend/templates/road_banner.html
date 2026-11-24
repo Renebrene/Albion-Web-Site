@@ -54,6 +54,11 @@
     font-size: 13px;
   }
 
+  .hud-weather-text {
+    color: #cbd5e1;
+    font-size: 11px;
+  }
+
   .hud-temp {
     font-size: 14px;
     font-weight: 700;
@@ -220,6 +225,7 @@
   <div class="hud-item hud-weather" id="hudWeather">
     <span id="hudWeatherEmoji">☀️</span>
     <span id="hudTempValue">—°</span>
+    <span id="hudWeatherText" class="hud-weather-text"></span>
   </div>
   <div class="hud-item hud-traffic" id="hudTraffic">
     <span id="hudTrafficDot" class="hud-traffic-dot level-free" title="Пробки: —">—</span>
@@ -373,6 +379,8 @@ const ROAD_HALF = 58, LANE_Z = 1.8, STOP_OFF = 7.2, ZEBRA_OFF = 4.6;
 const CAR_LEN = 2.4, BUS_LEN = 5.8, ACCEL = 3.2, DECEL = 7.5, BRAKE_A = 5.5;
 // Остановка на ДАЛЬНЕЙ стороне (−Z): автобусы идут справа налево (dir = −1)
 const SHELTER_X = 12, BUS_STOP_X = SHELTER_X + 1.55, BAY_Z = -3.95, WAIT_Z = -6.15;
+// Вторая остановка — на противоположной стороне дороги, со сдвигом по дороге.
+const SHELTER2_X = SHELTER_X - 6, BAY2_Z = 4.35, WAIT2_Z = 6.15;
 const CAR_COLORS = [0xff5a3c, 0xffb020, 0x2fd27d, 0x4da3ff, 0xff5ea8, 0xe8ecf5];
 
 const $ = id => document.getElementById(id);
@@ -411,7 +419,7 @@ renderer.domElement.addEventListener('webglcontextlost', e => { e.preventDefault
 renderer.domElement.addEventListener('webglcontextrestored', () => { $('fallback').style.display='none'; });
 
 const scene = new THREE.Scene();
-const skyDay = new THREE.Color(0x9fd4ec), skyDusk = new THREE.Color(0x131a30);
+const skyDay = new THREE.Color(0x9fd4ec), skyDusk = new THREE.Color(0x2b3d5e);
 scene.background = skyDay.clone();
 scene.fog = new THREE.Fog(skyDay.clone(), 70, 165);
 scene.fog.near = lerp(70, 18, VIS.fog);
@@ -587,6 +595,17 @@ backWalk.position.set(SHELTER_X, 0, -6.35); scene.add(backWalk);
   a.rotation.x = -Math.PI/2; a.rotation.z = Math.PI; a.position.set(x, .013, -4.3); scene.add(a);
 });
 
+// Карман и тротуар второй остановки — на БЛИЖНЕЙ стороне дороги.
+const bay2 = new THREE.Mesh(new THREE.BoxGeometry(12.4, .1, 2.3), M.asphalt);
+bay2.position.set(SHELTER2_X, -.05, BAY2_Z); scene.add(bay2);
+const backWalk2 = new THREE.Mesh(new THREE.BoxGeometry(12.4, .24, 1.9), M.walk);
+backWalk2.position.set(SHELTER2_X, 0, WAIT2_Z); scene.add(backWalk2);
+[SHELTER2_X - 3, SHELTER2_X + 3].forEach(x => {
+  const a = new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.5),
+    new THREE.MeshBasicMaterial({ map:markATex, transparent:true, depthWrite:false }));
+  a.rotation.x = -Math.PI/2; a.position.set(x, .013, BAY2_Z); scene.add(a);
+});
+
 // кромки и тротуары: разрывы на перекрёстках, на дальней стороне — ещё и у кармана
 const segsNear = [[-ROAD_HALF,-28.2],[-19.8,19.8],[28.2,ROAD_HALF]];
 const segsFar  = [[-ROAD_HALF,-28.2],[-19.8,5.8],[18.2,19.8],[28.2,ROAD_HALF]];
@@ -721,6 +740,32 @@ let shelterGlow;
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,3.1,6), M.pole); pole.position.y = 1.55; sg.add(pole);
   const sign = new THREE.Mesh(new THREE.BoxGeometry(.75,.75,.05), new THREE.MeshStandardMaterial({ map:signTex, roughness:.6 })); sign.position.y = 2.95; sg.add(sign);
   sg.position.set(7.4, 0, -5.5); scene.add(sg);
+}
+
+/* ================= ВТОРАЯ ОСТАНОВКА — ближняя сторона ================= */
+let shelterGlow2;
+{
+  const g = new THREE.Group();
+  [[-2.6,-.85],[-2.6,.85],[2.6,-.85],[2.6,.85]].forEach(([x,z]) => {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(.1,2.5,.1), M.pole); post.position.set(x,1.25,z); g.add(post);
+  });
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(5.7,.14,2.0), M.housing); roof.position.y = 2.55; g.add(roof);
+  const roofEdge = new THREE.Mesh(new THREE.BoxGeometry(5.7,.07,.09), new THREE.MeshStandardMaterial({ color:0xffb020, roughness:.6 })); roofEdge.position.set(0,2.5,1.0); g.add(roofEdge);
+  const back = new THREE.Mesh(new THREE.BoxGeometry(5.3,1.8,.05), M.shelterGlass); back.position.set(0,1.15,-.9); g.add(back);
+  [-2.65,2.65].forEach(x => { const side = new THREE.Mesh(new THREE.BoxGeometry(.05,1.8,1.7), M.shelterGlass); side.position.set(x,1.15,0); g.add(side); });
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(4.0,.09,.42), M.wood); bench.position.set(0,.62,-.55); g.add(bench);
+  [-1.7,1.7].forEach(x => { const leg = new THREE.Mesh(new THREE.BoxGeometry(.08,.55,.35), M.pole); leg.position.set(x,.3,-.55); g.add(leg); });
+  const strip = new THREE.Mesh(new THREE.BoxGeometry(4.8,.05,.08), shelterLightMat); strip.position.set(0,2.42,.6); g.add(strip);
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(2.6,.42), new THREE.MeshBasicMaterial({ map:nameTex })); plate.position.set(0,2.28,1.02); g.add(plate);
+  shelterGlow2 = glowSprite(0xfff2cc, 3.2, 0); shelterGlow2.position.set(0,2.3,.4); g.add(shelterGlow2);
+  const bin = new THREE.Mesh(new THREE.CylinderGeometry(.22,.26,.6,8), M.pole); bin.position.set(3.1,.3,.6); g.add(bin);
+  // Поворачиваем павильон лицом к дороге (на ближней стороне).
+  g.rotation.y = Math.PI;
+  g.position.set(SHELTER2_X, 0, WAIT2_Z); scene.add(g);
+  const sg = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,3.1,6), M.pole); pole.position.y = 1.55; sg.add(pole);
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(.75,.75,.05), new THREE.MeshStandardMaterial({ map:signTex, roughness:.6 })); sign.position.y = 2.95; sg.add(sign);
+  sg.position.set(SHELTER2_X + 7.4, 0, WAIT2_Z - 0.85); scene.add(sg);
 }
 
 /* ================= ЩИТ «АЛЬБИОН» — перпендикулярно дороге, одна нога ================= */
@@ -926,12 +971,12 @@ const sunColDay = new THREE.Color(0xfff2dd), sunColDusk = new THREE.Color(0x7a8f
 function applyTheme(t){
   scene.background.copy(cTmp.lerpColors(skyDay, skyDusk, t));
   scene.fog.color.copy(scene.background);
-  hemi.intensity = lerp(.9,.5,t);
+  hemi.intensity = lerp(.9,.72,t);
   hemi.color.copy(cTmp.lerpColors(hemiSkyDay, hemiSkyDusk, t));
   hemi.groundColor.copy(cTmp.lerpColors(hemiGndDay, hemiGndDusk, t));
-  sunLight.intensity = lerp(1.6,.35,t);
+  sunLight.intensity = lerp(1.6,.65,t);
   sunLight.color.copy(cTmp.lerpColors(sunColDay, sunColDusk, t));
-  renderer.toneMappingExposure = lerp(1.15,.9,t) * VIS.brightness;
+  renderer.toneMappingExposure = lerp(1.15,1.05,t) * VIS.brightness;
   M.lampHead.emissiveIntensity = lerp(.15,2.2,t);
   M.head.emissiveIntensity = lerp(.25,2.5,t);
   M.tail.emissiveIntensity = lerp(.4,1.8,t);
@@ -942,11 +987,12 @@ function applyTheme(t){
   sunGlow.material.opacity = lerp(.5,.3,t);
   M.cloud.color.copy(cTmp.lerpColors(cloudDay, cloudDusk, t));
   lamps.forEach(l => { l.cone.material.opacity = lerp(0,.12,t); l.pool.material.opacity = lerp(0,.4,t); });
-  carPool.forEach(c => c.glow.material.opacity = lerp(0,.5,t));
-  busPool.forEach(b => b.glow.material.opacity = lerp(0,.5,t));
+  carPool.forEach(c => c.glow.material.opacity = lerp(0,.35,t));
+  busPool.forEach(b => b.glow.material.opacity = lerp(0,.35,t));
   lights.forEach(l => l.glow.material.opacity = lerp(.55,.95,t));
   shelterLightMat.emissiveIntensity = lerp(.08,2.2,t);
   shelterGlow.material.opacity = lerp(0,.3,t);
+  if (shelterGlow2) shelterGlow2.material.opacity = lerp(0,.3,t);
   adMat.emissiveIntensity = lerp(.05,1.1,t);
   bbGlow.material.opacity = lerp(0,.14,t);
 }
@@ -1635,24 +1681,25 @@ function weatherCodeToEmoji(code) {
   if (code <= 67) return '🌧️';
   if (code <= 77) return '❄️';
   if (code <= 82) return '🌦️';
-  if (code <= 99) return '🌨️';
-  return '☀️';
+  if (code <= 86) return '🌨️';
+  return '⛈️'; // гроза
 }
 
 function weatherCodeToText(code) {
-  if (code === 0) return 'ясно';
+  if (code === 0) return 'солнце';
   if (code <= 3) return 'облачно';
   if (code <= 48) return 'туман';
   if (code <= 67) return 'дождь';
   if (code <= 77) return 'снег';
   if (code <= 82) return 'ливень';
-  if (code <= 99) return 'метель';
-  return 'ясно';
+  if (code <= 86) return 'снегопад';
+  return 'гроза';
 }
 
 function updateWeatherHUD() {
   const emojiEl = document.getElementById('hudWeatherEmoji');
   const tempEl = document.getElementById('hudTempValue');
+  const textEl = document.getElementById('hudWeatherText');
   const precipEl = document.getElementById('hudPrecip');
   const precipEmojiEl = document.getElementById('hudPrecipEmoji');
   const precipValueEl = document.getElementById('hudPrecipValue');
@@ -1660,6 +1707,7 @@ function updateWeatherHUD() {
   if (weatherData) {
     emojiEl.textContent = weatherCodeToEmoji(weatherData.weatherCode);
     tempEl.textContent = `${Math.round(weatherData.temperature)}°`;
+    textEl.textContent = weatherCodeToText(weatherData.weatherCode);
     // Плашка осадков появляется только когда они есть.
     const hasPrecip = weatherData.precipitation > 0;
     precipEl.hidden = !hasPrecip;
@@ -1670,6 +1718,7 @@ function updateWeatherHUD() {
   } else {
     emojiEl.textContent = '—';
     tempEl.textContent = '—°';
+    textEl.textContent = '';
     precipEl.hidden = true;
   }
 }
@@ -1733,14 +1782,58 @@ function updateTrafficHUD() {
   }
 }
 
-/* Тема дня/ночи по реальным часам (0 — день, 1 — ночь).
-   Плавные переходы: утро 5→8, вечер 18→21. */
+/* Восход и закат для координат Ростова-на-Дону (NOAA-приближение).
+   Возвращает местное время в часах с дробной частью. */
+function sunTimesFor(date) {
+  const lat = CITY_CONFIG.lat, lon = CITY_CONFIG.lon;
+  const rad = Math.PI / 180;
+  const year = date.getFullYear();
+  const dayOfYear = Math.floor(
+    (Date.UTC(year, date.getMonth(), date.getDate()) - Date.UTC(year, 0, 0)) / 86400000
+  );
+  const gamma = (2 * Math.PI / 365) * (dayOfYear - 1);
+
+  const eqTime = 229.18 * (
+    0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma)
+    - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma)
+  );
+  const decl = (
+    0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma)
+    - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma)
+    - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma)
+  );
+
+  const cosH = Math.cos(90.833 * rad) / (Math.cos(lat * rad) * Math.cos(decl))
+    - Math.tan(lat * rad) * Math.tan(decl);
+
+  if (cosH > 1) return { sunrise: 0, sunset: 24 };   // полярная ночь
+  if (cosH < -1) return { sunrise: 12, sunset: 12 }; // полярный день
+
+  const ha = Math.acos(cosH) / rad;
+  const sunriseUTC = 720 - 4 * (lon + ha) - eqTime;
+  const sunsetUTC = 720 - 4 * (lon - ha) - eqTime;
+
+  const toLocal = minutes => {
+    const d = new Date(Date.UTC(year, date.getMonth(), date.getDate(), 0, minutes));
+    return d.getHours() + d.getMinutes() / 60;
+  };
+
+  return { sunrise: toLocal(sunriseUTC), sunset: toLocal(sunsetUTC) };
+}
+
+/* Тема дня/ночи по реальному восходу/закату (0 — день, 1 — ночь). */
 function realNightFactor() {
-  const hour = new Date().getHours() + new Date().getMinutes() / 60;
-  if (hour >= 8 && hour < 18) return 0;
-  if (hour >= 21 || hour < 5) return 1;
-  if (hour >= 5 && hour < 8) return 1 - (hour - 5) / 3;
-  return (hour - 18) / 3;
+  const now = new Date();
+  const hour = now.getHours() + now.getMinutes() / 60;
+  const { sunrise, sunset } = sunTimesFor(now);
+  const twilight = 1.2; // часа на плавный переход
+
+  if (hour >= sunrise + twilight && hour <= sunset - twilight) return 0;
+  if (hour >= sunset + twilight || hour <= sunrise - twilight) return 1;
+  if (hour < sunrise + twilight) {
+    return clamp((sunrise + twilight - hour) / (2 * twilight), 0, 1);
+  }
+  return clamp((hour - (sunset - twilight)) / (2 * twilight), 0, 1);
 }
 
 /* Повторяющиеся праздничные даты (месяц/день) из конфигурации Roadrunner. */

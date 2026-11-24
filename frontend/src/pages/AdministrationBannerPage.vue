@@ -868,23 +868,15 @@ function setMode(value) {
   roadrunnerMode.value = value
 
   if (value === 'default') {
-    // Возврат к поведению по умолчанию: реальные данные вместо ручных
-    // пресетов и стандартные значения скорости/потока/оформления.
-    const defaults = defaultValues.value
+    // Режим влияет только на погоду, праздники и сценарии. Камера, сцена,
+    // скорость и поток не сбрасываются и остаются доступны в обоих режимах.
     const reset = {
       weatherPreset: 'auto',
       holidayPreset: 'none',
-      cameraPreset: 'iso',
-      speedFactor: 1,
-      flowDensity: 1,
-      paused: false,
       precipitation: 0,
       lightning: 0,
       fog: 0,
-      brightness: 1,
-      tilt: defaults.tilt ?? 32,
-      rotation: defaults.rotation ?? 38,
-      scale: defaults.scale ?? 1
+      brightness: 1
     }
 
     decorKeys.forEach(key => { reset[key] = false })
@@ -1550,6 +1542,11 @@ h1 {
 
 .preview-frame {
   display: block;
+  /* Та же обрезка слева, что и у баннера на главной. */
+  --rr-crop-left: 16%;
+  --rr-crop-scale: 1.19;
+  transform: scale(var(--rr-crop-scale)) translateX(calc(-1 * var(--rr-crop-left)));
+  transform-origin: left center;
   width: 100%;
   /* Та же доля экрана, что и у баннера на главной. */
   height: 50vh;

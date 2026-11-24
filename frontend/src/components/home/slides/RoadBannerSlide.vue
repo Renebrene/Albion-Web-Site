@@ -120,6 +120,14 @@ const codeUrl = computed(() => `/api/home/slides/${props.slide.id}/code`)
   height: 100%;
   border: 0;
   pointer-events: none;
+  /*
+   * Левая часть кадра обрезана до конца дороги: сдвигаем документ влево
+   * и масштабируем, чтобы видимая область начиналась сразу у дороги.
+   */
+  --rr-crop-left: 16%;
+  --rr-crop-scale: 1.19;
+  transform: scale(var(--rr-crop-scale)) translateX(calc(-1 * var(--rr-crop-left)));
+  transform-origin: left center;
 }
 
 @media (max-width: 760px) {
