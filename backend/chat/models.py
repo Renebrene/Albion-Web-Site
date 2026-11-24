@@ -128,6 +128,8 @@ class ChatMessageResponse(BaseModel):
     clarification: ChatClarification | None = None
     results: ChatResults = Field(default_factory=lambda: ChatResults(count=0))
     suggestions: list[ChatSuggestion] = Field(default_factory=list)
+    # Быстрые кнопки со сценариями (например, после запроса «светофор»).
+    prompt_suggestions: list[str] = Field(default_factory=list)
     actions: ChatActions = Field(default_factory=ChatActions)
     warnings: list[str] = Field(default_factory=list)
 

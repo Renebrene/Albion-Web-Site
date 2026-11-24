@@ -44,6 +44,87 @@ class RoadrunnerTrigger:
     mode: str = "default"  # "default" или "roadrunner"
     suggestion: str = ""
     parameters: list[str] = None
+    # Быстрые кнопки со сценариями в ответе чата.
+    prompts: list[str] = None
+    # Сценарий, соответствующий одному из примеров (если запрос точный).
+    scenario: dict = None
+
+
+# Готовые сценарии: каждый использует другой набор настроек проекции.
+# banner применяет события, а по окончании возвращается к коду из БД.
+EXAMPLE_SCENARIOS = [
+    {
+        "prompt": "Ночная гроза: молнии, поток 2×, камера «Угол улицы»",
+        "name": "Ночная гроза",
+        "duration": 45,
+        "events": [
+            {"t": 0, "do": "change_time_of_day", "params": {"phase": "night"}},
+            {"t": 1, "do": "change_weather", "params": {"condition": "storm"}},
+            {"t": 2, "do": "change_traffic_density", "params": {"density": 2.0}},
+            {"t": 43, "do": "end"},
+        ],
+    },
+    {
+        "prompt": "Новогодний вечер: снег, ёлки, гирлянды, камера «Остановка»",
+        "name": "Новогодний вечер",
+        "duration": 50,
+        "events": [
+            {"t": 0, "do": "change_weather", "params": {"condition": "snow"}},
+            {"t": 1, "do": "add_holiday_decor", "params": {"type": "new-year"}},
+            {"t": 2, "do": "change_speed", "params": {"factor": 0.7}},
+            {"t": 48, "do": "end"},
+        ],
+    },
+    {
+        "prompt": "Утренний час пик: пробки 8, поток 3×, камера «Сверху»",
+        "name": "Утренний час пик",
+        "duration": 40,
+        "events": [
+            {"t": 0, "do": "change_traffic_density", "params": {"density": 3.0}},
+            {"t": 1, "do": "change_speed", "params": {"factor": 0.6}},
+            {"t": 2, "do": "change_time_of_day", "params": {"phase": "morning"}},
+            {"t": 38, "do": "end"},
+        ],
+    },
+    {
+        "prompt": "Тихий день: ясно, скорость 0.6×, без праздника",
+        "name": "Тихий день",
+        "duration": 35,
+        "events": [
+            {"t": 0, "do": "change_weather", "params": {"condition": "clear"}},
+            {"t": 1, "do": "change_speed", "params": {"factor": 0.6}},
+            {"t": 2, "do": "change_traffic_density", "params": {"density": 0.8}},
+            {"t": 33, "do": "end"},
+        ],
+    },
+    {
+        "prompt": "День Победы: флаги, гирлянды, яркий свет, камера «Фронт»",
+        "name": "День Победы",
+        "duration": 45,
+        "events": [
+            {"t": 0, "do": "add_holiday_decor", "params": {"type": "victory-day"}},
+            {"t": 1, "do": "change_time_of_day", "params": {"phase": "day"}},
+            {"t": 2, "do": "change_weather", "params": {"condition": "clear"}},
+            {"t": 43, "do": "end"},
+        ],
+    },
+]
+
+EXAMPLE_PROMPTS = [item["prompt"] for item in EXAMPLE_SCENARIOS]
+
+
+def match_example_scenario(text: str) -> dict | None:
+    """Найти готовый сценарий по точному тексту подсказки."""
+    normalized = " ".join((text or "").lower().split())
+    for item in EXAMPLE_SCENARIOS:
+        if " ".join(item["prompt"].lower().split()) == normalized:
+            return {
+                "id": "chat-" + item["name"].lower().replace(" ", "-"),
+                "name": item["name"],
+                "duration": item["duration"],
+                "events": item["events"],
+            }
+    return None
 
 
 def check_roadrunner_trigger(text: str) -> RoadrunnerTrigger:
@@ -57,6 +138,7 @@ def check_roadrunner_trigger(text: str) -> RoadrunnerTrigger:
         RoadrunnerTrigger с результатами проверки.
     """
     text_lower = text.lower().strip()
+    matched_scenario = match_example_scenario(text)
 
     # Проверка ключевых слов
     for keyword in ROADRUNNER_KEYWORDS:
@@ -65,7 +147,9 @@ def check_roadrunner_trigger(text: str) -> RoadrunnerTrigger:
                 active=True,
                 mode="roadrunner",
                 suggestion=_get_suggestion(text_lower),
-                parameters=_get_parameters()
+                parameters=_get_parameters(),
+                prompts=EXAMPLE_PROMPTS,
+                scenario=matched_scenario
             )
 
     # Проверка паттернов
@@ -75,14 +159,18 @@ def check_roadrunner_trigger(text: str) -> RoadrunnerTrigger:
                 active=True,
                 mode="roadrunner",
                 suggestion=_get_suggestion(text_lower),
-                parameters=_get_parameters()
+                parameters=_get_parameters(),
+                prompts=EXAMPLE_PROMPTS,
+                scenario=matched_scenario
             )
 
     return RoadrunnerTrigger(
         active=False,
         mode="default",
         suggestion="",
-        parameters=[]
+        parameters=[],
+        prompts=[],
+        scenario=None
     )
 
 
@@ -168,8 +256,15 @@ def format_roadrunner_suggestion(trigger: RoadrunnerTrigger) -> str:
 
     lines.extend([
         "",
-        "Напишите 'сгенерировать сценарий' + описание, или откройте "
-        "'Баннер-дорога' в админке для ручного редактирования.",
+        "**Готовые сценарии (нажмите кнопку ниже):**",
+    ])
+    for prompt in EXAMPLE_PROMPTS:
+        lines.append(f"• {prompt}")
+
+    lines.extend([
+        "",
+        "После окончания сценария баннер вернётся к настройкам по умолчанию "
+        "из базы данных.",
     ])
 
     return "\n".join(lines)

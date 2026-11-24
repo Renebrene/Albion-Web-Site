@@ -166,6 +166,47 @@ async def list_scenarios(auth=Depends(require_admin)):
     return {"success": True, "scenarios": scenarios}
 
 
+@router.get("/scenarios/active", include_in_schema=False)
+async def get_active_scenario():
+    """Сценарий, который сейчас применяет баннер (публичный, для iframe)."""
+    from backend.roadrunner.services.scenario_state import get_active_scenario
+
+    return JSONResponse(
+        content={"active": get_active_scenario()},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
+
+
+@router.delete("/scenarios/active")
+async def clear_active_scenario(auth=Depends(require_admin)):
+    """Завершить сценарий и вернуть баннер к настройкам из БД."""
+    from backend.roadrunner.services.scenario_state import clear_active_scenario
+
+    clear_active_scenario()
+    return {"success": True}
+
+
+@router.post("/scenarios/apply")
+async def apply_scenario(
+    payload: dict, auth=Depends(require_admin)
+):
+    """Применить сценарий к баннеру (из чата или админки)."""
+    from backend.roadrunner.services.scenario_state import apply_scenario
+
+    scenario = payload.get("scenario") or payload
+    if not scenario.get("events") and not scenario.get("duration"):
+        raise HTTPException(
+            status_code=400, detail="Пустой сценарий"
+        )
+
+    state = apply_scenario(scenario)
+    return {
+        "success": True,
+        "duration": state["duration"],
+        "started_at": state["started_at"],
+    }
+
+
 @router.get("/scenarios/{scenario_id}")
 async def get_scenario(
     scenario_id: str, auth=Depends(require_admin)
@@ -308,6 +349,73 @@ async def generate_scenario(
         raise HTTPException(
             status_code=500, detail=f"Ошибка генерации: {exc}"
         )
+
+
+OLLAMA_MODEL_CATALOG = (
+    "qwen2.5:7b",
+    "llama3.1:8b",
+    "mistral:7b",
+    "phi3:mini",
+    "gemma2:9b",
+)
+
+
+def _ollama_url() -> str:
+    url = os.getenv("ROADRUNNER_LLM_URL") or "http://localhost:11434"
+    return url.rstrip("/")
+
+
+@router.get("/ollama/models", include_in_schema=False)
+async def list_ollama_models(auth=Depends(require_admin)):
+    """Список моделей, уже загруженных в локальный Ollama."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(f"{_ollama_url()}/api/tags")
+            response.raise_for_status()
+            data = response.json()
+    except Exception as exc:
+        logger.warning("Ollama недоступен: %s", exc)
+        return JSONResponse(
+            content={"success": False, "models": [], "error": str(exc)},
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+    models = sorted(
+        {item.get("name", "") for item in data.get("models", []) if item.get("name")}
+    )
+    return {"success": True, "models": models, "catalog": list(OLLAMA_MODEL_CATALOG)}
+
+
+@router.post("/ollama/pull", include_in_schema=False)
+async def pull_ollama_model(payload: dict, auth=Depends(require_admin)):
+    """Скачать модель в Ollama (блокирующий вызов в отдельном потоке)."""
+    import httpx
+
+    model = str(payload.get("model") or "").strip()
+    if not model:
+        raise HTTPException(status_code=400, detail="Не указана модель")
+
+    def _pull() -> tuple[int, str]:
+        with httpx.Client(timeout=600) as client:
+            response = client.post(
+                f"{_ollama_url()}/api/pull",
+                json={"name": model, "stream": False},
+            )
+            return response.status_code, response.text[:500]
+
+    try:
+        status, text = await asyncio.to_thread(_pull)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503, detail=f"Ollama недоступен: {exc}"
+        )
+
+    if status >= 400:
+        raise HTTPException(status_code=502, detail=f"Ollama: {text}")
+
+    return {"success": True, "model": model}
 
 
 @router.get("/settings")

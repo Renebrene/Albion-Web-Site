@@ -209,6 +209,7 @@ function createStore(key) {
         clarification: response.clarification,
         results: response.results,
         suggestions: response.suggestions,
+        promptSuggestions: response.prompt_suggestions || [],
         actions: response.actions,
         query: response.query,
         warnings: response.warnings

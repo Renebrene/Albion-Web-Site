@@ -37,7 +37,7 @@
           no-caps
           icon="tune"
           label="Настройки"
-          @click="router.push('/administration/roadrunner?tab=settings')"
+          @click="jumpToAiSettings"
         />
         <q-btn
           flat
@@ -95,6 +95,438 @@
         >
         <span v-if="dirty" class="dirty">есть несохранённые изменения</span>
       </div>
+
+      <!-- Панель проекции: те же пресеты, что и в демо-сцене. -->
+      <section class="projection-console">
+        <div class="pc-topbar">
+          <q-btn
+            class="pc-play"
+            no-caps
+            :label="settingValue('paused') ? 'Пуск' : 'Пауза'"
+            :icon="settingValue('paused') ? 'play_arrow' : 'pause'"
+            @click="togglePaused"
+          />
+
+          <div class="pc-slider">
+            <span class="pc-label">СКОРОСТЬ <b>{{ displayValue(settingsByKey.speedFactor) }}×</b></span>
+            <q-slider
+              :model-value="Number(settingValue('speedFactor'))"
+              :min="0.2"
+              :max="2"
+              :step="0.05"
+              color="amber"
+              @update:model-value="v => setSetting('speedFactor', v)"
+            />
+          </div>
+
+          <div class="pc-slider">
+            <span class="pc-label">ПОТОК <b>{{ displayValue(settingsByKey.flowDensity) }}×</b></span>
+            <q-slider
+              :model-value="Number(settingValue('flowDensity'))"
+              :min="0.5"
+              :max="3"
+              :step="0.05"
+              color="amber"
+              @update:model-value="v => setSetting('flowDensity', v)"
+            />
+          </div>
+
+          <q-select
+            class="pc-select"
+            dark
+            dense
+            outlined
+            emit-value
+            map-options
+            :model-value="settingValue('cameraPreset')"
+            :options="cameraPresetOptions"
+            @update:model-value="applyCameraPreset"
+          />
+          <q-select
+            class="pc-select"
+            dark
+            dense
+            outlined
+            emit-value
+            map-options
+            :model-value="settingValue('weatherPreset')"
+            :options="weatherPresetOptions"
+            @update:model-value="applyWeatherPreset"
+          />
+          <q-select
+            class="pc-select"
+            dark
+            dense
+            outlined
+            emit-value
+            map-options
+            :model-value="settingValue('holidayPreset')"
+            :options="holidayPresetOptions"
+            @update:model-value="applyHolidayPreset"
+          />
+
+          <q-btn class="pc-action" no-caps icon="shuffle" label="Случайно" @click="randomize" />
+          <q-btn class="pc-action" no-caps icon="restart_alt" label="Сброс" @click="resetProjection" />
+        </div>
+
+        <q-tabs
+          v-model="projectionTab"
+          dark
+          dense
+          no-caps
+          align="left"
+          active-color="amber"
+          indicator-color="amber"
+          class="pc-tabs"
+        >
+          <q-tab name="scenarios" icon="movie" label="Сценарии" />
+          <q-tab name="holidays" icon="park" label="Праздники" />
+          <q-tab name="weather" icon="cloud" label="Погода" />
+          <q-tab name="camera" icon="videocam" label="Камера и сцена" />
+          <q-tab name="docs" icon="description" label="API для агентов" />
+        </q-tabs>
+
+        <div class="pc-body">
+          <div v-if="projectionTab === 'scenarios'" class="pc-section">
+            <h3>Генератор сценариев</h3>
+            <p>
+              Готовые сценарии и AI-генератор находятся на вкладке «Сценарии».
+              Таймлайн событий и журнал воспроизведения — там же.
+            </p>
+            <q-btn
+              no-caps
+              color="amber"
+              text-color="dark"
+              label="Открыть сценарии"
+              @click="router.push('/administration/roadrunner?tab=scenarios')"
+            />
+          </div>
+
+          <div v-else-if="projectionTab === 'holidays'" class="pc-section">
+            <h3>Генератор праздников</h3>
+            <p>
+              Пресет включает набор атрибутов, палитру гирлянд и оформление.
+              Любой из элементов можно включить вручную — пресет станет
+              «Своим набором».
+            </p>
+            <div class="pc-cards">
+              <button
+                v-for="preset in holidayCards"
+                :key="preset.value"
+                type="button"
+                class="pc-card"
+                :class="{ 'is-active': settingValue('holidayPreset') === preset.value }"
+                @click="applyHolidayPreset(preset.value)"
+              >
+                <span class="pc-card-icon">{{ preset.emoji }}</span>
+                <b>{{ preset.label }}</b>
+                <small>{{ preset.hint }}</small>
+              </button>
+            </div>
+            <div class="pc-sliders">
+              <div v-for="key in ['decorDensity','decorSize','decorGlow','precipitation']" :key="key" class="pc-slider">
+                <span class="pc-label">{{ settingLabel(key) }} <b>{{ displayValue(settingsByKey[key]) }}{{ settingsByKey[key]?.unit || '' }}</b></span>
+                <q-slider
+                  :model-value="Number(settingValue(key))"
+                  :min="Number(settingsByKey[key]?.min || 0)"
+                  :max="Number(settingsByKey[key]?.max || 1)"
+                  :step="Number(settingsByKey[key]?.step || 0.05)"
+                  color="amber"
+                  @update:model-value="v => setSetting(key, v)"
+                />
+              </div>
+            </div>
+            <div class="pc-toggles">
+              <button
+                v-for="key in decorKeys"
+                :key="key"
+                type="button"
+                class="pc-toggle-card"
+                :class="{ 'is-on': settingValue(key) }"
+                @click="setSetting(key, !settingValue(key))"
+              >
+                <span>{{ settingLabel(key) }}</span>
+                <small>{{ settingValue(key) ? 'включено' : 'выключено' }}</small>
+              </button>
+            </div>
+          </div>
+
+          <div v-else-if="projectionTab === 'weather'" class="pc-section">
+            <h3>Генератор погоды</h3>
+            <p>
+              Реальная погода либо атмосферный пресет. Гроза добавляет вспышки
+              молний с подсветкой сцены, дождь и снег — частицы с ветром.
+            </p>
+            <div class="pc-cards">
+              <button
+                v-for="preset in weatherCards"
+                :key="preset.value"
+                type="button"
+                class="pc-card"
+                :class="{ 'is-active': settingValue('weatherPreset') === preset.value }"
+                @click="applyWeatherPreset(preset.value)"
+              >
+                <span class="pc-card-icon">{{ preset.emoji }}</span>
+                <b>{{ preset.label }}</b>
+                <small>{{ preset.hint }}</small>
+              </button>
+            </div>
+            <div class="pc-sliders">
+              <div v-for="key in ['precipitation','wind','lightning','fog','brightness']" :key="key" class="pc-slider">
+                <span class="pc-label">{{ settingLabel(key) }} <b>{{ displayValue(settingsByKey[key]) }}{{ settingsByKey[key]?.unit || '' }}</b></span>
+                <q-slider
+                  :model-value="Number(settingValue(key))"
+                  :min="Number(settingsByKey[key]?.min || 0)"
+                  :max="Number(settingsByKey[key]?.max || 1)"
+                  :step="Number(settingsByKey[key]?.step || 0.05)"
+                  color="amber"
+                  @update:model-value="v => setSetting(key, v)"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="projectionTab === 'camera'" class="pc-section">
+            <h3>Камера и сцена</h3>
+            <p>
+              Ракурс задаётся пресетом; азимут, наклон и зум можно подкрутить
+              вручную. Все изменения сразу видны в предпросмотре.
+            </p>
+            <div class="pc-cards">
+              <button
+                v-for="preset in cameraCards"
+                :key="preset.value"
+                type="button"
+                class="pc-card"
+                :class="{ 'is-active': settingValue('cameraPreset') === preset.value }"
+                @click="applyCameraPreset(preset.value)"
+              >
+                <span class="pc-card-icon">{{ preset.emoji }}</span>
+                <b>{{ preset.label }}</b>
+                <small>{{ preset.hint }}</small>
+              </button>
+            </div>
+            <div class="pc-sliders">
+              <div v-for="key in ['tilt','rotation','scale']" :key="key" class="pc-slider">
+                <span class="pc-label">{{ settingLabel(key) }} <b>{{ displayValue(settingsByKey[key]) }}{{ settingsByKey[key]?.unit || '' }}</b></span>
+                <q-slider
+                  :model-value="Number(settingValue(key))"
+                  :min="Number(settingsByKey[key]?.min || 0)"
+                  :max="Number(settingsByKey[key]?.max || 1)"
+                  :step="Number(settingsByKey[key]?.step || 1)"
+                  color="amber"
+                  @update:model-value="v => setSetting(key, v)"
+                />
+              </div>
+              <q-select
+                class="pc-select"
+                dark
+                dense
+                outlined
+                emit-value
+                map-options
+                :model-value="settingValue('quality')"
+                :options="settingsByKey.quality?.options || []"
+                @update:model-value="v => setSetting('quality', v)"
+              />
+            </div>
+            <div class="pc-toggles">
+              <button
+                v-for="key in ['shadows','grid','buses']"
+                :key="key"
+                type="button"
+                class="pc-toggle-card"
+                :class="{ 'is-on': settingValue(key) }"
+                @click="setSetting(key, !settingValue(key))"
+              >
+                <span>{{ settingLabel(key) }}</span>
+                <small>{{ settingValue(key) ? 'включено' : 'выключено' }}</small>
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="pc-section">
+            <h3>Справочник API для ИИ-агентов</h3>
+            <p>
+              Формат сценария, словарь событий, справка по камере, погоде и
+              праздникам, готовые примеры.
+            </p>
+            <q-btn
+              no-caps
+              color="amber"
+              text-color="dark"
+              label="Открыть документацию"
+              @click="router.push('/administration/roadrunner?tab=docs')"
+            />
+          </div>
+        </div>
+      </section>
+
+      <!-- Настройки AI и источников: собраны здесь, отдельный модуль удалён. -->
+      <section class="panel ai-settings">
+        <div class="panel-head">
+          <h2>Настройки AI и источников</h2>
+          <q-btn
+            color="primary"
+            no-caps
+            dense
+            label="Сохранить настройки"
+            :loading="aiSaving"
+            @click="saveAiSettings"
+          />
+        </div>
+
+        <p v-if="aiError" class="error-text">{{ aiError }}</p>
+
+        <div class="ai-grid">
+          <div class="setting-item">
+            <label>Провайдер погоды</label>
+            <q-select
+              v-model="aiSettings.weather_provider"
+              :options="weatherProviderOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+            />
+          </div>
+          <div class="setting-item">
+            <label>Провайдер пробок</label>
+            <q-select
+              v-model="aiSettings.traffic_provider"
+              :options="trafficProviderOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+            />
+          </div>
+
+          <div class="setting-item">
+            <label>LLM-провайдер</label>
+            <q-select
+              v-model="aiSettings.llm_provider"
+              :options="llmProviderOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+              @update:model-value="onLlmProviderChange"
+            />
+          </div>
+
+          <template v-if="isOllama">
+            <div class="setting-item">
+              <label>Модель Ollama (установленная)</label>
+              <q-select
+                v-model="aiSettings.llm_model"
+                :options="ollamaModels"
+                dense
+                outlined
+                use-input
+                hide-selected
+                fill-input
+                input-debounce="0"
+                :loading="ollamaLoading"
+                placeholder="выберите или введите модель"
+                @filter="filterOllama"
+              >
+                <template #no-option>
+                  <q-item><q-item-section>Моделей нет</q-item-section></q-item>
+                </template>
+              </q-select>
+            </div>
+            <div class="setting-item">
+              <label>Скачать модель</label>
+              <div class="download-row">
+                <q-select
+                  v-model="modelToDownload"
+                  :options="ollamaCatalog"
+                  dense
+                  outlined
+                  class="download-select"
+                />
+                <q-btn
+                  no-caps
+                  color="primary"
+                  icon="download"
+                  label="Скачать"
+                  :loading="pullingModel"
+                  :disable="!modelToDownload"
+                  @click="downloadModel"
+                />
+              </div>
+              <small class="hint">
+                Загрузка идёт в локальный Ollama по адресу
+                {{ aiSettings.llm_url || 'http://localhost:11434' }}.
+              </small>
+            </div>
+          </template>
+
+          <template v-else-if="isApiProvider">
+            <div class="setting-item">
+              <label>URL API</label>
+              <q-input
+                v-model="aiSettings.llm_url"
+                dense
+                outlined
+                placeholder="https://llm.api.cloud.yandex.net/v1"
+              />
+            </div>
+            <div class="setting-item">
+              <label>API Key</label>
+              <q-input
+                v-model="aiSettings.llm_api_key"
+                type="password"
+                dense
+                outlined
+              />
+            </div>
+          </template>
+
+          <div class="setting-item">
+            <label>Температура</label>
+            <q-slider
+              v-model.number="aiSettings.temperature"
+              :min="0"
+              :max="1"
+              :step="0.05"
+              dense
+              color="primary"
+            />
+          </div>
+          <div class="setting-item">
+            <label>Максимум токенов</label>
+            <q-input
+              v-model.number="aiSettings.max_tokens"
+              type="number"
+              dense
+              outlined
+            />
+          </div>
+          <div class="setting-item">
+            <label>Сценарий по умолчанию</label>
+            <q-select
+              v-model="aiSettings.default_scenario"
+              :options="scenarioOptions"
+              emit-value
+              map-options
+              dense
+              outlined
+            />
+          </div>
+          <div class="setting-item">
+            <label>
+              Погода на баннере
+              <q-toggle v-model="aiSettings.weather_enabled" color="primary" />
+            </label>
+            <label>
+              Пробки на баннере
+              <q-toggle v-model="aiSettings.traffic_enabled" color="primary" />
+            </label>
+          </div>
+        </div>
+      </section>
 
       <div class="banner-grid">
         <section class="panel settings-panel">
@@ -247,6 +679,227 @@ const settings = ref([])
 const settingsError = ref('')
 const previewKey = ref(0)
 
+/* Панель проекции */
+const projectionTab = ref('camera')
+const defaultValues = ref({})
+
+const cameraPresetOptions = [
+  { value: 'iso', label: 'Изометрия' },
+  { value: 'platformer', label: 'Платформер' },
+  { value: 'top', label: 'Сверху' },
+  { value: 'front', label: 'Фронт' },
+  { value: 'street', label: 'Угол улицы' },
+  { value: 'stop', label: 'Остановка' }
+]
+
+const weatherPresetOptions = [
+  { value: 'auto', label: 'Реальная' },
+  { value: 'clear', label: 'Ясно' },
+  { value: 'snow', label: 'Снег' },
+  { value: 'rain', label: 'Дождь' },
+  { value: 'storm', label: 'Гроза' },
+  { value: 'night', label: 'Ночь' }
+]
+
+const holidayPresetOptions = [
+  { value: 'none', label: 'Без праздника' },
+  { value: 'new-year', label: 'Новый год' },
+  { value: 'women-day', label: '8 Марта' },
+  { value: 'victory-day', label: '9 Мая' },
+  { value: 'russia-day', label: 'День России' },
+  { value: 'custom', label: 'Свой набор' }
+]
+
+const cameraCards = [
+  { value: 'iso', label: 'Изометрия', emoji: '📐', hint: 'az 32° · el 38°' },
+  { value: 'platformer', label: 'Платформер', emoji: '🎮', hint: 'az 14° · el 0°' },
+  { value: 'top', label: 'Сверху', emoji: '🗺️', hint: 'az 86° · el 0°' },
+  { value: 'front', label: 'Фронт', emoji: '🎯', hint: 'az 26° · el 0°' },
+  { value: 'street', label: 'Угол улицы', emoji: '📍', hint: 'az 30° · el 38°' },
+  { value: 'stop', label: 'Остановка', emoji: '🚏', hint: 'az 24° · el 30°' }
+]
+
+const weatherCards = [
+  { value: 'auto', label: 'Реальная', emoji: '🌐', hint: 'погода API' },
+  { value: 'clear', label: 'Ясно', emoji: '☀️', hint: 'чистое небо' },
+  { value: 'snow', label: 'Снег', emoji: '🌨️', hint: 'снег и мягкий свет' },
+  { value: 'rain', label: 'Дождь', emoji: '🌧️', hint: 'ливень, мокрый асфальт' },
+  { value: 'storm', label: 'Гроза', emoji: '⛈️', hint: 'дождь и молнии' },
+  { value: 'night', label: 'Ночь', emoji: '🌙', hint: 'фонари и звёзды' }
+]
+
+const holidayCards = [
+  { value: 'none', label: 'Без праздника', emoji: '✨', hint: 'чистый город' },
+  { value: 'new-year', label: 'Новый год', emoji: '🎄', hint: 'ёлки, снег, гирлянды' },
+  { value: 'women-day', label: '8 Марта', emoji: '🌷', hint: 'цветы и лепестки' },
+  { value: 'victory-day', label: '9 Мая', emoji: '🎖️', hint: 'флаги и георгиевская лента' },
+  { value: 'russia-day', label: 'День России', emoji: '🇷🇺', hint: 'триколор и гирлянды' },
+  { value: 'custom', label: 'Свой набор', emoji: '🧰', hint: 'собрать вручную' }
+]
+
+const decorKeys = [
+  'decoTrees', 'decoSnowfall', 'decoSnowman',
+  'decoFlowers', 'decoFlags', 'decoGarlands', 'decoStars'
+]
+
+/* Настройки AI и источников (бывший отдельный модуль «Настройки»). */
+const aiSettings = ref({
+  weather_provider: 'open-meteo',
+  traffic_provider: 'model',
+  llm_provider: 'ollama',
+  llm_model: 'qwen2.5:7b',
+  llm_url: 'http://localhost:11434',
+  llm_api_key: '',
+  temperature: 0.35,
+  max_tokens: 2048,
+  default_scenario: 'rostov-evening-rain',
+  weather_enabled: true,
+  traffic_enabled: true
+})
+
+const weatherProviderOptions = [
+  { label: 'Open-Meteo (без ключа)', value: 'open-meteo' },
+  { label: 'Яндекс Погода', value: 'yandex' }
+]
+const trafficProviderOptions = [
+  { label: 'Модель (по часам пик)', value: 'model' },
+  { label: 'Яндекс Пробки', value: 'yandex' }
+]
+const llmProviderOptions = [
+  { label: 'Ollama (локальная)', value: 'ollama' },
+  { label: 'YandexGPT Lite 8B', value: 'yandexgpt' },
+  { label: 'OpenAI совместимый', value: 'openai' }
+]
+const scenarioOptions = [
+  { label: 'Вечерний дождь (Ростов)', value: 'rostov-evening-rain' },
+  { label: 'Новый год', value: 'new-year' },
+  { label: 'День Победы', value: 'victory-day' },
+  { label: 'День рождения Альбион', value: 'albion-birthday' }
+]
+
+const aiSaving = ref(false)
+const aiError = ref('')
+const ollamaLoading = ref(false)
+const pullingModel = ref(false)
+const ollamaModels = ref([])
+const ollamaCatalog = ref([])
+const modelToDownload = ref('')
+
+const isOllama = computed(() => aiSettings.value.llm_provider === 'ollama')
+const isApiProvider = computed(() =>
+  ['yandexgpt', 'openai'].includes(aiSettings.value.llm_provider)
+)
+
+async function loadAiSettings() {
+  try {
+    const data = await request('/api/roadrunner/settings')
+    if (data.settings) {
+      aiSettings.value = { ...aiSettings.value, ...data.settings }
+    }
+    if (isOllama.value) await loadOllamaModels()
+  } catch (exc) {
+    aiError.value = `Не удалось загрузить настройки: ${exc}`
+  }
+}
+
+async function loadOllamaModels() {
+  ollamaLoading.value = true
+  try {
+    const data = await request('/api/roadrunner/ollama/models')
+    ollamaModels.value = data.models || []
+    ollamaCatalog.value = data.catalog || []
+    if (!modelToDownload.value && ollamaCatalog.value.length) {
+      modelToDownload.value = ollamaCatalog.value[0]
+    }
+  } catch (exc) {
+    aiError.value = `Ollama недоступен: ${exc}`
+    ollamaModels.value = []
+  } finally {
+    ollamaLoading.value = false
+  }
+}
+
+function filterOllama(value, done) {
+  const list = ollamaModels.value
+  done(() => {
+    if (!value) return list
+    const needle = String(value).toLowerCase()
+    return list.filter(model => model.toLowerCase().includes(needle))
+  })
+}
+
+function onLlmProviderChange(provider) {
+  // При YandexGPT/OpenAI олламовские поля скрыты, api-поля доступны только
+  // при выбранном API-провайдере.
+  if (provider === 'ollama') loadOllamaModels()
+}
+
+async function downloadModel() {
+  if (!modelToDownload.value) return
+  pullingModel.value = true
+  aiError.value = ''
+  try {
+    await request('/api/roadrunner/ollama/pull', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: modelToDownload.value })
+    })
+    await loadOllamaModels()
+    aiSettings.value.llm_model = modelToDownload.value
+  } catch (exc) {
+    aiError.value = `Не удалось скачать модель: ${exc}`
+  } finally {
+    pullingModel.value = false
+  }
+}
+
+function jumpToAiSettings() {
+  document.querySelector('.ai-settings')?.scrollIntoView({ behavior: 'smooth' })
+}
+
+async function saveAiSettings() {
+  aiSaving.value = true
+  aiError.value = ''
+  try {
+    await request('/api/roadrunner/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(aiSettings.value)
+    })
+  } catch (exc) {
+    aiError.value = `Не удалось сохранить настройки: ${exc}`
+  } finally {
+    aiSaving.value = false
+  }
+}
+
+const CAMERA_PRESETS = {
+  iso: { tilt: 32, rotation: 38, scale: 1 },
+  platformer: { tilt: 14, rotation: 0, scale: 1.05 },
+  top: { tilt: 86, rotation: 0, scale: 0.85 },
+  front: { tilt: 26, rotation: 0, scale: 1.15 },
+  street: { tilt: 38, rotation: 62, scale: 1.05 },
+  stop: { tilt: 30, rotation: -30, scale: 1.17 }
+}
+
+const WEATHER_PRESETS = {
+  auto: {},
+  clear: { precipitation: 0, wind: 0.25, lightning: 0, fog: 0, brightness: 1 },
+  snow: { precipitation: 0.7, wind: 0.25, lightning: 0, fog: 0.1, brightness: 0.95 },
+  rain: { precipitation: 0.65, wind: 0.4, lightning: 0, fog: 0.15, brightness: 0.9 },
+  storm: { precipitation: 0.85, wind: 0.8, lightning: 1.2, fog: 0.3, brightness: 0.75 },
+  night: { precipitation: 0, wind: 0.1, lightning: 0, fog: 0.1, brightness: 0.65 }
+}
+
+const HOLIDAY_PRESETS = {
+  none: {},
+  'new-year': { decoTrees: true, decoSnowfall: true, decoSnowman: true, decoGarlands: true, decoStars: true },
+  'women-day': { decoFlowers: true, decoGarlands: true },
+  'victory-day': { decoFlags: true },
+  'russia-day': { decoFlags: true, decoGarlands: true },
+  custom: {}
+}
+
 const SETTINGS_RE =
   /<script\b[^>]*\bid=["']banner-settings["'][^>]*>([\s\S]*?)<\/script>/i
 const SETTINGS_BLOCK_RE =
@@ -270,6 +923,75 @@ const settingsStatus = computed(() => {
     ? `${settings.value.length} настроек`
     : 'настроек нет'
 })
+
+const settingsByKey = computed(() =>
+  Object.fromEntries(settings.value.map(item => [item.key, item]))
+)
+
+function settingValue(key) {
+  return settingsByKey.value[key]?.value
+}
+
+function settingLabel(key) {
+  return settingsByKey.value[key]?.label || key
+}
+
+function setSetting(key, value) {
+  const item = settingsByKey.value[key]
+  if (item) updateSetting(item, value)
+}
+
+function applyPreset(presetKey, values) {
+  setSetting(presetKey, values.__preset)
+  Object.entries(values).forEach(([key, value]) => {
+    if (key !== '__preset' && settingsByKey.value[key]) setSetting(key, value)
+  })
+}
+
+function applyCameraPreset(value) {
+  applyPreset('cameraPreset', { __preset: value, ...CAMERA_PRESETS[value] })
+}
+
+function applyWeatherPreset(value) {
+  applyPreset('weatherPreset', { __preset: value, ...WEATHER_PRESETS[value] })
+}
+
+function applyHolidayPreset(value) {
+  const values = { __preset: value }
+  decorKeys.forEach(key => { values[key] = false })
+  Object.assign(values, HOLIDAY_PRESETS[value] || {})
+  applyPreset('holidayPreset', values)
+}
+
+function togglePaused() {
+  setSetting('paused', !settingValue('paused'))
+}
+
+function randomize() {
+  settings.value.forEach(item => {
+    if (item.type === 'boolean') {
+      item.value = Math.random() > 0.5
+    } else if (item.type === 'number' && item.min !== undefined) {
+      const min = Number(item.min)
+      const max = Number(item.max)
+      const step = Number(item.step) || 1
+      const raw = min + Math.random() * (max - min)
+      item.value = Math.round(raw / step) * step
+    }
+  })
+  syncCodeFromSettings()
+  schedulePreview()
+}
+
+function resetProjection() {
+  settings.value.forEach(item => {
+    if (Object.prototype.hasOwnProperty.call(defaultValues.value, item.key)) {
+      item.value = defaultValues.value[item.key]
+    }
+  })
+  syncCodeFromSettings()
+  schedulePreview()
+}
 
 const previewUrl = computed(
   () => `/api/admin/home/slides/${slide.value.id}/code?v=${previewKey.value}`
@@ -320,6 +1042,9 @@ async function load() {
     code.value = found.code || ''
     savedCode.value = code.value
     parseSettings(code.value)
+    defaultValues.value = Object.fromEntries(
+      settings.value.map(item => [item.key, item.value])
+    )
     schedulePreview()
   } catch (exc) {
     error.value = String(exc)
@@ -560,7 +1285,10 @@ onBeforeRouteLeave(() => {
   return window.confirm('Есть несохранённые изменения. Уйти без сохранения?')
 })
 
-onMounted(load)
+onMounted(() => {
+  load()
+  loadAiSettings()
+})
 
 onBeforeUnmount(() => {
   if (parseTimer) window.clearTimeout(parseTimer)
@@ -742,6 +1470,293 @@ h1 {
   max-height: 70vh;
   white-space: pre;
   overflow: auto;
+}
+
+/* --- Панель проекции (стиль демо-сцены) --- */
+.projection-console {
+  margin-bottom: 16px;
+  overflow: hidden;
+  border: 1px solid #1e293b;
+  border-radius: 12px;
+  background: #0d1420;
+  color: #e2e8f0;
+}
+
+.pc-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #1e293b;
+  background: #111b2b;
+}
+
+.pc-play {
+  min-width: 96px;
+  background: linear-gradient(90deg, #f5b301, #38bdf8);
+  color: #0b1220;
+  font-weight: 800;
+}
+
+.pc-slider {
+  flex: 1 1 190px;
+  min-width: 150px;
+}
+
+.pc-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #8fa3bd;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pc-label b {
+  color: #f5b301;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.pc-select {
+  width: 170px;
+  flex: 0 0 170px;
+}
+
+.pc-action {
+  border: 1px solid #334155;
+  background: #162337;
+  color: #e2e8f0;
+}
+
+.pc-tabs {
+  background: #0d1420;
+  color: #94a3b8;
+  border-bottom: 1px solid #1e293b;
+}
+
+.pc-body {
+  padding: 18px 20px 22px;
+}
+
+.pc-section h3 {
+  margin: 0 0 6px;
+  color: #f8fafc;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.pc-section h3::after {
+  content: '';
+  display: block;
+  width: 44px;
+  height: 3px;
+  margin-top: 8px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #f5b301, #38bdf8);
+}
+
+.pc-section p {
+  margin: 12px 0 18px;
+  max-width: 900px;
+  color: #8fa3bd;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.pc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.pc-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-height: 96px;
+  padding: 12px 8px;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #111d2e;
+  color: #e2e8f0;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pc-card:hover {
+  border-color: #64748b;
+}
+
+.pc-card.is-active {
+  border-color: #f5b301;
+  background: #17253a;
+  box-shadow: inset 0 0 0 1px rgba(245, 179, 1, 0.35);
+}
+
+.pc-card-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.pc-card b {
+  font-size: 13px;
+}
+
+.pc-card small {
+  color: #8fa3bd;
+  font-size: 11px;
+  text-align: center;
+}
+
+.pc-sliders {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px 20px;
+  padding: 14px 16px;
+  border: 1px solid #1e293b;
+  border-radius: 10px;
+  background: #101a29;
+}
+
+.pc-toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.pc-toggle-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #334155;
+  border-radius: 9px;
+  background: #111d2e;
+  color: #e2e8f0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pc-toggle-card.is-on {
+  border-color: #f5b301;
+  background: #1b2a40;
+}
+
+.pc-toggle-card span {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.pc-toggle-card small {
+  color: #8fa3bd;
+  font-size: 11px;
+}
+
+/* Панель проекции на обычном светлом фоне, как остальная админка. */
+.projection-console {
+  border-color: #e2e8f0;
+  background: #fff;
+  color: #0f172a;
+}
+
+.pc-topbar {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+}
+
+.pc-label,
+.pc-card small,
+.pc-toggle-card small,
+.pc-section p {
+  color: #64748b;
+}
+
+.pc-section h3 {
+  color: #0f172a;
+}
+
+.pc-card,
+.pc-toggle-card {
+  border-color: #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.pc-card.is-active,
+.pc-toggle-card.is-on {
+  border-color: #f5b301;
+  background: #fffbeb;
+  box-shadow: none;
+}
+
+.pc-tabs,
+.pc-sliders {
+  border-color: #e2e8f0;
+  background: #fff;
+}
+
+.pc-select :deep(.q-field__control),
+.pc-action {
+  border-color: #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+}
+
+.pc-action {
+  border: 1px solid #cbd5e1;
+}
+
+.ai-settings {
+  margin-bottom: 16px;
+}
+
+.ai-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px 20px;
+}
+
+.ai-grid .setting-item label {
+  display: block;
+  margin-bottom: 6px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.download-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.download-select {
+  flex: 1;
+}
+
+/* Предпросмотр — от края до края страницы. */
+.banner-grid {
+  display: block;
+}
+
+.preview-panel {
+  width: 100vw;
+  max-width: none;
+  margin: 16px calc(50% - 50vw) 0;
+  border-radius: 0;
+  border-left: 0;
+  border-right: 0;
+}
+
+.preview-frame {
+  height: 50vh;
+  min-height: 280px;
 }
 
 @media (max-width: 900px) {

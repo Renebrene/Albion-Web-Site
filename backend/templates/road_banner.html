@@ -121,32 +121,80 @@
 -->
 <script type="application/json" id="banner-settings">
 {
-  "tilt": { "value": 32, "label": "Наклон камеры", "min": 5, "max": 85, "step": 1, "unit": "°" },
-  "rotation": { "value": 38, "label": "Поворот камеры", "min": -180, "max": 180, "step": 1, "unit": "°" },
-  "scale": { "value": 1, "label": "Масштаб", "min": 0.5, "max": 2, "step": 0.05, "unit": "×" },
-  "dayNightPeriod": { "value": 48, "label": "Цикл день/ночь", "min": 10, "max": 180, "step": 1, "unit": "с" },
-  "speedWave": { "value": 0.35, "label": "Амплитуда скорости", "min": 0, "max": 0.8, "step": 0.05, "unit": "×" },
-  "speedWavePeriod": { "value": 19.6, "label": "Период волны скорости", "min": 4, "max": 60, "step": 0.5, "unit": "с" },
-  "trafficMin": { "value": 0.55, "label": "Плотность трафика, мин", "min": 0.2, "max": 1, "step": 0.05, "unit": "×" },
-  "trafficMax": { "value": 1.9, "label": "Плотность трафика, макс", "min": 1, "max": 3, "step": 0.05, "unit": "×" },
-  "trafficChangeMin": { "value": 5, "label": "Смена плотности, мин", "min": 1, "max": 60, "step": 1, "unit": "с" },
-  "trafficChangeMax": { "value": 12, "label": "Смена плотности, макс", "min": 2, "max": 120, "step": 1, "unit": "с" },
-  "carMin": { "value": 6, "label": "Машин, мин", "min": 1, "max": 14, "step": 1 },
-  "carMax": { "value": 13, "label": "Машин, макс", "min": 1, "max": 14, "step": 1 },
-  "pedMin": { "value": 1, "label": "Пешеходов, мин", "min": 0, "max": 8, "step": 1 },
-  "pedMax": { "value": 5, "label": "Пешеходов, макс", "min": 0, "max": 8, "step": 1 },
-  "countChangeMin": { "value": 6, "label": "Смена количества, мин", "min": 1, "max": 60, "step": 1, "unit": "с" },
-  "countChangeMax": { "value": 14, "label": "Смена количества, макс", "min": 2, "max": 120, "step": 1, "unit": "с" },
-  "buses": { "value": true, "label": "Автобусы", "type": "boolean" },
-  "syncWeather": { "value": true, "label": "Реальная погода", "type": "boolean" },
-  "syncTime": { "value": true, "label": "Время суток по часам", "type": "boolean" },
-  "syncTraffic": { "value": true, "label": "Пробки Яндекса", "type": "boolean" },
-  "syncHolidays": { "value": true, "label": "Праздничное оформление", "type": "boolean" },
-  "quality": { "value": "eco", "label": "Качество", "type": "select", "options": [
+  "cameraPreset": { "value": "iso", "label": "Ракурс", "group": "camera", "type": "select", "options": [
+    { "value": "iso", "label": "Изометрия" },
+    { "value": "platformer", "label": "Платформер" },
+    { "value": "top", "label": "Сверху" },
+    { "value": "front", "label": "Фронт" },
+    { "value": "street", "label": "Угол улицы" },
+    { "value": "stop", "label": "Остановка" }
+  ] },
+  "tilt": { "value": 32, "label": "Азимут/наклон", "group": "camera", "min": 5, "max": 85, "step": 1, "unit": "°" },
+  "rotation": { "value": 38, "label": "Поворот камеры", "group": "camera", "min": -180, "max": 180, "step": 1, "unit": "°" },
+  "scale": { "value": 1, "label": "Зум камеры", "group": "camera", "min": 0.5, "max": 2, "step": 0.05, "unit": "×" },
+  "shadows": { "value": true, "label": "Тени-подложки", "group": "camera", "type": "boolean" },
+  "grid": { "value": false, "label": "Сетка-направляющая", "group": "camera", "type": "boolean" },
+  "quality": { "value": "eco", "label": "Качество", "group": "camera", "type": "select", "options": [
     { "value": "eco", "label": "Эко" },
     { "value": "balanced", "label": "Баланс" },
     { "value": "max", "label": "Макс" }
-  ] }
+  ] },
+
+  "paused": { "value": false, "label": "Пауза", "group": "flow", "type": "boolean" },
+  "speedFactor": { "value": 1, "label": "Скорость", "group": "flow", "min": 0.2, "max": 2, "step": 0.05, "unit": "×" },
+  "flowDensity": { "value": 1, "label": "Поток", "group": "flow", "min": 0.5, "max": 3, "step": 0.05, "unit": "×" },
+  "buses": { "value": true, "label": "Автобусы", "group": "flow", "type": "boolean" },
+  "trafficMin": { "value": 0.55, "label": "Плотность трафика, мин", "group": "flow", "min": 0.2, "max": 1, "step": 0.05, "unit": "×" },
+  "trafficMax": { "value": 1.9, "label": "Плотность трафика, макс", "group": "flow", "min": 1, "max": 3, "step": 0.05, "unit": "×" },
+  "trafficChangeMin": { "value": 5, "label": "Смена плотности, мин", "group": "flow", "min": 1, "max": 60, "step": 1, "unit": "с" },
+  "trafficChangeMax": { "value": 12, "label": "Смена плотности, макс", "group": "flow", "min": 2, "max": 120, "step": 1, "unit": "с" },
+  "carMin": { "value": 6, "label": "Машин, мин", "group": "flow", "min": 1, "max": 14, "step": 1 },
+  "carMax": { "value": 13, "label": "Машин, макс", "group": "flow", "min": 1, "max": 14, "step": 1 },
+  "pedMin": { "value": 1, "label": "Пешеходов, мин", "group": "flow", "min": 0, "max": 8, "step": 1 },
+  "pedMax": { "value": 5, "label": "Пешеходов, макс", "group": "flow", "min": 0, "max": 8, "step": 1 },
+  "countChangeMin": { "value": 6, "label": "Смена количества, мин", "group": "flow", "min": 1, "max": 60, "step": 1, "unit": "с" },
+  "countChangeMax": { "value": 14, "label": "Смена количества, макс", "group": "flow", "min": 2, "max": 120, "step": 1, "unit": "с" },
+  "speedWave": { "value": 0.35, "label": "Амплитуда скорости", "group": "flow", "min": 0, "max": 0.8, "step": 0.05, "unit": "×" },
+  "speedWavePeriod": { "value": 19.6, "label": "Период волны скорости", "group": "flow", "min": 4, "max": 60, "step": 0.5, "unit": "с" },
+
+  "weatherPreset": { "value": "auto", "label": "Погода", "group": "weather", "type": "select", "options": [
+    { "value": "auto", "label": "Реальная" },
+    { "value": "clear", "label": "Ясно" },
+    { "value": "snow", "label": "Снег" },
+    { "value": "rain", "label": "Дождь" },
+    { "value": "storm", "label": "Гроза" },
+    { "value": "night", "label": "Ночь" }
+  ] },
+  "precipitation": { "value": 0, "label": "Осадки", "group": "weather", "min": 0, "max": 1, "step": 0.05, "unit": "%" },
+  "wind": { "value": 0.25, "label": "Ветер", "group": "weather", "min": 0, "max": 2, "step": 0.05, "unit": "×" },
+  "lightning": { "value": 0, "label": "Частота молний", "group": "weather", "min": 0, "max": 2, "step": 0.05, "unit": "×" },
+  "fog": { "value": 0, "label": "Туман", "group": "weather", "min": 0, "max": 1, "step": 0.05 },
+  "brightness": { "value": 1, "label": "Яркость света", "group": "weather", "min": 0.4, "max": 1.6, "step": 0.05, "unit": "×" },
+
+  "holidayPreset": { "value": "none", "label": "Праздник", "group": "holidays", "type": "select", "options": [
+    { "value": "none", "label": "Без праздника" },
+    { "value": "new-year", "label": "Новый год" },
+    { "value": "women-day", "label": "8 Марта" },
+    { "value": "victory-day", "label": "9 Мая" },
+    { "value": "russia-day", "label": "День России" },
+    { "value": "custom", "label": "Свой набор" }
+  ] },
+  "decorDensity": { "value": 1, "label": "Плотность декора", "group": "holidays", "min": 0, "max": 2, "step": 0.05, "unit": "×" },
+  "decorSize": { "value": 1, "label": "Размер декора", "group": "holidays", "min": 0.5, "max": 2, "step": 0.05, "unit": "×" },
+  "decorGlow": { "value": 1, "label": "Свечение", "group": "holidays", "min": 0, "max": 2, "step": 0.05, "unit": "×" },
+  "decoTrees": { "value": false, "label": "Ёлки", "group": "holidays", "type": "boolean" },
+  "decoSnowfall": { "value": false, "label": "Снегопад", "group": "holidays", "type": "boolean" },
+  "decoSnowman": { "value": false, "label": "Снеговик", "group": "holidays", "type": "boolean" },
+  "decoFlowers": { "value": false, "label": "Цветы и лепестки", "group": "holidays", "type": "boolean" },
+  "decoFlags": { "value": false, "label": "Флаги", "group": "holidays", "type": "boolean" },
+  "decoGarlands": { "value": false, "label": "Гирлянды", "group": "holidays", "type": "boolean" },
+  "decoStars": { "value": false, "label": "Звёзды", "group": "holidays", "type": "boolean" },
+
+  "syncWeather": { "value": true, "label": "Реальная погода", "group": "sync", "type": "boolean" },
+  "syncTime": { "value": true, "label": "Время суток по часам", "group": "sync", "type": "boolean" },
+  "syncTraffic": { "value": true, "label": "Пробки Яндекса", "group": "sync", "type": "boolean" },
+  "syncHolidays": { "value": true, "label": "Праздники по дате", "group": "sync", "type": "boolean" },
+  "dayNightPeriod": { "value": 48, "label": "Цикл день/ночь", "group": "sync", "min": 10, "max": 180, "step": 1, "unit": "с" }
 }
 </script>
 <script type="importmap">
@@ -246,13 +294,43 @@ const LIVE = {
   holidays: flag('syncHolidays', true)
 };
 
+/* Визуальные параметры проекции (задаются presets в админке). */
+const VIS = {
+  speed: num('speedFactor', 1, 0.2, 2),
+  flow: num('flowDensity', 1, 0.5, 3),
+  shadows: flag('shadows', true),
+  grid: flag('grid', false),
+  weatherPreset: String(SET.weatherPreset || 'auto'),
+  precipitation: num('precipitation', 0, 0, 1),
+  wind: num('wind', 0.25, 0, 2),
+  lightning: num('lightning', 0, 0, 2),
+  fog: num('fog', 0, 0, 1),
+  brightness: num('brightness', 1, 0.4, 1.6),
+  holidayPreset: String(SET.holidayPreset || 'none'),
+  decorDensity: num('decorDensity', 1, 0, 2),
+  decorSize: num('decorSize', 1, 0.5, 2),
+  decorGlow: num('decorGlow', 1, 0, 2),
+  decoTrees: flag('decoTrees', false),
+  decoSnowfall: flag('decoSnowfall', false),
+  decoSnowman: flag('decoSnowman', false),
+  decoFlowers: flag('decoFlowers', false),
+  decoFlags: flag('decoFlags', false),
+  decoGarlands: flag('decoGarlands', false),
+  decoStars: flag('decoStars', false)
+};
+
+const decoKeys = [
+  'decoTrees', 'decoSnowfall', 'decoSnowman',
+  'decoFlowers', 'decoFlags', 'decoGarlands', 'decoStars'
+];
+
 /* ================= КОНФИГ ================= */
 const QUALITY = ['eco','balanced','max'].includes(String(SET.quality))
   ? String(SET.quality)
   : 'eco';
 const DEFAULTS = {
   speed:1, density:1, theme:'day', parallax:false,
-  quality:QUALITY, paused:false, mode:'iso', buses:flag('buses', true)
+  quality:QUALITY, paused:flag('paused', false), mode:'iso', buses:flag('buses', true)
 };
 const CFG = { ...DEFAULTS };
 const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -305,6 +383,16 @@ const scene = new THREE.Scene();
 const skyDay = new THREE.Color(0x9fd4ec), skyDusk = new THREE.Color(0x131a30);
 scene.background = skyDay.clone();
 scene.fog = new THREE.Fog(skyDay.clone(), 70, 165);
+scene.fog.near = lerp(70, 18, VIS.fog);
+scene.fog.far = lerp(165, 72, VIS.fog);
+
+/* Сетка-направляющая и тени-подложки управляются из админки. */
+const gridHelper = new THREE.GridHelper(120, 24, 0x9fd4ec, 0x6b7f95);
+gridHelper.position.y = 0.02;
+gridHelper.material.transparent = true;
+gridHelper.material.opacity = 0.25;
+gridHelper.visible = VIS.grid;
+scene.add(gridHelper);
 
 const camera = new THREE.OrthographicCamera(-1,1,1,-1,0.1,300);
 const CAM = {
@@ -812,7 +900,7 @@ function applyTheme(t){
   hemi.groundColor.copy(cTmp.lerpColors(hemiGndDay, hemiGndDusk, t));
   sunLight.intensity = lerp(1.6,.35,t);
   sunLight.color.copy(cTmp.lerpColors(sunColDay, sunColDusk, t));
-  renderer.toneMappingExposure = lerp(1.15,.9,t);
+  renderer.toneMappingExposure = lerp(1.15,.9,t) * VIS.brightness;
   M.lampHead.emissiveIntensity = lerp(.15,2.2,t);
   M.head.emissiveIntensity = lerp(.25,2.5,t);
   M.tail.emissiveIntensity = lerp(.4,1.8,t);
@@ -915,9 +1003,11 @@ function step(wdt, dt){
   // Плотность трафика меняется в случайном порядке.
   trafficTimer -= wdt;
   if(trafficTimer <= 0){
-    trafficDensity = rand(TRAFFIC_MIN, TRAFFIC_MAX);
+    trafficDensity = rand(TRAFFIC_MIN, TRAFFIC_MAX) * VIS.flow;
     trafficTimer = rand(TRAFFIC_TIME_MIN, TRAFFIC_TIME_MAX);
   }
+
+  updateEffects(wdt);
 
   // Количество машин и ожидающих пешеходов — тоже случайное.
   countTimer -= wdt;
@@ -1112,6 +1202,292 @@ function resize(){
 }
 new ResizeObserver(resize).observe(stage);
 
+/* ================= ЭФФЕКТЫ: ОСАДКИ, МОЛНИИ, ПРАЗДНИКИ ================= */
+const fxGroup = new THREE.Group();
+scene.add(fxGroup);
+
+/* Осадки: одна система частиц на всё, типDepends от preset. */
+let precip = null;
+function buildPrecip() {
+  if(precip){
+    fxGroup.remove(precip);
+    precip.geometry.dispose();
+    precip.material.dispose();
+    precip = null;
+  }
+
+  const snowy = VIS.weatherPreset === 'snow' || VIS.decoSnowfall;
+  const amount = clamp(Math.max(VIS.precipitation, VIS.decoSnowfall ? 0.5 : 0), 0, 1);
+  if(amount <= 0) return;
+
+  const count = Math.floor(160 + 420 * amount * VIS.decorDensity);
+  const pos = new Float32Array(count * 3);
+  for(let i=0;i<count;i++){
+    pos[i*3] = rand(-70,70);
+    pos[i*3+1] = rand(2,45);
+    pos[i*3+2] = rand(-32,32);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  const mat = new THREE.PointsMaterial({
+    color: snowy ? 0xffffff : 0xa9d8f5,
+    size: snowy ? 0.55 : 0.22,
+    transparent: true,
+    opacity: snowy ? 0.9 : 0.55,
+    depthWrite: false,
+    fog: false
+  });
+  precip = new THREE.Points(geo, mat);
+  precip.userData.snowy = snowy;
+  fxGroup.add(precip);
+}
+
+function updateEffects(dt) {
+  if(precip){
+    const arr = precip.geometry.attributes.position.array;
+    const snowy = precip.userData.snowy;
+    const fall = (snowy ? 3.5 : 16) * dt;
+    const drift = VIS.wind * (snowy ? 1.4 : 0.4) * dt;
+    for(let i=0;i<arr.length;i+=3){
+      arr[i+1] -= fall * (0.7 + (i % 7) * 0.07);
+      arr[i] += drift;
+      if(arr[i+1] < 0.5){ arr[i+1] = 45; arr[i] = rand(-70,70); }
+      if(arr[i] > 75) arr[i] = -75;
+    }
+    precip.geometry.attributes.position.needsUpdate = true;
+  }
+
+  if(lightning && VIS.lightning > 0 && VIS.weatherPreset === 'storm'){
+    if(Math.random() < dt * VIS.lightning * 0.25) lightning.intensity = 3.5;
+    lightning.intensity = Math.max(0, lightning.intensity - dt * 12);
+  }
+}
+
+/* Вспышки молний подсвечивают всю сцену. */
+const lightning = new THREE.PointLight(0xdce9ff, 0, 220);
+lightning.position.set(0, 45, 0);
+scene.add(lightning);
+
+/* Праздничный декор: ёлки, снеговик, флаги, гирлянды, звёзды, цветы. */
+const decorGroup = new THREE.Group();
+fxGroup.add(decorGroup);
+
+function buildDecor() {
+  const glowMat = color => new THREE.MeshStandardMaterial({
+    color, emissive: color, emissiveIntensity: 1.6 * VIS.decorGlow,
+    roughness: 0.4
+  });
+
+  // Ёлки вдоль дальней стороны дороги.
+  for(let x=-52;x<=52;x+=22){
+    const tree = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.35,.45,2,6), new THREE.MeshStandardMaterial({color:0x6b4a35}));
+    trunk.position.y = 1;
+    tree.add(trunk);
+    for(let k=0;k<3;k++){
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(2.4-k*.55, 3.2, 7), new THREE.MeshStandardMaterial({color:0x1f6b45, flatShading:true}));
+      cone.position.y = 2.6 + k*1.5;
+      tree.add(cone);
+    }
+    tree.position.set(x, 0, -18);
+    tree.userData.key = 'decoTrees';
+    decorGroup.add(tree);
+  }
+
+  // Снеговик.
+  const snowman = new THREE.Group();
+  [[1.4,-1.6],[1.0,0],[0.65,1.5]].forEach(([r,y]) => {
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(r,12,10), new THREE.MeshStandardMaterial({color:0xf5f8ff}));
+    ball.position.y = y + 1.8; snowman.add(ball);
+  });
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(.25,.9,8), new THREE.MeshStandardMaterial({color:0xff8c1a}));
+  nose.position.set(0,3.3,.9); nose.rotation.x = Math.PI/2; snowman.add(nose);
+  snowman.position.set(-34,0,-13);
+  snowman.userData.key = 'decoSnowman';
+  decorGroup.add(snowman);
+
+  // Флаги: белый / синий / красный (для 9 Мая и Дня России).
+  const flagColors = VIS.holidayPreset === 'victory-day'
+    ? [0xff3b4d,0xffc233,0xff3b4d]
+    : [0xffffff,0x2f5bd6,0xff3b4d];
+  for(let i=0;i<6;i++){
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.0), new THREE.MeshStandardMaterial({color:flagColors[i%3], side:THREE.DoubleSide}));
+    flag.position.set(-30+i*12, 5.5, -16);
+    flag.userData.key = 'decoFlags';
+    decorGroup.add(flag);
+  }
+
+  // Гирлянда над остановкой.
+  for(let x=-6;x<=26;x+=2.6){
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(.22,8,6), glowMat([0xffd166,0xff5a6e,0x5ad1ff,0x8cff8c][Math.abs(Math.round(x))%4]));
+    bulb.position.set(x, 7.5, -3);
+    bulb.userData.key = 'decoGarlands';
+    decorGroup.add(bulb);
+  }
+
+  // Звёзды над сценой.
+  const starGeo = new THREE.BufferGeometry();
+  const starPos = new Float32Array(36*3);
+  for(let i=0;i<36;i++){
+    starPos[i*3]=rand(-60,60); starPos[i*3+1]=rand(9,22); starPos[i*3+2]=rand(-25,10);
+  }
+  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos,3));
+  const starsDeco = new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffe9a8,size:.6,transparent:true,opacity:.9*VIS.decorGlow,fog:false}));
+  starsDeco.userData.key = 'decoStars';
+  decorGroup.add(starsDeco);
+
+  // Цветы вдоль тротуара.
+  for(let x=-48;x<=48;x+=6){
+    const flower = new THREE.Mesh(new THREE.SphereGeometry(.38,8,6), glowMat([0xff7ab6,0xffe066,0xffffff][Math.abs(Math.round(x/6))%3]));
+    flower.position.set(x, .6, 8.5);
+    flower.userData.key = 'decoFlowers';
+    decorGroup.add(flower);
+  }
+
+  decorGroup.scale.setScalar(VIS.decorSize);
+  decorGroup.children.forEach(o => { o.visible = Boolean(VIS[o.userData.key]); });
+}
+buildDecor();
+buildPrecip();
+
+function syncDecor() {
+  decorGroup.scale.setScalar(VIS.decorSize);
+  decorGroup.children.forEach(o => { o.visible = Boolean(VIS[o.userData.key]); });
+  dirty = true;
+}
+
+/* ================= АКТИВНЫЙ СЦЕНАРИЙ ================= */
+/* Сценарий из чата/админки применяются поверх настроек, а после завершения
+   страница перезагружается — и баннер снова берёт код из БД. */
+let activeScenarioId = null;
+let scenarioTimers = [];
+let scenarioNight = null;
+
+function applyScenarioEvent(event) {
+  const p = event.params || {};
+
+  switch (event.do) {
+    case 'change_speed':
+      VIS.speed = clamp(Number(p.factor) || 1, 0.2, 2);
+      break;
+    case 'change_traffic_density':
+      VIS.flow = clamp(Number(p.density) || 1, 0.5, 3);
+      break;
+    case 'change_weather': {
+      const map = { clear:'clear', cloudy:'clear', rain:'rain', snow:'snow', fog:'clear', storm:'storm' };
+      VIS.weatherPreset = map[p.condition] || 'clear';
+      VIS.precipitation = VIS.weatherPreset === 'rain' ? 0.7
+        : VIS.weatherPreset === 'storm' ? 0.85
+        : VIS.weatherPreset === 'snow' ? 0.7 : 0;
+      buildPrecip();
+      presetWeather();
+      break;
+    }
+    case 'start_rain':
+      VIS.weatherPreset = 'rain';
+      VIS.precipitation = clamp(Number(p.intensity) || 0.6, 0, 1);
+      buildPrecip(); presetWeather();
+      break;
+    case 'stop_rain':
+    case 'stop_snow':
+      VIS.precipitation = 0; VIS.decoSnowfall = false;
+      buildPrecip(); syncDecor(); presetWeather();
+      break;
+    case 'start_snow':
+      VIS.weatherPreset = 'snow'; VIS.decoSnowfall = true;
+      VIS.precipitation = clamp(Number(p.intensity) || 0.6, 0, 1);
+      buildPrecip(); syncDecor(); presetWeather();
+      break;
+    case 'add_holiday_decor': {
+      const presets = {
+        'new-year': { decoTrees:true, decoSnowfall:true, decoSnowman:true, decoGarlands:true, decoStars:true },
+        'women-day': { decoFlowers:true, decoGarlands:true },
+        'victory-day': { decoFlags:true },
+        'russia-day': { decoFlags:true, decoGarlands:true }
+      };
+      Object.assign(VIS, presets[p.type] || {});
+      VIS.holidayPreset = p.type || 'custom';
+      syncDecor(); updateHolidayHUD();
+      break;
+    }
+    case 'remove_holiday_decor':
+      decoKeys.forEach(k => { VIS[k] = false; });
+      VIS.holidayPreset = 'none';
+      syncDecor(); updateHolidayHUD();
+      break;
+    case 'change_time_of_day': {
+      const phases = { morning:0.15, day:0, evening:0.7, night:1 };
+      scenarioNight = phases[p.phase] ?? 0;
+      LIVE.time = false;
+      themeT = scenarioNight;
+      applyTheme(themeT);
+      break;
+    }
+    case 'end':
+      finishScenario();
+      break;
+  }
+
+  dirty = true;
+}
+
+function clearScenarioTimers() {
+  scenarioTimers.forEach(clearTimeout);
+  scenarioTimers = [];
+}
+
+function finishScenario() {
+  clearScenarioTimers();
+  activeScenarioId = null;
+  scenarioNight = null;
+  // Возврат к поведению по умолчанию, прописанному в БД: перезагружаем
+  // документ, и он снова берёт код из home_slides.code.
+  location.reload();
+}
+
+function startScenario(payload) {
+  const state = payload || {};
+  const scenario = state.scenario || {};
+  const id = scenario.id || 'scenario';
+
+  if (activeScenarioId === id) return;
+
+  clearScenarioTimers();
+  activeScenarioId = id;
+
+  const start = Number(state.started_at || 0) * 1000;
+  const offset = start ? Math.max(0, Date.now() - start) : 0;
+
+  (scenario.events || [])
+    .slice()
+    .sort((a, b) => Number(a.t) - Number(b.t))
+    .forEach(event => {
+      const delay = Math.max(0, Number(event.t) * 1000 - offset);
+      scenarioTimers.push(setTimeout(() => applyScenarioEvent(event), delay));
+    });
+
+  dirty = true;
+}
+
+async function pollActiveScenario() {
+  try {
+    const response = await fetch('/api/roadrunner/scenarios/active');
+    if (!response.ok) return;
+    const data = await response.json();
+
+    if (data.active) {
+      startScenario(data.active);
+    } else if (activeScenarioId) {
+      finishScenario();
+    }
+  } catch (exc) {
+    console.warn('Не удалось проверить активный сценарий:', exc);
+  }
+}
+
+pollActiveScenario();
+setInterval(pollActiveScenario, 2000);
+
 /* ================= LIVE-ДАННЫЕ (погода, пробки, время) ================= */
 const CITY_CONFIG = {
   lat: 47.2357,
@@ -1158,7 +1534,27 @@ function modelWeather() {
   updateWeatherHUD();
 }
 
+/* Ручной пресет погоды из админки перекрывает реальные данные. */
+function presetWeather() {
+  const preset = VIS.weatherPreset;
+  const codes = { clear:0, snow:71, rain:51, storm:95, night:0 };
+  weatherData = {
+    temperature: preset === 'snow' ? -4 : preset === 'night' ? 8 : 18,
+    humidity: preset === 'clear' ? 45 : 85,
+    windSpeed: VIS.wind * 18,
+    precipitation: VIS.precipitation,
+    weatherCode: codes[preset] ?? 0
+  };
+  weatherSource = 'пресет';
+  updateWeatherHUD();
+}
+
 async function fetchWeather() {
+  if (VIS.weatherPreset !== 'auto') {
+    presetWeather();
+    return;
+  }
+
   if (!LIVE.weather) {
     modelWeather();
     return;
@@ -1310,9 +1706,25 @@ const HOLIDAYS = [
   { m: 6, d: 25, emoji: '🎈', name: 'День рождения Альбион' }
 ];
 
+const HOLIDAY_PRESETS = {
+  'new-year': { emoji:'🎄', name:'Новый год' },
+  'women-day': { emoji:'🌷', name:'8 Марта' },
+  'victory-day': { emoji:'🎖️', name:'9 Мая' },
+  'russia-day': { emoji:'🇷🇺', name:'День России' },
+  custom: { emoji:'✨', name:'Свой набор' }
+};
+
 function updateHolidayHUD() {
   const el = document.getElementById('hudHoliday');
   if (!el) return;
+
+  const preset = HOLIDAY_PRESETS[VIS.holidayPreset];
+  if (preset) {
+    el.hidden = false;
+    el.textContent = `${preset.emoji} ${preset.name}`;
+    el.title = `Праздничное оформление: ${preset.name}`;
+    return;
+  }
 
   if (!LIVE.holidays) {
     el.hidden = true;
@@ -1353,7 +1765,9 @@ function loop(now){
     // По умолчанию тема следует реальному времени суток; при выключенной
     // синхронизации остаётся декоративный цикл за DAY_NIGHT_PERIOD секунд.
     let night;
-    if(LIVE.time){
+    if(scenarioNight !== null){
+      night = scenarioNight;
+    } else if(LIVE.time){
       night = realNightFactor();
     } else {
       dayPhase = (dayPhase + dt / DAY_NIGHT_PERIOD) % 1;
@@ -1379,7 +1793,7 @@ function loop(now){
   camera.position.x += parallax.x; camera.position.y += parallax.y;
   camera.lookAt(curTgt.x + parallax.x*.6, curTgt.y + parallax.y*.6, curTgt.z);
 
-  if(!CFG.paused){ step(dt, dt); renderer.render(scene, camera); frames++; }
+  if(!CFG.paused){ step(dt * VIS.speed, dt); renderer.render(scene, camera); frames++; }
   else if(animating || dirty){ renderer.render(scene, camera); frames++; dirty = false; }
 
 }
@@ -1396,6 +1810,11 @@ function dispose(){
 addEventListener('pagehide', dispose);
 
 /* ================= СТАРТ ================= */
+// Тени-подложки (radial texture) включаются/выключаются из админки.
+scene.traverse(o => {
+  if(o.material && o.material.map === shadowTex) o.visible = VIS.shadows;
+});
+
 camera.position.copy(CAM.iso.pos); curTgt.copy(CAM.iso.tgt); camera.lookAt(curTgt);
 applyTheme(0); resize();
 window.__ROAD_READY__ = true;

@@ -34,7 +34,6 @@
     >
       <q-tab name="banner" icon="movie" label="Баннер" />
       <q-tab name="scenarios" icon="auto_awesome" label="Сценарии" />
-      <q-tab name="settings" icon="tune" label="Настройки" />
       <q-tab name="docs" icon="menu_book" label="Документация" />
     </q-tabs>
 
@@ -44,10 +43,6 @@
       <AdministrationBannerPage v-if="tab === 'banner'" embedded />
       <AdministrationScenarioGeneratorPage
         v-else-if="tab === 'scenarios'"
-        embedded
-      />
-      <AdministrationRoadrunnerSettingsPage
-        v-else-if="tab === 'settings'"
         embedded
       />
       <AdministrationRoadrunnerDocsPage v-else-if="tab === 'docs'" embedded />
@@ -60,10 +55,9 @@ import { ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AdministrationBannerPage from './AdministrationBannerPage.vue'
 import AdministrationRoadrunnerDocsPage from './AdministrationRoadrunnerDocsPage.vue'
-import AdministrationRoadrunnerSettingsPage from './AdministrationRoadrunnerSettingsPage.vue'
 import AdministrationScenarioGeneratorPage from './AdministrationScenarioGeneratorPage.vue'
 
-const TABS = ['banner', 'scenarios', 'settings', 'docs']
+const TABS = ['banner', 'scenarios', 'docs']
 
 const route = useRoute()
 const router = useRouter()
@@ -148,7 +142,6 @@ watch(
  */
 .rr-panel :deep(.admin-banner),
 .rr-panel :deep(.admin-scenario-generator),
-.rr-panel :deep(.admin-roadrunner-settings),
 .rr-panel :deep(.admin-roadrunner-docs) {
   max-width: none;
   margin: 0;

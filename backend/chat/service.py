@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.resources
+import logging
 import re
 import threading
 from dataclasses import replace
@@ -37,6 +38,8 @@ from backend.services.synonyms_service import (
     PACKAGED_VERSION,
     load_active_dictionary,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class ChatService:
@@ -541,6 +544,28 @@ class ChatService:
         if trigger.active:
             response_text = format_roadrunner_suggestion(trigger)
 
+            # Точный выбор готового сценария применяется сразу; баннер сам
+            # вернётся к настройкам из БД после окончания сценария.
+            if trigger.scenario:
+                try:
+                    from backend.roadrunner.services.scenario_state import (
+                        apply_scenario,
+                    )
+
+                    state = apply_scenario(trigger.scenario)
+                    response_text = (
+                        f"✅ Применён сценарий «{trigger.scenario['name']}» "
+                        f"({state['duration']} с).\n\n"
+                        "После завершения баннер вернётся к поведению по "
+                        "умолчанию, прописанному в базе данных."
+                    )
+                except Exception:
+                    logger.exception("Не удалось применить сценарий чата")
+                    response_text = (
+                        "Сценарий выбран, но не удалось сохранить его как "
+                        "активный. Повторите попытку."
+                    )
+
             return ChatMessageResponse(
                 session_id=session.id,
                 message_id=payload.request_id or uuid4(),
@@ -548,6 +573,7 @@ class ChatService:
                 answer=response_text,
                 source="rules",
                 pending=False,
+                prompt_suggestions=trigger.prompts,
             )
 
         source = "rules"

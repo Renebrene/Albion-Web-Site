@@ -142,6 +142,54 @@ def test_scenario_engine_from_db_accepts_jsonb_dict(monkeypatch):
 # --- Сценарии -------------------------------------------------------------
 
 
+def test_chat_trigger_offers_example_prompts():
+    from backend.chat.roadrunner_trigger import (
+        EXAMPLE_PROMPTS,
+        check_roadrunner_trigger,
+        match_example_scenario,
+    )
+
+    trigger = check_roadrunner_trigger("светофор")
+
+    assert trigger.active
+    assert len(trigger.prompts) == len(EXAMPLE_PROMPTS) >= 3
+    assert trigger.prompts[0] in EXAMPLE_PROMPTS
+
+    scenario = match_example_scenario(EXAMPLE_PROMPTS[0])
+    assert scenario is not None
+    assert scenario["events"]
+    assert scenario["events"][-1]["do"] == "end"
+
+
+def test_inactive_chat_trigger_has_no_prompts():
+    from backend.chat.roadrunner_trigger import check_roadrunner_trigger
+
+    trigger = check_roadrunner_trigger(" свободные щиты на декабрь ")
+
+    assert not trigger.active
+    assert trigger.prompts == []
+
+
+@requires_db
+def test_active_scenario_roundtrip():
+    from backend.roadrunner.services import scenario_state
+
+    scenario_state.clear_active_scenario()
+    try:
+        payload = scenario_state.apply_scenario(
+            {"id": "pytest-active", "duration": 30, "events": []}
+        )
+        active = scenario_state.get_active_scenario()
+
+        assert payload["duration"] == 30
+        assert active is not None
+        assert active["scenario"]["id"] == "pytest-active"
+    finally:
+        scenario_state.clear_active_scenario()
+
+    assert scenario_state.get_active_scenario() is None
+
+
 def test_scenario_engine_from_file_accepts_slug_without_extension():
     engine = ScenarioEngine.from_file("rostov-evening-rain")
 

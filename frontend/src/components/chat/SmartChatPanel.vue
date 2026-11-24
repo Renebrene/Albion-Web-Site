@@ -146,6 +146,23 @@
               {{ message.warnings.join(' ') }}
             </div>
 
+            <!-- Готовые сценарии Roadrunner: нажатие отправляет промт в чат. -->
+            <div
+              v-if="message.promptSuggestions?.length"
+              class="chat-prompt-suggestions"
+            >
+              <button
+                v-for="prompt in message.promptSuggestions"
+                :key="prompt"
+                type="button"
+                class="chat-prompt-suggestion"
+                :disabled="loading"
+                @click="send(prompt)"
+              >
+                {{ prompt }}
+              </button>
+            </div>
+
             <!-- Ошибку видно по оформлению, и её можно повторить, не
                  набирая вопрос заново. -->
             <div
@@ -1153,6 +1170,39 @@ function loadLabel(row) {
   font-size: 12.5px;
   line-height: 1.5;
 }
+.chat-prompt-suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.chat-prompt-suggestion {
+  max-width: 100%;
+  padding: 7px 11px;
+  border: 1px solid var(--albion-accent, #d94f3d);
+  border-radius: 8px;
+  background: #fff;
+  color: #4d5b66;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: 0.15s ease;
+}
+
+.chat-prompt-suggestion:hover:not(:disabled) {
+  background: #fff6f5;
+  color: var(--albion-accent, #d94f3d);
+}
+
+.chat-prompt-suggestion:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .chat-suggestions {
   display: flex;
   flex-wrap: wrap;
