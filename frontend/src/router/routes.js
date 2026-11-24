@@ -215,7 +215,7 @@ const routes = [
         path: 'roadrunner-settings',
         redirect: () => ({
           path: '/administration/roadrunner',
-          query: { tab: 'banner' }
+          query: { tab: 'ai-settings' }
         })
       },
       {

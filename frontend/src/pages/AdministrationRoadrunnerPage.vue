@@ -33,18 +33,37 @@
       mobile-arrows
     >
       <q-tab name="banner" icon="movie" label="Баннер" />
+      <q-tab name="camera" icon="videocam" label="Камера и сцена" />
+      <q-tab name="weather" icon="cloud" label="Погода" />
+      <q-tab name="holidays" icon="park" label="Праздники" />
       <q-tab name="scenarios" icon="auto_awesome" label="Сценарии" />
-      <q-tab name="docs" icon="menu_book" label="Документация" />
+      <q-tab name="ai-settings" icon="tune" label="Настройки АИ и источников" />
+      <q-tab name="docs" icon="menu_book" label="Документация/апи для агентов" />
     </q-tabs>
 
     <q-separator />
 
     <div class="rr-panel">
-      <AdministrationBannerPage v-if="tab === 'banner'" embedded />
+      <AdministrationBannerPage v-if="tab === 'banner'" embedded view="banner" />
+
+      <AdministrationBannerPage
+        v-else-if="['camera', 'weather', 'holidays'].includes(tab)"
+        embedded
+        view="projection"
+        :active-projection-tab="tab"
+      />
+
       <AdministrationScenarioGeneratorPage
         v-else-if="tab === 'scenarios'"
         embedded
       />
+
+      <AdministrationBannerPage
+        v-else-if="tab === 'ai-settings'"
+        embedded
+        view="ai"
+      />
+
       <AdministrationRoadrunnerDocsPage v-else-if="tab === 'docs'" embedded />
     </div>
   </q-page>
@@ -57,7 +76,10 @@ import AdministrationBannerPage from './AdministrationBannerPage.vue'
 import AdministrationRoadrunnerDocsPage from './AdministrationRoadrunnerDocsPage.vue'
 import AdministrationScenarioGeneratorPage from './AdministrationScenarioGeneratorPage.vue'
 
-const TABS = ['banner', 'scenarios', 'docs']
+const TABS = [
+  'banner', 'camera', 'weather', 'holidays',
+  'scenarios', 'ai-settings', 'docs'
+]
 
 const route = useRoute()
 const router = useRouter()

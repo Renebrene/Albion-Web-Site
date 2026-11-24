@@ -37,7 +37,7 @@
           no-caps
           icon="tune"
           label="Настройки"
-          @click="jumpToAiSettings"
+          @click="router.push('/administration/roadrunner?tab=ai-settings')"
         />
         <q-btn
           flat
@@ -65,7 +65,7 @@
     </p>
 
     <template v-if="slide">
-      <div class="toolbar">
+      <div v-if="view === 'banner'" class="toolbar">
         <label class="file-btn">
           <input
             type="file"
@@ -97,8 +97,27 @@
       </div>
 
       <!-- Панель проекции: те же пресеты, что и в демо-сцене. -->
-      <section class="projection-console">
+      <section v-if="view === 'projection'" class="projection-console">
         <div class="pc-topbar">
+          <div class="pc-mode">
+            <span class="pc-mode-label">РЕЖИМ</span>
+            <q-btn-toggle
+              :model-value="isCustom ? 'custom' : 'default'"
+              :options="[
+                { label: 'По умолчанию', value: 'default' },
+                { label: 'Произвольный', value: 'custom' }
+              ]"
+              dense
+              no-caps
+              unelevated
+              toggle-color="primary"
+              color="grey-3"
+              text-color="grey-8"
+              @update:model-value="setMode"
+            />
+          </div>
+
+          <div class="pc-topbar-controls" :class="{ 'pc-disabled': !isCustom }">
           <q-btn
             class="pc-play"
             no-caps
@@ -159,9 +178,17 @@
 
           <q-btn class="pc-action" no-caps icon="shuffle" label="Случайно" @click="randomize" />
           <q-btn class="pc-action" no-caps icon="restart_alt" label="Сброс" @click="resetProjection" />
+          </div>
+        </div>
+
+        <div v-if="!isCustom" class="pc-mode-hint">
+          Баннер синхронизируется с реальной погодой, временем суток, пробками
+          и праздниками. Переключитесь на «Произвольный», чтобы задавать свои
+          настройки и сценарии.
         </div>
 
         <q-tabs
+          v-if="!activeProjectionTab"
           v-model="projectionTab"
           dark
           dense
@@ -170,6 +197,7 @@
           active-color="amber"
           indicator-color="amber"
           class="pc-tabs"
+          :class="{ 'pc-disabled': !isCustom }"
         >
           <q-tab name="scenarios" icon="movie" label="Сценарии" />
           <q-tab name="holidays" icon="park" label="Праздники" />
@@ -178,7 +206,7 @@
           <q-tab name="docs" icon="description" label="API для агентов" />
         </q-tabs>
 
-        <div class="pc-body">
+        <div class="pc-body" :class="{ 'pc-disabled': !isCustom }">
           <div v-if="projectionTab === 'scenarios'" class="pc-section">
             <h3>Генератор сценариев</h3>
             <p>
@@ -385,7 +413,7 @@
       </section>
 
       <!-- Настройки AI и источников: собраны здесь, отдельный модуль удалён. -->
-      <section class="panel ai-settings">
+      <section v-if="view === 'ai'" class="panel ai-settings">
         <div class="panel-head">
           <h2>Настройки AI и источников</h2>
           <q-btn
@@ -538,7 +566,7 @@
       </section>
 
       <div class="banner-grid">
-        <section class="panel settings-panel">
+        <section v-if="view === 'banner'" class="panel settings-panel">
           <div class="panel-head">
             <h2>Настройки из кода</h2>
             <div class="panel-head-actions">
@@ -682,8 +710,12 @@ import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { adminRequest as request } from '../services/adminApi'
 import SettingKnob from '../components/admin/SettingKnob.vue'
 
-defineProps({
-  embedded: { type: Boolean, default: false }
+const props = defineProps({
+  embedded: { type: Boolean, default: false },
+  // 'banner' — редактор кода, 'projection' — вкладки настроек сцены,
+  // 'ai' — настройки AI и источников.
+  view: { type: String, default: 'banner' },
+  activeProjectionTab: { type: String, default: 'camera' }
 })
 
 const router = useRouter()
@@ -699,7 +731,14 @@ const settingsError = ref('')
 const previewKey = ref(0)
 
 /* Панель проекции */
-const projectionTab = ref('camera')
+const projectionTab = ref(props.activeProjectionTab || 'camera')
+watch(
+  () => props.activeProjectionTab,
+  value => {
+    if (value) projectionTab.value = value
+  }
+)
+
 const showAllSettings = ref(false)
 const defaultValues = ref({})
 
@@ -814,6 +853,36 @@ const isApiProvider = computed(() =>
   ['yandexgpt', 'openai'].includes(aiSettings.value.llm_provider)
 )
 
+const isCustom = computed(() => settingValue('mode') === 'custom')
+
+function setMode(value) {
+  setSetting('mode', value)
+
+  if (value === 'default') {
+    // Возврат к поведению по умолчанию: реальные данные вместо ручных
+    // пресетов и стандартные значения скорости/потока/оформления.
+    const defaults = defaultValues.value
+    const reset = {
+      weatherPreset: 'auto',
+      holidayPreset: 'none',
+      cameraPreset: 'iso',
+      speedFactor: 1,
+      flowDensity: 1,
+      paused: false,
+      precipitation: 0,
+      lightning: 0,
+      fog: 0,
+      brightness: 1,
+      tilt: defaults.tilt ?? 32,
+      rotation: defaults.rotation ?? 38,
+      scale: defaults.scale ?? 1
+    }
+
+    decorKeys.forEach(key => { reset[key] = false })
+    Object.entries(reset).forEach(([key, val]) => setSetting(key, val))
+  }
+}
+
 const aiQuality = computed({
   get: () => settingValue('quality'),
   set: value => setSetting('quality', value)
@@ -872,10 +941,6 @@ function onLlmProviderChange(provider) {
     : ''
 
   if (provider === 'ollama') loadOllamaModels()
-}
-
-function jumpToAiSettings() {
-  document.querySelector('.ai-settings')?.scrollIntoView({ behavior: 'smooth' })
 }
 
 async function saveAiSettings() {
@@ -1511,6 +1576,45 @@ h1 {
   padding: 10px 12px;
   border-bottom: 1px solid #1e293b;
   background: #111b2b;
+}
+
+.pc-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+  margin-right: 6px;
+  padding-right: 12px;
+  border-right: 1px solid #e2e8f0;
+}
+
+.pc-mode-label {
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+.pc-topbar-controls {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.pc-disabled {
+  opacity: 0.5;
+  pointer-events: none;
+  filter: grayscale(0.4);
+}
+
+.pc-mode-hint {
+  padding: 9px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 12.5px;
 }
 
 .pc-play {

@@ -190,6 +190,10 @@
   "decoGarlands": { "value": false, "label": "Гирлянды", "group": "holidays", "type": "boolean" },
   "decoStars": { "value": false, "label": "Звёзды", "group": "holidays", "type": "boolean" },
 
+  "mode": { "value": "default", "label": "Режим", "group": "sync", "type": "select", "options": [
+    { "value": "default", "label": "По умолчанию" },
+    { "value": "custom", "label": "Произвольный" }
+  ] },
   "syncWeather": { "value": true, "label": "Реальная погода", "group": "sync", "type": "boolean" },
   "syncTime": { "value": true, "label": "Время суток по часам", "group": "sync", "type": "boolean" },
   "syncTraffic": { "value": true, "label": "Пробки Яндекса", "group": "sync", "type": "boolean" },
@@ -323,6 +327,27 @@ const decoKeys = [
   'decoTrees', 'decoSnowfall', 'decoSnowman',
   'decoFlowers', 'decoFlags', 'decoGarlands', 'decoStars'
 ];
+
+/* Режим «По умолчанию»: баннер синхронизируется с реальной погодой, временем,
+   пробками и праздниками; ручные настройки и сценарии не применяются.
+   «Произвольный» — пользователь задаёт пресеты и сценарии сам. */
+const CUSTOM = String(SET.mode || 'default') === 'custom';
+
+if (!CUSTOM) {
+  LIVE.weather = true;
+  LIVE.time = true;
+  LIVE.traffic = true;
+  LIVE.holidays = true;
+  VIS.weatherPreset = 'auto';
+  VIS.holidayPreset = 'none';
+  VIS.precipitation = 0;
+  VIS.lightning = 0;
+  VIS.fog = 0;
+  VIS.brightness = 1;
+  VIS.speed = 1;
+  VIS.flow = 1;
+  decoKeys.forEach(k => { VIS[k] = false; });
+}
 
 /* ================= КОНФИГ ================= */
 const QUALITY = ['eco','balanced','max'].includes(String(SET.quality))
@@ -1446,6 +1471,8 @@ function finishScenario() {
 }
 
 function startScenario(payload) {
+  if (!CUSTOM) return;
+
   const state = payload || {};
   const scenario = state.scenario || {};
   const id = scenario.id || 'scenario';
