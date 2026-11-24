@@ -1538,6 +1538,20 @@ function modelWeather() {
 function presetWeather() {
   const preset = VIS.weatherPreset;
   const codes = { clear:0, snow:71, rain:51, storm:95, night:0 };
+  const nightByPreset = { clear:0, snow:0.25, rain:0.45, storm:0.8, night:1 };
+
+  // Пресет перекрывает реальное время суток: «Ясно» — светлый день,
+  // «Ночь» — тёмная сцена. В режиме «Реальная» тема снова идёт по часам.
+  if (preset === 'auto') {
+    scenarioNight = null;
+    LIVE.time = true;
+  } else {
+    scenarioNight = nightByPreset[preset] ?? 0;
+    LIVE.time = false;
+    themeT = scenarioNight;
+    applyTheme(themeT);
+  }
+
   weatherData = {
     temperature: preset === 'snow' ? -4 : preset === 'night' ? 8 : 18,
     humidity: preset === 'clear' ? 45 : 85,

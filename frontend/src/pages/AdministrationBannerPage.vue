@@ -107,33 +107,27 @@
             @click="togglePaused"
           />
 
-          <div class="pc-slider">
-            <span class="pc-label">СКОРОСТЬ <b>{{ displayValue(settingsByKey.speedFactor) }}×</b></span>
-            <q-slider
-              :model-value="Number(settingValue('speedFactor'))"
-              :min="0.2"
-              :max="2"
-              :step="0.05"
-              color="amber"
-              @update:model-value="v => setSetting('speedFactor', v)"
-            />
-          </div>
-
-          <div class="pc-slider">
-            <span class="pc-label">ПОТОК <b>{{ displayValue(settingsByKey.flowDensity) }}×</b></span>
-            <q-slider
-              :model-value="Number(settingValue('flowDensity'))"
-              :min="0.5"
-              :max="3"
-              :step="0.05"
-              color="amber"
-              @update:model-value="v => setSetting('flowDensity', v)"
-            />
-          </div>
+          <SettingKnob
+            label="Скорость"
+            :value="settingValue('speedFactor')"
+            :min="0.2"
+            :max="2"
+            :step="0.05"
+            unit="×"
+            @update:value="v => setSetting('speedFactor', v)"
+          />
+          <SettingKnob
+            label="Поток"
+            :value="settingValue('flowDensity')"
+            :min="0.5"
+            :max="3"
+            :step="0.05"
+            unit="×"
+            @update:value="v => setSetting('flowDensity', v)"
+          />
 
           <q-select
             class="pc-select"
-            dark
             dense
             outlined
             emit-value
@@ -144,7 +138,6 @@
           />
           <q-select
             class="pc-select"
-            dark
             dense
             outlined
             emit-value
@@ -155,7 +148,6 @@
           />
           <q-select
             class="pc-select"
-            dark
             dense
             outlined
             emit-value
@@ -223,18 +215,19 @@
                 <small>{{ preset.hint }}</small>
               </button>
             </div>
-            <div class="pc-sliders">
-              <div v-for="key in ['decorDensity','decorSize','decorGlow','precipitation']" :key="key" class="pc-slider">
-                <span class="pc-label">{{ settingLabel(key) }} <b>{{ displayValue(settingsByKey[key]) }}{{ settingsByKey[key]?.unit || '' }}</b></span>
-                <q-slider
-                  :model-value="Number(settingValue(key))"
-                  :min="Number(settingsByKey[key]?.min || 0)"
-                  :max="Number(settingsByKey[key]?.max || 1)"
-                  :step="Number(settingsByKey[key]?.step || 0.05)"
-                  color="amber"
-                  @update:model-value="v => setSetting(key, v)"
-                />
-              </div>
+            <h4 class="pc-group-title">Оформление</h4>
+            <div class="pc-knobs">
+              <SettingKnob
+                v-for="key in ['decorDensity','decorSize','decorGlow','precipitation']"
+                :key="key"
+                :label="settingLabel(key)"
+                :value="settingValue(key)"
+                :min="settingsByKey[key]?.min"
+                :max="settingsByKey[key]?.max"
+                :step="settingsByKey[key]?.step"
+                :unit="settingsByKey[key]?.unit || ''"
+                @update:value="v => setSetting(key, v)"
+              />
             </div>
             <div class="pc-toggles">
               <button
@@ -271,18 +264,19 @@
                 <small>{{ preset.hint }}</small>
               </button>
             </div>
-            <div class="pc-sliders">
-              <div v-for="key in ['precipitation','wind','lightning','fog','brightness']" :key="key" class="pc-slider">
-                <span class="pc-label">{{ settingLabel(key) }} <b>{{ displayValue(settingsByKey[key]) }}{{ settingsByKey[key]?.unit || '' }}</b></span>
-                <q-slider
-                  :model-value="Number(settingValue(key))"
-                  :min="Number(settingsByKey[key]?.min || 0)"
-                  :max="Number(settingsByKey[key]?.max || 1)"
-                  :step="Number(settingsByKey[key]?.step || 0.05)"
-                  color="amber"
-                  @update:model-value="v => setSetting(key, v)"
-                />
-              </div>
+            <h4 class="pc-group-title">Атмосфера</h4>
+            <div class="pc-knobs">
+              <SettingKnob
+                v-for="key in ['precipitation','wind','lightning','fog','brightness']"
+                :key="key"
+                :label="settingLabel(key)"
+                :value="settingValue(key)"
+                :min="settingsByKey[key]?.min"
+                :max="settingsByKey[key]?.max"
+                :step="settingsByKey[key]?.step"
+                :unit="settingsByKey[key]?.unit || ''"
+                @update:value="v => setSetting(key, v)"
+              />
             </div>
           </div>
 
@@ -306,28 +300,56 @@
                 <small>{{ preset.hint }}</small>
               </button>
             </div>
-            <div class="pc-sliders">
-              <div v-for="key in ['tilt','rotation','scale']" :key="key" class="pc-slider">
-                <span class="pc-label">{{ settingLabel(key) }} <b>{{ displayValue(settingsByKey[key]) }}{{ settingsByKey[key]?.unit || '' }}</b></span>
-                <q-slider
-                  :model-value="Number(settingValue(key))"
-                  :min="Number(settingsByKey[key]?.min || 0)"
-                  :max="Number(settingsByKey[key]?.max || 1)"
-                  :step="Number(settingsByKey[key]?.step || 1)"
-                  color="amber"
-                  @update:model-value="v => setSetting(key, v)"
-                />
-              </div>
-              <q-select
-                class="pc-select"
-                dark
-                dense
-                outlined
-                emit-value
-                map-options
-                :model-value="settingValue('quality')"
-                :options="settingsByKey.quality?.options || []"
-                @update:model-value="v => setSetting('quality', v)"
+            <div class="pc-split">
+              <section class="pc-group">
+                <h4 class="pc-group-title">Ракурс</h4>
+                <div class="pc-knobs">
+                  <SettingKnob
+                    v-for="key in ['tilt','rotation','scale']"
+                    :key="key"
+                    :label="settingLabel(key)"
+                    :value="settingValue(key)"
+                    :min="settingsByKey[key]?.min"
+                    :max="settingsByKey[key]?.max"
+                    :step="settingsByKey[key]?.step"
+                    :unit="settingsByKey[key]?.unit || ''"
+                    @update:value="v => setSetting(key, v)"
+                  />
+                </div>
+              </section>
+
+              <div class="pc-divider" aria-hidden="true"></div>
+
+              <section class="pc-group">
+                <h4 class="pc-group-title">Движение</h4>
+                <div class="pc-knobs">
+                  <SettingKnob
+                    v-for="key in ['speedFactor','speedWave','speedWavePeriod','dayNightPeriod']"
+                    :key="key"
+                    :label="settingLabel(key)"
+                    :value="settingValue(key)"
+                    :min="settingsByKey[key]?.min"
+                    :max="settingsByKey[key]?.max"
+                    :step="settingsByKey[key]?.step"
+                    :unit="settingsByKey[key]?.unit || ''"
+                    @update:value="v => setSetting(key, v)"
+                  />
+                </div>
+              </section>
+            </div>
+
+            <h4 class="pc-group-title">Трафик</h4>
+            <div class="pc-knobs">
+              <SettingKnob
+                v-for="key in trafficKnobKeys"
+                :key="key"
+                :label="settingLabel(key)"
+                :value="settingValue(key)"
+                :min="settingsByKey[key]?.min"
+                :max="settingsByKey[key]?.max"
+                :step="settingsByKey[key]?.step"
+                :unit="settingsByKey[key]?.unit || ''"
+                @update:value="v => setSetting(key, v)"
               />
             </div>
             <div class="pc-toggles">
@@ -436,31 +458,6 @@
                 </template>
               </q-select>
             </div>
-            <div class="setting-item">
-              <label>Скачать модель</label>
-              <div class="download-row">
-                <q-select
-                  v-model="modelToDownload"
-                  :options="ollamaCatalog"
-                  dense
-                  outlined
-                  class="download-select"
-                />
-                <q-btn
-                  no-caps
-                  color="primary"
-                  icon="download"
-                  label="Скачать"
-                  :loading="pullingModel"
-                  :disable="!modelToDownload"
-                  @click="downloadModel"
-                />
-              </div>
-              <small class="hint">
-                Загрузка идёт в локальный Ollama по адресу
-                {{ aiSettings.llm_url || 'http://localhost:11434' }}.
-              </small>
-            </div>
           </template>
 
           <template v-else-if="isApiProvider">
@@ -470,7 +467,7 @@
                 v-model="aiSettings.llm_url"
                 dense
                 outlined
-                placeholder="https://llm.api.cloud.yandex.net/v1"
+                :placeholder="llmUrlPlaceholder"
               />
             </div>
             <div class="setting-item">
@@ -505,6 +502,18 @@
             />
           </div>
           <div class="setting-item">
+            <label>Качество рендеринга</label>
+            <q-select
+              v-model="aiQuality"
+              :options="settingsByKey.quality?.options || []"
+              emit-value
+              map-options
+              dense
+              outlined
+              @update:model-value="v => setSetting('quality', v)"
+            />
+          </div>
+          <div class="setting-item">
             <label>Сценарий по умолчанию</label>
             <q-select
               v-model="aiSettings.default_scenario"
@@ -532,14 +541,24 @@
         <section class="panel settings-panel">
           <div class="panel-head">
             <h2>Настройки из кода</h2>
-            <q-btn
-              flat
-              dense
-              no-caps
-              icon="refresh"
-              label="Перечитать"
-              @click="parseSettings(code)"
-            />
+            <div class="panel-head-actions">
+              <q-btn
+                flat
+                dense
+                no-caps
+                :icon="showAllSettings ? 'expand_less' : 'expand_more'"
+                :label="showAllSettings ? 'Свернуть' : `Все параметры (${settings.length})`"
+                @click="showAllSettings = !showAllSettings"
+              />
+              <q-btn
+                flat
+                dense
+                no-caps
+                icon="refresh"
+                label="Перечитать"
+                @click="parseSettings(code)"
+              />
+            </div>
           </div>
 
           <p v-if="settingsError" class="settings-error">
@@ -554,7 +573,21 @@
             — поля появятся здесь автоматически.
           </p>
 
-          <div v-for="item in settings" :key="item.key" class="setting-row">
+          <div v-if="showAllSettings" class="all-settings-knobs">
+            <SettingKnob
+              v-for="item in settings.filter(s => s.type === 'number' && s.min !== undefined && s.max !== undefined)"
+              :key="item.key"
+              :label="item.label"
+              :value="item.value"
+              :min="item.min"
+              :max="item.max"
+              :step="item.step"
+              :unit="item.unit || ''"
+              @update:value="value => updateSetting(item, value)"
+            />
+          </div>
+
+          <div v-if="showAllSettings" v-for="item in settings" :key="item.key" class="setting-row">
             <div class="setting-head">
               <span>
                 {{ item.label }}
@@ -578,21 +611,6 @@
               map-options
               dense
               outlined
-              @update:model-value="value => updateSetting(item, value)"
-            />
-
-            <q-slider
-              v-else-if="
-                item.type === 'number' &&
-                item.min !== undefined &&
-                item.max !== undefined
-              "
-              :model-value="Number(item.value)"
-              :min="Number(item.min)"
-              :max="Number(item.max)"
-              :step="Number(item.step) || 1"
-              dense
-              color="primary"
               @update:model-value="value => updateSetting(item, value)"
             />
 
@@ -662,6 +680,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 
 import { adminRequest as request } from '../services/adminApi'
+import SettingKnob from '../components/admin/SettingKnob.vue'
 
 defineProps({
   embedded: { type: Boolean, default: false }
@@ -681,6 +700,7 @@ const previewKey = ref(0)
 
 /* Панель проекции */
 const projectionTab = ref('camera')
+const showAllSettings = ref(false)
 const defaultValues = ref({})
 
 const cameraPresetOptions = [
@@ -742,6 +762,13 @@ const decorKeys = [
   'decoFlowers', 'decoFlags', 'decoGarlands', 'decoStars'
 ]
 
+const trafficKnobKeys = [
+  'flowDensity', 'trafficMin', 'trafficMax',
+  'trafficChangeMin', 'trafficChangeMax',
+  'carMin', 'carMax', 'pedMin', 'pedMax',
+  'countChangeMin', 'countChangeMax'
+]
+
 /* Настройки AI и источников (бывший отдельный модуль «Настройки»). */
 const aiSettings = ref({
   weather_provider: 'open-meteo',
@@ -780,14 +807,24 @@ const scenarioOptions = [
 const aiSaving = ref(false)
 const aiError = ref('')
 const ollamaLoading = ref(false)
-const pullingModel = ref(false)
 const ollamaModels = ref([])
-const ollamaCatalog = ref([])
-const modelToDownload = ref('')
 
 const isOllama = computed(() => aiSettings.value.llm_provider === 'ollama')
 const isApiProvider = computed(() =>
   ['yandexgpt', 'openai'].includes(aiSettings.value.llm_provider)
+)
+
+const aiQuality = computed({
+  get: () => settingValue('quality'),
+  set: value => setSetting('quality', value)
+})
+
+const llmUrlPlaceholder = computed(() =>
+  aiSettings.value.llm_provider === 'ollama'
+    ? 'http://localhost:11434'
+    : aiSettings.value.llm_provider === 'yandexgpt'
+      ? 'https://llm.api.cloud.yandex.net/v1'
+      : 'https://api.openai.com/v1'
 )
 
 async function loadAiSettings() {
@@ -795,6 +832,9 @@ async function loadAiSettings() {
     const data = await request('/api/roadrunner/settings')
     if (data.settings) {
       aiSettings.value = { ...aiSettings.value, ...data.settings }
+    }
+    if (isOllama.value && !aiSettings.value.llm_url) {
+      aiSettings.value.llm_url = 'http://localhost:11434'
     }
     if (isOllama.value) await loadOllamaModels()
   } catch (exc) {
@@ -807,10 +847,6 @@ async function loadOllamaModels() {
   try {
     const data = await request('/api/roadrunner/ollama/models')
     ollamaModels.value = data.models || []
-    ollamaCatalog.value = data.catalog || []
-    if (!modelToDownload.value && ollamaCatalog.value.length) {
-      modelToDownload.value = ollamaCatalog.value[0]
-    }
   } catch (exc) {
     aiError.value = `Ollama недоступен: ${exc}`
     ollamaModels.value = []
@@ -829,28 +865,13 @@ function filterOllama(value, done) {
 }
 
 function onLlmProviderChange(provider) {
-  // При YandexGPT/OpenAI олламовские поля скрыты, api-поля доступны только
-  // при выбранном API-провайдере.
-  if (provider === 'ollama') loadOllamaModels()
-}
+  // URL API зависит от провайдера: у Ollama — локальный адрес, у облачных
+  // провайдеров поле пустое и пользователь вписывает его сам.
+  aiSettings.value.llm_url = provider === 'ollama'
+    ? 'http://localhost:11434'
+    : ''
 
-async function downloadModel() {
-  if (!modelToDownload.value) return
-  pullingModel.value = true
-  aiError.value = ''
-  try {
-    await request('/api/roadrunner/ollama/pull', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: modelToDownload.value })
-    })
-    await loadOllamaModels()
-    aiSettings.value.llm_model = modelToDownload.value
-  } catch (exc) {
-    aiError.value = `Не удалось скачать модель: ${exc}`
-  } finally {
-    pullingModel.value = false
-  }
+  if (provider === 'ollama') loadOllamaModels()
 }
 
 function jumpToAiSettings() {
@@ -1020,7 +1041,7 @@ async function pushPreview() {
 
 function schedulePreview() {
   if (previewTimer) window.clearTimeout(previewTimer)
-  previewTimer = window.setTimeout(pushPreview, 400)
+  previewTimer = window.setTimeout(pushPreview, 250)
 }
 
 watch(code, schedulePreview)
@@ -1712,6 +1733,53 @@ h1 {
   border: 1px solid #cbd5e1;
 }
 
+.pc-group-title {
+  margin: 16px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.pc-split {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.pc-group {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.pc-divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: #e2e8f0;
+}
+
+.pc-knobs,
+.all-settings-knobs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px 6px;
+}
+
+.all-settings-knobs {
+  padding: 8px 0 14px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.panel-head-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
 .ai-settings {
   margin-bottom: 16px;
 }
@@ -1728,16 +1796,6 @@ h1 {
   color: #334155;
   font-size: 13px;
   font-weight: 600;
-}
-
-.download-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.download-select {
-  flex: 1;
 }
 
 /* Предпросмотр — от края до края страницы. */
