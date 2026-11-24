@@ -650,27 +650,18 @@
 
               <div class="usage-row">
                 <q-chip
-                  v-if="item.used_in_news"
+                  v-for="section in item.used_sections || []"
+                  :key="section"
                   dense
                   size="sm"
                   color="blue-grey-1"
                   text-color="blue-grey-9"
                 >
-                  Используется в новостях
+                  {{ section }}
                 </q-chip>
 
                 <q-chip
-                  v-if="item.used_in_pages"
-                  dense
-                  size="sm"
-                  color="blue-grey-1"
-                  text-color="blue-grey-9"
-                >
-                  Используется на страницах
-                </q-chip>
-
-                <q-chip
-                  v-if="!item.used_in_news && !item.used_in_pages"
+                  v-if="!(item.used_sections || []).length"
                   dense
                   size="sm"
                   color="grey-2"
@@ -712,13 +703,13 @@
                     icon="delete"
                     color="negative"
                     aria-label="Удалить"
-                    :disable="item.used_in_news || item.used_in_pages"
+                    :disable="(item.used_sections || []).length > 0"
                     :loading="deletingId === item.id"
                     @click="deleteMedia(item)"
                   >
                     <q-tooltip>
                       {{
-                        item.used_in_news || item.used_in_pages
+                        (item.used_sections || []).length
                           ? 'Файл используется — удалить нельзя'
                           : 'Удалить'
                       }}
@@ -1642,7 +1633,7 @@ async function uploadAllQueue() {
 }
 
 async function deleteMedia(item) {
-  if (item.used_in_news || item.used_in_pages) {
+  if ((item.used_sections || []).length) {
     return
   }
 

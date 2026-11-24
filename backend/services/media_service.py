@@ -940,10 +940,12 @@ def list_media(
                         "used_in_news": row[15],
                         "used_in_pages": row[16],
                         "used_in_geo": row[17],
-                        "used_sections": used_section_names(
-                            in_news=row[15],
-                            in_geo=row[17],
-                            page_slugs=row[18],
+                        "used_sections": media_usage_sections(
+                            cur,
+                            media_id,
+                            storage_path=row[5],
+                            preview_path=row[12],
+                            variant_paths=[v["storage_path"] for v in variants],
                         ),
                         "storage_backend": row[19] or "local",
                         "external_url": row[20],
@@ -975,15 +977,32 @@ def used_section_names(
     in_news: bool = False,
     in_geo: bool = False,
     page_slugs=None,
+    in_contacts: bool = False,
+    in_menu: bool = False,
+    in_settings: bool = False,
+    in_info: bool = False,
+    in_home: bool = False,
+    in_portfolio: bool = False,
 ) -> list[str]:
     """Разделы, где медиа реально используется (по ссылкам в контенте)."""
     names: set[str] = set()
 
     if in_news:
         names.add("Новости")
-
     if in_geo:
         names.add("География")
+    if in_contacts:
+        names.add("Контакты")
+    if in_menu:
+        names.add("Меню сайта")
+    if in_settings:
+        names.add("Настройки сайта")
+    if in_info:
+        names.add("Информация")
+    if in_home:
+        names.add("Главная")
+    if in_portfolio:
+        names.add("Портфель")
 
     for slug in page_slugs or ():
         names.add(_PAGE_SECTION_BY_SLUG.get(str(slug), "Прочее"))
@@ -991,8 +1010,70 @@ def used_section_names(
     return sorted(names)
 
 
-def used_sections_for(cur, media_id: int) -> list[str]:
-    """То же для одного файла (при правке тегов)."""
+def _path_usage(cur, filename: str, storage_path: str) -> dict:
+    """Поиск ссылок на файл по имени/пути в текстовых полях БД.
+
+    Медиа часто добавляются не через связи `media_id`, а просто путём в
+    контенте (меню, настройки, слайды, тексты вкладок).
+    """
+    mask = f"%{filename}%"
+    path_mask = f"%{storage_path}%"
+
+    def exists(sql: str, params: tuple) -> bool:
+        try:
+            cur.execute(sql, params)
+            row = cur.fetchone()
+            return bool(row and row[0])
+        except Exception:
+            return False
+
+    return {
+        "in_menu": exists(
+            "SELECT 1 FROM site_menu_items WHERE url LIKE %s OR url LIKE %s LIMIT 1",
+            (mask, path_mask),
+        ),
+        "in_settings": exists(
+            "SELECT 1 FROM site_settings WHERE value::text LIKE %s OR value::text LIKE %s LIMIT 1",
+            (mask, path_mask),
+        ),
+        "in_info": exists(
+            "SELECT 1 FROM info_tabs WHERE content::text LIKE %s OR content::text LIKE %s LIMIT 1",
+            (mask, path_mask),
+        ),
+        "in_home": (
+            exists(
+                "SELECT 1 FROM home_slides WHERE image_path LIKE %s OR code LIKE %s LIMIT 1",
+                (mask, path_mask),
+            )
+            or exists(
+                "SELECT 1 FROM home_slide_items WHERE image_path LIKE %s LIMIT 1",
+                (mask,),
+            )
+        ),
+        "in_news_path": exists(
+            "SELECT 1 FROM news WHERE content::text LIKE %s OR excerpt::text LIKE %s LIMIT 1",
+            (mask, mask),
+        ),
+        "in_pages_path": exists(
+            "SELECT 1 FROM page_blocks WHERE content::text LIKE %s LIMIT 1",
+            (mask,),
+        ),
+        "in_portfolio": exists(
+            "SELECT 1 FROM account_portfolios WHERE payload::text LIKE %s LIMIT 1",
+            (mask,),
+        ),
+    }
+
+
+def media_usage_sections(
+    cur,
+    media_id: int,
+    *,
+    storage_path: str = "",
+    preview_path: str = "",
+    variant_paths=None,
+) -> list[str]:
+    """Все разделы, где используется медиа: по id и по пути в контенте."""
     cur.execute(
         "SELECT EXISTS (SELECT 1 FROM news_media WHERE media_id = %s)",
         (media_id,),
@@ -1000,14 +1081,23 @@ def used_sections_for(cur, media_id: int) -> list[str]:
     in_news = bool(cur.fetchone()[0])
 
     cur.execute(
-        """
-        SELECT EXISTS (
-            SELECT 1 FROM home_geo_attraction_photos WHERE media_id = %s
-        )
-        """,
+        "SELECT EXISTS (SELECT 1 FROM home_geo_attraction_photos WHERE media_id = %s)",
         (media_id,),
     )
     in_geo = bool(cur.fetchone()[0])
+
+    cur.execute(
+        """
+        SELECT EXISTS (
+            SELECT 1 FROM contact_employees WHERE media_id = %s
+            UNION ALL
+            SELECT 1 FROM contact_offices WHERE media_id = %s
+            LIMIT 1
+        )
+        """,
+        (media_id, media_id),
+    )
+    in_contacts = bool(cur.fetchone()[0])
 
     cur.execute(
         """
@@ -1021,10 +1111,48 @@ def used_sections_for(cur, media_id: int) -> list[str]:
     )
     slugs = [row[0] for row in cur.fetchall()]
 
+    # Путь может быть в исходном файле, превью или одной из вариаций.
+    filename = ""
+    for candidate in (storage_path, preview_path, *(variant_paths or [])):
+        if candidate:
+            filename = str(candidate).replace("\\", "/").split("/")[-1]
+            break
+
+    paths = _path_usage(cur, filename, storage_path or "") if filename else {}
+
     return used_section_names(
-        in_news=in_news,
+        in_news=in_news or bool(paths.get("in_news_path")),
         in_geo=in_geo,
         page_slugs=slugs,
+        in_contacts=in_contacts,
+        in_menu=bool(paths.get("in_menu")),
+        in_settings=bool(paths.get("in_settings")),
+        in_info=bool(paths.get("in_info")),
+        in_home=bool(paths.get("in_home")),
+        in_portfolio=bool(paths.get("in_portfolio")),
+    )
+
+
+def used_sections_for(cur, media_id: int) -> list[str]:
+    """То же для одного файла (при правке тегов)."""
+    cur.execute(
+        "SELECT storage_path, preview_path FROM media WHERE id = %s",
+        (media_id,),
+    )
+    row = cur.fetchone() or (None, None)
+
+    cur.execute(
+        "SELECT storage_path FROM media_variants WHERE media_id = %s",
+        (media_id,),
+    )
+    variants = [r[0] for r in cur.fetchall()]
+
+    return media_usage_sections(
+        cur,
+        media_id,
+        storage_path=row[0] or "",
+        preview_path=row[1] or "",
+        variant_paths=variants,
     )
 
 
@@ -1846,14 +1974,23 @@ def get_media_stats() -> dict:
                 """
                 SELECT
                     COUNT(*) AS total_files,
-                    COUNT(*) FILTER (
-                        WHERE EXISTS (SELECT 1 FROM news_media nm WHERE nm.media_id = media.id) OR EXISTS (SELECT 1 FROM page_block_media pbm WHERE pbm.media_id = media.id)
-                    ) AS used_files,
                     COALESCE(SUM(file_size), 0) AS size_bytes
                 FROM media
                 """
             )
             overview = cur.fetchone()
+
+            # «Используется» считаем по всем разделам, а не только по новостям
+            # и страницам — иначе статистика занижает число занятых файлов.
+            cur.execute("SELECT id, storage_path, preview_path FROM media")
+            used_files = 0
+            for media_id, storage_path, preview_path in cur.fetchall():
+                if media_usage_sections(
+                    cur, media_id,
+                    storage_path=storage_path or "",
+                    preview_path=preview_path or "",
+                ):
+                    used_files += 1
 
             cur.execute(
                 """
@@ -1943,8 +2080,8 @@ def get_media_stats() -> dict:
     return {
         "overview": {
             "total_files": overview[0],
-            "used_files": overview[1],
-            "size_bytes": overview[2],
+            "used_files": used_files,
+            "size_bytes": overview[1],
         },
         "categories": categories,
         "types": {
