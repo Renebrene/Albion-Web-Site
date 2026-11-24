@@ -161,6 +161,26 @@ def test_chat_trigger_offers_example_prompts():
     assert scenario["events"][-1]["do"] == "end"
 
 
+def test_chat_enters_and_exits_roadrunner_mode():
+    entered = client.post(
+        "/api/chat/message", json={"message": "светофор"}
+    )
+
+    assert entered.status_code == 200, entered.text
+    data = entered.json()
+    assert data["roadrunner_mode"] == "active"
+    assert "выход" in data["prompt_suggestions"]
+    assert len(data["prompt_suggestions"]) >= 4
+
+    exited = client.post(
+        "/api/chat/message",
+        json={"message": "выход", "mode": "roadrunner"},
+    )
+
+    assert exited.status_code == 200
+    assert exited.json()["roadrunner_mode"] == "exited"
+
+
 def test_inactive_chat_trigger_has_no_prompts():
     from backend.chat.roadrunner_trigger import check_roadrunner_trigger
 

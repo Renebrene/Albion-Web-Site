@@ -1542,15 +1542,10 @@ h1 {
 
 .preview-frame {
   display: block;
-  /* Та же обрезка слева, что и у баннера на главной. */
-  --rr-crop-left: 16%;
-  --rr-crop-scale: 1.19;
-  transform: scale(var(--rr-crop-scale)) translateX(calc(-1 * var(--rr-crop-left)));
-  transform-origin: left center;
   width: 100%;
   /* Та же доля экрана, что и у баннера на главной. */
-  height: 50vh;
-  min-height: 280px;
+  height: 30vh;
+  min-height: 180px;
   border: 0;
   border-radius: 8px;
   background: #9fd4ec;
@@ -1932,8 +1927,8 @@ h1 {
 }
 
 .preview-frame {
-  height: 50vh;
-  min-height: 280px;
+  height: 30vh;
+  min-height: 180px;
 }
 
 @media (max-width: 900px) {

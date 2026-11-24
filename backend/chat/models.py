@@ -33,6 +33,8 @@ class ChatMessageRequest(BaseModel):
     context: ChatContext | None = None
     # Идентификатор чатика в интерфейсе (для журнала и группировки).
     chat_key: str | None = Field(default=None, max_length=64)
+    # Пасхалка: режим Roadrunner, в который чат вошёл после «светофор».
+    mode: Literal["default", "roadrunner"] | None = None
 
     @field_validator("message")
     @classmethod
@@ -130,6 +132,8 @@ class ChatMessageResponse(BaseModel):
     suggestions: list[ChatSuggestion] = Field(default_factory=list)
     # Быстрые кнопки со сценариями (например, после запроса «светофор»).
     prompt_suggestions: list[str] = Field(default_factory=list)
+    # 'active' — чат вошёл в пасхалку, 'exited' — вышел из неё.
+    roadrunner_mode: Literal["none", "active", "exited"] = "none"
     actions: ChatActions = Field(default_factory=ChatActions)
     warnings: list[str] = Field(default_factory=list)
 

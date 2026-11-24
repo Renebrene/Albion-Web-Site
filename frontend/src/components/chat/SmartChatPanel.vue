@@ -16,6 +16,10 @@
         {{ chatNumber }}
       </span>
 
+      <span v-if="roadrunnerActive" class="chat-rr-badge">
+        🚦 Roadrunner · 15 мин
+      </span>
+
       <!-- Подсказка-заглушка — в один ряд со значком и номером. -->
       <span
         v-if="variant !== 'compact' && !messages.length"
@@ -483,8 +487,16 @@ const expanded = ref(false)
 const collapseToSides = computed(
   () => props.variant === 'compact' || availableMode.value === 'sides'
 )
-const { messages, loading, lastResponse, send, stop, reset, dropExchange } =
-  useSmartChat(props.chatKey)
+const {
+  messages,
+  loading,
+  lastResponse,
+  send,
+  stop,
+  reset,
+  dropExchange,
+  roadrunnerActive
+} = useSmartChat(props.chatKey)
 
 /*
  * Месяцы чата — из месяцев его результатов (а не из глобального списка):
@@ -1042,6 +1054,17 @@ function loadLabel(row) {
   font-size: 15px;
 }
 /* Подсказка-заглушка в шапке чата. */
+.chat-rr-badge {
+  padding: 3px 8px;
+  border: 1px solid #f5b301;
+  border-radius: 999px;
+  background: #fffbeb;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .chat-title-hint {
   color: #5b6873;
   font-size: 13px;

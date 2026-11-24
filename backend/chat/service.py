@@ -535,14 +535,51 @@ class ChatService:
 
         # Проверка триггера Roadrunner (ключевые слова "светофор", "дорога" и т.д.)
         from backend.chat.roadrunner_trigger import (
+            EXIT_PROMPT,
             check_roadrunner_trigger,
             format_roadrunner_suggestion,
+            is_exit_command,
         )
         from uuid import uuid4
 
+        in_roadrunner_mode = payload.mode == "roadrunner"
+
+        if in_roadrunner_mode and is_exit_command(payload.message):
+            return ChatMessageResponse(
+                session_id=session.id,
+                message_id=payload.request_id or uuid4(),
+                message=payload.message,
+                answer=(
+                    "Вы вышли из режима Roadrunner. Снова обычный режим — "
+                    "спрашивайте про рекламные поверхности и доступность."
+                ),
+                source="rules",
+                pending=False,
+                roadrunner_mode="exited",
+            )
+
+        # В пасхалку входим только по явному «светофор»; внутри режима
+        # работают все ключевые слова Roadrunner и готовые сценарии.
+        entered = "светофор" in payload.message.lower()
         trigger = check_roadrunner_trigger(payload.message)
-        if trigger.active:
-            response_text = format_roadrunner_suggestion(trigger)
+
+        if in_roadrunner_mode or entered:
+            if entered:
+                # Текст при входе в пасхалку — фиксированный, кнопки-подсказки
+                # добавляются отдельно через prompt_suggestions.
+                response_text = (
+                    "🎬 Режим Roadrunner активен. Опишите сценарий или "
+                    "выберите готовый вариант ниже.\n"
+                    "После окончания сценария баннер вернётся к настройкам "
+                    "по умолчанию из базы данных."
+                )
+            else:
+                response_text = (
+                    format_roadrunner_suggestion(trigger) if trigger.active else (
+                        "🎬 Режим Roadrunner активен. Опишите сценарий или "
+                        "выберите готовый вариант ниже."
+                    )
+                )
 
             # Точный выбор готового сценария применяется сразу; баннер сам
             # вернётся к настройкам из БД после окончания сценария.
@@ -573,7 +610,8 @@ class ChatService:
                 answer=response_text,
                 source="rules",
                 pending=False,
-                prompt_suggestions=trigger.prompts,
+                prompt_suggestions=[*trigger.prompts, EXIT_PROMPT],
+                roadrunner_mode="active",
             )
 
         source = "rules"

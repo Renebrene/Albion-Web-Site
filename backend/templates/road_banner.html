@@ -21,7 +21,8 @@
   /* HUD — оверлей с погодой, пробками, временем (минималистичный) */
   #hud {
     position: absolute;
-    top: 12px;
+    /* HUD висит над дорогой, а не над небом/газоном. */
+    top: 30%;
     left: 12px;
     right: 12px;
     z-index: 5;
@@ -48,6 +49,19 @@
   .hud-item b {
     color: #fff;
     font-weight: 700;
+  }
+
+  /* Обрезка левого края применяется к сцене, а не ко всему документу:
+     HUD остаётся в видимом левом углу баннера. */
+  #stage {
+    overflow: hidden;
+  }
+
+  #stage canvas {
+    --rr-crop-left: 12%;
+    --rr-crop-scale: 1.14;
+    transform: scaleX(var(--rr-crop-scale)) translateX(calc(-1 * var(--rr-crop-left)));
+    transform-origin: left center;
   }
 
   .hud-weather {
@@ -761,6 +775,7 @@ let shelterGlow2;
   const bin = new THREE.Mesh(new THREE.CylinderGeometry(.22,.26,.6,8), M.pole); bin.position.set(3.1,.3,.6); g.add(bin);
   // Поворачиваем павильон лицом к дороге (на ближней стороне).
   g.rotation.y = Math.PI;
+  g.name = 'stop2';
   g.position.set(SHELTER2_X, 0, WAIT2_Z); scene.add(g);
   const sg = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,3.1,6), M.pole); pole.position.y = 1.55; sg.add(pole);
@@ -1957,6 +1972,7 @@ scene.traverse(o => {
 camera.position.copy(CAM.iso.pos); curTgt.copy(CAM.iso.tgt); camera.lookAt(curTgt);
 applyTheme(0); resize();
 window.__ROAD_READY__ = true;
+window.__RR_DEBUG__ = { frames: () => frames, inView: () => inView };
 requestAnimationFrame(loop);
 </script>
 <noscript><style>#fallback{display:block}</style></noscript>

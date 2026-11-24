@@ -112,6 +112,15 @@ EXAMPLE_SCENARIOS = [
 
 EXAMPLE_PROMPTS = [item["prompt"] for item in EXAMPLE_SCENARIOS]
 
+EXIT_PROMPT = "выход"
+EXIT_WORDS = ("выход", "выйти", "exit", "вернись", "обычный режим")
+
+
+def is_exit_command(text: str) -> bool:
+    """Команда выхода из пасхалки."""
+    normalized = " ".join((text or "").lower().split())
+    return any(word in normalized for word in EXIT_WORDS)
+
 
 def match_example_scenario(text: str) -> dict | None:
     """Найти готовый сценарий по точному тексту подсказки."""

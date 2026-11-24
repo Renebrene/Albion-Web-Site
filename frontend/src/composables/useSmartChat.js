@@ -8,6 +8,9 @@ import { resetChat, sendChatMessage } from '../services/chatApi'
  */
 const STORAGE_VERSION = 2
 
+/* Пасхалка «светофор»: режим Roadrunner живёт 15 минут. */
+const ROADRUNNER_TTL_MS = 15 * 60 * 1000
+
 /*
  * Чат — не singleton: в большом окне может быть несколько независимых
  * чатиков. Состояние хранится по ключу (chatKey).
@@ -16,6 +19,62 @@ const registry = new Map()
 
 function createStore(key) {
   const storageKey = `albion_smart_chat_v${STORAGE_VERSION}_${key}`
+  const roadrunnerStorageKey = `albion_roadrunner_mode_${key}`
+
+  const roadrunnerActive = ref(false)
+  let roadrunnerTimer = null
+
+  function clearRoadrunnerTimer() {
+    if (roadrunnerTimer) {
+      clearTimeout(roadrunnerTimer)
+      roadrunnerTimer = null
+    }
+  }
+
+  function setRoadrunnerMode(active) {
+    roadrunnerActive.value = active
+    clearRoadrunnerTimer()
+
+    try {
+      sessionStorage.setItem(
+        roadrunnerStorageKey,
+        JSON.stringify({ until: active ? Date.now() + ROADRUNNER_TTL_MS : 0 })
+      )
+    } catch {
+      /* storage может быть недоступен */
+    }
+
+    if (active) {
+      roadrunnerTimer = setTimeout(() => {
+        roadrunnerActive.value = false
+        roadrunnerTimer = null
+        messages.value.push({
+          role: 'assistant',
+          text: 'Режим Roadrunner завершён автоматически (прошло 15 минут).',
+          pending: false
+        })
+        try {
+          sessionStorage.setItem(roadrunnerStorageKey, JSON.stringify({ until: 0 }))
+        } catch {
+          /* ignore */
+        }
+        persist()
+      }, ROADRUNNER_TTL_MS)
+    }
+  }
+
+  function restoreRoadrunner() {
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(roadrunnerStorageKey) || '{}')
+      const remaining = Number(saved.until || 0) - Date.now()
+      if (remaining > 0) {
+        roadrunnerActive.value = true
+        roadrunnerTimer = setTimeout(() => setRoadrunnerMode(false), remaining)
+      }
+    } catch {
+      /* ignore */
+    }
+  }
 
   const sessionId = ref(null)
   const messages = ref([])
@@ -151,6 +210,7 @@ function createStore(key) {
   }
 
   restore()
+  restoreRoadrunner()
 
   /*
    * Результат send() — не «ответ или нет», а что именно произошло:
@@ -190,7 +250,8 @@ function createStore(key) {
               : undefined,
           message: text,
           context,
-          chat_key: key
+          chat_key: key,
+          mode: roadrunnerActive.value ? 'roadrunner' : 'default'
         },
         controller.signal
       )
@@ -202,6 +263,13 @@ function createStore(key) {
 
       sessionId.value = response.session_id
       lastResponse.value = response
+
+      if (response.roadrunner_mode === 'active') {
+        if (!roadrunnerActive.value) setRoadrunnerMode(true)
+      } else if (response.roadrunner_mode === 'exited') {
+        setRoadrunnerMode(false)
+      }
+
       messages.value.push({
         role: 'assistant',
         text: response.answer,
@@ -326,6 +394,7 @@ function createStore(key) {
     lastResponse.value = null
     error.value = ''
     loading.value = false
+    setRoadrunnerMode(false)
     persist()
   }
 
@@ -334,6 +403,7 @@ function createStore(key) {
     messages,
     lastResponse,
     results: computed(() => lastResponse.value?.results?.items || []),
+    roadrunnerActive,
     loading,
     error,
     send,
@@ -393,6 +463,7 @@ export function disposeChat(key) {
 
   try {
     sessionStorage.removeItem(storageKey)
+    sessionStorage.removeItem(`albion_roadrunner_mode_${key}`)
   } catch {
     /* storage может быть недоступен */
   }
