@@ -383,10 +383,15 @@ if (RM) { CFG.paused = true; CFG.parallax = false; }
 
 const CYCLE = { g:9, y:2.2, r:8 }; CYCLE.total = CYCLE.g + CYCLE.y + CYCLE.r;
 const IX = [ { x:-24, phase:0 }, { x:24, phase:7.5 } ];
-const ROAD_HALF = 58, LANE_Z = 1.8, STOP_OFF = 7.2, ZEBRA_OFF = 9;
+const ROAD_HALF = 58, LANE_Z = 1.8, ZEBRA_OFF = 9;
+const ZEBRA_LEN = 3.45, ZEBRA_HALF = ZEBRA_LEN / 2;
+// Стоп-линия — перед зеброй, а не на ней: машина останавливается,
+// не заезжая на пешеходный переход и не блокируя перекрёсток.
+const STOP_OFF = ZEBRA_OFF + ZEBRA_HALF + 0.8;
+const NO_STOP_PAD = ZEBRA_HALF + 0.8;
 const CAR_LEN = 2.4, BUS_LEN = 5.8, ACCEL = 3.2, DECEL = 7.5, BRAKE_A = 5.5;
 // Остановка на ДАЛЬНЕЙ стороне (−Z): автобусы идут справа налево (dir = −1)
-const SHELTER_X = 12, BUS_STOP_X = SHELTER_X + 1.55, BAY_Z = -3.95, WAIT_Z = -6.15;
+const SHELTER_X = 7, BUS_STOP_X = SHELTER_X + 1.55, BAY_Z = -3.95, WAIT_Z = -6.15;
 // Вторая остановка — на противоположной стороне дороги, со сдвигом по дороге.
 const SHELTER2_X = SHELTER_X - 6, BAY2_Z = 4.35, WAIT2_Z = 6.15;
 const BUS_STOP2_X = SHELTER2_X - 1.55;
@@ -637,7 +642,7 @@ const bay = new THREE.Mesh(new THREE.BoxGeometry(12.4, .1, 2.3), M.asphalt);
 bay.position.set(SHELTER_X, -.05, -4.35); scene.add(bay);
 const backWalk = new THREE.Mesh(new THREE.BoxGeometry(12.4, .24, 1.9), M.walk);
 backWalk.position.set(SHELTER_X, 0, -6.35); scene.add(backWalk);
-[9, 15].forEach(x => {
+[SHELTER_X - 3, SHELTER_X + 3].forEach(x => {
   const a = new THREE.Mesh(new THREE.PlaneGeometry(1.5,1.5),
     new THREE.MeshBasicMaterial({ map:markATex, transparent:true, depthWrite:false }));
   a.rotation.x = -Math.PI/2; a.rotation.z = Math.PI; a.position.set(x, .013, -4.3); scene.add(a);
@@ -694,7 +699,7 @@ const zebraTr = [];
 IX.forEach(ix => [-ZEBRA_OFF, ZEBRA_OFF].forEach(off => {
   for(let i=0; i<5; i++) zebraTr.push({ x:ix.x+off, z:(i-2)*.95 });
 }));
-instanced(new THREE.BoxGeometry(3.45,.02,.5), M.mark, zebraTr);
+instanced(new THREE.BoxGeometry(ZEBRA_LEN,.02,.5), M.mark, zebraTr);
 
 // деревья
 const treePos = [[-50,7.6],[-33,-8.9],[-14,8.8],[-2,-7.4],[10,9.8],[34,-8.8],[46,7.4],[52,-8.2],[-55,-7.8],[-32,8.4],[16,-10.2],[40,8.6]];
@@ -772,7 +777,7 @@ for(let i=0;i<4;i++){
 
 // фонари
 const lamps = [];
-[[-40,4.7],[-8,-4.7],[2,4.7],[40,-4.7]].forEach(([x,z]) => {
+[[-40,4.7],[-8,-4.7],[-4,4.7],[40,-4.7]].forEach(([x,z]) => {
   const g = new THREE.Group(); const dir = z > 0 ? -1 : 1;
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,4.4,6), M.pole); pole.position.y = 2.2; g.add(pole);
   const arm = new THREE.Mesh(new THREE.BoxGeometry(.09,.09,1.2), M.pole); arm.position.set(0,4.35,dir*.6); g.add(arm);
@@ -807,7 +812,7 @@ let shelterGlow;
   const sg = new THREE.Group();
   const pole = new THREE.Mesh(new THREE.CylinderGeometry(.05,.06,3.1,6), M.pole); pole.position.y = 1.55; sg.add(pole);
   const sign = new THREE.Mesh(new THREE.BoxGeometry(.75,.75,.05), new THREE.MeshStandardMaterial({ map:signTex, roughness:.6 })); sign.position.y = 2.95; sg.add(sign);
-  sg.position.set(7.4, 0, -5.5); scene.add(sg);
+  sg.position.set(SHELTER_X - 4.6, 0, -5.5); scene.add(sg);
 }
 
 /* ================= ВТОРАЯ ОСТАНОВКА — ближняя сторона ================= */
@@ -910,9 +915,13 @@ function lightState(ix, t){
   const p = (t + ix.phase) % CYCLE.total;
   return p < CYCLE.g ? 'g' : p < CYCLE.g + CYCLE.y ? 'y' : 'r';
 }
-// Пешеходные светофоры работают в противофазе с автомобильными.
+// Пешеходные светофоры работают в противофазе с автомобильными:
+// зелёный для пешеходов — только когда машинам горит красный, с небольшой
+// паузой на очистку перекрёстка.
 function pedLightState(ix, t){
-  return lightState(ix, t + CYCLE.total / 2);
+  const p = (t + ix.phase) % CYCLE.total;
+  const redStart = CYCLE.g + CYCLE.y;
+  return p > redStart + 1 && p < CYCLE.total - 1 ? 'g' : 'r';
 }
 
 /* ================= МАШИНЫ (пул) ================= */
@@ -1025,20 +1034,26 @@ function buildPed(){
   const head = new THREE.Mesh(new THREE.SphereGeometry(.15,10,8), skinMat); head.position.y = .95; g.add(head);
   g.add(blobShadow(.7,.5));
   g.visible = false; scene.add(g);
-  return { g, body, active:false, x:0, z:0, dz:1, speed:2.2, seed:Math.random()*10 };
+  return { g, body, active:false, x:0, z:0, dz:1, speed:2.2, seed:Math.random()*10,
+           state:'wait', ix:null };
 }
 const pedPool = Array.from({ length:6 }, buildPed);
 const peds = [];
 function spawnPed(ix){
   const p = pedPool.find(p => !p.active); if(!p) return;
   const zx = ix.x + (Math.random() < .5 ? -ZEBRA_OFF : ZEBRA_OFF);
-  if(cars.some(c => Math.abs(c.x - zx) < 5.5)) return;
-  if(buses.some(b => Math.abs(b.x - zx) < 7)) return;
   const startZ = Math.random() < .5 ? 5.3 : -5.3;
-  p.active = true; p.x = zx + rand(-1.4,1.4); p.z = startZ; p.dz = -Math.sign(startZ);
+  p.active = true; p.ix = ix; p.state = 'wait';
+  p.x = zx + rand(-1.4,1.4); p.z = startZ; p.dz = -Math.sign(startZ);
   p.speed = rand(2,2.6);
   p.body.material = pedMats[Math.floor(Math.random()*pedMats.length)];
   p.g.position.set(p.x,0,p.z); p.g.visible = true; peds.push(p);
+}
+// Не начинаем переход, пока рядом движется машина или автобус.
+function crosswalkClear(p){
+  const carNear = cars.some(c => c.speed > .5 && Math.abs(c.x - p.x) < 14);
+  const busNear = buses.some(b => b.speed > .5 && Math.abs(b.x - p.x) < 18);
+  return !carNear && !busNear;
 }
 
 /* ================= ПЕШЕХОДЫ: ОСТАНОВКА «ЦУМ» (пул) ================= */
@@ -1162,16 +1177,31 @@ let pedTarget = Math.floor(rand(PED_MIN, PED_MAX + 1));
 let countTimer = rand(COUNT_TIME_MIN, COUNT_TIME_MAX);
 spawnCar(1,-50); spawnCar(1,-26); spawnCar(1,-4);
 spawnCar(-1,50); spawnCar(-1,26); spawnCar(-1,4);
-spawnBus(40);
+// По автобусу в каждом направлении уже на старте.
+spawnBus(40); spawnBus(-40);
 
 function vehicleObstacleDist(v, front){
   let dist = Infinity;
   IX.forEach(ix => {
     const lineX = ix.x - v.dir*STOP_OFF;
     const d = (lineX - front)*v.dir;
-    if(d <= -.3) return;
-    const st = lightState(ix, simTime);
-    if(st === 'r' || (st === 'y' && d > 2.0)) dist = Math.min(dist, d);
+    if(d > -.3){
+      const st = lightState(ix, simTime);
+      if(st === 'r' || (st === 'y' && d > 2.0)) dist = Math.min(dist, d);
+    }
+
+    // Зебра и сам перекрёсток — зона, где нельзя стоять. Не въезжаем в
+    // неё, пока впереди нет места, чтобы полностью выйти за дальнюю зебру:
+    // иначе машина встанет посреди перехода или перекрёстка.
+    const entry = ix.x - v.dir*(ZEBRA_OFF + NO_STOP_PAD);
+    const exit = ix.x + v.dir*(ZEBRA_OFF + NO_STOP_PAD);
+    const before = (entry - front)*v.dir;
+    if(before > 0 && Number.isFinite(dist)){
+      const stopFront = front + v.dir*Math.max(0, dist);
+      const rearAfterStop = stopFront - v.dir*v.len;
+      const clearsZone = (rearAfterStop - exit)*v.dir > 0.2;
+      if(!clearsZone) dist = Math.min(dist, before);
+    }
   });
   cars.forEach(o => {
     if(o === v || o.dir !== v.dir) return;
@@ -1179,15 +1209,25 @@ function vehicleObstacleDist(v, front){
     if(dx > 0) dist = Math.min(dist, dx - (o.len + v.len)/2 - .35);
   });
   buses.forEach(o => {
-    if(o === v || Math.abs(o.z) > 2.9) return;   // автобус в кармане — поток объезжает
+    // Встречный автобус идёт по своей полосе и не является препятствием.
+    if(o === v || o.dir !== v.dir || Math.abs(o.z) > 2.9) return;
     const dx = (o.x - v.x)*v.dir;
     if(dx > 0) dist = Math.min(dist, dx - (o.len + v.len)/2 - .45);
   });
-  peds.forEach(p => {
-    if(Math.abs(p.z) > 3.9) return;
-    const d = (p.x - front)*v.dir;
-    if(d > -.8 && d < 7) dist = Math.min(dist, d - 1.0);
+  // Машина, уже вошедшая на перекрёсток, должна его покинуть, а не
+  // останавливаться на зебре из-за пешехода.
+  const insideNoStopZone = IX.some(ix => {
+    const entry = ix.x - v.dir*(ZEBRA_OFF + NO_STOP_PAD);
+    const exit = ix.x + v.dir*(ZEBRA_OFF + NO_STOP_PAD);
+    return (front - entry)*v.dir > 0 && (exit - front)*v.dir > 0;
   });
+  if(!insideNoStopZone){
+    peds.forEach(p => {
+      if(Math.abs(p.z) > 3.9) return;
+      const d = (p.x - front)*v.dir;
+      if(d > -.8 && d < 7) dist = Math.min(dist, d - 1.0);
+    });
+  }
   return dist;
 }
 function drive(v, dist, wdt, accel, decel, speedScale = 1){
@@ -1248,7 +1288,13 @@ function step(wdt, dt){
 
   IX.forEach((ix,i) => {
     const st = pedLightState(ix, simTime);
-    if(st === 'r' && prevState[i] !== 'r' && Math.random() < .65){ spawnPed(ix); if(Math.random() < .4) spawnPed(ix); }
+    // Пешеходы подходят к переходу и ждут зелёный; часть подходит уже
+    // к началу зелёной фазы.
+    if(st === 'r' && prevState[i] !== 'r' && Math.random() < .65){
+      spawnPed(ix); if(Math.random() < .4) spawnPed(ix);
+    } else if(st === 'g' && prevState[i] !== 'g' && Math.random() < .5){
+      spawnPed(ix);
+    }
     prevState[i] = st;
   });
   lights.forEach(l => {
@@ -1356,7 +1402,19 @@ function step(wdt, dt){
 
   for(let i=peds.length-1; i>=0; i--){
     const p = peds[i];
-    const hurry = IX.some(ix => Math.abs(p.x-ix.x) < 7 && pedLightState(ix, simTime) !== 'r') ? 1.7 : 1;
+    const light = p.ix ? pedLightState(p.ix, simTime) : 'r';
+
+    // Ждём на тротуаре, пока для пешеходов не загорится зелёный.
+    if(p.state === 'wait'){
+      p.g.position.set(p.x, Math.abs(Math.sin(simTime*3+p.seed))*.015, p.z);
+      p.g.rotation.y = p.dz > 0 ? 0 : Math.PI;
+      if(light === 'g' && crosswalkClear(p)) p.state = 'cross';
+      continue;
+    }
+
+    // Переходим на зелёный; если красный застал на переходе — ускоряемся,
+    // чтобы освободить дорогу.
+    const hurry = light === 'g' ? 1 : 1.7;
     p.z += p.dz*p.speed*hurry*wdt;
     p.g.position.set(p.x, Math.abs(Math.sin(simTime*8+p.seed))*.05, p.z);
     p.g.rotation.y = p.dz > 0 ? 0 : Math.PI;
@@ -2171,7 +2229,26 @@ window.__RR_DEBUG__ = {
   inView: () => inView,
   buses: () => buses.map(b => ({ dir: b.dir, x: Math.round(b.x), state: b.state })),
   busSpawnT: () => busSpawnT,
-  stopPeds: () => stopPeds.map(p => ({ side: p.side, x: Math.round(p.x), state: p.state }))
+  cars: () => cars.map(c => ({
+    x: Number(c.x.toFixed(1)),
+    z: Number(c.z.toFixed(1)),
+    dir: c.dir,
+    speed: Number(c.speed.toFixed(2))
+  })),
+  stopOff: () => STOP_OFF,
+  stopPeds: () => stopPeds.map(p => ({ side: p.side, x: Math.round(p.x), state: p.state })),
+  peds: () => peds.map(p => ({
+    x: Math.round(p.x),
+    z: Number(p.z.toFixed(1)),
+    state: p.state,
+    light: p.ix ? pedLightState(p.ix, simTime) : null
+  })),
+  tick: (seconds = 1) => {
+    const n = Math.max(1, Math.round(seconds * 60));
+    for(let i=0;i<n;i++) step((1/60) * VIS.speed, 1/60);
+    renderer.render(scene, camera);
+    return simTime;
+  }
 };
 requestAnimationFrame(loop);
 </script>
