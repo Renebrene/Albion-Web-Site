@@ -570,6 +570,7 @@ class ChatService:
             match_example_scenario(payload.message) if in_roadrunner_mode else None
         )
         active_scenario = trigger.scenario or matched_scenario
+        applied_scenario = None
 
         if in_roadrunner_mode or entered:
             if entered:
@@ -598,6 +599,7 @@ class ChatService:
                     )
 
                     state = apply_scenario(active_scenario)
+                    applied_scenario = state
                     response_text = (
                         f"✅ Применён сценарий «{active_scenario['name']}» "
                         f"({state['duration']} с).\n\n"
@@ -623,6 +625,7 @@ class ChatService:
                     EXIT_PROMPT,
                 ],
                 roadrunner_mode="active",
+                roadrunner_scenario=applied_scenario,
             )
 
         source = "rules"

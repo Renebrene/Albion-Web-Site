@@ -17,6 +17,38 @@ const ROADRUNNER_TTL_MS = 15 * 60 * 1000
  */
 const registry = new Map()
 
+/*
+ * Мгновенная доставка сценария в баннер. Баннер живёт в iframe, поэтому
+ * BroadcastChannel работает и внутри одной страницы, и между вкладками.
+ * Дополнительно шлём событие окна — его перехватывает RoadBannerSlide
+ * и передаёт в iframe через postMessage.
+ */
+const ROADRUNNER_CHANNEL = 'albion-roadrunner'
+let roadrunnerChannel = null
+
+function broadcastRoadrunnerScenario(payload) {
+  if (!payload) return
+
+  try {
+    if (typeof BroadcastChannel !== 'undefined') {
+      roadrunnerChannel ||= new BroadcastChannel(ROADRUNNER_CHANNEL)
+      roadrunnerChannel.postMessage({ type: 'scenario', payload })
+    }
+  } catch {
+    /* BroadcastChannel может быть недоступен */
+  }
+
+  try {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('albion:roadrunner-scenario', { detail: payload })
+      )
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
 function createStore(key) {
   const storageKey = `albion_smart_chat_v${STORAGE_VERSION}_${key}`
   const roadrunnerStorageKey = `albion_roadrunner_mode_${key}`
@@ -263,6 +295,12 @@ function createStore(key) {
 
       sessionId.value = response.session_id
       lastResponse.value = response
+
+      // Сценарий уже сохранён на бэкенде; сразу передаём его баннеру,
+      // чтобы не ждать двухсекундного опроса.
+      if (response.roadrunner_scenario) {
+        broadcastRoadrunnerScenario(response.roadrunner_scenario)
+      }
 
       if (response.roadrunner_mode === 'active') {
         if (!roadrunnerActive.value) setRoadrunnerMode(true)

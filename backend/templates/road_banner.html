@@ -1670,6 +1670,8 @@ function syncDecor() {
 /* Сценарий из чата/админки применяются поверх настроек, а после завершения
    страница перезагружается — и баннер снова берёт код из БД. */
 let activeScenarioId = null;
+let activeScenarioStart = 0;
+let lastScenarioMessageAt = 0;
 let scenarioTimers = [];
 let scenarioNight = null;
 
@@ -1749,6 +1751,7 @@ function clearScenarioTimers() {
 function finishScenario() {
   clearScenarioTimers();
   activeScenarioId = null;
+  activeScenarioStart = 0;
   scenarioNight = null;
   // Возврат к поведению по умолчанию, прописанному в БД: перезагружаем
   // документ, и он снова берёт код из home_slides.code.
@@ -1761,13 +1764,18 @@ function startScenario(payload) {
   const state = payload || {};
   const scenario = state.scenario || {};
   const id = scenario.id || 'scenario';
+  const start = Number(state.started_at || 0) * 1000;
 
-  if (activeScenarioId === id) return;
+  // Тот же сценарий, запущенный заново, должен перезапуститься; повторный
+  // опрос уже применённого состояния ничего не ломает. Устаревший ответ
+  // опроса не должен откатывать только что применённый сценарий.
+  if (activeScenarioId === id && activeScenarioStart === start) return;
+  if (activeScenarioId && start < activeScenarioStart) return;
 
   clearScenarioTimers();
   activeScenarioId = id;
+  activeScenarioStart = start;
 
-  const start = Number(state.started_at || 0) * 1000;
   const offset = start ? Math.max(0, Date.now() - start) : 0;
 
   (scenario.events || [])
@@ -1779,7 +1787,52 @@ function startScenario(payload) {
     });
 
   dirty = true;
+  // Если сцена стоит на паузе, перерисовываем кадр сразу.
+  if (CFG.paused) renderer.render(scene, camera);
+  // Подтверждение родителю (баннер в sandbox-iframe): сценарий принят.
+  // Родитель не может заглянуть внутрь cross-origin iframe, поэтому
+  // единственный способ убедиться — ответное сообщение.
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage(
+        { type: 'albion-roadrunner-ack', id, startedAt: start },
+        '*'
+      );
+    }
+  } catch (exc) {
+    /* postMessage недоступен — не критично */
+  }
 }
+
+/* Мгновенное применение из умного чата: сообщение приходит по
+   BroadcastChannel (между вкладками/iframe) или через postMessage
+   от RoadBannerSlide. Опрос ниже остаётся страховкой. */
+function applyScenarioMessage(message) {
+  if (!message) return;
+  lastScenarioMessageAt = Date.now();
+  if (message.type === 'scenario' && message.payload) {
+    startScenario(message.payload);
+  } else if (message.type === 'clear') {
+    finishScenario();
+  }
+}
+
+let scenarioChannel = null;
+try {
+  if (typeof BroadcastChannel !== 'undefined') {
+    scenarioChannel = new BroadcastChannel('albion-roadrunner');
+    scenarioChannel.onmessage = event => applyScenarioMessage(event.data);
+  }
+} catch (exc) {
+  console.warn('BroadcastChannel недоступен, остаётся опрос сценария:', exc);
+}
+
+window.addEventListener('message', event => {
+  const message = event.data;
+  if (message && message.type === 'albion-roadrunner') {
+    applyScenarioMessage({ type: 'scenario', payload: message.payload });
+  }
+});
 
 async function pollActiveScenario() {
   try {
@@ -1789,7 +1842,10 @@ async function pollActiveScenario() {
 
     if (data.active) {
       startScenario(data.active);
-    } else if (activeScenarioId) {
+    } else if (
+      activeScenarioId &&
+      Date.now() - lastScenarioMessageAt > 3000
+    ) {
       finishScenario();
     }
   } catch (exc) {
@@ -2236,6 +2292,14 @@ window.__RR_DEBUG__ = {
     speed: Number(c.speed.toFixed(2))
   })),
   stopOff: () => STOP_OFF,
+  scenario: () => ({ id: activeScenarioId, start: activeScenarioStart }),
+  vis: () => ({
+    weatherPreset: VIS.weatherPreset,
+    precipitation: VIS.precipitation,
+    flow: VIS.flow,
+    speed: VIS.speed,
+    themeT
+  }),
   stopPeds: () => stopPeds.map(p => ({ side: p.side, x: Math.round(p.x), state: p.state })),
   peds: () => peds.map(p => ({
     x: Math.round(p.x),

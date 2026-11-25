@@ -15,18 +15,20 @@
     -->
     <div v-if="active && slide.has_code" class="road-slide-stage">
       <iframe
+        ref="frame"
         :src="codeUrl"
         class="road-slide-frame"
         referrerpolicy="no-referrer"
         loading="lazy"
         title="Светофорные объекты — анимированная городская дорога"
+        @load="onFrameLoad"
       ></iframe>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 /*
  * Слайд «Светофорные объекты»: заголовок/текст из админки + 3D-баннер,
@@ -48,6 +50,49 @@ const props = defineProps({
 
 /* Код баннера сам содержит блок настроек (#banner-settings). */
 const codeUrl = computed(() => `/api/home/slides/${props.slide.id}/code`)
+
+/* Сценарий из чата приходит событием окна. Передаём его прямо в iframe,
+   чтобы сцена перерисовалась сразу, не дожидаясь опроса. */
+const frame = ref(null)
+const frameLoaded = ref(false)
+// Сценарий, пришедший до готовности iframe: отправим его сразу после load.
+let pendingPayload = null
+
+function postScenario(payload) {
+  const target = frame.value?.contentWindow
+  if (!target) return false
+  target.postMessage({ type: 'albion-roadrunner', payload }, '*')
+  return true
+}
+
+function forwardScenario(event) {
+  const payload = event?.detail
+  if (!payload) return
+  if (!frameLoaded.value || !postScenario(payload)) {
+    pendingPayload = payload
+  }
+}
+
+function onFrameLoad() {
+  frameLoaded.value = true
+  if (!pendingPayload) return
+  const payload = pendingPayload
+  pendingPayload = null
+  postScenario(payload)
+}
+
+onMounted(() => window.addEventListener('albion:roadrunner-scenario', forwardScenario))
+onBeforeUnmount(() => window.removeEventListener('albion:roadrunner-scenario', forwardScenario))
+
+// iframe существует только на активном слайде; при уходе со слайда
+// считаем его неготовым, чтобы следующий сценарий не потерялся.
+watch(
+  () => props.active,
+  (isActive) => {
+    if (isActive) return
+    frameLoaded.value = false
+  }
+)
 </script>
 
 <style scoped>

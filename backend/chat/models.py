@@ -134,6 +134,9 @@ class ChatMessageResponse(BaseModel):
     prompt_suggestions: list[str] = Field(default_factory=list)
     # 'active' — чат вошёл в пасхалку, 'exited' — вышел из неё.
     roadrunner_mode: Literal["none", "active", "exited"] = "none"
+    # Полное состояние только что применённого сценария. Нужно фронтенду,
+    # чтобы сразу передать его баннеру без ожидания следующего опроса.
+    roadrunner_scenario: dict[str, Any] | None = None
     actions: ChatActions = Field(default_factory=ChatActions)
     warnings: list[str] = Field(default_factory=list)
 
