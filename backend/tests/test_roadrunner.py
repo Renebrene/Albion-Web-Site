@@ -480,6 +480,262 @@ def test_scene_presets_validate_payload(admin, monkeypatch):
     assert empty_settings.status_code == 400
 
 
+class _HomeStoreConnection(_SettingsStoreConnection):
+    """Хранилище настроек + слайды главной для тестов AI-редактора."""
+
+    def __init__(self, rows, slides=None):
+        super().__init__(rows)
+        self.slides = slides if slides is not None else {}
+        self.rowcount = 0
+
+    def execute(self, sql, params=()):
+        query = " ".join(str(sql).split()).lower()
+
+        if query.startswith("select id, code from home_slides"):
+            slide_id = next(iter(self.slides), None)
+            self._result = (
+                (slide_id, self.slides[slide_id])
+                if slide_id is not None
+                else None
+            )
+            return self
+
+        if query.startswith("update home_slides"):
+            code, slide_id = params
+            if slide_id in self.slides:
+                self.slides[slide_id] = code
+                self.rowcount = 1
+            else:
+                self.rowcount = 0
+            self._result = None
+            return self
+
+        return super().execute(sql, params)
+
+
+COMPLETE_DOC = (
+    '<!DOCTYPE html><html><head><title>Баннер</title></head><body>'
+    '<script type="application/json" id="banner-settings">{}</script>'
+    "</body></html>"
+)
+
+
+def test_code_default_initializes_from_banner(admin, monkeypatch):
+    store = {}
+    slides = {5: COMPLETE_DOC}
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection(store, slides),
+    )
+
+    first = client.get("/api/roadrunner/code-default")
+
+    assert first.status_code == 200, first.text
+    data = first.json()
+    assert data["code"] == COMPLETE_DOC
+    assert data["slide_id"] == 5
+    assert data["source"] == "banner"
+    assert data["model"]["model"]
+
+    new_code = COMPLETE_DOC.replace("Баннер", "Баннер 2")
+    saved = client.post(
+        "/api/roadrunner/code-default",
+        json={"code": new_code, "slide_id": 5},
+    )
+    assert saved.status_code == 200, saved.text
+
+    after = client.get("/api/roadrunner/code-default").json()
+    assert after["code"] == new_code
+    assert after["source"] == "manual"
+
+
+def test_code_default_rejects_incomplete_document(admin, monkeypatch):
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection({}, {5: COMPLETE_DOC}),
+    )
+
+    response = client.post(
+        "/api/roadrunner/code-default", json={"code": "<div>обрывок</div>"}
+    )
+
+    assert response.status_code == 422
+
+
+def test_code_default_from_banner(admin, monkeypatch):
+    store = {}
+    slides = {5: COMPLETE_DOC}
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection(store, slides),
+    )
+
+    slides[5] = COMPLETE_DOC.replace("Баннер", "Текущий баннер")
+    response = client.post("/api/roadrunner/code-default/from-banner")
+
+    assert response.status_code == 200, response.text
+    assert response.json()["code"] == slides[5]
+    assert store["code_default"]["code"] == slides[5]
+
+
+def test_edit_code_uses_default_as_base(admin, monkeypatch):
+    from backend.roadrunner.services import code_editor
+
+    store = {"code_default": {"code": COMPLETE_DOC, "slide_id": 5}}
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection(store, {5: COMPLETE_DOC}),
+    )
+
+    seen = {}
+
+    async def fake_edit(instruction, code, **_kwargs):
+        seen["instruction"] = instruction
+        seen["code"] = code
+        return {
+            "code": COMPLETE_DOC.replace("Баннер", "Новый"),
+            "complete": True,
+            "provider": "ollama",
+            "model": "qwen2.5:7b",
+        }
+
+    monkeypatch.setattr(code_editor, "edit_code", fake_edit)
+
+    response = client.post(
+        "/api/roadrunner/edit-code",
+        json={"instruction": "Добавь фонари"},
+    )
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert seen == {
+        "instruction": "Добавь фонари",
+        "code": COMPLETE_DOC,
+    }
+    assert data["base_source"] == "default"
+    assert data["complete"] is True
+    assert data["provider"] == "ollama"
+
+
+def test_edit_code_requires_instruction(admin, monkeypatch):
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection({"code_default": {"code": COMPLETE_DOC}}, {}),
+    )
+
+    response = client.post("/api/roadrunner/edit-code", json={"code": COMPLETE_DOC})
+
+    assert response.status_code == 400
+
+
+def test_apply_code_updates_banner(admin, monkeypatch):
+    store = {}
+    slides = {5: COMPLETE_DOC}
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection(store, slides),
+    )
+    monkeypatch.setattr(
+        "backend.services.home_service.clear_preview_code",
+        lambda _slide_id: None,
+    )
+
+    new_code = COMPLETE_DOC.replace("Баннер", "Применённый")
+    response = client.post("/api/roadrunner/apply-code", json={"code": new_code})
+
+    assert response.status_code == 200, response.text
+    assert response.json()["slide_id"] == 5
+    assert slides[5] == new_code
+    # «Дефолт» при применении не меняется.
+    assert "code_default" not in store
+
+
+def test_apply_code_rejects_incomplete_document(admin, monkeypatch):
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection({}, {5: COMPLETE_DOC}),
+    )
+
+    response = client.post(
+        "/api/roadrunner/apply-code", json={"code": "<div>обрывок</div>"}
+    )
+
+    assert response.status_code == 422
+
+
+def test_restore_default_returns_banner_to_saved_code(admin, monkeypatch):
+    store = {"code_default": {"code": COMPLETE_DOC, "slide_id": 5}}
+    slides = {5: COMPLETE_DOC.replace("Баннер", "Изменённый")}
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection(store, slides),
+    )
+    monkeypatch.setattr(
+        "backend.services.home_service.clear_preview_code",
+        lambda _slide_id: None,
+    )
+
+    response = client.post("/api/roadrunner/code-default/restore")
+
+    assert response.status_code == 200, response.text
+    assert slides[5] == COMPLETE_DOC
+
+
+def test_code_presets_roundtrip(admin, monkeypatch):
+    store = {}
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection(store, {}),
+    )
+
+    assert client.get("/api/roadrunner/code-presets").json()["presets"] == {}
+
+    saved = client.post(
+        "/api/roadrunner/code-presets",
+        json={"name": "Фонари", "code": COMPLETE_DOC},
+    )
+    assert saved.status_code == 200, saved.text
+
+    presets = client.get("/api/roadrunner/code-presets").json()["presets"]
+    assert "Фонари" in presets
+    assert presets["Фонари"]["code"] == COMPLETE_DOC
+    assert presets["Фонари"]["created_at"]
+
+    invalid = client.post(
+        "/api/roadrunner/code-presets", json={"name": " ", "code": COMPLETE_DOC}
+    )
+    assert invalid.status_code == 400
+
+    deleted = client.delete("/api/roadrunner/code-presets/Фонари")
+    assert deleted.status_code == 200, deleted.text
+    assert client.get("/api/roadrunner/code-presets").json()["presets"] == {}
+
+
+def test_code_editor_condenses_and_injects(monkeypatch):
+    from backend.roadrunner.services import code_editor
+
+    long_script = ("/** комментарий */\n" * 400) + "const original = 1;\n"
+    code = (
+        "<!DOCTYPE html><html><body>"
+        '<script type="application/json" id="banner-settings">'
+        '{"carMin": 6}</script>'
+        f"<script>{long_script}"
+        "/* ================= LIVE-ДАННЫЕ */\nconst weather = null;\n</script>"
+        "</body></html>"
+    )
+
+    plan = code_editor._condense_code(code)
+    assert "carMin" in plan
+    assert "original" in plan
+    assert len(plan) < len(code) // 2
+
+    edited = code_editor._inject_snippet(code, "function ai_lamp() {}")
+    assert "function ai_lamp() {}" in edited
+    assert edited.index("function ai_lamp() {}") < edited.index("LIVE-ДАННЫЕ")
+    assert code_editor.is_complete_document(edited)
+    assert "original" in edited
+
+
 def test_scene_llm_config_uses_selected_model_and_mode(monkeypatch):
     stored = {
         "llm_provider": "openai",

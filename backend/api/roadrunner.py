@@ -11,6 +11,12 @@ API для Roadrunner — программной дороги Альбион.
 - GET /api/roadrunner/traffic — текущие пробки
 - GET /api/roadrunner/settings — настройки
 - PUT /api/roadrunner/settings — обновить настройки
+- GET /api/roadrunner/code-default — код-основа «Дефолт»
+- POST /api/roadrunner/code-default — сохранить «Дефолт»
+- POST /api/roadrunner/edit-code — правка кода нейросетью
+- POST /api/roadrunner/apply-code — применить код к баннеру
+- POST /api/roadrunner/code-default/restore — восстановить «Дефолт»
+- GET/POST/DELETE /api/roadrunner/code-presets — именованные версии кода
 """
 from __future__ import annotations
 
@@ -496,6 +502,294 @@ async def delete_scene_preset(name: str, auth=Depends(require_admin)):
 
     del presets[unquote(name)]
     _save_settings_key(SCENE_PRESETS_KEY, presets)
+    return {"success": True}
+
+
+# --- AI-редактор кода баннера -------------------------------------------
+#
+# «Дефолт» — снимок кода баннера, от которого отталкивается AI-редактор.
+# Сам баннер при редактировании не меняется: модель получает «Дефолт» и
+# возвращает новый документ, а запись в home_slides.code происходит только
+# по явной команде «Применить к баннеру».
+
+CODE_DEFAULT_KEY = "code_default"
+
+
+def _load_banner_slide() -> tuple[int | None, str]:
+    """id и код текущего баннера (слайд kind='road-banner')."""
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, code FROM home_slides
+                WHERE kind = 'road-banner'
+                ORDER BY is_active DESC, sort_order ASC
+                LIMIT 1
+                """
+            ).fetchone()
+    except Exception as exc:
+        logger.warning("Не удалось прочитать код баннера: %s", exc)
+        row = None
+
+    if row:
+        return int(row[0]), str(row[1] or "")
+
+    # Нет БД/слайда — отдаём эталон из репозитория, чтобы редактор работал.
+    from backend.services.home_service import get_default_banner_code
+
+    return None, get_default_banner_code()
+
+
+def _load_code_default() -> dict:
+    """Снимок «Дефолт»; при первом обращении создаётся из кода баннера."""
+    saved = _load_settings_key(CODE_DEFAULT_KEY)
+
+    if saved.get("code"):
+        return saved
+
+    slide_id, code = _load_banner_slide()
+
+    if not code:
+        return {}
+
+    payload = {
+        "code": code,
+        "slide_id": slide_id,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "source": "banner",
+    }
+    try:
+        _save_settings_key(CODE_DEFAULT_KEY, payload)
+    except Exception as exc:
+        logger.warning("Не удалось сохранить «Дефолт»: %s", exc)
+    return payload
+
+
+def _scene_model_info() -> dict:
+    from backend.roadrunner.services.llm_agent import get_scene_llm_config
+
+    config = get_scene_llm_config()
+    return {
+        "provider": config.get("provider", ""),
+        "model": config.get("model", ""),
+    }
+
+
+@router.get("/code-default")
+async def get_code_default(auth=Depends(require_admin)):
+    """Код-основа для AI-редактора (снимок «Дефолт»)."""
+    payload = _load_code_default()
+
+    if not payload.get("code"):
+        raise HTTPException(
+            status_code=404, detail="Не найден код баннера для «Дефолта»"
+        )
+
+    return {
+        "success": True,
+        "code": payload.get("code", ""),
+        "slide_id": payload.get("slide_id"),
+        "updated_at": payload.get("updated_at"),
+        "source": payload.get("source", "saved"),
+        "model": _scene_model_info(),
+    }
+
+
+@router.post("/code-default")
+async def save_code_default(payload: dict, auth=Depends(require_admin)):
+    """Сохранить код как «Дефолт» — основу для дальнейших правок."""
+    from backend.roadrunner.services.code_editor import is_complete_document
+
+    code = str(payload.get("code") or "").strip()
+
+    if not code:
+        raise HTTPException(status_code=400, detail="Пустой код баннера")
+    if not is_complete_document(code):
+        raise HTTPException(
+            status_code=422,
+            detail="Код не похож на полный HTML-документ баннера",
+        )
+
+    slide_id = payload.get("slide_id")
+    saved = {
+        "code": code,
+        "slide_id": int(slide_id) if slide_id is not None else None,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "source": "manual",
+    }
+    _save_settings_key(CODE_DEFAULT_KEY, saved)
+
+    return {"success": True, **saved}
+
+
+@router.post("/code-default/from-banner")
+async def code_default_from_banner(auth=Depends(require_admin)):
+    """Сохранить текущий код баннера как «Дефолт»."""
+    slide_id, code = _load_banner_slide()
+
+    if not code:
+        raise HTTPException(status_code=404, detail="Код баннера не найден")
+
+    saved = {
+        "code": code,
+        "slide_id": slide_id,
+        "updated_at": datetime.now().isoformat(timespec="seconds"),
+        "source": "banner",
+    }
+    _save_settings_key(CODE_DEFAULT_KEY, saved)
+
+    return {"success": True, **saved}
+
+
+@router.post("/edit-code")
+async def edit_banner_code(payload: dict, auth=Depends(require_admin)):
+    """Изменить HTML-код баннера по инструкции выбранной нейросетью."""
+    from backend.roadrunner.services.code_editor import (
+        CodeEditorError,
+        edit_code,
+    )
+
+    instruction = str(payload.get("instruction") or "").strip()
+    if not instruction:
+        raise HTTPException(status_code=400, detail="Не задана инструкция")
+
+    base = str(payload.get("code") or "").strip()
+    base_source = "request"
+
+    if not base:
+        base = str(_load_code_default().get("code") or "")
+        base_source = "default"
+
+    if not base:
+        raise HTTPException(
+            status_code=404, detail="Нет кода-основы («Дефолта»)"
+        )
+
+    try:
+        result = await edit_code(instruction, base)
+    except CodeEditorError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Ошибка AI-редактора кода")
+        raise HTTPException(
+            status_code=500, detail=f"Ошибка AI-редактора: {exc}"
+        ) from exc
+
+    return {"success": True, "base_source": base_source, **result}
+
+
+def _write_banner_code(code: str, slide_id=None) -> dict:
+    """Общая запись кода в home_slides и очистка временного предпросмотра."""
+    from backend.roadrunner.services.code_editor import is_complete_document
+    from backend.services.home_service import clear_preview_code
+
+    code = str(code or "").strip()
+
+    if not code:
+        raise HTTPException(status_code=400, detail="Пустой код баннера")
+    if not is_complete_document(code):
+        raise HTTPException(
+            status_code=422,
+            detail="Код не похож на полный HTML-документ баннера",
+        )
+
+    if slide_id is None:
+        slide_id, _current = _load_banner_slide()
+
+    if slide_id is None:
+        raise HTTPException(status_code=404, detail="Слайд баннера не найден")
+
+    try:
+        with get_connection() as conn:
+            cur = conn.execute(
+                "UPDATE home_slides SET code = %s WHERE id = %s",
+                (code, int(slide_id)),
+            )
+    except Exception as exc:
+        logger.exception("Не удалось применить код баннера")
+        raise HTTPException(
+            status_code=500, detail=f"Не удалось сохранить код: {exc}"
+        ) from exc
+
+    if cur.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Слайд баннера не найден")
+
+    clear_preview_code(int(slide_id))
+
+    return {"success": True, "slide_id": int(slide_id), "has_code": True}
+
+
+@router.post("/apply-code")
+async def apply_banner_code(payload: dict, auth=Depends(require_admin)):
+    """Записать новый код в home_slides.code (явное применение)."""
+    return _write_banner_code(payload.get("code"), payload.get("slide_id"))
+
+
+@router.post("/code-default/restore")
+async def restore_code_default(payload: dict | None = None, auth=Depends(require_admin)):
+    """Восстановить баннер из сохранённого «Дефолта»."""
+    payload = payload or {}
+    saved = _load_code_default()
+
+    if not saved.get("code"):
+        raise HTTPException(status_code=404, detail="«Дефолт» не найден")
+
+    return _write_banner_code(saved["code"], payload.get("slide_id") or saved.get("slide_id"))
+
+
+# --- Именованные версии кода (всё новое сохраняется отдельно) -----------
+
+CODE_PRESETS_KEY = "code_presets"
+
+
+@router.get("/code-presets")
+async def list_code_presets(auth=Depends(require_admin)):
+    return {"success": True, "presets": _load_settings_key(CODE_PRESETS_KEY)}
+
+
+@router.post("/code-presets")
+async def save_code_preset(payload: dict, auth=Depends(require_admin)):
+    """Сохранить новую версию кода под названием."""
+    from urllib.parse import unquote
+
+    from backend.roadrunner.services.code_editor import is_complete_document
+
+    name = str(payload.get("name") or "").strip()
+    code = str(payload.get("code") or "").strip()
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Не указано название")
+    if not code:
+        raise HTTPException(status_code=400, detail="Пустой код баннера")
+    if not is_complete_document(code):
+        raise HTTPException(
+            status_code=422,
+            detail="Код не похож на полный HTML-документ баннера",
+        )
+
+    name = unquote(name)
+    presets = _load_settings_key(CODE_PRESETS_KEY)
+    presets[name] = {
+        "code": code,
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+    }
+    _save_settings_key(CODE_PRESETS_KEY, presets)
+
+    return {"success": True, "name": name}
+
+
+@router.delete("/code-presets/{name}")
+async def delete_code_preset(name: str, auth=Depends(require_admin)):
+    from urllib.parse import unquote
+
+    presets = _load_settings_key(CODE_PRESETS_KEY)
+    name = unquote(name)
+
+    if name not in presets:
+        raise HTTPException(status_code=404, detail="Версия кода не найдена")
+
+    del presets[name]
+    _save_settings_key(CODE_PRESETS_KEY, presets)
     return {"success": True}
 
 

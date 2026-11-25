@@ -38,6 +38,7 @@
       <q-tab name="holidays" icon="park" label="Праздники" />
       <q-tab name="scenarios" icon="auto_awesome" label="Сценарии" />
       <q-tab name="ai-settings" icon="tune" label="Настройки АИ и источников" />
+      <q-tab name="code-editor" icon="code" label="AI-редактор кода" />
       <q-tab name="docs" icon="menu_book" label="Документация/апи для агентов" />
     </q-tabs>
 
@@ -64,6 +65,11 @@
         view="ai"
       />
 
+      <AdministrationCodeEditorPage
+        v-else-if="tab === 'code-editor'"
+        embedded
+      />
+
       <AdministrationRoadrunnerDocsPage v-else-if="tab === 'docs'" embedded />
     </div>
   </q-page>
@@ -74,12 +80,13 @@ import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { loadRoadrunnerMode } from '../composables/useRoadrunnerMode'
 import AdministrationBannerPage from './AdministrationBannerPage.vue'
+import AdministrationCodeEditorPage from './AdministrationCodeEditorPage.vue'
 import AdministrationRoadrunnerDocsPage from './AdministrationRoadrunnerDocsPage.vue'
 import AdministrationScenarioGeneratorPage from './AdministrationScenarioGeneratorPage.vue'
 
 const TABS = [
   'banner', 'camera', 'weather', 'holidays',
-  'scenarios', 'ai-settings', 'docs'
+  'scenarios', 'ai-settings', 'code-editor', 'docs'
 ]
 
 const route = useRoute()

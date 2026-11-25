@@ -78,6 +78,15 @@ backend/roadrunner/
   <tr><td>POST</td><td><code>/api/roadrunner/scene-presets/default</code></td><td>Сохранить текущее состояние как «Дефолт»</td></tr>
   <tr><td>POST</td><td><code>/api/roadrunner/scene-presets</code></td><td>Сохранить пресет сцены</td></tr>
   <tr><td>DELETE</td><td><code>/api/roadrunner/scene-presets/{name}</code></td><td>Удалить пресет сцены</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/code-default</code></td><td>Код-основа «Дефолт» для AI-редактора</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/code-default</code></td><td>Сохранить код как «Дефолт»</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/code-default/from-banner</code></td><td>Сохранить текущий код баннера как «Дефолт»</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/edit-code</code></td><td>Изменить HTML-код баннера нейросетью</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/apply-code</code></td><td>Применить код к баннеру (<code>home_slides.code</code>)</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/code-default/restore</code></td><td>Восстановить баннер из «Дефолта»</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/code-presets</code></td><td>Именованные версии кода</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/code-presets</code></td><td>Сохранить новую версию кода под названием</td></tr>
+  <tr><td>DELETE</td><td><code>/api/roadrunner/code-presets/{name}</code></td><td>Удалить версию кода</td></tr>
 </table>
 
 <h2>JSON Schema для сценариев</h2>

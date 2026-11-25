@@ -62,6 +62,15 @@ backend/templates/road_banner.html  # Исходный HTML 3D-баннера
 | POST | `/api/roadrunner/scene-presets/default` | Сохранить текущее состояние как «Дефолт» |
 | POST | `/api/roadrunner/scene-presets` | Сохранить пресет сцены |
 | DELETE | `/api/roadrunner/scene-presets/{name}` | Удалить пресет сцены |
+| GET | `/api/roadrunner/code-default` | Код-основа «Дефолт» для AI-редактора |
+| POST | `/api/roadrunner/code-default` | Сохранить код как «Дефолт» |
+| POST | `/api/roadrunner/code-default/from-banner` | Сохранить текущий код баннера как «Дефолт» |
+| POST | `/api/roadrunner/edit-code` | Изменить HTML-код баннера нейросетью |
+| POST | `/api/roadrunner/apply-code` | Применить код к баннеру (`home_slides.code`) |
+| POST | `/api/roadrunner/code-default/restore` | Восстановить баннер из «Дефолта» |
+| GET | `/api/roadrunner/code-presets` | Именованные версии кода |
+| POST | `/api/roadrunner/code-presets` | Сохранить новую версию кода под названием |
+| DELETE | `/api/roadrunner/code-presets/{name}` | Удалить версию кода |
 
 Настройки `scene_llm_mode` (`local`/`cloud`) и `scene_llm_model` задают
 нейросеть, которая добавляет и редактирует элементы и надписи сцены.
