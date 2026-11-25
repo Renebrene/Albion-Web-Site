@@ -446,11 +446,19 @@
             <h4 class="pc-group-title">Сцена: количество элементов</h4>
             <p class="pc-scene-hint">
               «Дефолт» — снимок текущего состояния сцены. Остальные пресеты
-              создаются на его основе: загрузите «Дефолт», измените количество
-              машин и пешеходов, затем сохраните под новым именем.
+              создаются на его основе: нажмите «Новый на основе «Дефолта»»,
+              измените количество машин и пешеходов, затем сохраните под
+              новым именем.
+            </p>
+            <p class="pc-scene-model">
+              Нейросеть элементов и надписей:
+              <b>{{ aiSettings.scene_llm_model || 'не задана' }}</b>
+              · {{ aiSettings.scene_llm_mode === 'cloud' ? 'облако' : 'локально' }}
+              <span>— меняется на вкладке «Настройки АИ и источников»</span>
             </p>
             <div class="pc-presets">
               <q-input
+                ref="scenePresetInput"
                 v-model="scenePresetName"
                 dense
                 outlined
@@ -475,11 +483,11 @@
               />
               <q-btn
                 no-caps
-                flat
-                icon="restart_alt"
-                label="Загрузить «Дефолт»"
+                color="primary"
+                icon="add"
+                label="Новый на основе «Дефолта»"
                 :disable="!hasSceneDefault"
-                @click="applySceneDefault"
+                @click="createScenePresetFromDefault"
               />
               <q-btn
                 no-caps
@@ -1047,6 +1055,7 @@ const scenePresets = ref({})
 const sceneDefault = ref({})
 const selectedScenePreset = ref('')
 const scenePresetName = ref('')
+const scenePresetInput = ref(null)
 
 const scenePresetOptions = computed(() =>
   Object.keys(scenePresets.value).map(name => ({ label: name, value: name }))
@@ -1110,6 +1119,14 @@ function applySceneValues(values) {
 
 function applySceneDefault() {
   applySceneValues(sceneDefault.value)
+}
+
+/* Новый набор: берём «Дефолт» за основу, дальше меняем количество
+   элементов и сохраняем под своим именем. */
+function createScenePresetFromDefault() {
+  applySceneDefault()
+  scenePresetName.value = ''
+  scenePresetInput.value?.focus?.()
 }
 
 async function saveScenePreset() {
@@ -2148,6 +2165,20 @@ h1 {
   color: #94a3b8;
   font-size: 12px;
   line-height: 1.5;
+}
+
+.pc-scene-model {
+  margin: 0 0 12px;
+  color: #cbd5e1;
+  font-size: 12px;
+}
+
+.pc-scene-model b {
+  color: #f5b301;
+}
+
+.pc-scene-model span {
+  color: #64748b;
 }
 
 .pc-toggles {
