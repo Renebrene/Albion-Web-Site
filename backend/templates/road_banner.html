@@ -1204,17 +1204,31 @@ function doorWorld(b){
   };
 }
 
+/* Балл пробок → поведение потока:
+   10 — почти стоим в пробке, 0 — пустая дорога (≈1 машина в минуту). */
+function trafficSpeedFactor(){
+  return clamp(1 - trafficScore * 0.098, 0.02, 1);
+}
+function trafficSpawnFactor(){
+  return lerp(7, 0.25, trafficScore / 10) / Math.max(0.5, VIS.flow);
+}
+function trafficCarTarget(){
+  const base = CAR_MIN + (CAR_MAX - CAR_MIN) * (trafficScore / 10);
+  return clamp(Math.round(base + rand(-1, 1)), 1, CAR_MAX);
+}
+
 function step(wdt, dt){
   simTime += wdt;
 
   // Скорость потока плавно «дышит» по настройкам из кода.
-  const speedWave = 1 + SPEED_WAVE_AMP * Math.sin(simTime * SPEED_WAVE_FREQ);
+  const jam = trafficSpeedFactor();
+  const speedWave = (1 + SPEED_WAVE_AMP * Math.sin(simTime * SPEED_WAVE_FREQ)) * jam;
 
   // Плотность трафика меняется в случайном порядке.
   trafficTimer -= wdt;
   if(trafficTimer <= 0){
     trafficDensity = rand(TRAFFIC_MIN, TRAFFIC_MAX) * VIS.flow;
-    trafficTimer = rand(TRAFFIC_TIME_MIN, TRAFFIC_TIME_MAX);
+    trafficTimer = rand(TRAFFIC_TIME_MIN, TRAFFIC_TIME_MAX) * trafficSpawnFactor();
   }
 
   updateEffects(wdt);
@@ -1223,8 +1237,7 @@ function step(wdt, dt){
   countTimer -= wdt;
   if(countTimer <= 0){
     // Пробки ⇒ больше машин; дождь/снег ⇒ меньше пешеходов, солнце ⇒ больше.
-    const carFactor = clamp(VIS.flow, 0.6, 1.6);
-    carTarget = clamp(Math.round(rand(CAR_MIN, CAR_MAX) * carFactor), CAR_MIN, CAR_MAX);
+    carTarget = trafficCarTarget();
 
     const badWeather = (weatherData && weatherData.precipitation > 0) || VIS.precipitation > 0.1;
     const sunny = weatherData && weatherData.weatherCode === 0 && !badWeather;
@@ -1738,6 +1751,7 @@ const CITY_CONFIG = {
 
 let weatherData = null;
 let trafficData = null;
+let trafficScore = 0;
 let weatherSource = 'модель';
 let trafficSource = 'модель';
 
@@ -1916,6 +1930,7 @@ function modelTraffic() {
   else if (hour >= 17 && hour <= 20) score = 8;
   else if (hour > 10 && hour < 17) score = 4;
 
+  trafficScore = score;
   trafficData = { score, ...trafficLevel(score) };
   trafficSource = 'модель';
   if (LIVE.traffic) {
@@ -1936,6 +1951,7 @@ async function fetchTraffic() {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     const score = Math.max(0, Math.min(10, Number(data.data?.score || 0)));
+    trafficScore = score;
 
     trafficData = {
       score,
