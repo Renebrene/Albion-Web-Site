@@ -951,7 +951,7 @@ async function deleteCameraPreset() {
 
 /* Настройки AI и источников (бывший отдельный модуль «Настройки»). */
 const aiSettings = ref({
-  weather_provider: 'open-meteo',
+  weather_provider: 'gismeteo',
   yandex_weather_key: '',
   gismeteo_key: '',
   traffic_provider: 'model',

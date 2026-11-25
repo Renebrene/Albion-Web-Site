@@ -383,12 +383,13 @@ if (RM) { CFG.paused = true; CFG.parallax = false; }
 
 const CYCLE = { g:9, y:2.2, r:8 }; CYCLE.total = CYCLE.g + CYCLE.y + CYCLE.r;
 const IX = [ { x:-24, phase:0 }, { x:24, phase:7.5 } ];
-const ROAD_HALF = 58, LANE_Z = 1.8, STOP_OFF = 7.2, ZEBRA_OFF = 4.6;
+const ROAD_HALF = 58, LANE_Z = 1.8, STOP_OFF = 7.2, ZEBRA_OFF = 9;
 const CAR_LEN = 2.4, BUS_LEN = 5.8, ACCEL = 3.2, DECEL = 7.5, BRAKE_A = 5.5;
 // Остановка на ДАЛЬНЕЙ стороне (−Z): автобусы идут справа налево (dir = −1)
 const SHELTER_X = 12, BUS_STOP_X = SHELTER_X + 1.55, BAY_Z = -3.95, WAIT_Z = -6.15;
 // Вторая остановка — на противоположной стороне дороги, со сдвигом по дороге.
 const SHELTER2_X = SHELTER_X - 6, BAY2_Z = 4.35, WAIT2_Z = 6.15;
+const BUS_STOP2_X = SHELTER2_X - 1.55;
 const CAR_COLORS = [0xff5a3c, 0xffb020, 0x2fd27d, 0x4da3ff, 0xff5ea8, 0xe8ecf5];
 
 const $ = id => document.getElementById(id);
@@ -659,19 +660,18 @@ function instanced(geo, mat, transforms){
 }
 const dashTr = [];
 for(let x=-56; x<=56; x+=4){
-  if(IX.some(ix => Math.abs(x-ix.x) < 5.5)) continue;
+  if(IX.some(ix => Math.abs(x-ix.x) < 11)) continue;
   dashTr.push({ x, z:0 });
 }
 IX.forEach(ix => { for(let z=-14; z<=14; z+=4){ if(Math.abs(z) < 5.5) continue; dashTr.push({ x:ix.x, z, ry:Math.PI/2 }); } });
 instanced(new THREE.BoxGeometry(1.7,.02,.18), M.markY, dashTr);
+// Полосы зебры повёрнуты на 90°: длинная сторона вдоль дороги (X),
+// сами полосы повторяются поперёк (Z).
 const zebraTr = [];
 IX.forEach(ix => [-ZEBRA_OFF, ZEBRA_OFF].forEach(off => {
-  for(let i=0; i<5; i++) zebraTr.push({ x:ix.x+off+(i-2)*.95, z:0 });
+  for(let i=0; i<5; i++) zebraTr.push({ x:ix.x+off, z:(i-2)*.95 });
 }));
-instanced(new THREE.BoxGeometry(.5,.02,6.9), M.mark, zebraTr);
-const stopTr = [];
-IX.forEach(ix => { stopTr.push({ x:ix.x-STOP_OFF, z:LANE_Z }); stopTr.push({ x:ix.x+STOP_OFF, z:-LANE_Z }); });
-instanced(new THREE.BoxGeometry(.45,.02,3.3), M.mark, stopTr);
+instanced(new THREE.BoxGeometry(3.45,.02,.5), M.mark, zebraTr);
 
 // деревья
 const treePos = [[-50,7.6],[-33,-8.9],[-14,8.8],[-2,-7.4],[10,9.8],[34,-8.8],[46,7.4],[52,-8.2],[-55,-7.8],[-32,8.4],[16,-10.2],[40,8.6]];
@@ -919,9 +919,10 @@ function buildBus(livery){
   const doorR = new THREE.Mesh(new THREE.BoxGeometry(.52,1.2,.06), M.glass); doorR.position.set(1.82,.95,.85); bodyG.add(doorR);
   const glow = glowSprite(0xffe9b0, 2.2, 0); glow.position.set(3.15,.55,0); bodyG.add(glow);
   g.add(blobShadow(6.4,2.1));
-  g.rotation.y = Math.PI;   // автобус всегда идёт справа налево
   g.visible = false; scene.add(g);
-  return { g, bodyG, doorL, doorR, glow, active:false, x:0, z:-LANE_Z, dir:-1, speed:0, max:4.3, len:BUS_LEN,
+  return { g, bodyG, doorL, doorR, glow, active:false, x:0, z:-LANE_Z, dir:-1, side:-1,
+           stopX:BUS_STOP_X, bayZ:BAY_Z, laneZ:-LANE_Z, routeName:'ЦУМ',
+           speed:0, max:4.3, len:BUS_LEN,
            state:'run', willStop:true, doorT:0, dwellT:0, boardTimer:0, seed:Math.random()*10, prevSpeed:0 };
 }
 const busPool = [buildBus(0), buildBus(1)];
@@ -929,13 +930,26 @@ const buses = [];
 let busSpawnT = rand(30,46);
 function spawnBus(atX){
   const b = busPool.find(b => !b.active); if(!b) return false;
-  const x = atX ?? (ROAD_HALF+3);
-  if(cars.some(c => c.dir === -1 && Math.abs(c.x - x) < 9)) return false;
+
+  // Один автобус идёт справа налево по дальней полосе, второй — слева
+  // направо по ближней; каждый останавливается у своей остановки.
+  const dir = busPool.indexOf(b) === 0 ? -1 : 1;
+  const x = atX ?? (dir < 0 ? ROAD_HALF + 3 : -(ROAD_HALF + 3));
+  if(cars.some(c => c.dir === dir && Math.abs(c.x - x) < 9)) return false;
   if(buses.some(o => Math.abs(o.x - x) < 14)) return false;
-  b.active = true; b.x = x; b.z = -LANE_Z; b.speed = b.max*.6; b.prevSpeed = b.speed;
+
+  b.dir = dir;
+  b.side = dir < 0 ? -1 : 1;
+  b.laneZ = dir < 0 ? -LANE_Z : LANE_Z;
+  b.stopX = dir < 0 ? BUS_STOP_X : BUS_STOP2_X;
+  b.bayZ = dir < 0 ? BAY_Z : BAY2_Z;
+  b.routeName = dir < 0 ? 'ЦУМ' : 'Другая сторона';
+  b.g.rotation.y = dir < 0 ? Math.PI : 0;
+
+  b.active = true; b.x = x; b.z = b.laneZ; b.speed = b.max*.6; b.prevSpeed = b.speed;
   b.state = 'run'; b.willStop = true; b.doorT = 0; b.dwellT = 0; b.boardTimer = .7;
   b.g.position.set(b.x,0,b.z); b.g.visible = true; buses.push(b);
-  flashBus('Автобус 1 вышел на маршрут');
+  flashBus(`Автобус ${dir < 0 ? '1' : '2'} вышел на маршрут`);
   return true;
 }
 function despawnBus(b){ b.active = false; b.g.visible = false; buses.splice(buses.indexOf(b),1); }
@@ -972,23 +986,33 @@ function spawnPed(ix){
 /* ================= ПЕШЕХОДЫ: ОСТАНОВКА «ЦУМ» (пул) ================= */
 function buildStopPed(){
   const p = buildPed();
-  return Object.assign(p, { state:'in', tx:0, tz:WAIT_Z, outDir:1, boardT:0, bus:null });
+  return Object.assign(p, { state:'in', side:-1, homeX:SHELTER_X, tx:0, tz:WAIT_Z, outDir:1, boardT:0, bus:null });
 }
 const stopPool = Array.from({ length:8 }, buildStopPed);
 const stopPeds = [];
 let pedSpawnT = 2;
-function waitSpot(){ return { x:SHELTER_X + rand(-2.2,2.2), z:WAIT_Z }; }
-function spawnStopPed(state, x, z){
+function waitSpot(side = -1){
+  const home = side < 0 ? SHELTER_X : SHELTER2_X;
+  return { x:home + rand(-2.2,2.2), z: side < 0 ? WAIT_Z : WAIT2_Z };
+}
+function spawnStopPed(state, x, z, side = -1){
   const p = stopPool.find(p => !p.active); if(!p) return null;
-  const spot = waitSpot();
-  p.active = true; p.state = state; p.x = x; p.z = z; p.tx = spot.x; p.tz = spot.z;
+  const spot = waitSpot(side);
+  p.active = true; p.state = state; p.side = side;
+  p.homeX = side < 0 ? SHELTER_X : SHELTER2_X;
+  p.x = x; p.z = z; p.tx = spot.x; p.tz = spot.z;
   p.speed = rand(1.4,1.8); p.boardT = 0; p.bus = null; p.outDir = Math.random() < .5 ? -1 : 1;
   p.body.material = pedMats[Math.floor(Math.random()*pedMats.length)];
   p.g.scale.setScalar(1); p.g.position.set(x,0,z); p.g.visible = true;
   stopPeds.push(p); return p;
 }
 function despawnStopPed(p){ p.active = false; p.g.visible = false; p.bus = null; stopPeds.splice(stopPeds.indexOf(p),1); }
-function sidewalkZ(x){ return Math.abs(x - SHELTER_X) < 7 ? WAIT_Z : -5.0; }
+function sidewalkZ(x, side = -1){
+  const home = side < 0 ? SHELTER_X : SHELTER2_X;
+  const wait = side < 0 ? WAIT_Z : WAIT2_Z;
+  const edge = side < 0 ? -5.0 : 5.0;
+  return Math.abs(x - home) < 7 ? wait : edge;
+}
 function movePed(p, tx, tz, sp, wdt){
   const dx = tx - p.x, dz = tz - p.z, d = Math.hypot(dx,dz);
   if(d > .001){
@@ -1115,7 +1139,12 @@ function drive(v, dist, wdt, accel, decel, speedScale = 1){
   v.speed = target > v.speed ? Math.min(target, v.speed + accel*speedScale*wdt) : Math.max(target, v.speed - decel*speedScale*wdt);
   v.x += v.dir*v.speed*wdt;
 }
-function doorWorld(b){ return { x:b.x - 1.55, z:b.z - 1.15 }; }
+function doorWorld(b){
+  return {
+    x: b.x + (b.dir < 0 ? -1.55 : 1.55),
+    z: b.z + (b.dir < 0 ? -1.15 : 1.15)
+  };
+}
 
 function step(wdt, dt){
   simTime += wdt;
@@ -1135,8 +1164,14 @@ function step(wdt, dt){
   // Количество машин и ожидающих пешеходов — тоже случайное.
   countTimer -= wdt;
   if(countTimer <= 0){
-    carTarget = Math.floor(rand(CAR_MIN, CAR_MAX + 1));
-    pedTarget = Math.floor(rand(PED_MIN, PED_MAX + 1));
+    // Пробки ⇒ больше машин; дождь/снег ⇒ меньше пешеходов, солнце ⇒ больше.
+    const carFactor = clamp(VIS.flow, 0.6, 1.6);
+    carTarget = clamp(Math.round(rand(CAR_MIN, CAR_MAX) * carFactor), CAR_MIN, CAR_MAX);
+
+    const badWeather = (weatherData && weatherData.precipitation > 0) || VIS.precipitation > 0.1;
+    const sunny = weatherData && weatherData.weatherCode === 0 && !badWeather;
+    const pedFactor = badWeather ? 0.3 : sunny ? 1.5 : 1;
+    pedTarget = clamp(Math.round(rand(PED_MIN, PED_MAX) * pedFactor), PED_MIN, PED_MAX);
     countTimer = rand(COUNT_TIME_MIN, COUNT_TIME_MAX);
   }
 
@@ -1174,39 +1209,40 @@ function step(wdt, dt){
     if(Math.abs(c.x) > ROAD_HALF+3) despawnCar(c);
   }
 
-  // автобус №1: справа налево, карман на дальней стороне
+  // Автобусы ходят в обе стороны и останавливаются у своей остановки.
   for(let i=buses.length-1; i>=0; i--){
     const b = buses[i];
     const front = b.x + b.dir*(b.len/2);
-    let zTarget = -LANE_Z;
+    const ahead = (b.stopX - b.x) * b.dir;   // расстояние до остановки по ходу
+    const nearStop = Math.abs(b.x - b.stopX) < 8;
+    let zTarget = b.laneZ;
 
     if(b.state === 'run'){
       let dist = vehicleObstacleDist(b, front);
-      if(b.willStop && b.x > BUS_STOP_X - .5){
-        const d = b.x - BUS_STOP_X;
-        if(d > -.3) dist = Math.min(dist, d);
-        if(b.x < BUS_STOP_X + 15) zTarget = BAY_Z;
+      if(b.willStop && ahead > -.3){
+        if(ahead < 15) zTarget = b.bayZ;
+        if(ahead > 0) dist = Math.min(dist, Math.max(0, ahead));
       }
       drive(b, dist, wdt, 2.2, 6, speedWave);
-      if(b.willStop && Math.abs(b.x - BUS_STOP_X) < .35 && b.speed < .25){
-        b.x = BUS_STOP_X; b.speed = 0; b.state = 'dwell'; b.dwellT = 0; b.boardTimer = .7;
+      if(b.willStop && Math.abs(b.x - b.stopX) < .35 && b.speed < .25){
+        b.x = b.stopX; b.speed = 0; b.state = 'dwell'; b.dwellT = 0; b.boardTimer = .7;
         const n = Math.random() < .3 ? 0 : (Math.random() < .6 ? 1 : 2);
         for(let k=0;k<n;k++){
           const dw = doorWorld(b);
-          const p = spawnStopPed('alight', dw.x + rand(-.2,.2), dw.z);
+          const p = spawnStopPed('alight', dw.x + rand(-.2,.2), dw.z, b.side);
           if(p) p.speed = rand(1.5,1.9);
         }
-        flashBus('Автобус 1 на остановке «ЦУМ»');
+        flashBus(`Автобус на остановке «${b.routeName}»`);
       }
     }
     else if(b.state === 'dwell'){
-      zTarget = BAY_Z; b.speed = 0;
+      zTarget = b.bayZ; b.speed = 0;
       b.doorT = Math.min(1, b.doorT + wdt*2.5);
       b.dwellT += wdt;
       if(b.doorT > .8){
         b.boardTimer -= wdt;
         if(b.boardTimer <= 0){
-          const idle = stopPeds.filter(p => p.state === 'idle');
+          const idle = stopPeds.filter(p => p.state === 'idle' && p.side === b.side);
           if(idle.length){
             const dw = doorWorld(b);
             idle.sort((a,c) => Math.abs(a.x-dw.x) - Math.abs(c.x-dw.x));
@@ -1216,20 +1252,20 @@ function step(wdt, dt){
         }
       }
       const busy = stopPeds.some(p => p.bus === b && (p.state === 'toBus' || p.state === 'board'));
-      const idleLeft = stopPeds.some(p => p.state === 'idle');
+      const idleLeft = stopPeds.some(p => p.state === 'idle' && p.side === b.side);
       if(b.dwellT > 2.4 && !busy && (!idleLeft || b.dwellT > 9)) b.state = 'close';
     }
     else if(b.state === 'close'){
-      zTarget = BAY_Z; b.speed = 0;
+      zTarget = b.bayZ; b.speed = 0;
       b.doorT = Math.max(0, b.doorT - wdt*2.5);
-      if(b.doorT <= .05){ b.state = 'leave'; b.willStop = false; flashBus('Автобус 1 отправляется'); }
+      if(b.doorT <= .05){ b.state = 'leave'; b.willStop = false; flashBus('Автобус отправляется'); }
     }
     else if(b.state === 'leave'){
       let dist = vehicleObstacleDist(b, front);
-      if(b.x > BUS_STOP_X - 8 && cars.some(c => c.dir === -1 && Math.abs(c.x - b.x) < 5.5)) dist = Math.min(dist, 0);
-      zTarget = b.x > BUS_STOP_X - 8 ? BAY_Z : -LANE_Z;
+      if(nearStop && cars.some(c => c.dir === b.dir && Math.abs(c.x - b.x) < 5.5)) dist = Math.min(dist, 0);
+      zTarget = nearStop ? b.bayZ : b.laneZ;
       drive(b, dist, wdt, 2.0, 6, speedWave);
-      if(b.x < BUS_STOP_X - 16) b.state = 'run';
+      if(ahead < -16) b.state = 'run';
     }
 
     b.z = lerp(b.z, zTarget, Math.min(1, wdt*1.6));
@@ -1239,7 +1275,7 @@ function step(wdt, dt){
     const acc = wdt > 0 ? (b.speed - b.prevSpeed)/wdt : 0;
     b.bodyG.rotation.z = lerp(b.bodyG.rotation.z, clamp(acc*.004,-.03,.03), .1);
     b.bodyG.position.y = Math.sin(simTime*5 + b.seed)*.01;
-    if(Math.abs(b.x) > ROAD_HALF+4) despawnBus(b);
+    if(b.dir < 0 ? b.x < -(ROAD_HALF+4) : b.x > ROAD_HALF+4) despawnBus(b);
   }
 
   for(let i=peds.length-1; i>=0; i--){
@@ -1257,14 +1293,21 @@ function step(wdt, dt){
     pedSpawnT = rand(4,8);
     if(waiting < pedTarget){
       const fromLeft = Math.random() < .5;
-      spawnStopPed('in', SHELTER_X + (fromLeft ? -1 : 1)*rand(16,24), -5.0);
+      const side = Math.random() < .5 ? -1 : 1;
+      const home = side < 0 ? SHELTER_X : SHELTER2_X;
+      spawnStopPed(
+        'in',
+        home + (fromLeft ? -1 : 1)*rand(16,24),
+        side < 0 ? -5.0 : 5.0,
+        side
+      );
     }
   }
   for(let i=stopPeds.length-1; i>=0; i--){
     const p = stopPeds[i];
     let bob = Math.abs(Math.sin(simTime*7+p.seed))*.04;
     if(p.state === 'in'){
-      const d = movePed(p, p.tx, sidewalkZ(p.x), p.speed, wdt);
+      const d = movePed(p, p.tx, sidewalkZ(p.x, p.side), p.speed, wdt);
       if(d < .25){ p.state = 'idle'; }
     }
     else if(p.state === 'idle'){
@@ -1288,14 +1331,14 @@ function step(wdt, dt){
       if(k <= 0){ despawnStopPed(p); continue; }
     }
     else if(p.state === 'alight'){
-      const d = movePed(p, p.tx, sidewalkZ(p.x), p.speed, wdt);
+      const d = movePed(p, p.tx, sidewalkZ(p.x, p.side), p.speed, wdt);
       if(d < .3){ p.state = 'out'; }
     }
     else if(p.state === 'out'){
       p.x += p.outDir*p.speed*wdt;
-      p.z = lerp(p.z, sidewalkZ(p.x), Math.min(1, wdt*3));
+      p.z = lerp(p.z, sidewalkZ(p.x, p.side), Math.min(1, wdt*3));
       p.g.rotation.y = p.outDir > 0 ? Math.PI/2 : -Math.PI/2;
-      if(Math.abs(p.x - SHELTER_X) > 26){ despawnStopPed(p); continue; }
+      if(Math.abs(p.x - p.homeX) > 26){ despawnStopPed(p); continue; }
     }
     p.g.position.set(p.x, bob, p.z);
   }
@@ -1656,6 +1699,10 @@ function modelWeather() {
     weatherCode
   };
   weatherSource = 'модель';
+  if (VIS.weatherPreset === 'auto' && LIVE.weather) {
+    VIS.precipitation = weatherData.precipitation;
+    buildPrecip();
+  }
   updateWeatherHUD();
 }
 
@@ -1713,6 +1760,14 @@ async function fetchWeather() {
       weatherCode: data.weather_code || 0
     };
     weatherSource = data.source || 'модель';
+    // Дождь/снег из реальной погоды сразу отражается на сцене.
+    if (VIS.weatherPreset === 'auto' && LIVE.weather) {
+      const precip = clamp(Number(data.precipitation_mm) || 0, 0, 1);
+      if (Math.abs(VIS.precipitation - precip) > 0.05) {
+        VIS.precipitation = precip;
+        buildPrecip();
+      }
+    }
     updateWeatherHUD();
   } catch (exc) {
     console.warn('Погода не загружена, используется модель:', exc);
@@ -1790,6 +1845,10 @@ function modelTraffic() {
 
   trafficData = { score, ...trafficLevel(score) };
   trafficSource = 'модель';
+  if (LIVE.traffic) {
+    VIS.flow = clamp(0.55 + score * 0.15, 0.5, 3);
+    dirty = true;
+  }
   updateTrafficHUD();
 }
 
@@ -1811,6 +1870,14 @@ async function fetchTraffic() {
       label: data.data?.label || trafficLevel(score).label
     };
     trafficSource = data.data?.source || 'яндекс';
+    // Балл пробок управляет плотностью потока: 10 баллов — максимум машин.
+    if (LIVE.traffic) {
+      const targetFlow = clamp(0.55 + score * 0.15, 0.5, 3);
+      if (Math.abs(VIS.flow - targetFlow) > 0.05) {
+        VIS.flow = targetFlow;
+        dirty = true;
+      }
+    }
     updateTrafficHUD();
   } catch (exc) {
     console.warn('Пробки не загружены, используется модель:', exc);
@@ -2010,7 +2077,13 @@ scene.traverse(o => {
 camera.position.copy(CAM.iso.pos); curTgt.copy(CAM.iso.tgt); camera.lookAt(curTgt);
 applyTheme(0); resize();
 window.__ROAD_READY__ = true;
-window.__RR_DEBUG__ = { frames: () => frames, inView: () => inView };
+window.__RR_DEBUG__ = {
+  frames: () => frames,
+  inView: () => inView,
+  buses: () => buses.map(b => ({ dir: b.dir, x: Math.round(b.x), state: b.state })),
+  busSpawnT: () => busSpawnT,
+  stopPeds: () => stopPeds.map(p => ({ side: p.side, x: Math.round(p.x), state: p.state }))
+};
 requestAnimationFrame(loop);
 </script>
 <noscript><style>#fallback{display:block}</style></noscript>

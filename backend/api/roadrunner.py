@@ -510,6 +510,7 @@ async def get_settings(auth=Depends(require_admin)):
         "success": True,
         "settings": {
             "default_scenario": "rostov-evening-rain",
+            "weather_provider": "gismeteo",
             "weather_enabled": True,
             "traffic_enabled": True,
             "llm_provider": "ollama",
