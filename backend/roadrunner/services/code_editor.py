@@ -120,16 +120,39 @@ def _extract_snippet(text: str) -> str:
     """Достать JS-фрагмент из ответа модели (ёсли вернула не целый документ)."""
     text = (text or "").strip()
 
-    fence = re.search(r"```(?:js|javascript)?\s*(.*?)```", text, re.S | re.I)
-    if fence:
-        text = fence.group(1).strip()
+    # Убираем markdown-обёртку. Открывающую надо снять даже если модель
+    # оборвалась до закрывающего ``` — иначе фрагмент сломает HTML.
+    text = re.sub(r"^\s*```(?:js|javascript)?\s*", "", text, flags=re.I)
+    text = re.sub(r"\s*```\s*$", "", text)
 
     # На случай, когда модель обернула фрагмент в тег <script>.
     tag = re.search(r"<script[^>]*>(.*?)</script>", text, re.S | re.I)
     if tag and not is_complete_document(text):
         text = tag.group(1).strip()
 
-    return text.replace("</script", "<\\/script").strip()
+    text = text.replace("</script", "<\\/script").strip()
+    _validate_snippet(text)
+    return text
+
+
+def _validate_snippet(snippet: str) -> None:
+    """Не пускать в баннер обрезанный или markdown-код."""
+    if "```" in snippet or "<script" in snippet.lower():
+        raise CodeEditorError("Фрагмент содержит markdown/теги script")
+
+    # Обрезанный ответ модели чаще всего заканчивается на полуслове и имеет
+    # несовпадающее число скобок.
+    for opening, closing in (("{", "}"), ("(", ")"), ("[", "]")):
+        if snippet.count(opening) != snippet.count(closing):
+            raise CodeEditorError("Нейросеть вернула обрезанный фрагмент")
+
+    if not re.search(r"[;})]\s*$", snippet):
+        raise CodeEditorError("Нейросеть вернула обрезанный фрагмент")
+
+
+def has_markdown_fence(code: str) -> bool:
+    """Есть ли в коде markdown-ограничители (```) — верный признак мусора."""
+    return "```" in (code or "")
 
 
 INSERT_MARKERS = (
@@ -176,6 +199,9 @@ async def _call_ollama(
         )
         response.raise_for_status()
         data = response.json()
+
+    if data.get("done_reason") == "length":
+        raise CodeEditorError("Нейросеть вернула неполный ответ (лимит токенов)")
 
     return str(data.get("message", {}).get("content", ""))
 
@@ -236,7 +262,11 @@ async def _call_openai(
         response.raise_for_status()
         data = response.json()
 
-    return str(data["choices"][0]["message"]["content"])
+    choice = data["choices"][0]
+    if choice.get("finish_reason") == "length":
+        raise CodeEditorError("Нейросеть вернула неполный ответ (лимит токенов)")
+
+    return str(choice["message"]["content"])
 
 
 async def edit_code(

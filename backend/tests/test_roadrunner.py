@@ -306,6 +306,10 @@ def test_banner_template_has_runtime_variables_and_month_fix():
     assert "hudDate" not in code
     assert "hudTrafficDot" in code
 
+    # После перехода на иконку погоды старый textEl остался без объявления
+    # и ронял loop() каждый кадр — баннер показывал резервный рисунок.
+    assert "textEl" not in code
+
 
 def test_banner_csp_allows_same_origin_requests():
     assert "connect-src 'self'" in BANNER_CODE_CSP
@@ -734,6 +738,34 @@ def test_code_editor_condenses_and_injects(monkeypatch):
     assert edited.index("function ai_lamp() {}") < edited.index("LIVE-ДАННЫЕ")
     assert code_editor.is_complete_document(edited)
     assert "original" in edited
+
+
+def test_code_editor_strips_fence_and_rejects_truncated_snippet():
+    from backend.roadrunner.services import code_editor
+
+    good = "```js\nfunction ai_lamp() { return 1; }\n```"
+    assert code_editor._extract_snippet(good) == "function ai_lamp() { return 1; }"
+
+    # Модель оборвалась до закрывающего ``` — открывающую осыпку тоже снимаем.
+    truncated = "```js\nfunction ai_lamp() { return 1;"
+    with pytest.raises(code_editor.CodeEditorError):
+        code_editor._extract_snippet(truncated)
+
+    no_fence = "function ai_lamp() { return 1;"
+    with pytest.raises(code_editor.CodeEditorError):
+        code_editor._extract_snippet(no_fence)
+
+
+def test_apply_code_rejects_markdown_fence(admin, monkeypatch):
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _HomeStoreConnection({}, {5: COMPLETE_DOC}),
+    )
+
+    bad = COMPLETE_DOC.replace("</body>", "```js\nconst x = 1;\n```\n</body>")
+    response = client.post("/api/roadrunner/apply-code", json={"code": bad})
+
+    assert response.status_code == 422
 
 
 def test_scene_llm_config_uses_selected_model_and_mode(monkeypatch):

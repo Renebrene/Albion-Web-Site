@@ -103,7 +103,7 @@
             icon="check"
             label="Применить к баннеру"
             :loading="applying"
-            :disable="applying || !previewCode"
+            :disable="applying || !previewCode || codeHasMarkdown"
             @click="applyToBanner"
           />
           <q-btn
@@ -143,9 +143,9 @@
           />
         </div>
 
-        <p v-if="resultIncomplete" class="warning-text">
-          Модель вернула неполный HTML-документ. Проверьте результат перед
-          применением.
+        <p v-if="resultIncomplete || codeHasMarkdown" class="warning-text">
+          Код содержит markdown или неполный документ. Исправьте результат
+          перед применением — иначе баннер покажет резервный рисунок.
         </p>
       </section>
 
@@ -313,6 +313,9 @@ const presetNames = computed(() => Object.keys(presets.value).sort())
 
 const previewCode = computed(() => resultCode.value || baseCode.value)
 
+// Markdown-обёртка в коде ломает HTML-документ баннера.
+const codeHasMarkdown = computed(() => previewCode.value.includes('```'))
+
 const previewUrl = computed(() => {
   if (!slideId.value) return ''
   return `/api/admin/home/slides/${slideId.value}/code?v=${previewKey.value}`
@@ -428,7 +431,7 @@ async function generate() {
 }
 
 async function applyCode(code, successText) {
-  if (!code) return
+  if (!code || code.includes('```')) return
 
   applying.value = true
   clearMessages()
@@ -534,7 +537,7 @@ async function restoreDefault() {
 
 async function savePreset() {
   const name = presetName.value.trim()
-  if (!name) return
+  if (!name || codeHasMarkdown.value) return
 
   savingPreset.value = true
   clearMessages()

@@ -598,12 +598,17 @@ async def get_code_default(auth=Depends(require_admin)):
 @router.post("/code-default")
 async def save_code_default(payload: dict, auth=Depends(require_admin)):
     """Сохранить код как «Дефолт» — основу для дальнейших правок."""
-    from backend.roadrunner.services.code_editor import is_complete_document
+    from backend.roadrunner.services.code_editor import (
+        has_markdown_fence,
+        is_complete_document,
+    )
 
     code = str(payload.get("code") or "").strip()
 
     if not code:
         raise HTTPException(status_code=400, detail="Пустой код баннера")
+    if has_markdown_fence(code):
+        raise HTTPException(status_code=422, detail="Код содержит markdown (```)")
     if not is_complete_document(code):
         raise HTTPException(
             status_code=422,
@@ -680,13 +685,18 @@ async def edit_banner_code(payload: dict, auth=Depends(require_admin)):
 
 def _write_banner_code(code: str, slide_id=None) -> dict:
     """Общая запись кода в home_slides и очистка временного предпросмотра."""
-    from backend.roadrunner.services.code_editor import is_complete_document
+    from backend.roadrunner.services.code_editor import (
+        has_markdown_fence,
+        is_complete_document,
+    )
     from backend.services.home_service import clear_preview_code
 
     code = str(code or "").strip()
 
     if not code:
         raise HTTPException(status_code=400, detail="Пустой код баннера")
+    if has_markdown_fence(code):
+        raise HTTPException(status_code=422, detail="Код содержит markdown (```)")
     if not is_complete_document(code):
         raise HTTPException(
             status_code=422,
@@ -752,7 +762,10 @@ async def save_code_preset(payload: dict, auth=Depends(require_admin)):
     """Сохранить новую версию кода под названием."""
     from urllib.parse import unquote
 
-    from backend.roadrunner.services.code_editor import is_complete_document
+    from backend.roadrunner.services.code_editor import (
+        has_markdown_fence,
+        is_complete_document,
+    )
 
     name = str(payload.get("name") or "").strip()
     code = str(payload.get("code") or "").strip()
@@ -761,6 +774,8 @@ async def save_code_preset(payload: dict, auth=Depends(require_admin)):
         raise HTTPException(status_code=400, detail="Не указано название")
     if not code:
         raise HTTPException(status_code=400, detail="Пустой код баннера")
+    if has_markdown_fence(code):
+        raise HTTPException(status_code=422, detail="Код содержит markdown (```)")
     if not is_complete_document(code):
         raise HTTPException(
             status_code=422,
