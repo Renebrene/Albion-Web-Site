@@ -602,6 +602,29 @@ function glowSprite(color, scale, opacity){
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(240,110), M.grass);
 ground.rotation.x = -Math.PI/2; ground.position.y = -.06; scene.add(ground);
 
+/* Снег на земле: пятна выше газона, но ниже дороги и тротуаров. */
+const snowCanvas = document.createElement('canvas');
+snowCanvas.width = snowCanvas.height = 256;
+{
+  const g = snowCanvas.getContext('2d');
+  for(let i=0;i<90;i++){
+    const x = Math.random()*256, y = Math.random()*256, r = 5 + Math.random()*14;
+    const grad = g.createRadialGradient(x,y,0,x,y,r);
+    grad.addColorStop(0,'rgba(244,249,255,0.95)');
+    grad.addColorStop(1,'rgba(244,249,255,0)');
+    g.fillStyle = grad; g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill();
+  }
+}
+const snowTex = new THREE.CanvasTexture(snowCanvas);
+snowTex.wrapS = snowTex.wrapT = THREE.RepeatWrapping;
+snowTex.repeat.set(18, 9);
+snowTex.colorSpace = THREE.SRGBColorSpace;
+const snowCover = new THREE.Mesh(
+  new THREE.PlaneGeometry(240,110),
+  new THREE.MeshBasicMaterial({ map:snowTex, transparent:true, opacity:0, depthWrite:false })
+);
+snowCover.rotation.x = -Math.PI/2; snowCover.position.y = -.055; scene.add(snowCover);
+
 const road = new THREE.Mesh(new THREE.BoxGeometry(ROAD_HALF*2, .1, 7), M.asphalt);
 road.position.y = -.05; scene.add(road);
 IX.forEach(ix => {
@@ -851,10 +874,45 @@ IX.forEach((ix,ixIdx) => {
     lights.push({ ixIdx, bulbs, glow });
   });
 });
+/* Высокие светофоры для автомобилей — над проезжей частью.
+   Стоящие у обочин светофоры остаются пешеходными. */
+const carLights = [];
+function carLightHead(x, z, faceSign, ixIdx) {
+  const head = new THREE.Group();
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(.42,1.55,.55), M.housing);
+  head.add(housing);
+  const bulbs = { r:[], y:[], g:[] };
+  [['r',.5],['y',0],['g',-.5]].forEach(([k,dy]) => {
+    [-.16,.16].forEach(bz => {
+      const b = new THREE.Mesh(bulbGeo, bulbMats[k].off);
+      b.position.set(faceSign*.23, dy, bz); head.add(b); bulbs[k].push(b);
+    });
+  });
+  const glow = glowSprite(0x2fe07d, 1.7, .5);
+  glow.position.set(faceSign*.34, -.5, 0); head.add(glow);
+  head.position.set(x, 6.4, z); scene.add(head);
+  carLights.push({ ixIdx, bulbs, glow });
+}
+IX.forEach((ix, ixIdx) => {
+  // Мачта и консоль над дорогой.
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.09,.12,7,8), M.pole);
+  pole.position.set(ix.x, 3.5, -5.2); scene.add(pole);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(.16,.16,9.4), M.pole);
+  arm.position.set(ix.x, 6.85, -.5); scene.add(arm);
+  // Две головки: для каждой полосы своего направления.
+  carLightHead(ix.x, 1.3, -1, ixIdx);
+  carLightHead(ix.x, -1.3, 1, ixIdx);
+});
+
 const BULB_Y = { r:3.92, y:3.5, g:3.08 }, BULB_C = { r:0xff3b4d, y:0xffc233, g:0x2fe07d };
+const CAR_BULB_Y = { r:.5, y:0, g:-.5 };
 function lightState(ix, t){
   const p = (t + ix.phase) % CYCLE.total;
   return p < CYCLE.g ? 'g' : p < CYCLE.g + CYCLE.y ? 'y' : 'r';
+}
+// Пешеходные светофоры работают в противофазе с автомобильными.
+function pedLightState(ix, t){
+  return lightState(ix, t + CYCLE.total / 2);
 }
 
 /* ================= МАШИНЫ (пул) ================= */
@@ -1176,14 +1234,19 @@ function step(wdt, dt){
   }
 
   IX.forEach((ix,i) => {
-    const st = lightState(ix, simTime);
+    const st = pedLightState(ix, simTime);
     if(st === 'r' && prevState[i] !== 'r' && Math.random() < .65){ spawnPed(ix); if(Math.random() < .4) spawnPed(ix); }
     prevState[i] = st;
   });
   lights.forEach(l => {
-    const st = lightState(IX[l.ixIdx], simTime);
+    const st = pedLightState(IX[l.ixIdx], simTime);
     ['r','y','g'].forEach(k => l.bulbs[k].forEach(b => b.material = bulbMats[k][k === st ? 'on' : 'off']));
     l.glow.material.color.setHex(BULB_C[st]); l.glow.position.y = BULB_Y[st];
+  });
+  carLights.forEach(l => {
+    const st = lightState(IX[l.ixIdx], simTime);
+    ['r','y','g'].forEach(k => l.bulbs[k].forEach(b => b.material = bulbMats[k][k === st ? 'on' : 'off']));
+    l.glow.material.color.setHex(BULB_C[st]); l.glow.position.y = CAR_BULB_Y[st];
   });
 
   [1,-1].forEach((dir,i) => {
@@ -1280,7 +1343,7 @@ function step(wdt, dt){
 
   for(let i=peds.length-1; i>=0; i--){
     const p = peds[i];
-    const hurry = IX.some(ix => Math.abs(p.x-ix.x) < 7 && lightState(ix, simTime) !== 'r') ? 1.7 : 1;
+    const hurry = IX.some(ix => Math.abs(p.x-ix.x) < 7 && pedLightState(ix, simTime) !== 'r') ? 1.7 : 1;
     p.z += p.dz*p.speed*hurry*wdt;
     p.g.position.set(p.x, Math.abs(Math.sin(simTime*8+p.seed))*.05, p.z);
     p.g.rotation.y = p.dz > 0 ? 0 : Math.PI;
@@ -1408,7 +1471,17 @@ function buildPrecip() {
   fxGroup.add(precip);
 }
 
+function snowIntensity() {
+  const byPreset = VIS.weatherPreset === 'snow' || VIS.decoSnowfall;
+  const byWeather = weatherData && weatherData.weatherCode >= 71 && weatherData.weatherCode <= 77;
+  if (!byPreset && !byWeather) return 0;
+  return clamp(Math.max(VIS.precipitation, 0.35) * VIS.decorDensity, 0, 1);
+}
+
 function updateEffects(dt) {
+  const snow = snowIntensity();
+  snowCover.material.opacity = lerp(snowCover.material.opacity, snow * 0.9, Math.min(1, dt * 2));
+
   if(precip){
     const arr = precip.geometry.attributes.position.array;
     const snowy = precip.userData.snowy;
