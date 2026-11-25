@@ -105,6 +105,8 @@ def run() -> None:
                                 "traffic_enabled": True,
                                 "llm_provider": "ollama",
                                 "llm_model": "qwen2.5:7b",
+                                "scene_llm_mode": "local",
+                                "scene_llm_model": "qwen2.5:7b",
                             }
                         ),
                     ),

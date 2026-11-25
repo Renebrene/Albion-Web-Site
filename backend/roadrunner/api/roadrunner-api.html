@@ -71,6 +71,13 @@ backend/roadrunner/
   <tr><td>POST</td><td><code>/api/roadrunner/upload-scenario</code></td><td>Загрузить сценарий из .json файла</td></tr>
   <tr><td>GET</td><td><code>/api/roadrunner/settings</code></td><td>Настройки Roadrunner (JSON)</td></tr>
   <tr><td>PUT</td><td><code>/api/roadrunner/settings</code></td><td>Обновить настройки</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/camera-presets</code></td><td>Пресеты камеры и сцены</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/camera-presets</code></td><td>Сохранить пресет камеры</td></tr>
+  <tr><td>DELETE</td><td><code>/api/roadrunner/camera-presets/{name}</code></td><td>Удалить пресет камеры</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/scene-presets</code></td><td>Пресеты сцены и снимок «Дефолт»</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/scene-presets/default</code></td><td>Сохранить текущее состояние как «Дефолт»</td></tr>
+  <tr><td>POST</td><td><code>/api/roadrunner/scene-presets</code></td><td>Сохранить пресет сцены</td></tr>
+  <tr><td>DELETE</td><td><code>/api/roadrunner/scene-presets/{name}</code></td><td>Удалить пресет сцены</td></tr>
 </table>
 
 <h2>JSON Schema для сценариев</h2>

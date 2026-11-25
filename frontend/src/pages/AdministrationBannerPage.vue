@@ -442,6 +442,67 @@
                 @click="deleteCameraPreset"
               />
             </div>
+
+            <h4 class="pc-group-title">Сцена: количество элементов</h4>
+            <p class="pc-scene-hint">
+              «Дефолт» — снимок текущего состояния сцены. Остальные пресеты
+              создаются на его основе: загрузите «Дефолт», измените количество
+              машин и пешеходов, затем сохраните под новым именем.
+            </p>
+            <div class="pc-presets">
+              <q-input
+                v-model="scenePresetName"
+                dense
+                outlined
+                class="pc-preset-name"
+                placeholder="Имя пресета сцены"
+              />
+              <q-select
+                v-model="selectedScenePreset"
+                :options="scenePresetOptions"
+                emit-value
+                map-options
+                dense
+                outlined
+                class="pc-select"
+                placeholder="Пресет сцены"
+              />
+              <q-btn
+                no-caps
+                icon="bookmark_add"
+                label="Сохранить как «Дефолт»"
+                @click="saveSceneDefault"
+              />
+              <q-btn
+                no-caps
+                flat
+                icon="restart_alt"
+                label="Загрузить «Дефолт»"
+                :disable="!hasSceneDefault"
+                @click="applySceneDefault"
+              />
+              <q-btn
+                no-caps
+                icon="save"
+                label="Сохранить пресет"
+                @click="saveScenePreset"
+              />
+              <q-btn
+                no-caps
+                icon="check"
+                label="Применить"
+                :disable="!selectedScenePreset"
+                @click="applyScenePresetSaved"
+              />
+              <q-btn
+                no-caps
+                flat
+                icon="delete"
+                label="Удалить"
+                :disable="!selectedScenePreset"
+                @click="deleteScenePreset"
+              />
+            </div>
           </div>
 
           <div v-else class="pc-section">
@@ -524,6 +585,37 @@
               dense
               outlined
               @update:model-value="onLlmProviderChange"
+            />
+          </div>
+
+          <div class="setting-item">
+            <label>Нейросеть для элементов и надписей</label>
+            <q-input
+              v-model="aiSettings.scene_llm_model"
+              dense
+              outlined
+              placeholder="qwen2.5:7b или gpt-4o-mini"
+            />
+            <small class="hint">
+              Модель, которая добавляет и редактирует элементы и надписи
+              сцены. Впишите имя локальной (Ollama) или облачной модели.
+            </small>
+          </div>
+
+          <div class="setting-item">
+            <label>Где запускать нейросеть</label>
+            <q-btn-toggle
+              v-model="aiSettings.scene_llm_mode"
+              :options="[
+                { label: 'Локально', value: 'local' },
+                { label: 'Облако', value: 'cloud' }
+              ]"
+              dense
+              no-caps
+              unelevated
+              toggle-color="primary"
+              color="grey-3"
+              text-color="grey-8"
             />
           </div>
 
@@ -949,6 +1041,124 @@ async function deleteCameraPreset() {
   }
 }
 
+/* Пресеты сцены: количество элементов. «Дефолт» — снимок текущего
+   состояния, от которого создаются остальные наборы. */
+const scenePresets = ref({})
+const sceneDefault = ref({})
+const selectedScenePreset = ref('')
+const scenePresetName = ref('')
+
+const scenePresetOptions = computed(() =>
+  Object.keys(scenePresets.value).map(name => ({ label: name, value: name }))
+)
+
+const hasSceneDefault = computed(
+  () => Object.keys(sceneDefault.value || {}).length > 0
+)
+
+/* Только элементы сцены и их количество — камера и погода в пресет не
+   входят, иначе «наборы элементов» перестают быть независимыми. */
+const scenePresetKeys = [
+  'flowDensity', 'trafficMin', 'trafficMax',
+  'trafficChangeMin', 'trafficChangeMax',
+  'carMin', 'carMax', 'pedMin', 'pedMax',
+  'countChangeMin', 'countChangeMax',
+  'buses', 'shadows', 'grid', 'speedFactor'
+]
+
+function currentSceneValues() {
+  const values = {}
+  scenePresetKeys.forEach(key => {
+    if (settingsByKey.value[key]) values[key] = settingValue(key)
+  })
+  return values
+}
+
+async function loadScenePresets() {
+  try {
+    const data = await request('/api/roadrunner/scene-presets')
+    scenePresets.value = data.presets || {}
+    sceneDefault.value = data.default || {}
+  } catch {
+    scenePresets.value = {}
+    sceneDefault.value = {}
+  }
+}
+
+async function saveSceneDefault() {
+  const values = currentSceneValues()
+  if (!Object.keys(values).length) {
+    error.value = 'Настройки сцены не загружены'
+    return
+  }
+
+  try {
+    await request('/api/roadrunner/scene-presets/default', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: values })
+    })
+    sceneDefault.value = values
+  } catch (exc) {
+    error.value = `Не удалось сохранить «Дефолт»: ${exc}`
+  }
+}
+
+function applySceneValues(values) {
+  Object.entries(values || {}).forEach(([key, value]) => setSetting(key, value))
+}
+
+function applySceneDefault() {
+  applySceneValues(sceneDefault.value)
+}
+
+async function saveScenePreset() {
+  const name = String(scenePresetName.value || '').trim()
+  if (!name) {
+    error.value = 'Введите имя пресета сцены'
+    return
+  }
+
+  const values = currentSceneValues()
+  if (!Object.keys(values).length) {
+    error.value = 'Настройки сцены не загружены'
+    return
+  }
+
+  try {
+    await request('/api/roadrunner/scene-presets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, settings: values })
+    })
+    await loadScenePresets()
+    selectedScenePreset.value = name
+  } catch (exc) {
+    error.value = `Не удалось сохранить пресет сцены: ${exc}`
+  }
+}
+
+function applyScenePresetSaved() {
+  const values = scenePresets.value[selectedScenePreset.value]
+  if (!values) return
+  applySceneValues(values)
+}
+
+async function deleteScenePreset() {
+  if (!selectedScenePreset.value) return
+
+  try {
+    await request(
+      `/api/roadrunner/scene-presets/${encodeURIComponent(selectedScenePreset.value)}`,
+      { method: 'DELETE' }
+    )
+    selectedScenePreset.value = ''
+    await loadScenePresets()
+  } catch (exc) {
+    error.value = `Не удалось удалить пресет сцены: ${exc}`
+  }
+}
+
 /* Настройки AI и источников (бывший отдельный модуль «Настройки»). */
 const aiSettings = ref({
   weather_provider: 'gismeteo',
@@ -959,6 +1169,8 @@ const aiSettings = ref({
   llm_model: 'qwen2.5:7b',
   llm_url: 'http://localhost:11434',
   llm_api_key: '',
+  scene_llm_mode: 'local',
+  scene_llm_model: 'qwen2.5:7b',
   temperature: 0.35,
   max_tokens: 2048,
   default_scenario: 'rostov-evening-rain',
@@ -1517,6 +1729,7 @@ onMounted(() => {
   load()
   loadAiSettings()
   loadCameraPresets()
+  loadScenePresets()
 })
 
 onBeforeUnmount(() => {
@@ -1927,6 +2140,14 @@ h1 {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+.pc-scene-hint {
+  margin: 4px 0 10px;
+  max-width: 760px;
+  color: #94a3b8;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .pc-toggles {

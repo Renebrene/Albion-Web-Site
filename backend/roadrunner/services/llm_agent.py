@@ -253,9 +253,60 @@ def get_llm_config() -> dict:
     }
 
 
-def create_llm_agent() -> LLMAgent:
-    """Создать AI-агент из конфигурации."""
+def get_scene_llm_config() -> dict:
+    """Конфигурация нейросети для элементов и надписей сцены.
+
+    В админке можно отдельно задать модель и место запуска (локально/облако).
+    Если облако выбрано, но не настроено (нет ключа), безопасно остаёмся на
+    локальной модели, чтобы генерация не падала.
+    """
     config = get_llm_config()
+
+    try:
+        with get_connection() as conn:
+            row = conn.execute(
+                "SELECT settings FROM roadrunner_settings WHERE key = 'roadrunner'"
+            ).fetchone()
+
+        if not row:
+            return config
+
+        from backend.roadrunner.services.db_json import as_dict
+
+        stored = as_dict(row[0])
+    except Exception:
+        return config
+
+    model = str(stored.get("scene_llm_model") or "").strip()
+    if model:
+        config["model"] = model
+
+    mode = str(stored.get("scene_llm_mode") or "").strip().lower()
+
+    if mode == "local":
+        config["provider"] = "ollama"
+        config["url"] = "http://localhost:11434"
+    elif mode == "cloud":
+        provider = str(stored.get("llm_provider") or "").strip().lower()
+        if provider in ("yandexgpt", "openai"):
+            config["url"] = str(stored.get("llm_url") or config.get("url") or "")
+        elif config.get("api_key"):
+            config["provider"] = "openai"
+        else:
+            config["provider"] = "ollama"
+            config["url"] = "http://localhost:11434"
+
+    return config
+
+
+def create_llm_agent(scene: bool = False) -> LLMAgent:
+    """Создать AI-агент из конфигурации.
+
+    ``scene=True`` берёт модель, выбранную для добавления и редактирования
+    элементов и надписей сцены (настройки «Нейросеть для элементов и
+    надписей»).
+    """
+    config = get_scene_llm_config() if scene else get_llm_config()
 
     return LLMAgent(
         provider=config.get("provider", "ollama"),

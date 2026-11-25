@@ -318,7 +318,9 @@ async def generate_scenario(
         )
 
     try:
-        agent = create_llm_agent()
+        # Генератор добавляет и меняет элементы и надписи сцены, поэтому
+        # использует выбранную для этого нейросеть.
+        agent = create_llm_agent(scene=True)
         scenario = await agent.generate(request_text)
 
         # Валидация
@@ -352,18 +354,22 @@ async def generate_scenario(
 
 
 PRESETS_KEY = "camera_presets"
+# Пресеты сцены (количество машин, пешеходов и т.п.) и снимок «Дефолт»,
+# от которого они создаются.
+SCENE_PRESETS_KEY = "scene_presets"
+SCENE_DEFAULT_KEY = "scene_default"
 
 
-def _load_camera_presets() -> dict:
-    """Пресеты камеры/сцены из настроек Roadrunner."""
+def _load_settings_key(key: str) -> dict:
+    """Словарь из roadrunner_settings по ключу (пресеты, снимки)."""
     try:
         with get_connection() as conn:
             row = conn.execute(
                 "SELECT settings FROM roadrunner_settings WHERE key = %s",
-                (PRESETS_KEY,),
+                (key,),
             ).fetchone()
     except Exception as exc:
-        logger.warning("Не удалось загрузить пресеты: %s", exc)
+        logger.warning("Не удалось загрузить настройки %s: %s", key, exc)
         return {}
 
     if not row:
@@ -374,7 +380,7 @@ def _load_camera_presets() -> dict:
     return as_dict(row[0])
 
 
-def _save_camera_presets(presets: dict) -> None:
+def _save_settings_key(key: str, value: dict) -> None:
     with get_connection() as conn:
         conn.execute(
             """
@@ -382,8 +388,17 @@ def _save_camera_presets(presets: dict) -> None:
             VALUES (%s, %s)
             ON CONFLICT (key) DO UPDATE SET settings = EXCLUDED.settings
             """,
-            (PRESETS_KEY, json.dumps(presets, ensure_ascii=False)),
+            (key, json.dumps(value, ensure_ascii=False)),
         )
+
+
+def _load_camera_presets() -> dict:
+    """Пресеты камеры/сцены из настроек Roadrunner."""
+    return _load_settings_key(PRESETS_KEY)
+
+
+def _save_camera_presets(presets: dict) -> None:
+    _save_settings_key(PRESETS_KEY, presets)
 
 
 @router.get("/camera-presets")
@@ -419,6 +434,68 @@ async def delete_camera_preset(name: str, auth=Depends(require_admin)):
 
     del presets[unquote(name)]
     _save_camera_presets(presets)
+    return {"success": True}
+
+
+# --- Пресеты сцены и «Дефолт» -------------------------------------------
+#
+# Сцена баннера описывается количеством элементов (машины, пешеходы, поток,
+# автобусы). «Дефолт» — снимок текущего состояния; остальные пресеты
+# создаются на его основе с другим количеством элементов.
+
+
+@router.get("/scene-presets")
+async def list_scene_presets(auth=Depends(require_admin)):
+    return {
+        "success": True,
+        "presets": _load_settings_key(SCENE_PRESETS_KEY),
+        "default": _load_settings_key(SCENE_DEFAULT_KEY),
+    }
+
+
+@router.post("/scene-presets/default")
+async def save_scene_default(payload: dict, auth=Depends(require_admin)):
+    """Сохранить текущее состояние сцены как «Дефолт»."""
+    values = payload.get("settings") or {}
+
+    if not isinstance(values, dict) or not values:
+        raise HTTPException(
+            status_code=400, detail="Некорректные настройки сцены"
+        )
+
+    _save_settings_key(SCENE_DEFAULT_KEY, values)
+    return {"success": True, "default": values}
+
+
+@router.post("/scene-presets")
+async def save_scene_preset(payload: dict, auth=Depends(require_admin)):
+    """Создать пресет сцены (обычно — на основе «Дефолта»)."""
+    from urllib.parse import unquote
+
+    name = str(payload.get("name") or "").strip()
+    values = payload.get("settings") or {}
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Не указано имя пресета")
+    if not isinstance(values, dict) or not values:
+        raise HTTPException(status_code=400, detail="Некорректные настройки")
+
+    presets = _load_settings_key(SCENE_PRESETS_KEY)
+    presets[unquote(name)] = values
+    _save_settings_key(SCENE_PRESETS_KEY, presets)
+    return {"success": True, "name": unquote(name)}
+
+
+@router.delete("/scene-presets/{name}")
+async def delete_scene_preset(name: str, auth=Depends(require_admin)):
+    from urllib.parse import unquote
+
+    presets = _load_settings_key(SCENE_PRESETS_KEY)
+    if unquote(name) not in presets:
+        raise HTTPException(status_code=404, detail="Пресет не найден")
+
+    del presets[unquote(name)]
+    _save_settings_key(SCENE_PRESETS_KEY, presets)
     return {"success": True}
 
 
@@ -489,9 +566,23 @@ async def pull_ollama_model(payload: dict, auth=Depends(require_admin)):
     return {"success": True, "model": model}
 
 
+DEFAULT_SETTINGS = {
+    "default_scenario": "rostov-evening-rain",
+    "weather_provider": "gismeteo",
+    "weather_enabled": True,
+    "traffic_enabled": True,
+    "llm_provider": "ollama",
+    "llm_model": "qwen2.5:7b",
+    # Нейросеть для добавления/редактирования элементов и надписей сцены:
+    # локальная (Ollama) или облачная (YandexGPT/OpenAI).
+    "scene_llm_mode": "local",
+    "scene_llm_model": "qwen2.5:7b",
+}
+
+
 @router.get("/settings")
 async def get_settings(auth=Depends(require_admin)):
-    """Настройки Roadrunner."""
+    """Настройки Roadrunner (сохранённые поверх значений по умолчанию)."""
     try:
         with get_connection() as conn:
             row = conn.execute(
@@ -501,22 +592,16 @@ async def get_settings(auth=Depends(require_admin)):
         if row:
             from backend.roadrunner.services.db_json import as_dict
 
-            return {"success": True, "settings": as_dict(row[0])}
+            # Старые записи не содержат новых ключей — дополняем дефолтами,
+            # чтобы поля в админке и API всегда были заполнены.
+            return {
+                "success": True,
+                "settings": {**DEFAULT_SETTINGS, **as_dict(row[0])},
+            }
     except Exception as exc:
         logger.warning("Не удалось загрузить настройки: %s", exc)
 
-    # Дефолтные настройки
-    return {
-        "success": True,
-        "settings": {
-            "default_scenario": "rostov-evening-rain",
-            "weather_provider": "gismeteo",
-            "weather_enabled": True,
-            "traffic_enabled": True,
-            "llm_provider": "ollama",
-            "llm_model": "qwen2.5:7b",
-        },
-    }
+    return {"success": True, "settings": dict(DEFAULT_SETTINGS)}
 
 
 @router.put("/settings")

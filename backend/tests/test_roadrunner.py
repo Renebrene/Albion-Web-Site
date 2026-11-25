@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import datetime
+import json
 import uuid
 from pathlib import Path
 
@@ -379,6 +380,155 @@ def test_settings_roundtrip(admin):
 
     after = client.get("/api/roadrunner/settings").json()["settings"]
     assert after == settings
+
+
+class _SettingsStoreConnection:
+    """Мини-хранилище roadrunner_settings для тестов без БД."""
+
+    def __init__(self, rows):
+        self.rows = rows
+        self._result = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return False
+
+    def execute(self, sql, params=()):
+        query = " ".join(str(sql).split()).lower()
+
+        if query.startswith("select settings"):
+            key = params[0] if params else "roadrunner"
+            self._result = (self.rows[key],) if key in self.rows else None
+        elif query.startswith("insert"):
+            key, value = params[0], params[1]
+            self.rows[key] = (
+                json.loads(value) if isinstance(value, str) else value
+            )
+
+        return self
+
+    def fetchone(self):
+        return self._result
+
+
+def test_settings_defaults_include_scene_llm(admin, monkeypatch):
+    def _fail():
+        raise RuntimeError("нет БД")
+
+    monkeypatch.setattr("backend.api.roadrunner.get_connection", _fail)
+
+    settings = client.get("/api/roadrunner/settings").json()["settings"]
+
+    assert settings["scene_llm_mode"] == "local"
+    assert settings["scene_llm_model"]
+
+
+def test_scene_presets_roundtrip(admin, monkeypatch):
+    store = {}
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _SettingsStoreConnection(store),
+    )
+
+    empty = client.get("/api/roadrunner/scene-presets").json()
+    assert empty["default"] == {}
+    assert empty["presets"] == {}
+
+    saved_default = client.post(
+        "/api/roadrunner/scene-presets/default",
+        json={"settings": {"carMin": 6, "carMax": 13}},
+    )
+    assert saved_default.status_code == 200, saved_default.text
+
+    saved = client.post(
+        "/api/roadrunner/scene-presets",
+        json={"name": "Пробка", "settings": {"carMin": 12, "carMax": 14}},
+    )
+    assert saved.status_code == 200, saved.text
+
+    listed = client.get("/api/roadrunner/scene-presets").json()
+    assert listed["default"]["carMax"] == 13
+    assert listed["presets"]["Пробка"]["carMin"] == 12
+
+    deleted = client.delete("/api/roadrunner/scene-presets/Пробка")
+    assert deleted.status_code == 200, deleted.text
+
+    listed = client.get("/api/roadrunner/scene-presets").json()
+    assert "Пробка" not in listed["presets"]
+    # «Дефолт» не удаляется вместе с обычным пресетом.
+    assert listed["default"]["carMax"] == 13
+
+
+def test_scene_presets_validate_payload(admin, monkeypatch):
+    monkeypatch.setattr(
+        "backend.api.roadrunner.get_connection",
+        lambda: _SettingsStoreConnection({}),
+    )
+
+    empty_name = client.post(
+        "/api/roadrunner/scene-presets",
+        json={"name": "  ", "settings": {"carMin": 1}},
+    )
+    assert empty_name.status_code == 400
+
+    empty_settings = client.post(
+        "/api/roadrunner/scene-presets/default",
+        json={"settings": {}},
+    )
+    assert empty_settings.status_code == 400
+
+
+def test_scene_llm_config_uses_selected_model_and_mode(monkeypatch):
+    stored = {
+        "llm_provider": "openai",
+        "llm_model": "gpt-test",
+        "llm_url": "http://llm.test",
+        "llm_api_key": "secret",
+        "scene_llm_mode": "cloud",
+        "scene_llm_model": "gpt-scene",
+    }
+
+    monkeypatch.setattr(
+        llm_agent,
+        "get_connection",
+        lambda: _SettingsStoreConnection({"roadrunner": stored}),
+    )
+
+    config = llm_agent.get_scene_llm_config()
+
+    assert config["model"] == "gpt-scene"
+    assert config["provider"] == "openai"
+    assert config["url"] == "http://llm.test"
+
+    stored["scene_llm_mode"] = "local"
+    config = llm_agent.get_scene_llm_config()
+
+    assert config["provider"] == "ollama"
+    assert config["url"] == "http://localhost:11434"
+    assert config["model"] == "gpt-scene"
+
+
+def test_scene_llm_config_falls_back_when_cloud_not_configured(monkeypatch):
+    stored = {
+        "llm_provider": "ollama",
+        "llm_model": "qwen2.5:7b",
+        "llm_api_key": "",
+        "scene_llm_mode": "cloud",
+        "scene_llm_model": "",
+    }
+
+    monkeypatch.setattr(
+        llm_agent,
+        "get_connection",
+        lambda: _SettingsStoreConnection({"roadrunner": stored}),
+    )
+
+    config = llm_agent.get_scene_llm_config()
+
+    assert config["provider"] == "ollama"
+    assert config["url"] == "http://localhost:11434"
 
 
 @requires_db

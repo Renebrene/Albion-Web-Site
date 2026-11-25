@@ -55,6 +55,16 @@ backend/templates/road_banner.html  # Исходный HTML 3D-баннера
 | POST | `/api/roadrunner/upload-scenario` | Загрузить сценарий из файла |
 | GET | `/api/roadrunner/settings` | Настройки Roadrunner |
 | PUT | `/api/roadrunner/settings` | Обновить настройки |
+| GET | `/api/roadrunner/camera-presets` | Пресеты камеры и сцены |
+| POST | `/api/roadrunner/camera-presets` | Сохранить пресет камеры |
+| DELETE | `/api/roadrunner/camera-presets/{name}` | Удалить пресет камеры |
+| GET | `/api/roadrunner/scene-presets` | Пресеты сцены и снимок «Дефолт» |
+| POST | `/api/roadrunner/scene-presets/default` | Сохранить текущее состояние как «Дефолт» |
+| POST | `/api/roadrunner/scene-presets` | Сохранить пресет сцены |
+| DELETE | `/api/roadrunner/scene-presets/{name}` | Удалить пресет сцены |
+
+Настройки `scene_llm_mode` (`local`/`cloud`) и `scene_llm_model` задают
+нейросеть, которая добавляет и редактирует элементы и надписи сцены.
 
 ## JSON Schema для сценариев
 
