@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import asyncio
 import datetime
 import json
 import uuid
@@ -740,6 +741,33 @@ def test_code_editor_condenses_and_injects(monkeypatch):
     assert "original" in edited
 
 
+def test_code_editor_uses_configured_token_limit(monkeypatch):
+    from backend.roadrunner.services import code_editor
+
+    seen = {}
+
+    async def fake_call(config, system, user, max_tokens):
+        seen["max_tokens"] = max_tokens
+        return "```js\nfunction ai_x() { return 1; }\n```"
+
+    monkeypatch.setattr(code_editor, "_call_ollama", fake_call)
+
+    result = asyncio.run(code_editor.edit_code(
+        "Добавь функцию",
+        COMPLETE_DOC,
+        config={
+            "provider": "ollama",
+            "model": "qwen3:8b",
+            "max_tokens": 100000,
+        },
+    ))
+
+    # Слишком большой лимит из админки ограничен для локальной модели.
+    assert seen["max_tokens"] == 4096
+    assert result["max_tokens"] == 4096
+    assert result["mode"] == "snippet"
+
+
 def test_code_editor_strips_fence_and_rejects_truncated_snippet():
     from backend.roadrunner.services import code_editor
 
@@ -776,6 +804,7 @@ def test_scene_llm_config_uses_selected_model_and_mode(monkeypatch):
         "llm_api_key": "secret",
         "scene_llm_mode": "cloud",
         "scene_llm_model": "gpt-scene",
+        "max_tokens": 4096,
     }
 
     monkeypatch.setattr(
@@ -789,6 +818,7 @@ def test_scene_llm_config_uses_selected_model_and_mode(monkeypatch):
     assert config["model"] == "gpt-scene"
     assert config["provider"] == "openai"
     assert config["url"] == "http://llm.test"
+    assert config["max_tokens"] == 4096
 
     stored["scene_llm_mode"] = "local"
     config = llm_agent.get_scene_llm_config()

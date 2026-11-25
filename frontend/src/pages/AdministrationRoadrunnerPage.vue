@@ -52,6 +52,7 @@
         embedded
         view="projection"
         :active-projection-tab="tab"
+        @open-ai-settings="tab = 'ai-settings'"
       />
 
       <AdministrationScenarioGeneratorPage

@@ -178,6 +178,7 @@ def _inject_snippet(code: str, snippet: str) -> str:
 async def _call_ollama(
     config: dict[str, Any], system: str, user: str, max_tokens: int
 ) -> str:
+    model_name = str(config.get("model") or "").lower()
     payload = {
         "model": config.get("model", "qwen2.5:7b"),
         "stream": False,
@@ -190,6 +191,12 @@ async def _call_ollama(
             {"role": "user", "content": user},
         ],
     }
+
+    # qwen3/deepseek-r1 думают перед ответом и легко съедают весь лимит
+    # токенов на размышления — фрагмент кода тогда обрывается. Для правки
+    # кода рассуждения не нужны, отключаем их.
+    if "qwen3" in model_name or "r1" in model_name:
+        payload["think"] = False
 
     async with httpx.AsyncClient(timeout=180) as client:
         response = await client.post(
@@ -274,7 +281,7 @@ async def edit_code(
     code: str,
     *,
     config: dict[str, Any] | None = None,
-    max_tokens: int = 1024,
+    max_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Изменить HTML-код баннера по инструкции на естественном языке."""
     instruction = (instruction or "").strip()
@@ -287,6 +294,16 @@ async def edit_code(
 
     config = config or get_scene_llm_config()
     provider = str(config.get("provider") or "ollama").lower()
+
+    # Лимит из настроек АИ. Модель возвращает короткий JS-фрагмент, поэтому
+    # для локальной модели достаточно 2048; огромные значения (100000) только
+    # увеличивают время генерации и риск обрезанного ответа.
+    if max_tokens is None:
+        try:
+            max_tokens = int(config.get("max_tokens") or 2048)
+        except (TypeError, ValueError):
+            max_tokens = 2048
+    max_tokens = max(512, min(max_tokens, 4096 if provider == "ollama" else 8192))
 
     user_prompt = (
         "Инструкция по изменению баннера:\n"
@@ -335,4 +352,5 @@ async def edit_code(
         "provider": provider,
         "model": config.get("model", ""),
         "mode": mode,
+        "max_tokens": max_tokens,
     }

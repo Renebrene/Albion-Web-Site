@@ -450,11 +450,15 @@
               измените количество машин и пешеходов, затем сохраните под
               новым именем.
             </p>
-            <p class="pc-scene-model">
+            <p
+              class="pc-scene-model"
+              title="Открыть настройки АИ"
+              @click="emit('open-ai-settings')"
+            >
               Нейросеть элементов и надписей:
               <b>{{ aiSettings.scene_llm_model || 'не задана' }}</b>
               · {{ aiSettings.scene_llm_mode === 'cloud' ? 'облако' : 'локально' }}
-              <span>— меняется на вкладке «Настройки АИ и источников»</span>
+              <span>— нажмите, чтобы изменить в настройках АИ</span>
             </p>
             <div class="pc-presets">
               <q-input
@@ -607,7 +611,27 @@
             <small class="hint">
               Модель, которая добавляет и редактирует элементы и надписи
               сцены. Впишите имя локальной (Ollama) или облачной модели.
+              После изменения нажмите «Сохранить».
             </small>
+            <div class="setting-actions">
+              <q-btn
+                flat
+                dense
+                no-caps
+                label="Взять модель Ollama"
+                @click="useOllamaModelForScene"
+              />
+              <q-btn
+                flat
+                dense
+                no-caps
+                color="primary"
+                icon="save"
+                label="Сохранить"
+                :loading="aiSaving"
+                @click="saveAiSettings"
+              />
+            </div>
           </div>
 
           <div class="setting-item">
@@ -629,7 +653,7 @@
 
           <template v-if="isOllama">
             <div class="setting-item">
-              <label>Модель Ollama (установленная)</label>
+              <label>Модель Ollama для генерации сценариев</label>
               <q-select
                 v-model="aiSettings.llm_model"
                 :options="ollamaModels"
@@ -689,7 +713,13 @@
               type="number"
               dense
               outlined
+              :min="512"
+              :max="8192"
             />
+            <small class="hint">
+              Для локальной модели достаточно 2048. Используется генератором
+              сценариев и AI-редактором кода (для Ollama не более 4096).
+            </small>
           </div>
           <div class="setting-item">
             <label>Качество рендеринга</label>
@@ -881,6 +911,9 @@ const props = defineProps({
   view: { type: String, default: 'banner' },
   activeProjectionTab: { type: String, default: 'camera' }
 })
+
+// Со вкладки «Камера и сцена» переходим в настройки АИ одним кликом.
+const emit = defineEmits(['open-ai-settings'])
 
 const router = useRouter()
 
@@ -1307,6 +1340,16 @@ function onLlmProviderChange(provider) {
     : ''
 
   if (provider === 'ollama') loadOllamaModels()
+}
+
+function useOllamaModelForScene() {
+  if (aiSettings.value.llm_model) {
+    aiSettings.value = {
+      ...aiSettings.value,
+      scene_llm_model: aiSettings.value.llm_model,
+      scene_llm_mode: 'local'
+    }
+  }
 }
 
 async function saveAiSettings() {
@@ -2171,6 +2214,12 @@ h1 {
   margin: 0 0 12px;
   color: #cbd5e1;
   font-size: 12px;
+  cursor: pointer;
+}
+
+.pc-scene-model:hover b,
+.pc-scene-model:hover span {
+  text-decoration: underline;
 }
 
 .pc-scene-model b {
@@ -2333,6 +2382,13 @@ h1 {
   color: #334155;
   font-size: 13px;
   font-weight: 600;
+}
+
+.setting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 /* Предпросмотр — от края до края страницы. */

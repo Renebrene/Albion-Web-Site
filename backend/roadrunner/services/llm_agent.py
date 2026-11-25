@@ -213,6 +213,16 @@ class LLMAgent:
             raise LLMAgentError(f"Не удалось распарсить JSON: {exc}") from exc
 
 
+def _config_max_tokens(stored: dict | None = None) -> int:
+    """Лимит токенов из админки (по умолчанию 2048)."""
+    value = (stored or {}).get("max_tokens", 2048)
+    try:
+        limit = int(value)
+    except (TypeError, ValueError):
+        return 2048
+    return max(256, min(limit, 100000))
+
+
 def get_llm_config() -> dict:
     """Загрузить конфигурацию LLM из БД или env."""
     # Сначала пробуем БД
@@ -234,6 +244,7 @@ def get_llm_config() -> dict:
                 "url": stored.get("llm_url", "http://localhost:11434"),
                 "api_key": stored.get("llm_api_key", ""),
                 "temperature": stored.get("temperature", 0.35),
+                "max_tokens": _config_max_tokens(stored),
             }
     except Exception:
         pass
@@ -250,6 +261,7 @@ def get_llm_config() -> dict:
         "url": url,
         "api_key": api_key,
         "temperature": 0.35,
+        "max_tokens": _config_max_tokens(),
     }
 
 
