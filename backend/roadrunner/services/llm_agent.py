@@ -60,8 +60,9 @@ SYSTEM_PROMPT = """\
 - start_rain / stop_rain / start_snow / stop_snow: intensity 0-1
 - change_time_of_day: phase=morning/day/evening/night
 - add_holiday_decor: type=new-year/christmas/valentines-day/defenders-day/
-  women-day/victory-day/russia-day/trees/snowman/snow/flowers/flags/
-  balloons/confetti/stars (в 23 февраля и 9 Мая проезжают танки,
+  women-day/victory-day/russia-day/trees/snowman/snow/snowdrifts/sleigh/
+  flowers/flags/balloons/confetti/stars (зимой — сугробы и упряжка оленей
+  с Дедом Морозом; в 23 февраля и 9 Мая проезжают танки,
   14 февраля — двое с сердечком)
 - remove_holiday_decor, end
 
