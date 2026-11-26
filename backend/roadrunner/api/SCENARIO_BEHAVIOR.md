@@ -1,0 +1,80 @@
+# Поведение элементов сцены Roadrunner
+
+Документ описывает, **какой элемент какие действия может выполнять** и какие
+численные параметры управляют его поведением. Все перечисленные `do` реально
+обрабатываются баннером (`road_banner.html`), поэтому сценарии из чата,
+генератора и готовых пресетов работают одинаково.
+
+## 1. Элементы и доступные действия
+
+| Элемент | Что делает сам | Действия сценария (`do`) | Параметры |
+| --- | --- | --- | --- |
+| Машины | Едут по двум полосам (`z = ±1.8`), тормозят перед стоп-линией, не въезжают на зебру/перекрёсток, объезжают впереди идущие машины | `add_car`, `remove_car`, `add_vehicle`, `remove_vehicle`, `start_traffic`, `stop_traffic`, `change_speed`, `change_traffic_density` | `dir=1/-1`, `color=#RRGGBB`, `type=bus` (для удаления) |
+| Автобусы | Ходят в обе стороны, заезжают в карман остановки, открывают двери, высаживают/садят пассажиров | `add_bus`, `remove_bus`, `start_traffic`, `stop_traffic` | `atX` — координата выхода на маршрут |
+| Пешеходы (переход) | Ждут на тротуаре, идут только на пешеходном зелёном и только если переход свободен; на красном ускоряются, чтобы освободить дорогу | `add_pedestrian`, `remove_pedestrian` | `direction=cross`, `intersection=0/1` |
+| Пешеходы (остановка) | Идут к павильону, ждут автобус, садятся/выходят, уходят | `add_pedestrian`, `remove_pedestrian` | `direction=left/right` |
+| Светофоры | Автомобильные и пешеходные работают в противофазе; два перекрёстка со сдвигом фаз | `change_traffic_light_phase` | `phase=green/yellow/red`, `intersection=0/1`, `duration=1…120` с |
+| Погода | Осадки, туман, грозовой свет, облачность | `change_weather`, `start_rain`, `stop_rain`, `start_snow`, `stop_snow` | `condition=clear/cloudy/rain/snow/fog/storm`, `intensity=0…1` |
+| Время суток | Плавная смена темы/освещения и иконки HUD | `change_time_of_day` | `phase=morning/day/evening/night` |
+| Праздничный декор | Ёлки, снеговик, снег, цветы, флаги, гирлянды, звёзды | `add_holiday_decor`, `remove_holiday_decor` | `type=new-year/christmas/women-day/victory-day/russia-day/trees/snowman/snow/flowers/flags/balloons/confetti/stars` |
+| Сценарий в целом | Применяет события по времени `t` и по окончании возвращает баннер к коду из БД | `end` | — |
+
+Камера, качество, тени и HUD меняются из админки/редактора кода, а не событиями
+сценария.
+
+## 2. Расчёт поведения (численные параметры)
+
+### Движение
+
+- Шаг симуляции: `wdt = dt * VIS.speed` (`VIS.speed` задаётся `change_speed`,
+  диапазон 0.2–2).
+- Ускорение `ACCEL = 3.2`, торможение `DECEL = 7.5`, тормозной параметр
+  `BRAKE_A = 5.5`.
+- Целевая скорость перед препятствием на расстоянии `d`:
+  `min(maxSpeed, sqrt(2 * 5.5 * max(0, d - 0.35)))`.
+- Автобус: ускорение 2.2/2.0, торможение 6.
+- Длина машины 2.4, автобуса 5.8; стоп-линия за `9 + 1.725 + 0.8 ≈ 11.5` м
+  до центра перекрёстка.
+
+### Поток
+
+- Балл пробок `score = 0…10` → множитель скорости
+  `1 - score * 0.098` (от 1 до ≈0.02).
+- Интервал появления машин: `lerp(7, 0.25, score / 10) / VIS.flow` секунд
+  (`VIS.flow` задаётся `change_traffic_density`, диапазон 0.5–3).
+- Целевое число машин:
+  `clamp(round(CAR_MIN + (CAR_MAX - CAR_MIN) * score/10 + rand(-1,1)), 1, CAR_MAX)`.
+- Число ожидающих пешеходов:
+  `clamp(round(rand(PED_MIN, PED_MAX) * factor), PED_MIN, PED_MAX)`,
+  где `factor = 0.3` при осадках, `1.5` в ясную погоду, иначе `1`.
+
+### Светофоры
+
+- Цикл: зелёный 9 с, жёлтый 2.2 с, красный 8 с, итого 19.2 с.
+- Второй перекрёсток сдвинут на 7.5 с.
+- Пешеходный зелёный — только в окне красного для машин с шагом очистки
+  1 с в начале и в конце.
+- `change_traffic_light_phase` принудительно держит фазу `duration` секунд,
+  затем цикл продолжается автоматически.
+
+### Погода и декор
+
+- `fog` → `scene.fog.near/far = lerp(70,18,fog) / lerp(165,72,fog)`,
+  яркость 0.75; `cloudy` → туман 0.35, яркость 0.75.
+- `rain` → осадки 0.7, `storm` → 0.85, `snow` → 0.7 + декоративный снег.
+- Время: `morning=0.15`, `day=0`, `evening=0.7`, `night=1` (коэффициент ночи).
+
+## 3. Проверка в браузере
+
+В отладочном API баннера доступны:
+
+```js
+window.__RR_DEBUG__.event('add_car', { dir: 1, color: '#ff0000' })
+window.__RR_DEBUG__.event('change_traffic_light_phase', { phase: 'red', intersection: 0, duration: 5 })
+window.__RR_DEBUG__.event('add_pedestrian', { direction: 'cross', intersection: 0 })
+window.__RR_DEBUG__.event('stop_traffic', {})
+window.__RR_DEBUG__.lights()   // фазы на перекрёстках
+window.__RR_DEBUG__.counts()   // машины / автобусы / пешеходы
+window.__RR_DEBUG__.traffic()  // включён ли поток
+window.__RR_DEBUG__.tick(10)   // просчитать 10 секунд без rAF
+```

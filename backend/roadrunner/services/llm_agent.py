@@ -45,20 +45,23 @@ SYSTEM_PROMPT = """\
   ]
 }
 
-Доступные события (do):
-- start_traffic, stop_traffic
-- change_traffic_density (density: 0.1-3.0)
-- change_speed (factor: 0.1-3.0)
-- add_car, remove_car (color, type)
-- add_bus, remove_bus (route, number)
-- add_pedestrian, remove_pedestrian (direction: left/right/cross)
-- change_traffic_light_phase (phase: green/yellow/red, intersection: 0-1)
-- change_weather (condition: clear/cloudy/rain/snow/fog)
-- start_rain, stop_rain (intensity: 0-1)
-- start_snow, stop_snow (intensity: 0-1)
-- change_time_of_day (phase: morning/day/evening/night)
-- add_holiday_decor, remove_holiday_decor (type: trees/snowman/snow/flowers/flags/balloons/confetti/stars)
-- end
+Доступные события (do) и их параметры:
+- change_speed: factor 0.2-2 (скорость движения)
+- change_traffic_density: density 0.5-3 (плотность потока)
+- start_traffic / stop_traffic: включить/остановить поток
+- add_car / remove_car: params.dir=1 или -1, params.color=#RRGGBB
+  (псевдонимы add_vehicle / remove_vehicle; type=bus — удалить автобус)
+- add_bus / remove_bus: params.atX — координата появления (необязательно)
+- add_pedestrian / remove_pedestrian: params.direction=left/right/cross,
+  params.intersection=0 или 1
+- change_traffic_light_phase: params.phase=green/yellow/red,
+  params.intersection=0 или 1, params.duration=1-120 секунд
+- change_weather: condition=clear/cloudy/rain/snow/fog/storm
+- start_rain / stop_rain / start_snow / stop_snow: intensity 0-1
+- change_time_of_day: phase=morning/day/evening/night
+- add_holiday_decor: type=new-year/christmas/women-day/victory-day/russia-day/
+  trees/snowman/snow/flowers/flags/balloons/confetti/stars
+- remove_holiday_decor, end
 
 Правила:
 1. Сценарий должен быть логичным и последовательным.

@@ -436,8 +436,11 @@ const scene = new THREE.Scene();
 const skyDay = new THREE.Color(0x9fd4ec), skyDusk = new THREE.Color(0x2b3d5e);
 scene.background = skyDay.clone();
 scene.fog = new THREE.Fog(skyDay.clone(), 70, 165);
-scene.fog.near = lerp(70, 18, VIS.fog);
-scene.fog.far = lerp(165, 72, VIS.fog);
+function applyFog() {
+  scene.fog.near = lerp(70, 18, VIS.fog);
+  scene.fog.far = lerp(165, 72, VIS.fog);
+}
+applyFog();
 
 /* Сетка-направляющая и тени-подложки управляются из админки. */
 const gridHelper = new THREE.GridHelper(120, 24, 0x9fd4ec, 0x6b7f95);
@@ -913,6 +916,11 @@ IX.forEach((ix, ixIdx) => {
 const BULB_Y = { r:3.92, y:3.5, g:3.08 }, BULB_C = { r:0xff3b4d, y:0xffc233, g:0x2fe07d };
 const CAR_BULB_Y = { r:.5, y:0, g:-.5 };
 function lightState(ix, t){
+  // Сценарий может принудительно задать фазу на ограниченное время.
+  if(ix.forcePhase){
+    if(t < ix.forcePhase.until) return ix.forcePhase.state;
+    ix.forcePhase = null;
+  }
   const p = (t + ix.phase) % CYCLE.total;
   return p < CYCLE.g ? 'g' : p < CYCLE.g + CYCLE.y ? 'y' : 'r';
 }
@@ -920,6 +928,9 @@ function lightState(ix, t){
 // зелёный для пешеходов — только когда машинам горит красный, с небольшой
 // паузой на очистку перекрёстка.
 function pedLightState(ix, t){
+  if(ix.forcePhase && t < ix.forcePhase.until){
+    return ix.forcePhase.state === 'g' ? 'r' : 'g';
+  }
   const p = (t + ix.phase) % CYCLE.total;
   const redStart = CYCLE.g + CYCLE.y;
   return p > redStart + 1 && p < CYCLE.total - 1 ? 'g' : 'r';
@@ -1312,11 +1323,11 @@ function step(wdt, dt){
   [1,-1].forEach((dir,i) => {
     spawnT[i] -= wdt;
     if(spawnT[i] <= 0){
-      const spawned = cars.length < carTarget ? spawnCar(dir) : false;
+      const spawned = trafficEnabled && cars.length < carTarget ? spawnCar(dir) : false;
       spawnT[i] = spawned ? rand(2.2,4.4)/trafficDensity : .6;
     }
   });
-  if(CFG.buses){
+  if(CFG.buses && trafficEnabled){
     busSpawnT -= wdt;
     if(busSpawnT <= 0) busSpawnT = spawnBus() ? rand(30,46)/trafficDensity : 3;
   }
@@ -1324,7 +1335,7 @@ function step(wdt, dt){
   for(let i=cars.length-1; i>=0; i--){
     const c = cars[i];
     const front = c.x + c.dir*(c.len/2);
-    drive(c, vehicleObstacleDist(c, front), wdt, ACCEL, DECEL, speedWave);
+    drive(c, trafficEnabled ? vehicleObstacleDist(c, front) : 0, wdt, ACCEL, DECEL, speedWave);
     c.g.position.set(c.x, 0, c.z);
     const acc = wdt > 0 ? (c.speed - c.prevSpeed)/wdt : 0;
     c.bodyG.rotation.z = lerp(c.bodyG.rotation.z, clamp(acc*.006,-.05,.05)*c.dir, .12);
@@ -1341,7 +1352,7 @@ function step(wdt, dt){
     let zTarget = b.laneZ;
 
     if(b.state === 'run'){
-      let dist = vehicleObstacleDist(b, front);
+      let dist = trafficEnabled ? vehicleObstacleDist(b, front) : 0;
       if(b.willStop && ahead > -.3){
         if(ahead < 15) zTarget = b.bayZ;
         if(ahead > 0) dist = Math.min(dist, Math.max(0, ahead));
@@ -1384,7 +1395,7 @@ function step(wdt, dt){
       if(b.doorT <= .05){ b.state = 'leave'; b.willStop = false; flashBus('Автобус отправляется'); }
     }
     else if(b.state === 'leave'){
-      let dist = vehicleObstacleDist(b, front);
+      let dist = trafficEnabled ? vehicleObstacleDist(b, front) : 0;
       if(nearStop && cars.some(c => c.dir === b.dir && Math.abs(c.x - b.x) < 5.5)) dist = Math.min(dist, 0);
       zTarget = nearStop ? b.bayZ : b.laneZ;
       drive(b, dist, wdt, 2.0, 6, speedWave);
@@ -1675,6 +1686,15 @@ let activeScenarioStart = 0;
 let lastScenarioMessageAt = 0;
 let scenarioTimers = [];
 let scenarioNight = null;
+// Сценарий может остановить/возобновить поток машин и автобусов.
+let trafficEnabled = true;
+
+function _carMaterial(color) {
+  const str = String(color || '').trim();
+  const hex = str.startsWith('#') ? parseInt(str.slice(1), 16) : NaN;
+  if (!Number.isFinite(hex)) return null;
+  return carMats.find(m => m.color.getHex() === hex) || null;
+}
 
 function applyScenarioEvent(event) {
   const p = event.params || {};
@@ -1686,40 +1706,135 @@ function applyScenarioEvent(event) {
     case 'change_traffic_density':
       VIS.flow = clamp(Number(p.density) || 1, 0.5, 3);
       break;
+    case 'start_traffic':
+      trafficEnabled = true;
+      break;
+    case 'stop_traffic':
+      trafficEnabled = false;
+      break;
+    case 'add_car':
+    case 'add_vehicle': {
+      const dir = Number(p.dir) === -1 ? -1 : 1;
+      let spawned = false;
+      // Обычный спавн может не пройти из-за соседней машины — пробуем
+      // несколько свободных точек по дороге, чтобы сценарий гарантированно
+      // добавил транспорт.
+      for (let attempt = 0; attempt < 8 && !spawned; attempt++) {
+        spawned = spawnCar(dir, attempt ? rand(-ROAD_HALF, ROAD_HALF) : undefined);
+      }
+      if (spawned) {
+        const mat = _carMaterial(p.color || p.colour);
+        if (mat) cars[cars.length - 1].body.material = mat;
+      }
+      break;
+    }
+    case 'remove_car':
+    case 'remove_vehicle': {
+      if (String(p.type || '').toLowerCase() === 'bus' && buses.length) {
+        despawnBus(buses[buses.length - 1]);
+        break;
+      }
+      if (!cars.length) break;
+      const mat = _carMaterial(p.color || p.colour);
+      const target = mat
+        ? cars.find(c => c.body.material === mat)
+        : cars[cars.length - 1];
+      if (target) despawnCar(target);
+      break;
+    }
+    case 'add_bus': {
+      // Пул из двух автобусов; если оба на маршруте — убираем самый старый,
+      // чтобы сценарий всё равно добавил новый.
+      if (buses.length && !busPool.some(b => !b.active)) despawnBus(buses[0]);
+      spawnBus(Number.isFinite(Number(p.atX)) ? Number(p.atX) : undefined);
+      break;
+    }
+    case 'remove_bus':
+      if (buses.length) despawnBus(buses[buses.length - 1]);
+      break;
+    case 'add_pedestrian': {
+      const dir = String(p.direction || '').toLowerCase();
+      const idx = clamp(Math.round(Number(p.intersection) || 0), 0, IX.length - 1);
+      if (dir === 'left' || dir === 'right') {
+        const side = dir === 'right' ? 1 : -1;
+        const home = side < 0 ? SHELTER_X : SHELTER2_X;
+        spawnStopPed('in', home + (dir === 'left' ? -18 : 18), side < 0 ? -5 : 5, side);
+      } else {
+        spawnPed(IX[idx]);
+      }
+      break;
+    }
+    case 'remove_pedestrian':
+      if (peds.length) {
+        const target = peds[peds.length - 1];
+        target.active = false;
+        target.g.visible = false;
+        peds.splice(peds.indexOf(target), 1);
+      } else if (stopPeds.length) {
+        despawnStopPed(stopPeds[stopPeds.length - 1]);
+      }
+      break;
+    case 'change_traffic_light_phase': {
+      const idx = clamp(Math.round(Number(p.intersection) || 0), 0, IX.length - 1);
+      const names = { green:'g', yellow:'y', red:'r' };
+      const state = names[String(p.phase || '').toLowerCase()] || 'r';
+      const duration = clamp(Number(p.duration) || 10, 1, 120);
+      IX[idx].forcePhase = { state, until: simTime + duration };
+      break;
+    }
     case 'change_weather': {
-      const map = { clear:'clear', cloudy:'clear', rain:'rain', snow:'snow', fog:'clear', storm:'storm' };
-      VIS.weatherPreset = map[p.condition] || 'clear';
-      VIS.precipitation = VIS.weatherPreset === 'rain' ? 0.7
-        : VIS.weatherPreset === 'storm' ? 0.85
-        : VIS.weatherPreset === 'snow' ? 0.7 : 0;
-      buildPrecip();
-      presetWeather();
+      const map = { clear:'clear', cloudy:'cloudy', rain:'rain', snow:'snow', fog:'fog', storm:'storm' };
+      const w = map[String(p.condition || '').toLowerCase()] || 'clear';
+      const savedNight = scenarioNight;
+      VIS.weatherPreset = w;
+      VIS.fog = w === 'fog' ? 0.85 : w === 'cloudy' ? 0.35 : 0;
+      VIS.brightness = (w === 'fog' || w === 'cloudy') ? 0.75 : 1;
+      VIS.precipitation = w === 'rain' ? 0.7
+        : w === 'storm' ? 0.85
+        : w === 'snow' ? 0.7 : 0;
+      buildPrecip(); applyFog(); presetWeather();
+      if ((w === 'fog' || w === 'cloudy') && savedNight !== null) {
+        scenarioNight = savedNight; themeT = savedNight; applyTheme(themeT);
+      }
       break;
     }
     case 'start_rain':
       VIS.weatherPreset = 'rain';
       VIS.precipitation = clamp(Number(p.intensity) || 0.6, 0, 1);
+      VIS.fog = 0; applyFog();
       buildPrecip(); presetWeather();
       break;
     case 'stop_rain':
     case 'stop_snow':
       VIS.precipitation = 0; VIS.decoSnowfall = false;
+      VIS.fog = 0; applyFog();
       buildPrecip(); syncDecor(); presetWeather();
       break;
     case 'start_snow':
       VIS.weatherPreset = 'snow'; VIS.decoSnowfall = true;
       VIS.precipitation = clamp(Number(p.intensity) || 0.6, 0, 1);
+      VIS.fog = 0; applyFog();
       buildPrecip(); syncDecor(); presetWeather();
       break;
     case 'add_holiday_decor': {
+      const newYear = { decoTrees:true, decoSnowfall:true, decoSnowman:true, decoGarlands:true, decoStars:true };
       const presets = {
-        'new-year': { decoTrees:true, decoSnowfall:true, decoSnowman:true, decoGarlands:true, decoStars:true },
+        'new-year': newYear, 'christmas': newYear,
         'women-day': { decoFlowers:true, decoGarlands:true },
         'victory-day': { decoFlags:true },
-        'russia-day': { decoFlags:true, decoGarlands:true }
+        'russia-day': { decoFlags:true, decoGarlands:true },
+        'trees': { decoTrees:true },
+        'snowman': { decoSnowman:true },
+        'snow': { decoSnowfall:true },
+        'flowers': { decoFlowers:true },
+        'flags': { decoFlags:true },
+        'balloons': { decoGarlands:true, decoStars:true },
+        'confetti': { decoStars:true },
+        'stars': { decoStars:true }
       };
-      Object.assign(VIS, presets[p.type] || {});
-      VIS.holidayPreset = p.type || 'custom';
+      const type = String(p.type || '').toLowerCase();
+      Object.assign(VIS, presets[type] || {});
+      VIS.holidayPreset = type || 'custom';
       syncDecor(); updateHolidayHUD();
       break;
     }
@@ -1934,6 +2049,7 @@ function presetWeather() {
     weatherCode: codes[preset] ?? 0
   };
   weatherSource = 'пресет';
+  applyFog();
   updateWeatherHUD();
 }
 
@@ -2293,9 +2409,21 @@ window.__RR_DEBUG__ = {
   })),
   stopOff: () => STOP_OFF,
   scenario: () => ({ id: activeScenarioId, start: activeScenarioStart }),
+  traffic: () => trafficEnabled,
+  lights: () => IX.map((ix, i) => ({
+    x: ix.x, car: lightState(ix, simTime), ped: pedLightState(ix, simTime),
+    forced: Boolean(ix.forcePhase)
+  })),
+  counts: () => ({
+    cars: cars.length, buses: buses.length,
+    peds: peds.length, waiting: stopPeds.length
+  }),
+  // Прямой вызов обработчика сценария — для проверки поведения.
+  event: (type, params = {}) => applyScenarioEvent({ do: type, params }),
   vis: () => ({
     weatherPreset: VIS.weatherPreset,
     precipitation: VIS.precipitation,
+    fog: VIS.fog,
     flow: VIS.flow,
     speed: VIS.speed,
     themeT
