@@ -1120,7 +1120,7 @@ def media_usage_sections(
 
     paths = _path_usage(cur, filename, storage_path or "") if filename else {}
 
-    return used_section_names(
+    sections = used_section_names(
         in_news=in_news or bool(paths.get("in_news_path")),
         in_geo=in_geo,
         page_slugs=slugs,
@@ -1131,6 +1131,25 @@ def media_usage_sections(
         in_home=bool(paths.get("in_home")),
         in_portfolio=bool(paths.get("in_portfolio")),
     )
+
+    # Категория «Светофоры» сама по себе означает использование в разделе
+    # «Светофорные объекты» — такие файлы не считаются мусором.
+    cur.execute(
+        "SELECT id FROM media_categories WHERE lower(name) LIKE '%светофор%'"
+    )
+    traffic_categories = {int(row[0]) for row in cur.fetchall()}
+    if traffic_categories:
+        cur.execute(
+            "SELECT category_id FROM media WHERE id = %s", (media_id,)
+        )
+        row = cur.fetchone()
+        file_categories = {
+            int(value) for value in (row[0] if row and row[0] else [])
+        }
+        if file_categories & traffic_categories:
+            sections.append("Светофорные объекты")
+
+    return sorted(set(sections))
 
 
 def used_sections_for(cur, media_id: int) -> list[str]:
