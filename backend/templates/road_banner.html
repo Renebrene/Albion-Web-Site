@@ -1785,18 +1785,34 @@ function buildDecor() {
   loversGroup.userData.key = 'decoHearts';
   decorGroup.add(loversGroup);
 
-  // Зимние сугробы по обеим сторонам дороги.
-  const driftMat = new THREE.MeshStandardMaterial({ color:0xf2f7ff, roughness:1, flatShading:true });
-  for(let x=-56;x<=56;x+=9){
-    [-1,1].forEach(side => {
-      const mound = new THREE.Mesh(new THREE.SphereGeometry(1,12,8), driftMat);
-      const s = 1.4 + Math.random() * 1.3;
-      mound.scale.set(s*1.3, s*0.8, s*0.9);
-      mound.position.set(x + rand(-2,2), s*.25, side*(10 + Math.random()*3));
-      mound.userData.key = 'decoSnowdrifts';
-      decorGroup.add(mound);
-    });
-  }
+  // Сугробы — всего несколько плоских плашек разной формы на газоне.
+  const driftMat = new THREE.MeshStandardMaterial({
+    color:0xf4f8ff, roughness:1, side:THREE.DoubleSide
+  });
+  const driftSpots = [
+    { x:-48, z:9.5,  r:4.2, k:1.45, n:7 },
+    { x:-20, z:-10.5,r:5.4, k:0.8,  n:9 },
+    { x:6,   z:11,   r:3.6, k:1.7,  n:6 },
+    { x:30,  z:-9.5, r:4.6, k:1.05, n:8 },
+    { x:52,  z:10,   r:5.0, k:0.9,  n:7 }
+  ];
+  driftSpots.forEach((spot, index) => {
+    const shape = new THREE.Shape();
+    for(let i=0;i<=spot.n;i++){
+      const a = (i % spot.n) / spot.n * Math.PI * 2;
+      const wobble = .74 + .26*Math.sin(a*3 + index*1.7) + .1*Math.cos(a*5 + index);
+      const px = Math.cos(a) * spot.r * wobble * spot.k;
+      const py = Math.sin(a) * spot.r * wobble;
+      if(i === 0) shape.moveTo(px,py); else shape.lineTo(px,py);
+    }
+    const geo = new THREE.ShapeGeometry(shape);
+    geo.rotateX(-Math.PI/2);
+    const patch = new THREE.Mesh(geo, driftMat);
+    patch.rotation.y = index * .7;
+    patch.position.set(spot.x, -.04, spot.z);
+    patch.userData.key = 'decoSnowdrifts';
+    decorGroup.add(patch);
+  });
 
   // Упряжка оленей с Дедом Морозом — пролетает над сценой зимой.
   sleighGroup = new THREE.Group();
