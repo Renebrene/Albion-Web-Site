@@ -7,8 +7,8 @@
 не зависит от размера баннера (файл ~100 КБ не помещается в контекст
 локальной модели).
 
-Используется нейросеть, выбранная в настройках АИ для элементов и надписей
-(``scene_llm_mode`` / ``scene_llm_model``).
+Используется общая модель из настроек АИ (``llm_provider`` / ``llm_model``) —
+та же, что и у генератора сценариев.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from typing import Any
 
 import httpx
 
-from backend.roadrunner.services.llm_agent import get_scene_llm_config
+from backend.roadrunner.services.llm_agent import get_llm_config
 
 logger = logging.getLogger(__name__)
 
@@ -292,7 +292,7 @@ async def edit_code(
     if not code:
         raise CodeEditorError("Нет исходного кода для редактирования")
 
-    config = config or get_scene_llm_config()
+    config = config or get_llm_config()
     provider = str(config.get("provider") or "ollama").lower()
 
     # Лимит из настроек АИ. Модель возвращает короткий JS-фрагмент, поэтому

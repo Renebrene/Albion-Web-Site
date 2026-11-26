@@ -66,7 +66,7 @@
           <span class="model-value">{{ modelLabel }}</span>
         </div>
         <p class="field-hint">
-          Выбирается на вкладке «Настройки АИ и источников».
+          Общая модель для сценариев и кода — на вкладке «Настройки АИ и источников».
         </p>
 
         <div class="default-line">

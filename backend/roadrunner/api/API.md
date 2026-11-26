@@ -72,8 +72,10 @@ backend/templates/road_banner.html  # Исходный HTML 3D-баннера
 | POST | `/api/roadrunner/code-presets` | Сохранить новую версию кода под названием |
 | DELETE | `/api/roadrunner/code-presets/{name}` | Удалить версию кода |
 
-Настройки `scene_llm_mode` (`local`/`cloud`) и `scene_llm_model` задают
-нейросеть, которая добавляет и редактирует элементы и надписи сцены.
+Генератор сценариев и AI-редактор кода используют одну и ту же модель из
+настроек АИ: `llm_provider`, `llm_model`, `llm_url`, `llm_api_key`. Отдельных
+«сценовых» настроек нет. Лимит `max_tokens` (512–8192; для Ollama до 4096)
+применяется к обоим.
 
 ## JSON Schema для сценариев
 

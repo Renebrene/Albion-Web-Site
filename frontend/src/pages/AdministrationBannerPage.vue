@@ -101,19 +101,16 @@
         <div class="pc-topbar">
           <div class="pc-mode">
             <span class="pc-mode-label">РЕЖИМ</span>
-            <q-btn-toggle
-              :model-value="isCustom ? 'custom' : 'default'"
-              :options="[
-                { label: 'По умолчанию', value: 'default' },
-                { label: 'Произвольный', value: 'custom' }
-              ]"
+            <span class="pc-mode-value">
+              {{ isCustom ? 'Произвольный' : 'По умолчанию' }}
+            </span>
+            <q-btn
+              flat
               dense
               no-caps
-              unelevated
-              toggle-color="primary"
-              color="grey-3"
-              text-color="grey-8"
-              @update:model-value="setMode"
+              icon="tune"
+              label="Изменить в настройках"
+              @click="emit('open-ai-settings')"
             />
           </div>
 
@@ -455,9 +452,9 @@
               title="Открыть настройки АИ"
               @click="emit('open-ai-settings')"
             >
-              Нейросеть элементов и надписей:
-              <b>{{ aiSettings.scene_llm_model || 'не задана' }}</b>
-              · {{ aiSettings.scene_llm_mode === 'cloud' ? 'облако' : 'локально' }}
+              Нейросеть для сценариев и кода:
+              <b>{{ aiSettings.llm_model || 'не задана' }}</b>
+              · {{ llmProviderLabel }}
               <span>— нажмите, чтобы изменить в настройках АИ</span>
             </p>
             <div class="pc-presets">
@@ -550,6 +547,28 @@
 
         <p v-if="aiError" class="error-text">{{ aiError }}</p>
 
+        <div class="setting-item mode-setting">
+          <label>Режим баннера</label>
+          <q-btn-toggle
+            :model-value="isCustom ? 'custom' : 'default'"
+            :options="[
+              { label: 'По умолчанию', value: 'default' },
+              { label: 'Произвольный', value: 'custom' }
+            ]"
+            dense
+            no-caps
+            unelevated
+            toggle-color="primary"
+            color="grey-3"
+            text-color="grey-8"
+            @update:model-value="setMode"
+          />
+          <small class="hint">
+            Режим влияет только на погоду, праздники и сценарии. Камера,
+            количество элементов и скорость доступны в обоих режимах.
+          </small>
+        </div>
+
         <div class="ai-grid">
           <div class="setting-item">
             <label>Провайдер погоды</label>
@@ -600,60 +619,9 @@
             />
           </div>
 
-          <div class="setting-item">
-            <label>Нейросеть для элементов и надписей</label>
-            <q-input
-              v-model="aiSettings.scene_llm_model"
-              dense
-              outlined
-              placeholder="qwen2.5:7b или gpt-4o-mini"
-            />
-            <small class="hint">
-              Модель, которая добавляет и редактирует элементы и надписи
-              сцены. Впишите имя локальной (Ollama) или облачной модели.
-              После изменения нажмите «Сохранить».
-            </small>
-            <div class="setting-actions">
-              <q-btn
-                flat
-                dense
-                no-caps
-                label="Взять модель Ollama"
-                @click="useOllamaModelForScene"
-              />
-              <q-btn
-                flat
-                dense
-                no-caps
-                color="primary"
-                icon="save"
-                label="Сохранить"
-                :loading="aiSaving"
-                @click="saveAiSettings"
-              />
-            </div>
-          </div>
-
-          <div class="setting-item">
-            <label>Где запускать нейросеть</label>
-            <q-btn-toggle
-              v-model="aiSettings.scene_llm_mode"
-              :options="[
-                { label: 'Локально', value: 'local' },
-                { label: 'Облако', value: 'cloud' }
-              ]"
-              dense
-              no-caps
-              unelevated
-              toggle-color="primary"
-              color="grey-3"
-              text-color="grey-8"
-            />
-          </div>
-
           <template v-if="isOllama">
             <div class="setting-item">
-              <label>Модель Ollama для генерации сценариев</label>
+              <label>Модель Ollama (сценарии и код)</label>
               <q-select
                 v-model="aiSettings.llm_model"
                 :options="ollamaModels"
@@ -671,6 +639,9 @@
                   <q-item><q-item-section>Моделей нет</q-item-section></q-item>
                 </template>
               </q-select>
+              <small class="hint">
+                Одна модель для генератора сценариев и AI-редактора кода.
+              </small>
             </div>
           </template>
 
@@ -807,7 +778,12 @@
             />
           </div>
 
-          <div v-if="showAllSettings" v-for="item in settings" :key="item.key" class="setting-row">
+          <div
+            v-if="showAllSettings"
+            v-for="item in settings.filter(s => s.key !== 'mode')"
+            :key="item.key"
+            class="setting-row"
+          >
             <div class="setting-head">
               <span>
                 {{ item.label }}
@@ -1219,8 +1195,6 @@ const aiSettings = ref({
   llm_model: 'qwen2.5:7b',
   llm_url: 'http://localhost:11434',
   llm_api_key: '',
-  scene_llm_mode: 'local',
-  scene_llm_model: 'qwen2.5:7b',
   temperature: 0.35,
   max_tokens: 2048,
   default_scenario: 'rostov-evening-rain',
@@ -1242,6 +1216,13 @@ const llmProviderOptions = [
   { label: 'YandexGPT Lite 8B', value: 'yandexgpt' },
   { label: 'OpenAI совместимый', value: 'openai' }
 ]
+
+const llmProviderLabel = computed(() => {
+  const found = llmProviderOptions.find(
+    item => item.value === aiSettings.value.llm_provider
+  )
+  return found ? found.label : 'локально'
+})
 const scenarioOptions = [
   { label: 'Вечерний дождь (Ростов)', value: 'rostov-evening-rain' },
   { label: 'Новый год', value: 'new-year' },
@@ -1340,16 +1321,6 @@ function onLlmProviderChange(provider) {
     : ''
 
   if (provider === 'ollama') loadOllamaModels()
-}
-
-function useOllamaModelForScene() {
-  if (aiSettings.value.llm_model) {
-    aiSettings.value = {
-      ...aiSettings.value,
-      scene_llm_model: aiSettings.value.llm_model,
-      scene_llm_mode: 'local'
-    }
-  }
 }
 
 async function saveAiSettings() {
@@ -2032,6 +2003,12 @@ h1 {
   letter-spacing: 0.1em;
 }
 
+.pc-mode-value {
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .pc-mode-scoped {
   display: flex;
   align-items: center;
@@ -2368,6 +2345,12 @@ h1 {
 
 .ai-settings {
   margin-bottom: 16px;
+}
+
+.mode-setting {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e2e8f0;
 }
 
 .ai-grid {

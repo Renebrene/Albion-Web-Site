@@ -324,9 +324,8 @@ async def generate_scenario(
         )
 
     try:
-        # Генератор добавляет и меняет элементы и надписи сцены, поэтому
-        # использует выбранную для этого нейросеть.
-        agent = create_llm_agent(scene=True)
+        # Общая модель из настроек АИ — та же, что и в AI-редакторе кода.
+        agent = create_llm_agent()
         scenario = await agent.generate(request_text)
 
         # Валидация
@@ -565,10 +564,11 @@ def _load_code_default() -> dict:
     return payload
 
 
-def _scene_model_info() -> dict:
-    from backend.roadrunner.services.llm_agent import get_scene_llm_config
+def _llm_model_info() -> dict:
+    """Модель, которую используют и генератор, и AI-редактор кода."""
+    from backend.roadrunner.services.llm_agent import get_llm_config
 
-    config = get_scene_llm_config()
+    config = get_llm_config()
     return {
         "provider": config.get("provider", ""),
         "model": config.get("model", ""),
@@ -591,7 +591,7 @@ async def get_code_default(auth=Depends(require_admin)):
         "slide_id": payload.get("slide_id"),
         "updated_at": payload.get("updated_at"),
         "source": payload.get("source", "saved"),
-        "model": _scene_model_info(),
+        "model": _llm_model_info(),
     }
 
 
@@ -882,10 +882,6 @@ DEFAULT_SETTINGS = {
     "traffic_enabled": True,
     "llm_provider": "ollama",
     "llm_model": "qwen2.5:7b",
-    # Нейросеть для добавления/редактирования элементов и надписей сцены:
-    # локальная (Ollama) или облачная (YandexGPT/OpenAI).
-    "scene_llm_mode": "local",
-    "scene_llm_model": "qwen2.5:7b",
 }
 
 

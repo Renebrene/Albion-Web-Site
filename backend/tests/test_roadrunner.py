@@ -418,7 +418,7 @@ class _SettingsStoreConnection:
         return self._result
 
 
-def test_settings_defaults_include_scene_llm(admin, monkeypatch):
+def test_settings_defaults_use_one_llm_model(admin, monkeypatch):
     def _fail():
         raise RuntimeError("нет БД")
 
@@ -426,8 +426,10 @@ def test_settings_defaults_include_scene_llm(admin, monkeypatch):
 
     settings = client.get("/api/roadrunner/settings").json()["settings"]
 
-    assert settings["scene_llm_mode"] == "local"
-    assert settings["scene_llm_model"]
+    assert settings["llm_model"]
+    # Одна модель на генератор сценариев и AI-редактор кода.
+    assert "scene_llm_mode" not in settings
+    assert "scene_llm_model" not in settings
 
 
 def test_scene_presets_roundtrip(admin, monkeypatch):
@@ -796,14 +798,12 @@ def test_apply_code_rejects_markdown_fence(admin, monkeypatch):
     assert response.status_code == 422
 
 
-def test_scene_llm_config_uses_selected_model_and_mode(monkeypatch):
+def test_llm_config_uses_common_model(monkeypatch):
     stored = {
         "llm_provider": "openai",
         "llm_model": "gpt-test",
         "llm_url": "http://llm.test",
         "llm_api_key": "secret",
-        "scene_llm_mode": "cloud",
-        "scene_llm_model": "gpt-scene",
         "max_tokens": 4096,
     }
 
@@ -813,40 +813,44 @@ def test_scene_llm_config_uses_selected_model_and_mode(monkeypatch):
         lambda: _SettingsStoreConnection({"roadrunner": stored}),
     )
 
-    config = llm_agent.get_scene_llm_config()
+    config = llm_agent.get_llm_config()
 
-    assert config["model"] == "gpt-scene"
+    assert config["model"] == "gpt-test"
     assert config["provider"] == "openai"
     assert config["url"] == "http://llm.test"
     assert config["max_tokens"] == 4096
 
-    stored["scene_llm_mode"] = "local"
-    config = llm_agent.get_scene_llm_config()
 
-    assert config["provider"] == "ollama"
-    assert config["url"] == "http://localhost:11434"
-    assert config["model"] == "gpt-scene"
+def test_generate_scenario_uses_common_agent(admin, monkeypatch):
+    calls = []
 
+    class FakeAgent:
+        async def generate(self, request):
+            return {
+                "id": "test",
+                "name": "Тест",
+                "duration": 10,
+                "events": [{"t": 0, "do": "end"}],
+            }
 
-def test_scene_llm_config_falls_back_when_cloud_not_configured(monkeypatch):
-    stored = {
-        "llm_provider": "ollama",
-        "llm_model": "qwen2.5:7b",
-        "llm_api_key": "",
-        "scene_llm_mode": "cloud",
-        "scene_llm_model": "",
-    }
+    def fake_agent(*args, **kwargs):
+        calls.append((args, kwargs))
+        return FakeAgent()
 
+    monkeypatch.setattr("backend.api.roadrunner.create_llm_agent", fake_agent)
+    async def fake_create(scenario, auth):
+        return None
+
+    monkeypatch.setattr("backend.api.roadrunner.create_scenario", fake_create)
     monkeypatch.setattr(
-        llm_agent,
-        "get_connection",
-        lambda: _SettingsStoreConnection({"roadrunner": stored}),
+        "backend.roadrunner.scenario.engine.validate_scenario", lambda s: []
     )
 
-    config = llm_agent.get_scene_llm_config()
+    response = client.post("/api/roadrunner/generate", json={"request": "тест"})
 
-    assert config["provider"] == "ollama"
-    assert config["url"] == "http://localhost:11434"
+    assert response.status_code == 200, response.text
+    # Никакой отдельной «сценовой» модели — общий LLM-агент.
+    assert calls == [((), {})]
 
 
 @requires_db
