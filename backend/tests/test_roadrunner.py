@@ -923,6 +923,26 @@ def test_llm_config_ignores_non_ascii_cloud_credentials(monkeypatch):
     assert config["model"] == "qwen3.5:9b"
 
 
+def test_generate_rejects_too_long_request(admin, monkeypatch):
+    def _fail():
+        raise AssertionError("LLM не должен вызываться для длинного запроса")
+
+    monkeypatch.setattr("backend.api.roadrunner.create_llm_agent", _fail)
+
+    response = client.post(
+        "/api/roadrunner/generate",
+        json={"request": "x" * 4001},
+    )
+
+    assert response.status_code == 400, response.text
+    assert "Слишком длинный запрос" in response.json()["detail"]
+
+
+def test_generate_prompt_asks_for_grammatical_name():
+    assert "грамматически корректное" in llm_agent.SYSTEM_PROMPT
+    assert "Утренний пробок" in llm_agent.SYSTEM_PROMPT
+
+
 def test_generate_scenario_uses_common_agent(admin, monkeypatch):
     calls = []
 

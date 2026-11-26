@@ -374,15 +374,26 @@ async def delete_scenario(
     return {"success": True}
 
 
+MAX_GENERATE_REQUEST = 4000
+
+
 @router.post("/generate")
 async def generate_scenario(
     payload: dict, auth=Depends(require_admin)
 ):
     """Сгенерировать сценарий через LLM."""
-    request_text = payload.get("request", "")
+    request_text = str(payload.get("request") or "").strip()
     if not request_text:
         raise HTTPException(
             status_code=400, detail="Отсутствует 'request'"
+        )
+    if len(request_text) > MAX_GENERATE_REQUEST:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Слишком длинный запрос: {len(request_text)} символов, "
+                f"максимум {MAX_GENERATE_REQUEST}"
+            ),
         )
 
     try:
