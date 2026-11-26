@@ -968,3 +968,52 @@ def test_delete_missing_file_scenario_returns_404(admin):
 
     assert response.status_code == 404
     assert "файловые" in response.json()["detail"].lower()
+
+
+def test_reorder_slides_endpoint(admin, monkeypatch):
+    import backend.api.admin_home as admin_home
+
+    seen = {}
+
+    def fake(ids):
+        seen["ids"] = ids
+        return [{"id": value} for value in ids]
+
+    monkeypatch.setattr(admin_home, "reorder_slides", fake)
+
+    response = client.post(
+        "/api/admin/home/slides/reorder", json={"ids": [5, 1, 2]}
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["slides"] == [
+        {"id": 5}, {"id": 1}, {"id": 2}
+    ]
+    assert seen["ids"] == [5, 1, 2]
+
+    bad = client.post("/api/admin/home/slides/reorder", json={"ids": []})
+    assert bad.status_code == 400
+
+
+def test_reorder_items_endpoint(admin, monkeypatch):
+    import backend.api.admin_home as admin_home
+
+    seen = {}
+
+    def fake(ids, slide_id=None):
+        seen["ids"] = ids
+        seen["slide_id"] = slide_id
+        return [{"id": value} for value in ids]
+
+    monkeypatch.setattr(admin_home, "reorder_items", fake)
+
+    response = client.post(
+        "/api/admin/home/items/reorder",
+        json={"slide_id": 1, "ids": [3, 2, 1]},
+    )
+
+    assert response.status_code == 200, response.text
+    assert seen == {"ids": [3, 2, 1], "slide_id": 1}
+    assert response.json()["slides"] == [
+        {"id": 3}, {"id": 2}, {"id": 1}
+    ]

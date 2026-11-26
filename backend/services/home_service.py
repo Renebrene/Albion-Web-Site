@@ -459,6 +459,40 @@ def _next_item_order(conn, slide_id: int) -> int:
     return int(row[0]) if row else 0
 
 
+def reorder_slides(ids: list[int]) -> list[dict]:
+    """Задать порядок слайдов по списку id (первый — самый верхний)."""
+    clean = [int(value) for value in (ids or [])]
+    with get_connection() as conn:
+        with conn.transaction():
+            for order, slide_id in enumerate(clean):
+                conn.execute(
+                    "UPDATE home_slides SET sort_order = %s, updated_at = NOW() "
+                    "WHERE id = %s",
+                    (order, slide_id),
+                )
+    return list_slides()
+
+
+def reorder_items(ids: list[int], slide_id: int | None = None) -> list[dict]:
+    """Задать порядок карточек внутри слайда."""
+    clean = [int(value) for value in (ids or [])]
+    with get_connection() as conn:
+        with conn.transaction():
+            for order, item_id in enumerate(clean):
+                if slide_id is None:
+                    conn.execute(
+                        "UPDATE home_slide_items SET sort_order = %s WHERE id = %s",
+                        (order, item_id),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE home_slide_items SET sort_order = %s "
+                        "WHERE id = %s AND slide_id = %s",
+                        (order, item_id, int(slide_id)),
+                    )
+    return list_slides()
+
+
 def create_slide(data: dict) -> dict:
     values = {field: str(data.get(field) or "") for field in _SLIDE_FIELDS}
     values["button_url"] = clean_cms_url(values["button_url"])

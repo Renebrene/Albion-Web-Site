@@ -60,6 +60,24 @@
           <q-btn
             flat
             dense
+            round
+            icon="arrow_upward"
+            title="Выше"
+            :disable="slideIndex === 0"
+            @click="moveSlide(slide, -1)"
+          />
+          <q-btn
+            flat
+            dense
+            round
+            icon="arrow_downward"
+            title="Ниже"
+            :disable="slideIndex === slides.length - 1"
+            @click="moveSlide(slide, 1)"
+          />
+          <q-btn
+            flat
+            dense
             no-caps
             label="Сделать верхним"
             :disable="slide.is_hero"
@@ -271,6 +289,24 @@
           <div class="slide-head">
             <span class="slide-order">карточка {{ itemIndex + 1 }}</span>
             <span class="slide-head-actions">
+              <q-btn
+                flat
+                dense
+                round
+                icon="arrow_upward"
+                title="Выше"
+                :disable="itemIndex === 0"
+                @click="moveItem(slide, item, -1)"
+              />
+              <q-btn
+                flat
+                dense
+                round
+                icon="arrow_downward"
+                title="Ниже"
+                :disable="itemIndex === slide.items.length - 1"
+                @click="moveItem(slide, item, 1)"
+              />
               <q-btn
                 color="negative"
                 flat
@@ -1157,6 +1193,53 @@ function saveSlide(slide) {
 
 function setHero(slide) {
   patchSlide(slide, { is_hero: true })
+}
+
+async function moveSlide(slide, delta) {
+  const from = slides.value.findIndex(s => s.id === slide.id)
+  const to = from + delta
+  if (from < 0 || to < 0 || to >= slides.value.length) return
+
+  const ids = slides.value.map(s => s.id)
+  const tmp = ids[from]
+  ids[from] = ids[to]
+  ids[to] = tmp
+
+  error.value = ''
+  try {
+    const data = await requestSaved('/api/admin/home/slides/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids })
+    })
+    setSlides(data.slides)
+  } catch (exc) {
+    error.value = `Не удалось изменить порядок слайдов: ${exc}`
+  }
+}
+
+async function moveItem(slide, item, delta) {
+  const items = slide.items || []
+  const from = items.findIndex(i => i.id === item.id)
+  const to = from + delta
+  if (from < 0 || to < 0 || to >= items.length) return
+
+  const ids = items.map(i => i.id)
+  const tmp = ids[from]
+  ids[from] = ids[to]
+  ids[to] = tmp
+
+  error.value = ''
+  try {
+    const data = await requestSaved('/api/admin/home/items/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slide_id: slide.id, ids })
+    })
+    setSlides(data.slides)
+  } catch (exc) {
+    error.value = `Не удалось изменить порядок карточек: ${exc}`
+  }
 }
 
 function toggleActive(slide) {

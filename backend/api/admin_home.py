@@ -23,6 +23,8 @@ from backend.services.home_service import (
     get_slide_code,
     list_feedback,
     list_slides,
+    reorder_items,
+    reorder_slides,
     update_button,
     update_item,
     update_slide,
@@ -52,6 +54,34 @@ def slides(auth=Depends(require_admin)):
     return {
         "success": True,
         "slides": list_slides(),
+    }
+
+
+@router.post("/slides/reorder")
+def slides_reorder(payload: dict, auth=Depends(require_admin)):
+    """Сохранить порядок слайдов: ids в новом порядке, первый — сверху."""
+    ids = (payload or {}).get("ids")
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(
+            status_code=400, detail="Нужен непустой список ids"
+        )
+
+    return {"success": True, "slides": reorder_slides(ids)}
+
+
+@router.post("/items/reorder")
+def items_reorder(payload: dict, auth=Depends(require_admin)):
+    """Сохранить порядок карточек внутри слайда."""
+    ids = (payload or {}).get("ids")
+    if not isinstance(ids, list) or not ids:
+        raise HTTPException(
+            status_code=400, detail="Нужен непустой список ids"
+        )
+
+    slide_id = (payload or {}).get("slide_id")
+    return {
+        "success": True,
+        "slides": reorder_items(ids, slide_id),
     }
 
 
