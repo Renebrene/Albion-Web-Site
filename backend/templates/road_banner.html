@@ -1651,8 +1651,8 @@ function updateEffects(dt) {
 
   if(lightning && VIS.lightning > 0 && VIS.weatherPreset === 'storm'){
     if(Math.random() < dt * VIS.lightning * 0.25) lightning.intensity = 3.5;
-    lightning.intensity = Math.max(0, lightning.intensity - dt * 12);
   }
+  if(lightning) lightning.intensity = Math.max(0, lightning.intensity - dt * 12);
 }
 
 /* Вспышки молний подсвечивают всю сцену. */
@@ -1900,7 +1900,12 @@ function applyScenarioEvent(event) {
       VIS.precipitation = w === 'rain' ? 0.7
         : w === 'storm' ? 0.85
         : w === 'snow' ? 0.7 : 0;
-      buildPrecip(); applyFog(); presetWeather();
+      // Снег с предыдущего сценария не должен оставаться при смене погоды,
+      // а молнии включаются только для грозы.
+      VIS.decoSnowfall = w === 'snow';
+      VIS.lightning = w === 'storm'
+        ? clamp(Number(p.lightning) || 1, 0.2, 2) : 0;
+      buildPrecip(); applyFog(); presetWeather(); syncDecor();
       if ((w === 'fog' || w === 'cloudy') && savedNight !== null) {
         scenarioNight = savedNight; themeT = savedNight; applyTheme(themeT);
       }
@@ -1909,17 +1914,18 @@ function applyScenarioEvent(event) {
     case 'start_rain':
       VIS.weatherPreset = 'rain';
       VIS.precipitation = clamp(Number(p.intensity) || 0.6, 0, 1);
+      VIS.decoSnowfall = false; VIS.lightning = 0;
       VIS.fog = 0; applyFog();
-      buildPrecip(); presetWeather();
+      buildPrecip(); presetWeather(); syncDecor();
       break;
     case 'stop_rain':
     case 'stop_snow':
-      VIS.precipitation = 0; VIS.decoSnowfall = false;
+      VIS.precipitation = 0; VIS.decoSnowfall = false; VIS.lightning = 0;
       VIS.fog = 0; applyFog();
       buildPrecip(); syncDecor(); presetWeather();
       break;
     case 'start_snow':
-      VIS.weatherPreset = 'snow'; VIS.decoSnowfall = true;
+      VIS.weatherPreset = 'snow'; VIS.decoSnowfall = true; VIS.lightning = 0;
       VIS.precipitation = clamp(Number(p.intensity) || 0.6, 0, 1);
       VIS.fog = 0; applyFog();
       buildPrecip(); syncDecor(); presetWeather();
@@ -2546,6 +2552,8 @@ window.__RR_DEBUG__ = {
     weatherPreset: VIS.weatherPreset,
     precipitation: VIS.precipitation,
     fog: VIS.fog,
+    lightning: VIS.lightning,
+    decoSnowfall: VIS.decoSnowfall,
     flow: VIS.flow,
     speed: VIS.speed,
     themeT
