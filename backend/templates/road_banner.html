@@ -1878,6 +1878,50 @@ let scenarioNight = null;
 // Сценарий может остановить/возобновить поток машин и автобусов.
 let trafficEnabled = true;
 
+/* Состояние до применённого сценария. При переходе к новой сцене всё
+   восстанавливается из него, чтобы флаги прошлой сцены (сугробы, снег,
+   праздники, туман и т.п.) не перекочевывали в следующую. */
+const BASE_VIS = { ...VIS };
+const BASE_LIVE = { ...LIVE };
+const BASE_CFG = { ...CFG };
+const BASE_THEME_T = themeT;
+const BASE_DAY_PHASE = dayPhase;
+const BASE_TRAFFIC_DENSITY = trafficDensity;
+const BASE_TRAFFIC_TIMER = trafficTimer;
+const BASE_CAR_TARGET = carTarget;
+const BASE_PED_TARGET = pedTarget;
+const BASE_COUNT_TIMER = countTimer;
+const BASE_SPAWN_T = [...spawnT];
+const BASE_BUS_SPAWN_T = busSpawnT;
+const BASE_PED_SPAWN_T = pedSpawnT;
+
+function resetSceneState() {
+  Object.assign(VIS, BASE_VIS);
+  Object.assign(LIVE, BASE_LIVE);
+  Object.assign(CFG, BASE_CFG);
+  IX.forEach(ix => { ix.forcePhase = null; });
+  scenarioNight = null;
+  trafficEnabled = true;
+  themeT = BASE_THEME_T;
+  dayPhase = BASE_DAY_PHASE;
+  trafficDensity = BASE_TRAFFIC_DENSITY;
+  trafficTimer = BASE_TRAFFIC_TIMER;
+  carTarget = BASE_CAR_TARGET;
+  pedTarget = BASE_PED_TARGET;
+  countTimer = BASE_COUNT_TIMER;
+  spawnT.splice(0, spawnT.length, ...BASE_SPAWN_T);
+  busSpawnT = BASE_BUS_SPAWN_T;
+  pedSpawnT = BASE_PED_SPAWN_T;
+  if(lightning) lightning.intensity = 0;
+  applyTheme(themeT);
+  applyFog();
+  presetWeather();
+  buildPrecip();
+  syncDecor();
+  updateHolidayHUD();
+  dirty = true;
+}
+
 function _carMaterial(color) {
   const str = String(color || '').trim();
   const hex = str.startsWith('#') ? parseInt(str.slice(1), 16) : NaN;
@@ -2093,6 +2137,8 @@ function startScenario(payload) {
   if (activeScenarioId && start < activeScenarioStart) return;
 
   clearScenarioTimers();
+  // Новая сцена начинается с чистого состояния, без «хвостов» предыдущей.
+  resetSceneState();
   activeScenarioId = id;
   activeScenarioStart = start;
 
@@ -2633,6 +2679,7 @@ window.__RR_DEBUG__ = {
   }) : null,
   // Прямой вызов обработчика сценария — для проверки поведения.
   event: (type, params = {}) => applyScenarioEvent({ do: type, params }),
+  start: (payload) => startScenario(payload),
   camera: (mode) => setMode(mode),
   vis: () => ({
     weatherPreset: VIS.weatherPreset,
@@ -2640,6 +2687,8 @@ window.__RR_DEBUG__ = {
     fog: VIS.fog,
     lightning: VIS.lightning,
     decoSnowfall: VIS.decoSnowfall,
+    holidayPreset: VIS.holidayPreset,
+    snowdrifts: VIS.decoSnowdrifts,
     flow: VIS.flow,
     speed: VIS.speed,
     themeT
