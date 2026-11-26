@@ -899,6 +899,30 @@ def test_llm_config_uses_common_model(monkeypatch):
     assert config["max_tokens"] == 4096
 
 
+def test_llm_config_ignores_non_ascii_cloud_credentials(monkeypatch):
+    stored = {
+        "llm_provider": "yandexgpt",
+        "llm_model": "qwen3.5:9b",
+        "llm_url": "админ",
+        "llm_api_key": "альбион",
+        "max_tokens": 2048,
+    }
+
+    monkeypatch.setattr(
+        llm_agent,
+        "get_connection",
+        lambda: _SettingsStoreConnection({"roadrunner": stored}),
+    )
+
+    config = llm_agent.get_llm_config()
+
+    # Кириллица в URL/ключе ломает HTTP-заголовки — уходим на Ollama.
+    assert config["provider"] == "ollama"
+    assert config["url"] == "http://localhost:11434"
+    assert config["api_key"] == ""
+    assert config["model"] == "qwen3.5:9b"
+
+
 def test_generate_scenario_uses_common_agent(admin, monkeypatch):
     calls = []
 

@@ -257,6 +257,46 @@ def _config_max_tokens(stored: dict | None = None) -> int:
     return max(256, min(limit, 100000))
 
 
+def _ascii_or(value, default: str = "") -> str:
+    """Заголовки HTTP и URL обязаны быть ASCII — кириллицу отбрасываем."""
+    text = str(value or "").strip()
+    return text if text.isascii() else default
+
+
+def _normalize_llm_config(
+    provider, model, url, api_key, temperature, max_tokens: int
+) -> dict:
+    provider = str(provider or "ollama").strip().lower()
+    if provider not in ("ollama", "yandexgpt", "openai"):
+        provider = "ollama"
+
+    model = _ascii_or(model, "qwen2.5:7b") or "qwen2.5:7b"
+    url = _ascii_or(url, "http://localhost:11434")
+    if not url.startswith(("http://", "https://")):
+        url = "http://localhost:11434"
+    api_key = _ascii_or(api_key, "")
+
+    # Облачный провайдер без ключа (или с некорректным URL) не сработает —
+    # безопаснее уйти на локальную модель, чем падать с UnicodeEncodeError.
+    if provider in ("yandexgpt", "openai") and not api_key:
+        provider = "ollama"
+        url = "http://localhost:11434"
+
+    try:
+        temp = float(temperature)
+    except (TypeError, ValueError):
+        temp = 0.35
+
+    return {
+        "provider": provider,
+        "model": model,
+        "url": url,
+        "api_key": api_key,
+        "temperature": temp,
+        "max_tokens": max_tokens,
+    }
+
+
 def get_llm_config() -> dict:
     """Загрузить конфигурацию LLM из БД или env."""
     # Сначала пробуем БД
@@ -272,31 +312,26 @@ def get_llm_config() -> dict:
             stored = as_dict(row[0])
             # Настройки из админки лежат в общем блоке 'roadrunner' с
             # ключами llm_provider/llm_model/llm_url/llm_api_key.
-            return {
-                "provider": stored.get("llm_provider", "ollama"),
-                "model": stored.get("llm_model", "qwen2.5:7b"),
-                "url": stored.get("llm_url", "http://localhost:11434"),
-                "api_key": stored.get("llm_api_key", ""),
-                "temperature": stored.get("temperature", 0.35),
-                "max_tokens": _config_max_tokens(stored),
-            }
+            return _normalize_llm_config(
+                stored.get("llm_provider", "ollama"),
+                stored.get("llm_model", "qwen2.5:7b"),
+                stored.get("llm_url", "http://localhost:11434"),
+                stored.get("llm_api_key", ""),
+                stored.get("temperature", 0.35),
+                _config_max_tokens(stored),
+            )
     except Exception:
         pass
 
     # Фоллбэк на env
-    provider = os.getenv("ROADRUNNER_LLM_PROVIDER", "ollama")
-    model = os.getenv("ROADRUNNER_LLM_MODEL", "qwen2.5:7b")
-    url = os.getenv("ROADRUNNER_LLM_URL", "http://localhost:11434")
-    api_key = os.getenv("ROADRUNNER_LLM_API_KEY", "")
-
-    return {
-        "provider": provider,
-        "model": model,
-        "url": url,
-        "api_key": api_key,
-        "temperature": 0.35,
-        "max_tokens": _config_max_tokens(),
-    }
+    return _normalize_llm_config(
+        os.getenv("ROADRUNNER_LLM_PROVIDER", "ollama"),
+        os.getenv("ROADRUNNER_LLM_MODEL", "qwen2.5:7b"),
+        os.getenv("ROADRUNNER_LLM_URL", "http://localhost:11434"),
+        os.getenv("ROADRUNNER_LLM_API_KEY", ""),
+        0.35,
+        _config_max_tokens(),
+    )
 
 
 def create_llm_agent() -> LLMAgent:
