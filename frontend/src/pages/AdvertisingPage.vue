@@ -3041,6 +3041,11 @@ function buildFilterQuery() {
    * Если токен не помещается в лимит, откатываемся к читаемой схеме.
    */
   if (urlStateMode.value === 'compact') {
+    // Компактная ссылка — только ?s=, без дублирующих читаемых параметров.
+    for (const key of MANAGED_FILTER_KEYS) {
+      delete query[key]
+    }
+
     try {
       query.s = encodeUrlState(
         {
