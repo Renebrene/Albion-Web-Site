@@ -480,6 +480,34 @@ function radialTex(inner, outer){
 }
 const shadowTex = radialTex('rgba(10,12,20,0.42)','rgba(10,12,20,0)');
 const glowTex   = radialTex('rgba(255,255,255,1)','rgba(255,255,255,0)');
+/* Капля дождя — вытянутый штрих, а не круглая точка. */
+function rainStreakTex(){
+  const c = document.createElement('canvas'); c.width = 32; c.height = 64;
+  const g = c.getContext('2d');
+  const gr = g.createLinearGradient(0,0,0,64);
+  gr.addColorStop(0,'rgba(190,225,255,0)');
+  gr.addColorStop(0.3,'rgba(200,232,255,0.85)');
+  gr.addColorStop(1,'rgba(240,250,255,1)');
+  g.fillStyle = gr;
+  g.beginPath(); g.moveTo(13,0); g.lineTo(19,0); g.lineTo(22,64); g.lineTo(10,64); g.closePath(); g.fill();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+/* Снежинка — шестилучевая звёздочка. */
+function snowflakeTex(){
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'); g.translate(32,32);
+  g.strokeStyle = 'rgba(255,255,255,1)'; g.lineWidth = 4; g.lineCap = 'round';
+  for(let i=0;i<6;i++){
+    g.rotate(Math.PI/3);
+    g.beginPath(); g.moveTo(0,0); g.lineTo(0,-27);
+    g.moveTo(0,-16); g.lineTo(-8,-22); g.moveTo(0,-16); g.lineTo(8,-22);
+    g.stroke();
+  }
+  g.fillStyle = 'rgba(255,255,255,1)'; g.beginPath(); g.arc(0,0,4,0,Math.PI*2); g.fill();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const rainStreak = rainStreakTex();
+const snowflake = snowflakeTex();
 function windowTex(){
   const c = document.createElement('canvas'); c.width = 64; c.height = 128;
   const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0,0,64,128);
@@ -952,7 +980,6 @@ function buildCar(){
   const tGeos = []; [.35,-.35].forEach(z => { const t = new THREE.BoxGeometry(.07,.12,.2); t.translate(-1.16,.5,z); tGeos.push(t); });
   bodyG.add(new THREE.Mesh(mergeGeometries(tGeos), M.tail));
   const glow = glowSprite(0xffe9b0, 1.8, 0); glow.position.set(1.4,.5,0); bodyG.add(glow);
-  g.add(blobShadow(2.9,1.7));
   g.visible = false; scene.add(g);
   return { g, bodyG, body, glow, active:false, x:0, z:LANE_Z, dir:1, speed:0, max:6, len:CAR_LEN, seed:Math.random()*10, prevSpeed:0 };
 }
@@ -997,7 +1024,6 @@ function buildBus(livery){
   const doorL = new THREE.Mesh(new THREE.BoxGeometry(.52,1.2,.06), M.glass); doorL.position.set(1.28,.95,.85); bodyG.add(doorL);
   const doorR = new THREE.Mesh(new THREE.BoxGeometry(.52,1.2,.06), M.glass); doorR.position.set(1.82,.95,.85); bodyG.add(doorR);
   const glow = glowSprite(0xffe9b0, 2.2, 0); glow.position.set(3.15,.55,0); bodyG.add(glow);
-  g.add(blobShadow(6.4,2.1));
   g.visible = false; scene.add(g);
   return { g, bodyG, doorL, doorR, glow, active:false, x:0, z:-LANE_Z, dir:-1, side:-1,
            stopX:BUS_STOP_X, bayZ:BAY_Z, laneZ:-LANE_Z, routeName:'ЦУМ',
@@ -1044,7 +1070,6 @@ function buildPed(){
   const g = new THREE.Group();
   const body = new THREE.Mesh(new THREE.BoxGeometry(.34,.6,.24), pedMats[0]); body.position.y = .5; g.add(body);
   const head = new THREE.Mesh(new THREE.SphereGeometry(.15,10,8), skinMat); head.position.y = .95; g.add(head);
-  g.add(blobShadow(.7,.5));
   g.visible = false; scene.add(g);
   return { g, body, active:false, x:0, z:0, dz:1, speed:2.2, seed:Math.random()*10,
            state:'wait', ix:null };
@@ -1518,7 +1543,7 @@ new ResizeObserver(resize).observe(stage);
 const fxGroup = new THREE.Group();
 scene.add(fxGroup);
 
-/* Осадки: одна система частиц на всё, типDepends от preset. */
+/* Осадки: одна система частиц на всё, вид зависит от погоды. */
 let precip = null;
 function buildPrecip() {
   if(precip){
@@ -1532,7 +1557,10 @@ function buildPrecip() {
   const amount = clamp(Math.max(VIS.precipitation, VIS.decoSnowfall ? 0.5 : 0), 0, 1);
   if(amount <= 0) return;
 
-  const count = Math.floor(160 + 420 * amount * VIS.decorDensity);
+  // Дождя больше и он мельче; снег — редкие крупные снежинки.
+  const count = Math.floor(
+    (snowy ? 180 : 300) + (snowy ? 420 : 800) * amount * VIS.decorDensity
+  );
   const pos = new Float32Array(count * 3);
   for(let i=0;i<count;i++){
     pos[i*3] = rand(-70,70);
@@ -1542,11 +1570,14 @@ function buildPrecip() {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
   const mat = new THREE.PointsMaterial({
-    color: snowy ? 0xffffff : 0xa9d8f5,
-    size: snowy ? 0.55 : 0.22,
+    map: snowy ? snowflake : rainStreak,
+    color: snowy ? 0xffffff : 0xdaf1ff,
+    size: snowy ? 1.8 : 1.05,
     transparent: true,
-    opacity: snowy ? 0.9 : 0.55,
+    alphaTest: 0.02,
+    opacity: snowy ? 0.95 : 0.75,
     depthWrite: false,
+    sizeAttenuation: true,
     fog: false
   });
   precip = new THREE.Points(geo, mat);
@@ -1568,11 +1599,12 @@ function updateEffects(dt) {
   if(precip){
     const arr = precip.geometry.attributes.position.array;
     const snowy = precip.userData.snowy;
-    const fall = (snowy ? 3.5 : 16) * dt;
-    const drift = VIS.wind * (snowy ? 1.4 : 0.4) * dt;
+    const fall = (snowy ? 3.2 : 24) * dt;
+    const drift = VIS.wind * (snowy ? 1.8 : 0.9) * dt;
     for(let i=0;i<arr.length;i+=3){
-      arr[i+1] -= fall * (0.7 + (i % 7) * 0.07);
-      arr[i] += drift;
+      arr[i+1] -= fall * (0.7 + (i % 9) * 0.07);
+      // Снежинки покачиваются, дождь идёт под лёгким углом ветра.
+      arr[i] += drift + (snowy ? Math.sin(simTime * 0.9 + i) * 0.012 : 0);
       if(arr[i+1] < 0.5){ arr[i+1] = 45; arr[i] = rand(-70,70); }
       if(arr[i] > 75) arr[i] = -75;
     }
@@ -2418,6 +2450,12 @@ window.__RR_DEBUG__ = {
     cars: cars.length, buses: buses.length,
     peds: peds.length, waiting: stopPeds.length
   }),
+  fx: () => precip ? ({
+    snowy: precip.userData.snowy,
+    count: precip.geometry.attributes.position.count,
+    size: precip.material.size,
+    hasMap: Boolean(precip.material.map)
+  }) : null,
   // Прямой вызов обработчика сценария — для проверки поведения.
   event: (type, params = {}) => applyScenarioEvent({ do: type, params }),
   vis: () => ({
