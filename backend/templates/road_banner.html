@@ -195,6 +195,8 @@
     { "value": "none", "label": "Без праздника" },
     { "value": "new-year", "label": "Новый год" },
     { "value": "women-day", "label": "8 Марта" },
+    { "value": "defenders-day", "label": "23 февраля" },
+    { "value": "valentines-day", "label": "14 февраля" },
     { "value": "victory-day", "label": "9 Мая" },
     { "value": "russia-day", "label": "День России" },
     { "value": "custom", "label": "Свой набор" }
@@ -209,6 +211,7 @@
   "decoFlags": { "value": false, "label": "Флаги", "group": "holidays", "type": "boolean" },
   "decoGarlands": { "value": false, "label": "Гирлянды", "group": "holidays", "type": "boolean" },
   "decoStars": { "value": false, "label": "Звёзды", "group": "holidays", "type": "boolean" },
+  "decoHearts": { "value": false, "label": "Парочка с сердечком", "group": "holidays", "type": "boolean" },
 
   "mode": { "value": "default", "label": "Режим", "group": "sync", "type": "select", "options": [
     { "value": "default", "label": "По умолчанию" },
@@ -340,12 +343,13 @@ const VIS = {
   decoFlowers: flag('decoFlowers', false),
   decoFlags: flag('decoFlags', false),
   decoGarlands: flag('decoGarlands', false),
-  decoStars: flag('decoStars', false)
+  decoStars: flag('decoStars', false),
+  decoHearts: flag('decoHearts', false)
 };
 
 const decoKeys = [
   'decoTrees', 'decoSnowfall', 'decoSnowman',
-  'decoFlowers', 'decoFlags', 'decoGarlands', 'decoStars'
+  'decoFlowers', 'decoFlags', 'decoGarlands', 'decoStars', 'decoHearts'
 ];
 
 /* Режим «По умолчанию»: баннер синхронизируется с реальной погодой, временем,
@@ -508,6 +512,21 @@ function snowflakeTex(){
 }
 const rainStreak = rainStreakTex();
 const snowflake = snowflakeTex();
+/* Сердечко для 14 февраля. */
+function heartTex(){
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = '#ff3b6b';
+  g.beginPath();
+  g.moveTo(32,58);
+  g.bezierCurveTo(8,38, 3,20, 18,12);
+  g.bezierCurveTo(27,7, 32,14, 32,21);
+  g.bezierCurveTo(32,14, 37,7, 46,12);
+  g.bezierCurveTo(61,20, 56,38, 32,58);
+  g.fill();
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const heartTexture = heartTex();
 function windowTex(){
   const c = document.createElement('canvas'); c.width = 64; c.height = 128;
   const g = c.getContext('2d'); g.fillStyle = '#000'; g.fillRect(0,0,64,128);
@@ -638,28 +657,6 @@ function glowSprite(color, scale, opacity){
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(240,110), M.grass);
 ground.rotation.x = -Math.PI/2; ground.position.y = -.06; scene.add(ground);
 
-/* Снег на земле: пятна выше газона, но ниже дороги и тротуаров. */
-const snowCanvas = document.createElement('canvas');
-snowCanvas.width = snowCanvas.height = 256;
-{
-  const g = snowCanvas.getContext('2d');
-  for(let i=0;i<90;i++){
-    const x = Math.random()*256, y = Math.random()*256, r = 5 + Math.random()*14;
-    const grad = g.createRadialGradient(x,y,0,x,y,r);
-    grad.addColorStop(0,'rgba(244,249,255,0.95)');
-    grad.addColorStop(1,'rgba(244,249,255,0)');
-    g.fillStyle = grad; g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill();
-  }
-}
-const snowTex = new THREE.CanvasTexture(snowCanvas);
-snowTex.wrapS = snowTex.wrapT = THREE.RepeatWrapping;
-snowTex.repeat.set(18, 9);
-snowTex.colorSpace = THREE.SRGBColorSpace;
-const snowCover = new THREE.Mesh(
-  new THREE.PlaneGeometry(240,110),
-  new THREE.MeshBasicMaterial({ map:snowTex, transparent:true, opacity:0, depthWrite:false })
-);
-snowCover.rotation.x = -Math.PI/2; snowCover.position.y = -.055; scene.add(snowCover);
 
 const road = new THREE.Mesh(new THREE.BoxGeometry(ROAD_HALF*2, .1, 7), M.asphalt);
 road.position.y = -.05; scene.add(road);
@@ -1522,6 +1519,8 @@ function setMode(mode){
   CFG.mode = mode;
   camFrom = { pos:camera.position.clone(), tgt:curTgt.clone(), zoom:camera.zoom };
   camTo = CAM[mode]; camT = 0;
+  // Осадки привязаны к точке views — в любой проекции дождь виден сразу.
+  if (precip) buildPrecip();
   resize();
   dirty = true;
 }
@@ -1543,6 +1542,31 @@ new ResizeObserver(resize).observe(stage);
 const fxGroup = new THREE.Group();
 scene.add(fxGroup);
 
+/* Танки проезжают в 23 февраля и 9 Мая. */
+const tanks = [];
+function buildTank(dir, z){
+  const g = new THREE.Group();
+  const green = new THREE.MeshStandardMaterial({ color:0x4a5f39, roughness:.85, flatShading:true });
+  const dark = new THREE.MeshStandardMaterial({ color:0x2f3d26, roughness:.9, flatShading:true });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4.4,.9,1.9), green); body.position.y = .85; g.add(body);
+  const turret = new THREE.Mesh(new THREE.CylinderGeometry(.85,.95,.6,8), green); turret.position.set(-.2,1.55,0); g.add(turret);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.11,.13,3.1,8), dark);
+  barrel.rotation.z = Math.PI/2; barrel.position.set(1.9,1.55,0); g.add(barrel);
+  [-1,1].forEach(sz => {
+    const track = new THREE.Mesh(new THREE.BoxGeometry(4.5,.5,.42), dark);
+    track.position.set(0,.42,sz*.88); g.add(track);
+  });
+  g.rotation.y = dir > 0 ? 0 : Math.PI;
+  scene.add(g);
+  const tank = { g, dir, z, x: dir > 0 ? -ROAD_HALF-8 : ROAD_HALF+8, speed:6.5 };
+  g.position.set(tank.x,0,z); tanks.push(tank);
+}
+buildTank(1,-LANE_Z);
+buildTank(-1,LANE_Z);
+function tankHoliday(){
+  return VIS.holidayPreset === 'defenders-day' || VIS.holidayPreset === 'victory-day';
+}
+
 /* Осадки: одна система частиц на всё, вид зависит от погоды. */
 let precip = null;
 function buildPrecip() {
@@ -1563,9 +1587,11 @@ function buildPrecip() {
   );
   const pos = new Float32Array(count * 3);
   for(let i=0;i<count;i++){
-    pos[i*3] = rand(-70,70);
+    // Частицы вокруг текущей точки камеры, а не вокруг начала координат —
+    // дождь одинаково виден в изометрии, сверху, спереди и у остановки.
+    pos[i*3] = curTgt.x + rand(-45,45);
     pos[i*3+1] = rand(2,45);
-    pos[i*3+2] = rand(-32,32);
+    pos[i*3+2] = curTgt.z + rand(-32,32);
   }
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(pos,3));
@@ -1585,17 +1611,7 @@ function buildPrecip() {
   fxGroup.add(precip);
 }
 
-function snowIntensity() {
-  const byPreset = VIS.weatherPreset === 'snow' || VIS.decoSnowfall;
-  const byWeather = weatherData && weatherData.weatherCode >= 71 && weatherData.weatherCode <= 77;
-  if (!byPreset && !byWeather) return 0;
-  return clamp(Math.max(VIS.precipitation, 0.35) * VIS.decorDensity, 0, 1);
-}
-
 function updateEffects(dt) {
-  const snow = snowIntensity();
-  snowCover.material.opacity = lerp(snowCover.material.opacity, snow * 0.9, Math.min(1, dt * 2));
-
   if(precip){
     const arr = precip.geometry.attributes.position.array;
     const snowy = precip.userData.snowy;
@@ -1605,10 +1621,32 @@ function updateEffects(dt) {
       arr[i+1] -= fall * (0.7 + (i % 9) * 0.07);
       // Снежинки покачиваются, дождь идёт под лёгким углом ветра.
       arr[i] += drift + (snowy ? Math.sin(simTime * 0.9 + i) * 0.012 : 0);
-      if(arr[i+1] < 0.5){ arr[i+1] = 45; arr[i] = rand(-70,70); }
-      if(arr[i] > 75) arr[i] = -75;
+      if(arr[i+1] < 0.5){
+        arr[i+1] = 45;
+        arr[i] = curTgt.x + rand(-45,45);
+        arr[i+2] = curTgt.z + rand(-32,32);
+      }
+      if(arr[i] > curTgt.x + 75) arr[i] -= 150;
     }
     precip.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // Танки едут только в «23 февраля» и «9 Мая».
+  const showTanks = tankHoliday();
+  tanks.forEach(t => {
+    t.g.visible = showTanks;
+    if(!showTanks) return;
+    t.x += t.dir * t.speed * dt;
+    if(t.dir > 0 && t.x > ROAD_HALF+8) t.x = -ROAD_HALF-8;
+    if(t.dir < 0 && t.x < -ROAD_HALF-8) t.x = ROAD_HALF+8;
+    t.g.position.x = t.x;
+  });
+
+  // Двое гуляют по тротуару, сердечко над ними покачивается.
+  if(loversGroup && loversGroup.visible){
+    loversGroup.position.x += 1.0 * dt;
+    if(loversGroup.position.x > 55) loversGroup.position.x = -55;
+    if(loverHeart) loverHeart.position.y = 2.05 + Math.sin(simTime * 2.4) * .15;
   }
 
   if(lightning && VIS.lightning > 0 && VIS.weatherPreset === 'storm'){
@@ -1625,6 +1663,7 @@ scene.add(lightning);
 /* Праздничный декор: ёлки, снеговик, флаги, гирлянды, звёзды, цветы. */
 const decorGroup = new THREE.Group();
 fxGroup.add(decorGroup);
+let loversGroup = null, loverHeart = null;
 
 function buildDecor() {
   const glowMat = color => new THREE.MeshStandardMaterial({
@@ -1665,10 +1704,18 @@ function buildDecor() {
     ? [0xff3b4d,0xffc233,0xff3b4d]
     : [0xffffff,0x2f5bd6,0xff3b4d];
   for(let i=0;i<6;i++){
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6,1.0), new THREE.MeshStandardMaterial({color:flagColors[i%3], side:THREE.DoubleSide}));
-    flag.position.set(-30+i*12, 5.5, -16);
-    flag.userData.key = 'decoFlags';
-    decorGroup.add(flag);
+    // Флаг висит на столбе, а не в воздухе.
+    const group = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,5.6,8), M.pole);
+    pole.position.y = 2.8; group.add(pole);
+    const flag = new THREE.Mesh(
+      new THREE.PlaneGeometry(1.6,1.0),
+      new THREE.MeshStandardMaterial({color:flagColors[i%3], side:THREE.DoubleSide})
+    );
+    flag.position.set(.85,5.05,0); group.add(flag);
+    group.position.set(-30+i*12, 0, -16);
+    group.userData.key = 'decoFlags';
+    decorGroup.add(group);
   }
 
   // Гирлянда над остановкой.
@@ -1690,6 +1737,27 @@ function buildDecor() {
   starsDeco.userData.key = 'decoStars';
   decorGroup.add(starsDeco);
 
+  // 14 февраля: двое разного цвета, над ними сердечко.
+  loversGroup = new THREE.Group();
+  [0xff5ea8, 0x4da3ff].forEach((color, i) => {
+    const px = i ? .55 : -.55;
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(.38,.7,.26),
+      new THREE.MeshStandardMaterial({ color, roughness:.9, flatShading:true })
+    );
+    body.position.set(px,.6,0); loversGroup.add(body);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.17,10,8), skinMat);
+    head.position.set(px,1.12,0); loversGroup.add(head);
+  });
+  loverHeart = new THREE.Sprite(new THREE.SpriteMaterial({
+    map:heartTexture, transparent:true, depthWrite:false, fog:false
+  }));
+  loverHeart.position.set(0,2.05,0); loverHeart.scale.setScalar(.95);
+  loversGroup.add(loverHeart);
+  loversGroup.position.set(-18,0,8.5);
+  loversGroup.userData.key = 'decoHearts';
+  decorGroup.add(loversGroup);
+
   // Цветы вдоль тротуара.
   for(let x=-48;x<=48;x+=6){
     const flower = new THREE.Mesh(new THREE.SphereGeometry(.38,8,6), glowMat([0xff7ab6,0xffe066,0xffffff][Math.abs(Math.round(x/6))%3]));
@@ -1699,14 +1767,22 @@ function buildDecor() {
   }
 
   decorGroup.scale.setScalar(VIS.decorSize);
-  decorGroup.children.forEach(o => { o.visible = Boolean(VIS[o.userData.key]); });
+  decorGroup.children.forEach(o => {
+    o.visible = o.userData.key === 'decoHearts'
+      ? (Boolean(VIS.decoHearts) || VIS.holidayPreset === 'valentines-day')
+      : Boolean(VIS[o.userData.key]);
+  });
 }
 buildDecor();
 buildPrecip();
 
 function syncDecor() {
   decorGroup.scale.setScalar(VIS.decorSize);
-  decorGroup.children.forEach(o => { o.visible = Boolean(VIS[o.userData.key]); });
+  decorGroup.children.forEach(o => {
+    o.visible = o.userData.key === 'decoHearts'
+      ? (Boolean(VIS.decoHearts) || VIS.holidayPreset === 'valentines-day')
+      : Boolean(VIS[o.userData.key]);
+  });
   dirty = true;
 }
 
@@ -1854,7 +1930,11 @@ function applyScenarioEvent(event) {
         'new-year': newYear, 'christmas': newYear,
         'women-day': { decoFlowers:true, decoGarlands:true },
         'victory-day': { decoFlags:true },
+        'defenders-day': { decoFlags:true },
         'russia-day': { decoFlags:true, decoGarlands:true },
+        'valentines-day': { decoHearts:true },
+        'valentine': { decoHearts:true },
+        'heart': { decoHearts:true },
         'trees': { decoTrees:true },
         'snowman': { decoSnowman:true },
         'snow': { decoSnowfall:true },
@@ -2307,6 +2387,7 @@ function realNightFactor() {
 /* Повторяющиеся праздничные даты (месяц/день) из конфигурации Roadrunner. */
 const HOLIDAYS = [
   { m: 1, d: 1, emoji: '🎄', name: 'Новый год' },
+  { m: 2, d: 14, emoji: '💘', name: 'День святого Валентина' },
   { m: 2, d: 23, emoji: '⭐', name: 'День защитника Отечества' },
   { m: 3, d: 8, emoji: '🌷', name: '8 Марта' },
   { m: 5, d: 9, emoji: '🎖️', name: 'День Победы' },
@@ -2315,6 +2396,8 @@ const HOLIDAYS = [
 
 const HOLIDAY_PRESETS = {
   'new-year': { emoji:'🎄', name:'Новый год' },
+  'valentines-day': { emoji:'💘', name:'14 февраля' },
+  'defenders-day': { emoji:'⭐', name:'23 февраля' },
   'women-day': { emoji:'🌷', name:'8 Марта' },
   'victory-day': { emoji:'🎖️', name:'9 Мая' },
   'russia-day': { emoji:'🇷🇺', name:'День России' },
@@ -2458,6 +2541,7 @@ window.__RR_DEBUG__ = {
   }) : null,
   // Прямой вызов обработчика сценария — для проверки поведения.
   event: (type, params = {}) => applyScenarioEvent({ do: type, params }),
+  camera: (mode) => setMode(mode),
   vis: () => ({
     weatherPreset: VIS.weatherPreset,
     precipitation: VIS.precipitation,
