@@ -879,10 +879,14 @@ IX.forEach((ix,ixIdx) => {
     lights.push({ ixIdx, bulbs, glow });
   });
 });
-/* Высокие светофоры для автомобилей — над проезжей частью.
-   Стоящие у обочин светофоры остаются пешеходными. */
+/* Автомобильные светофоры — у обочин, не над центром дороги.
+   Стоящие у обочин светофоры для пешеходов остаются отдельными. */
 const carLights = [];
 function carLightHead(x, z, faceSign, ixIdx) {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,4.2,8), M.pole);
+  pole.position.y = 2.1; g.add(pole);
+
   const head = new THREE.Group();
   const housing = new THREE.Mesh(new THREE.BoxGeometry(.42,1.55,.55), M.housing);
   head.add(housing);
@@ -895,18 +899,15 @@ function carLightHead(x, z, faceSign, ixIdx) {
   });
   const glow = glowSprite(0x2fe07d, 1.7, .5);
   glow.position.set(faceSign*.34, -.5, 0); head.add(glow);
-  head.position.set(x, 6.4, z); scene.add(head);
+  head.position.y = 3.9; g.add(head);
+
+  g.position.set(x, 0, z); scene.add(g);
   carLights.push({ ixIdx, bulbs, glow });
 }
 IX.forEach((ix, ixIdx) => {
-  // Мачта и консоль над дорогой.
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.09,.12,7,8), M.pole);
-  pole.position.set(ix.x, 3.5, -5.2); scene.add(pole);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(.16,.16,9.4), M.pole);
-  arm.position.set(ix.x, 6.85, -.5); scene.add(arm);
-  // Две головки: для каждой полосы своего направления.
-  carLightHead(ix.x, 1.3, -1, ixIdx);
-  carLightHead(ix.x, -1.3, 1, ixIdx);
+  // По одному светофору с каждой стороны — на обочине, справа по ходу.
+  carLightHead(ix.x, -4.35, -1, ixIdx);
+  carLightHead(ix.x, 4.35, 1, ixIdx);
 });
 
 const BULB_Y = { r:3.92, y:3.5, g:3.08 }, BULB_C = { r:0xff3b4d, y:0xffc233, g:0x2fe07d };

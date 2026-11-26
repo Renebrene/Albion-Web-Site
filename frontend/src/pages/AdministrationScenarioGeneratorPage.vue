@@ -29,9 +29,84 @@
       v-if="scenarioDisabled"
       class="scenario-mode-hint"
     >
-      Сценарии доступны в режиме «Произвольный». Переключите режим на вкладке
-      «Камера и сцена», чтобы создавать и применять сценарии.
+      Сценарии доступны в режиме «Произвольный». Переключите режим в
+      «Настройках АИ и источников», чтобы создавать и применять сценарии.
     </div>
+
+    <!-- Готовые сценарии — те же, что в умном чате. -->
+    <section
+      class="panel ready-panel"
+      :class="{ 'rr-disabled': scenarioDisabled }"
+    >
+      <div class="panel-head">
+        <h2>Готовые сценарии</h2>
+        <div class="panel-actions">
+          <span v-if="appliedName" class="ready-applied">
+            Применён: {{ appliedName }}
+          </span>
+          <q-btn
+            flat
+            dense
+            no-caps
+            icon="refresh"
+            label="Обновить"
+            :loading="readyLoading"
+            @click="loadReadyScenarios"
+          />
+        </div>
+      </div>
+
+      <p class="hint ready-hint">
+        Как в умном чате: нажмите «Применить» — баннер переключится сразу,
+        а после окончания вернётся к настройкам из базы.
+      </p>
+
+      <p v-if="readyError" class="result-error">{{ readyError }}</p>
+
+      <div v-if="readyLoading && !readyScenarios.length" class="ready-empty">
+        Загружаем готовые сценарии…
+      </div>
+      <div v-else-if="!readyScenarios.length" class="ready-empty">
+        Готовых сценариев пока нет.
+      </div>
+      <div v-else class="ready-grid">
+        <article
+          v-for="item in readyScenarios"
+          :key="readyKey(item)"
+          class="ready-card"
+          :class="{ 'is-applied': appliedName === item.name }"
+        >
+          <div class="ready-card-head">
+            <span class="ready-name">{{ item.name }}</span>
+            <span class="ready-badge" :class="`ready-badge--${item.source}`">
+              {{ readySourceLabel(item.source) }}
+            </span>
+          </div>
+          <p class="ready-desc">{{ item.description || item.prompt }}</p>
+          <div class="ready-meta">
+            <span>{{ item.duration }} с</span>
+            <span>{{ (item.events || []).length }} событий</span>
+          </div>
+          <div class="ready-actions">
+            <q-btn
+              color="primary"
+              dense
+              no-caps
+              label="Применить"
+              :loading="applyingName === item.name"
+              @click="applyReady(item)"
+            />
+            <q-btn
+              flat
+              dense
+              no-caps
+              label="Открыть"
+              @click="openReady(item)"
+            />
+          </div>
+        </article>
+      </div>
+    </section>
 
     <div
       class="generator-grid"
@@ -140,7 +215,7 @@ defineProps({
   embedded: { type: Boolean, default: false }
 })
 
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { adminRequest as request } from '../services/adminApi'
 import { roadrunnerMode } from '../composables/useRoadrunnerMode'
@@ -155,6 +230,82 @@ const generatedError = ref('')
 const generating = ref(false)
 const error = ref('')
 const fileInput = ref(null)
+
+const readyScenarios = ref([])
+const readyLoading = ref(false)
+const readyError = ref('')
+const applyingName = ref('')
+const appliedName = ref('')
+
+const SOURCE_LABELS = {
+  chat: 'Чат',
+  db: 'Сохранён',
+  file: 'Готовый'
+}
+
+function readySourceLabel(source) {
+  return SOURCE_LABELS[source] || 'Готовый'
+}
+
+function readyKey(item) {
+  return `${item.source}:${item.db_id ?? item.id ?? item.name}`
+}
+
+async function loadReadyScenarios() {
+  readyLoading.value = true
+  readyError.value = ''
+
+  try {
+    const data = await request('/api/roadrunner/scenarios/ready')
+    readyScenarios.value = data.scenarios || []
+  } catch (exc) {
+    readyError.value = `Не удалось загрузить готовые сценарии: ${exc}`
+  } finally {
+    readyLoading.value = false
+  }
+}
+
+async function applyReady(item) {
+  if (scenarioDisabled.value) return
+
+  applyingName.value = item.name
+  readyError.value = ''
+
+  try {
+    await request('/api/roadrunner/scenarios/apply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scenario: {
+          id: item.id,
+          name: item.name,
+          duration: item.duration,
+          events: item.events
+        }
+      })
+    })
+    appliedName.value = item.name
+  } catch (exc) {
+    readyError.value = `Не удалось применить «${item.name}»: ${exc}`
+  } finally {
+    applyingName.value = ''
+  }
+}
+
+function openReady(item) {
+  generatedScenario.value = {
+    id: item.id,
+    name: item.name,
+    description: item.description,
+    duration: item.duration,
+    tags: item.tags || [],
+    events: item.events || []
+  }
+  prompt.value = ''
+  generatedError.value = ''
+}
+
+onMounted(loadReadyScenarios)
 
 async function generate() {
   if (!prompt.value.trim()) return
@@ -277,6 +428,115 @@ h1 {
   border-radius: 8px;
   background: #fee2e2;
   color: #b91c1c;
+}
+
+.ready-panel {
+  margin-bottom: 16px;
+}
+
+.ready-hint {
+  margin: 0 0 12px;
+}
+
+.ready-applied {
+  color: #15803d;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ready-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.ready-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.ready-card:hover {
+  border-color: #bfdbfe;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06);
+}
+
+.ready-card.is-applied {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.ready-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ready-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.ready-badge {
+  flex: 0 0 auto;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ready-badge--chat {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.ready-badge--db {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.ready-badge--file {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.ready-desc {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ready-meta {
+  display: flex;
+  gap: 12px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.ready-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+.ready-empty {
+  padding: 20px;
+  border: 1px dashed #e2e8f0;
+  border-radius: 10px;
+  color: #94a3b8;
+  text-align: center;
+  font-size: 13px;
 }
 
 .generator-grid {

@@ -172,6 +172,68 @@ async def list_scenarios(auth=Depends(require_admin)):
     return {"success": True, "scenarios": scenarios}
 
 
+@router.get("/scenarios/ready")
+async def list_ready_scenarios(auth=Depends(require_admin)):
+    """Готовые сценарии: как в умном чате, плюс пресеты проекта и БД.
+
+    Возвращает единый список для вкладки «Сценарии»: быстрые сценарии из
+    чата (``EXAMPLE_SCENARIOS``), файловые пресеты и сохранённые в БД.
+    Дубликаты по названию схлопываются — приоритет у файловых/сохранённых,
+    потому что у них есть подробное описание.
+    """
+    from backend.chat.roadrunner_trigger import EXAMPLE_SCENARIOS
+    from backend.roadrunner.scenario.engine import load_all_scenarios
+
+    ready: list[dict] = []
+    seen_names: set[str] = set()
+
+    def add(item: dict, source: str, **extra) -> None:
+        name = str(item.get("name") or "").strip()
+        key = name.lower()
+        if not name or key in seen_names:
+            return
+        seen_names.add(key)
+        ready.append({**item, "source": source, **extra})
+
+    # Сохранённые в БД — первыми: это то, что админ уже применял.
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, scenario_data
+                FROM roadrunner_scenarios
+                ORDER BY created_at DESC
+                """
+            ).fetchall()
+
+        from backend.roadrunner.services.db_json import as_dict
+
+        for row in rows:
+            add(as_dict(row[1]), "db", db_id=row[0])
+    except Exception as exc:
+        logger.warning("Не удалось загрузить сценарии из БД: %s", exc)
+
+    # Файловые пресеты проекта.
+    for scenario in load_all_scenarios():
+        add(scenario, "file")
+
+    # Быстрые сценарии умного чата — те же, что в подсказках.
+    for item in EXAMPLE_SCENARIOS:
+        add(
+            {
+                "id": "chat-" + item["name"].lower().replace(" ", "-"),
+                "name": item["name"],
+                "description": item["prompt"],
+                "prompt": item["prompt"],
+                "duration": item["duration"],
+                "events": item["events"],
+            },
+            "chat",
+        )
+
+    return {"success": True, "scenarios": ready}
+
+
 @router.get("/scenarios/active", include_in_schema=False)
 async def get_active_scenario():
     """Сценарий, который сейчас применяет баннер (публичный, для iframe)."""

@@ -48,6 +48,7 @@ backend/templates/road_banner.html  # Исходный HTML 3D-баннера
 | Метод | Путь | Описание |
 |---|---|---|
 | GET | `/api/roadrunner/scenarios` | Список всех сценариев |
+| GET | `/api/roadrunner/scenarios/ready` | Готовые сценарии: чат + файловые пресеты + сохранённые в БД |
 | GET | `/api/roadrunner/scenarios/{id_or_slug}` | Сценарий: числовой id — из БД, строка — файловый slug |
 | POST | `/api/roadrunner/scenarios` | Создать сценарий (в ответе `db_id`) |
 | DELETE | `/api/roadrunner/scenarios/{id_or_slug}` | Удалить сценарий **только из БД** (файловые — через репозиторий) |

@@ -64,6 +64,7 @@ backend/roadrunner/
 <table>
   <tr><th>Метод</th><th>Путь</th><th>Описание</th></tr>
   <tr><td>GET</td><td><code>/api/roadrunner/scenarios</code></td><td>Список всех сценариев (файлы + БД)</td></tr>
+  <tr><td>GET</td><td><code>/api/roadrunner/scenarios/ready</code></td><td>Готовые сценарии: чат, файловые пресеты и сохранённые в БД</td></tr>
   <tr><td>GET</td><td><code>/api/roadrunner/scenarios/{id}</code></td><td>Сценарий по id (файл или БД)</td></tr>
   <tr><td>POST</td><td><code>/api/roadrunner/scenarios</code></td><td>Создать сценарий (валидация по schema)</td></tr>
   <tr><td>DELETE</td><td><code>/api/roadrunner/scenarios/{id}</code></td><td>Удалить сценарий из БД</td></tr>

@@ -26,19 +26,22 @@ SYSTEM_PROMPT = """\
 
 Твоя задача — генерировать JSON-сценарии на основе описания пользователя.
 
-Формат сценария:
+Формат сценария (строго):
 {
-  "id": "unique-id",
-  "name": "Название сценария",
-  "description": "Описание",
-  "duration": 120,
+  "id": "rain-rush-hour",
+  "name": "Дождь и час пик",
+  "description": "Краткое описание",
+  "duration": 60,
   "version": "1.0",
-  "created_at": "ISO-8601",
-  "author": "user",
-  "tags": ["tags"],
+  "created_at": "2026-01-01T18:00:00",
+  "author": "ai",
+  "tags": ["rain"],
   "events": [
-    {"t": 0, "do": "event_name", "params": {...}},
-    ...
+    {"t": 0, "do": "start_rain", "params": {"intensity": 0.6}},
+    {"t": 0, "do": "change_time_of_day", "params": {"phase": "evening"}},
+    {"t": 5, "do": "change_traffic_density", "params": {"density": 1.8}},
+    {"t": 30, "do": "stop_rain", "params": {}},
+    {"t": 60, "do": "end", "params": {}}
   ]
 }
 
@@ -62,7 +65,13 @@ SYSTEM_PROMPT = """\
 2. Длительность — 30-300 секунд.
 3. События должны быть упорядочены по времени.
 4. Используй осмысленные id для машин/автобусов/пешеходов.
-5. Возвращай ТОЛЬКО JSON, без markdown-обёртки.
+5. В каждом событии обязательно есть только поля "t" (число, секунды от
+   начала) и "do" (действие из списка), плюс необязательный объект "params".
+   Никогда не используй поля "time", "timestamp", "action", "type" или
+   "description" вместо "t" и "do".
+6. Значение "do" — только одно из перечисленных выше действий, без
+   выдуманных названий.
+7. Возвращай ТОЛЬКО JSON, без markdown-обёртки и пояснений.
 """
 
 
@@ -114,9 +123,12 @@ class LLMAgent:
 
     async def _call_ollama(self, request: str, max_tokens: int) -> dict:
         """Ollama локальная модель."""
+        model_name = str(self.model or "").lower()
         payload = {
             "model": self.model,
             "stream": False,
+            # JSON-режим Ollama: ответ всегда валидный JSON без markdown.
+            "format": "json",
             "options": {
                 "temperature": self.temperature,
                 "num_predict": max_tokens,
@@ -127,14 +139,27 @@ class LLMAgent:
             ],
         }
 
-        async with httpx.AsyncClient(timeout=120) as client:
+        # qwen3/deepseek-r1 тратят весь лимит токенов на размышления, и в
+        # content не остаётся JSON. Для генератора рассуждения не нужны.
+        if "qwen3" in model_name or "r1" in model_name:
+            payload["think"] = False
+
+        async with httpx.AsyncClient(timeout=180) as client:
             response = await client.post(
                 f"{self.url}/api/chat", json=payload
             )
             response.raise_for_status()
             data = response.json()
 
-        content = data.get("message", {}).get("content", "")
+        if data.get("done_reason") == "length":
+            raise LLMAgentError(
+                "Нейросеть вернула неполный ответ (лимит токенов)"
+            )
+
+        content = str(data.get("message", {}).get("content", ""))
+        if not content.strip():
+            raise LLMAgentError("Нейросеть вернула пустой ответ")
+
         return self._parse_response(content)
 
     async def _call_yandex(self, request: str, max_tokens: int) -> dict:
@@ -200,8 +225,11 @@ class LLMAgent:
 
     def _parse_response(self, content: str) -> dict[str, Any]:
         """Извлечь JSON из ответа."""
+        content = (content or "").strip()
+        if not content:
+            raise LLMAgentError("Нейросеть вернула пустой ответ")
+
         # Убираем markdown-обёртку если есть
-        content = content.strip()
         if content.startswith("```"):
             lines = content.split("\n")
             lines = [l for l in lines if not l.startswith("```")]

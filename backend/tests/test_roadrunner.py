@@ -798,6 +798,84 @@ def test_apply_code_rejects_markdown_fence(admin, monkeypatch):
     assert response.status_code == 422
 
 
+def test_ready_scenarios_merge_chat_and_files(admin, monkeypatch):
+    def _fail():
+        raise RuntimeError("нет БД")
+
+    monkeypatch.setattr("backend.api.roadrunner.get_connection", _fail)
+    monkeypatch.setattr(
+        "backend.roadrunner.scenario.engine.load_all_scenarios",
+        lambda: [
+            {
+                "id": "victory-day",
+                "name": "День Победы",
+                "description": "Парад",
+                "duration": 150,
+                "events": [{"t": 0, "do": "end"}],
+            }
+        ],
+    )
+
+    response = client.get("/api/roadrunner/scenarios/ready")
+
+    assert response.status_code == 200, response.text
+    scenarios = response.json()["scenarios"]
+    names = [item["name"] for item in scenarios]
+
+    # Дубликат из чата схлопнут в пользу подробного файлового пресета.
+    assert names.count("День Победы") == 1
+    by_name = {item["name"]: item for item in scenarios}
+    assert by_name["День Победы"]["source"] == "file"
+    assert by_name["Ночная гроза"]["source"] == "chat"
+    assert by_name["Ночная гроза"]["events"]
+
+
+def test_ollama_generator_disables_thinking_and_requests_json(monkeypatch):
+    from backend.roadrunner.services import llm_agent
+
+    seen = {}
+
+    class FakeResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "done_reason": "stop",
+                "message": {
+                    "content": (
+                        '{"id":"x","name":"X","duration":30,"events":[]}'
+                    )
+                },
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def post(self, url, json=None):
+            seen.update(json)
+            return FakeResponse()
+
+    monkeypatch.setattr(llm_agent.httpx, "AsyncClient", FakeClient)
+
+    agent = llm_agent.LLMAgent(
+        provider="ollama", model="qwen3.5:9b", url="http://ollama.test"
+    )
+    result = asyncio.run(agent.generate("тест"))
+
+    # qwen3 не должен тратить весь лимит на размышления.
+    assert seen["think"] is False
+    assert seen["format"] == "json"
+    assert result["id"] == "x"
+
+
 def test_llm_config_uses_common_model(monkeypatch):
     stored = {
         "llm_provider": "openai",
