@@ -68,7 +68,9 @@ def test_area_filter_applied_to_chat_results(monkeypatch):
         ChatService,
         "_area_search",
         staticmethod(
-            lambda text, radius: ({101}, ["Красный Колос (test)"])
+            lambda text, radius: (
+                {101}, ["Красный Колос (test)"], {101: 1200.0}
+            )
         ),
     )
 
@@ -77,14 +79,34 @@ def test_area_filter_applied_to_chat_results(monkeypatch):
     )
 
     assert [item["id"] for item in response.results.items] == [101]
-    assert any("радиус 50 км" in w.casefold() for w in response.warnings)
+    assert any("радиус 5 км" in w.casefold() for w in response.warnings)
     assert "Красный Колос" in response.answer
-    assert "радиус 50 км" in response.answer.casefold()
+    assert "радиус 5 км" in response.answer.casefold()
     # Место из запроса не должно уходить в обычный поиск по городу/адресу.
     assert bridge.last_query.city is None
     assert bridge.last_query.district is None
     assert bridge.last_query.address is None
     assert bridge.last_query.limit is None
+
+
+def test_area_results_sorted_by_distance(monkeypatch):
+    service, bridge = _make_service(monkeypatch)
+    monkeypatch.setattr(
+        ChatService,
+        "_area_search",
+        staticmethod(
+            lambda text, radius: (
+                {101, 999}, ["Красный Колос (test)"],
+                {101: 4200.0, 999: 800.0},
+            )
+        ),
+    )
+
+    response = service.message(
+        ChatMessageRequest(message="щиты в районе поселка Красный Колос")
+    )
+
+    assert [item["id"] for item in response.results.items] == [999, 101]
 
 
 def test_no_area_intent_keeps_ordinary_search(monkeypatch):
@@ -93,7 +115,7 @@ def test_no_area_intent_keeps_ordinary_search(monkeypatch):
 
     def fake_area(text, radius):
         called.append(text)
-        return set(), []
+        return set(), [], {}
 
     monkeypatch.setattr(ChatService, "_area_search", staticmethod(fake_area))
 

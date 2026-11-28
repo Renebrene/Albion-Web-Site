@@ -7,7 +7,7 @@ def test_user_example():
     intent = parse_area_intent("найди конструкции в районе поселка Красный Колос")
     assert intent is not None
     assert intent.settlement_norm == "красный колос"
-    assert intent.radius_m == RADIUS_M_DEFAULT == 50_000
+    assert intent.radius_m == RADIUS_M_DEFAULT == 5_000
 
 
 def test_yo_and_poselok_marker():

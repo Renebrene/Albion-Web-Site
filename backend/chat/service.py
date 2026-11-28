@@ -35,7 +35,7 @@ from backend.chat.models import (
 from backend.chat.settlement_intent import parse_area_intent
 from backend.chat.store import ChatSession, ChatStore, chat_store
 from backend.search.bridge import AlbionSearchBridge
-from backend.search.spatial import find_surface_ids_near
+from backend.search.spatial import find_surface_distances_near
 from backend.services.chat_log_service import log_turn
 from backend.services.data_service import get_connection
 from backend.services.settlement_search import search_settlements
@@ -533,17 +533,18 @@ class ChatService:
     def _area_search(
         text: str,
         radius_m: int,
-    ) -> tuple[set[int], list[str]]:
+    ) -> tuple[set[int], list[str], dict[int, float]]:
         """Разрешить посёлок из запроса и найти поверхности вокруг него.
 
         Важно: id поверхностей совпадают с id в результатах чата.
-
-        Ничего не сохраняется. Ошибки источников не ломают обычный чат:
-        при неудаче возвращаем пустое множество.
+        Возвращает также расстояние каждого surface.id до ближайшей точки —
+        оно используется для сортировки результатов.
+        Ничего не сохраняется; ошибки источников не ломают обычный чат.
         """
+        empty: tuple[set[int], list[str], dict[int, float]] = (set(), [], {})
         intent = parse_area_intent(text)
         if intent is None:
-            return set(), []
+            return empty
 
         try:
             settlements = asyncio.run(
@@ -551,28 +552,30 @@ class ChatService:
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Не удалось разрешить населённый пункт: %s", exc)
-            return set(), []
+            return empty
 
         if not settlements:
-            return set(), []
+            return empty
 
-        ids: set[int] = set()
+        distances: dict[int, float] = {}
         try:
             with get_connection() as conn:
                 for place in settlements:
-                    ids.update(
-                        find_surface_ids_near(
-                            conn, place.lat, place.lng, radius_m
-                        )
+                    found = find_surface_distances_near(
+                        conn, place.lat, place.lng, radius_m
                     )
+                    for surface_id, distance in found.items():
+                        previous = distances.get(surface_id)
+                        if previous is None or distance < previous:
+                            distances[surface_id] = distance
         except Exception as exc:  # noqa: BLE001
             logger.warning("Пространственный поиск недоступен: %s", exc)
-            return set(), []
+            return empty
 
         notes = [
             f"{place.name} ({place.source})" for place in settlements[:3]
         ]
-        return ids, notes
+        return set(distances), notes, distances
 
     def _message_locked(
         self,
@@ -755,12 +758,16 @@ class ChatService:
         # ограничивать обычный поиск по городу/адресу — иначе одноимённые
         # посёлки дадут пустой результат.
         area_ids: set[int] | None = None
+        area_distances: dict[int, float] | None = None
         area_label: str | None = None
         area_hint = parse_area_intent(payload.message)
         if area_hint is not None:
-            ids, notes = self._area_search(payload.message, area_hint.radius_m)
+            ids, notes, distances = self._area_search(
+                payload.message, area_hint.radius_m
+            )
             if ids:
                 area_ids = ids
+                area_distances = distances
                 query = replace(
                     query,
                     city=None,
@@ -808,6 +815,12 @@ class ChatService:
                     for item in items
                     if int(item.get("id") or 0) in area_ids
                 ]
+                if area_distances is not None:
+                    items.sort(
+                        key=lambda item: area_distances.get(
+                            int(item.get("id") or 0), float("inf")
+                        )
+                    )
 
             suggestions = self._suggestions(query, items)
 

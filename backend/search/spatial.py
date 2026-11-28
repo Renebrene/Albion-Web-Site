@@ -9,7 +9,7 @@ from __future__ import annotations
 import math
 from typing import Any, Iterable, Optional
 
-RADIUS_M_DEFAULT = 50_000  # 50 км
+RADIUS_M_DEFAULT = 5_000  # 5 км
 EARTH_R_M = 6_371_000.0
 
 
@@ -78,14 +78,14 @@ ORDER BY dist_m
 """.strip()
 
 
-def find_surface_ids_near(
+def find_surface_distances_near(
     conn: Any,
     lat: float,
     lng: float,
     radius_m: int = RADIUS_M_DEFAULT,
     limit: Optional[int] = None,
-) -> list[int]:
-    """Только чтение. Возвращает surface.id в радиусе, ближайшие первыми."""
+) -> dict[int, float]:
+    """Только чтение: surface.id -> расстояние до точки в метрах."""
     sql = surface_ids_near_sql(radius_m)
     if limit is not None:
         sql += " LIMIT %(limit)s"
@@ -94,7 +94,27 @@ def find_surface_ids_near(
         }
     else:
         params = {"lng": lng, "lat": lat, "radius_m": radius_m}
-    return [int(row[0]) for row in conn.execute(sql, params).fetchall()]
+
+    distances: dict[int, float] = {}
+    for row in conn.execute(sql, params).fetchall():
+        surface_id = int(row[0])
+        distance = float(row[1])
+        previous = distances.get(surface_id)
+        if previous is None or distance < previous:
+            distances[surface_id] = distance
+    return distances
+
+
+def find_surface_ids_near(
+    conn: Any,
+    lat: float,
+    lng: float,
+    radius_m: int = RADIUS_M_DEFAULT,
+    limit: Optional[int] = None,
+) -> list[int]:
+    """Только чтение. Возвращает surface.id в радиусе, ближайшие первыми."""
+    distances = find_surface_distances_near(conn, lat, lng, radius_m, limit)
+    return sorted(distances, key=lambda surface_id: distances[surface_id])
 
 
 def construction_ids_near_sql(radius_m: int = RADIUS_M_DEFAULT) -> str:
