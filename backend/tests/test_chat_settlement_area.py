@@ -3,6 +3,7 @@ from contextlib import nullcontext
 from uuid import uuid4
 
 from backend.chat import service as chat_service
+from backend.chat.formatting import format_area_answer
 from backend.chat.models import ChatMessageRequest
 from backend.chat.service import ChatService
 from engine.query.query import SearchQuery
@@ -62,6 +63,32 @@ def _make_service(monkeypatch):
     return service, bridge
 
 
+def test_format_area_answer_is_plain_list():
+    answer = format_area_answer(
+        ["Красный Колос"],
+        [
+            {
+                "address": "Трасса М-4 1039 км",
+                "side": "A",
+                "type": "Щит",
+                "size": "6 X 3 Метр",
+                "price": 15400,
+            },
+            {
+                "address": "Трасса М-4 1042 км",
+                "side": "B",
+                "type": "Щит",
+                "size": "6 X 3 Метр",
+                "price": 13200,
+            },
+        ],
+    )
+    assert answer.startswith("Красный Колос\nНайдено 2 варианта.\n")
+    assert "1. Трасса М-4 1039 км — сторона A, Щит, 6 X 3 Метр — 15 400 ₽" in answer
+    assert "2. Трасса М-4 1042 км" in answer
+    assert "радиус" not in answer.casefold()
+
+
 def test_area_filter_applied_to_chat_results(monkeypatch):
     service, bridge = _make_service(monkeypatch)
     monkeypatch.setattr(
@@ -69,7 +96,7 @@ def test_area_filter_applied_to_chat_results(monkeypatch):
         "_area_search",
         staticmethod(
             lambda text, radius: (
-                {101}, ["Красный Колос (test)"], {101: 1200.0}
+                {101}, ["Красный Колос"], {101: 1200.0}
             )
         ),
     )
@@ -79,9 +106,11 @@ def test_area_filter_applied_to_chat_results(monkeypatch):
     )
 
     assert [item["id"] for item in response.results.items] == [101]
-    assert any("радиус 5 км" in w.casefold() for w in response.warnings)
-    assert "Красный Колос" in response.answer
-    assert "радиус 5 км" in response.answer.casefold()
+    assert response.answer.startswith("Красный Колос\n")
+    assert "Найдено 1 вариант." in response.answer
+    assert "ул. Тестовая" in response.answer
+    assert "радиус" not in response.answer.casefold()
+    assert "Yandex" not in response.answer
     # Место из запроса не должно уходить в обычный поиск по городу/адресу.
     assert bridge.last_query.city is None
     assert bridge.last_query.district is None
@@ -96,7 +125,7 @@ def test_area_results_sorted_by_distance(monkeypatch):
         "_area_search",
         staticmethod(
             lambda text, radius: (
-                {101, 999}, ["Красный Колос (test)"],
+                {101, 999}, ["Красный Колос"],
                 {101: 4200.0, 999: 800.0},
             )
         ),

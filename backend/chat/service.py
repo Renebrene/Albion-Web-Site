@@ -17,7 +17,11 @@ from engine.query.query import SearchQuery
 from engine.search.postgresql_chat_engine import PendingSearchQuery
 
 from backend.chat import llm
-from backend.chat.formatting import actions_for, format_answer
+from backend.chat.formatting import (
+    actions_for,
+    format_answer,
+    format_area_answer,
+)
 from backend.chat.query_validation import (
     meaningful,
     validate_llm_entities,
@@ -572,10 +576,20 @@ class ChatService:
             logger.warning("Пространственный поиск недоступен: %s", exc)
             return empty
 
-        notes = [
-            f"{place.name} ({place.source})" for place in settlements[:3]
-        ]
-        return set(distances), notes, distances
+        # Только названия населённых пунктов — без источника координат.
+        names: list[str] = []
+        for place in settlements:
+            name = re.sub(
+                r"^\s*(посёлок|поселок|село|деревня|станица|хутор|аул|город|г)\.?\s+",
+                "",
+                str(place.name or ""),
+                flags=re.IGNORECASE,
+            ).strip()
+            name = name or str(place.name or "").strip()
+            if name and name.casefold() not in {n.casefold() for n in names}:
+                names.append(name)
+
+        return set(distances), names, distances
 
     def _message_locked(
         self,
@@ -753,21 +767,21 @@ class ChatService:
         if query.year is None:
             query.year = self._default_year()
 
-        # Вариант B: посёлок берётся из запроса, радиус 50 км задаётся
-        # на лету, ничего не сохраняется. Место из текста НЕ должно
-        # ограничивать обычный поиск по городу/адресу — иначе одноимённые
-        # посёлки дадут пустой результат.
+        # Вариант B: посёлок берётся из запроса, радиус задаётся на лету,
+        # ничего не сохраняется. Место из текста НЕ должно ограничивать
+        # обычный поиск по городу/адресу.
         area_ids: set[int] | None = None
         area_distances: dict[int, float] | None = None
-        area_label: str | None = None
+        area_places: list[str] = []
         area_hint = parse_area_intent(payload.message)
         if area_hint is not None:
-            ids, notes, distances = self._area_search(
+            ids, names, distances = self._area_search(
                 payload.message, area_hint.radius_m
             )
             if ids:
                 area_ids = ids
                 area_distances = distances
+                area_places = names
                 query = replace(
                     query,
                     city=None,
@@ -775,12 +789,9 @@ class ChatService:
                     address=None,
                     limit=None,
                 )
-                area_label = (
-                    "Результаты вокруг населённого пункта из запроса: "
-                    + "; ".join(notes)
-                    + f". Радиус {area_hint.radius_m // 1000} км."
+                warnings.append(
+                    "Поиск рядом: " + ", ".join(names)
                 )
-                warnings.append(area_label)
 
         if clarification_text:
             session.pending = PendingSearchQuery(
@@ -833,22 +844,21 @@ class ChatService:
                     "Ниже — похожие варианты."
                 )
 
-            # Optional "live" phrasing over the already found results.
-            # llm.answer() never queries the DB and returns None on failure.
-            if items:
+            if area_places and items:
+                # Для поиска вокруг посёлка — простой список, без LLMs.
+                answer = format_area_answer(area_places, items)
+                answer_source = "rules"
+            elif items:
+                # Обычный чат: опциональная «живая» фразировка по найденным.
                 generated = llm.answer(
                     payload.message,
                     query,
                     items,
                     total=len(items),
                 )
-
                 if generated:
                     answer = generated
                     answer_source = "llm"
-
-            if area_label and items:
-                answer = f"{area_label}\n\n{answer}"
 
             response = self._response(
                 session,
