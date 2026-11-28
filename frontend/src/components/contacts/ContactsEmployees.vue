@@ -1,5 +1,5 @@
 <template>
-  <section class="section">
+  <section ref="root" class="section">
     <div
       v-for="department in departments"
       :key="department.id"
@@ -17,9 +17,11 @@
         >
           <div class="photo">
             <img
-              v-if="employee.photo"
-              :src="employee.photo"
+              v-if="photoSrc(employee) && !brokenPhotos.has(employee.id)"
+              :src="photoSrc(employee)"
               :alt="employee.name || employee.position"
+              @error="onPhotoError(employee.id)"
+              @load="scheduleEqualize"
             />
             <span v-else-if="employee.name">
               {{ initials(employee.name) }}
@@ -69,12 +71,69 @@
 </template>
 
 <script setup>
-defineProps({
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+
+const props = defineProps({
   departments: {
     type: Array,
     default: () => []
   }
 })
+
+// Сгенерированные low-poly мультяшные аватары (жуки, микробы, морское дно).
+// Подставляются, когда у сотрудника нет своего фото.
+const GENERATED_PHOTOS = [
+  '/employee-photos/p1.svg',
+  '/employee-photos/p2.svg',
+  '/employee-photos/p3.svg',
+  '/employee-photos/p4.svg',
+  '/employee-photos/p5.svg',
+  '/employee-photos/p6.svg',
+  '/employee-photos/p7.svg',
+  '/employee-photos/p8.svg',
+  '/employee-photos/p9.svg',
+  '/employee-photos/p10.svg',
+  '/employee-photos/p11.svg',
+  '/employee-photos/p12.svg'
+]
+
+const photoIndex = computed(() => {
+  const map = new Map()
+  let index = 0
+
+  for (const department of props.departments) {
+    for (const employee of department.employees || []) {
+      if (!map.has(employee.id)) {
+        map.set(employee.id, GENERATED_PHOTOS[index % GENERATED_PHOTOS.length])
+        index += 1
+      }
+    }
+  }
+
+  return map
+})
+
+function photoSrc(employee) {
+  if (employee.photo) {
+    return employee.photo
+  }
+
+  return photoIndex.value.get(employee.id) || ''
+}
+
+// Если картинка не загрузилась — показываем инициалы, а не битую картинку.
+const brokenPhotos = ref(new Set())
+
+function onPhotoError(id) {
+  if (brokenPhotos.value.has(id)) {
+    return
+  }
+
+  const next = new Set(brokenPhotos.value)
+  next.add(id)
+  brokenPhotos.value = next
+  scheduleEqualize()
+}
 
 function initials(name) {
   return String(name || '')
@@ -85,6 +144,77 @@ function initials(name) {
     .join('')
     .toUpperCase()
 }
+
+// Все карточки одной высоты — по самой высокой в списке.
+const root = ref(null)
+let observer = null
+let frame = 0
+
+function equalize() {
+  const container = root.value
+
+  if (!container) {
+    return
+  }
+
+  const cards = Array.from(container.querySelectorAll('.employee'))
+
+  if (!cards.length) {
+    return
+  }
+
+  cards.forEach(card => {
+    card.style.minHeight = ''
+  })
+
+  const maxHeight = cards.reduce(
+    (max, card) => Math.max(max, card.offsetHeight),
+    0
+  )
+
+  if (!maxHeight) {
+    return
+  }
+
+  const value = `${maxHeight}px`
+
+  cards.forEach(card => {
+    if (card.style.minHeight !== value) {
+      card.style.minHeight = value
+    }
+  })
+}
+
+function scheduleEqualize() {
+  cancelAnimationFrame(frame)
+  frame = requestAnimationFrame(equalize)
+}
+
+onMounted(() => {
+  observer = new ResizeObserver(scheduleEqualize)
+  observer.observe(root.value)
+  window.addEventListener('resize', scheduleEqualize)
+  scheduleEqualize()
+})
+
+watch(
+  () => props.departments,
+  async () => {
+    await nextTick()
+    scheduleEqualize()
+  },
+  { deep: true }
+)
+
+onBeforeUnmount(() => {
+  cancelAnimationFrame(frame)
+  window.removeEventListener('resize', scheduleEqualize)
+
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+})
 </script>
 
 <style scoped>
@@ -116,6 +246,7 @@ h2 {
 
 .employee {
   display: flex;
+  align-items: stretch;
   gap: 14px;
   padding: 15px 16px;
   border-radius: 14px;
@@ -124,10 +255,17 @@ h2 {
   box-shadow: 0 5px 20px rgba(23, 33, 43, 0.04);
 }
 
+/* Фото тянется по высоте карточки (чуть меньше её за счёт паддингов)
+   и сохраняет пропорцию 3:4 за счёт aspect-ratio.
+   Картинка вынесена из потока: её собственный размер (300×400 у SVG)
+   не должен участвовать в расчёте иначе ширина флекс-элемента
+   задастся контентом, а не высотой карточки. */
 .photo {
-  flex: 0 0 60px;
-  width: 60px;
-  height: 60px;
+  position: relative;
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: auto;
+  aspect-ratio: 3 / 4;
   border-radius: 14px;
   overflow: hidden;
   background: #e9edf0;
@@ -139,6 +277,8 @@ h2 {
 }
 
 .photo img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;

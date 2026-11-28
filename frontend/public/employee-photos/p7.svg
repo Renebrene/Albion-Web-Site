@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400" role="img" aria-label="Low-poly paramecium">
+  <defs>
+    <linearGradient id="bg7" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#eaf3d8"/>
+      <stop offset="1" stop-color="#c2dd96"/>
+    </linearGradient>
+    <clipPath id="paraBody">
+      <ellipse cx="150" cy="235" rx="105" ry="68" transform="rotate(-30 150 235)"/>
+    </clipPath>
+  </defs>
+  <rect width="300" height="400" fill="url(#bg7)"/>
+
+  <!-- реснички -->
+  <g stroke="#6f9630" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M241 235 L263 235"/>
+    <path d="M246 219 L268 215"/>
+    <path d="M225 260 L246 267"/>
+    <path d="M184 294 L195 313"/>
+    <path d="M134 312 L130 334"/>
+    <path d="M88 310 L74 327"/>
+    <path d="M59 288 L40 277"/>
+    <path d="M54 251 L33 255"/>
+    <path d="M75 210 L54 203"/>
+    <path d="M116 176 L105 157"/>
+    <path d="M166 158 L171 136"/>
+    <path d="M212 160 L226 143"/>
+  </g>
+
+  <!-- тело -->
+  <ellipse cx="150" cy="235" rx="105" ry="68" transform="rotate(-30 150 235)" fill="#8ab83f"/>
+  <g clip-path="url(#paraBody)">
+    <polygon points="40,140 260,140 260,225 40,225" fill="#a5cf60" opacity="0.75"/>
+    <polygon points="40,275 260,275 260,370 40,370" fill="#6f9630" opacity="0.7"/>
+    <circle cx="105" cy="278" r="14" fill="#c9e88f"/>
+    <circle cx="196" cy="196" r="14" fill="#c9e88f"/>
+    <circle cx="105" cy="278" r="6" fill="#8ab83f"/>
+    <circle cx="196" cy="196" r="6" fill="#8ab83f"/>
+  </g>
+
+  <!-- лицо -->
+  <circle cx="132" cy="222" r="15" fill="#ffffff"/>
+  <circle cx="170" cy="222" r="15" fill="#ffffff"/>
+  <circle cx="135" cy="225" r="7.5" fill="#17212b"/>
+  <circle cx="173" cy="225" r="7.5" fill="#17212b"/>
+  <circle cx="130" cy="218" r="3.5" fill="#ffffff"/>
+  <circle cx="168" cy="218" r="3.5" fill="#ffffff"/>
+  <path d="M140 254 Q151 265 162 254" stroke="#17212b" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+</svg>

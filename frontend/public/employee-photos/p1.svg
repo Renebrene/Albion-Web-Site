@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400" role="img" aria-label="Low-poly beetle">
+  <defs>
+    <linearGradient id="bg1" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e3f5ea"/>
+      <stop offset="1" stop-color="#a5dcc3"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="400" fill="url(#bg1)"/>
+
+  <!-- ноги -->
+  <g stroke="#24724f" stroke-width="8" stroke-linecap="round" fill="none">
+    <path d="M78 215 L36 196"/>
+    <path d="M75 255 L30 258"/>
+    <path d="M80 295 L40 322"/>
+    <path d="M222 215 L264 196"/>
+    <path d="M225 255 L270 258"/>
+    <path d="M220 295 L260 322"/>
+  </g>
+
+  <!-- панцирь -->
+  <polygon points="150,150 225,190 225,300 150,340 75,300 75,190" fill="#43ad82"/>
+  <polygon points="150,150 75,190 75,300 150,340" fill="#2e8b66"/>
+  <polygon points="150,150 105,175 85,215 150,195" fill="#74cfae"/>
+  <polygon points="145,152 155,152 155,340 145,340" fill="#24724f"/>
+
+  <!-- голова -->
+  <polygon points="150,85 193,110 193,160 150,185 107,160 107,110" fill="#24724f"/>
+  <polygon points="150,85 120,103 112,130 150,118" fill="#35906b"/>
+
+  <!-- усы -->
+  <g stroke="#24724f" stroke-width="7" stroke-linecap="round" fill="none">
+    <path d="M128 95 Q110 60 95 52"/>
+    <path d="M172 95 Q190 60 205 52"/>
+  </g>
+  <circle cx="92" cy="50" r="9" fill="#24724f"/>
+  <circle cx="208" cy="50" r="9" fill="#24724f"/>
+
+  <!-- лицо -->
+  <circle cx="132" cy="132" r="14" fill="#ffffff"/>
+  <circle cx="168" cy="132" r="14" fill="#ffffff"/>
+  <circle cx="135" cy="135" r="7" fill="#17212b"/>
+  <circle cx="171" cy="135" r="7" fill="#17212b"/>
+  <circle cx="130" cy="129" r="3.5" fill="#ffffff"/>
+  <circle cx="166" cy="129" r="3.5" fill="#ffffff"/>
+  <path d="M140 158 Q150 168 160 158" stroke="#17212b" stroke-width="4" stroke-linecap="round" fill="none"/>
+</svg>

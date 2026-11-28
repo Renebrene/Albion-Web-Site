@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400" role="img" aria-label="Low-poly crab">
+  <defs>
+    <linearGradient id="bg9" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffece0"/>
+      <stop offset="1" stop-color="#ffc39a"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="400" fill="url(#bg9)"/>
+
+  <!-- лапки -->
+  <g stroke="#e06a2c" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path d="M80 248 L42 232 L26 252"/>
+    <path d="M72 282 L30 288 L18 312"/>
+    <path d="M82 312 L44 338 L34 362"/>
+    <path d="M220 248 L258 232 L274 252"/>
+    <path d="M228 282 L270 288 L282 312"/>
+    <path d="M218 312 L256 338 L266 362"/>
+  </g>
+
+  <!-- клешни -->
+  <g fill="#f2813f">
+    <polygon points="92,242 52,250 34,226 54,200 90,212"/>
+    <polygon points="44,214 8,186 22,166 58,194"/>
+    <polygon points="40,236 6,246 6,224 42,216"/>
+    <polygon points="208,242 248,250 266,226 246,200 210,212"/>
+    <polygon points="256,214 292,186 278,166 242,194"/>
+    <polygon points="260,236 294,246 294,224 258,216"/>
+  </g>
+  <polygon points="44,214 20,182 34,174 56,196" fill="#f9a06a"/>
+  <polygon points="256,214 280,182 266,174 244,196" fill="#f9a06a"/>
+
+  <!-- панцирь -->
+  <polygon points="150,196 215,215 248,262 232,315 150,336 68,315 52,262 85,215" fill="#f2813f"/>
+  <polygon points="150,196 85,215 52,262 150,250" fill="#f9a06a"/>
+  <polygon points="150,336 232,315 248,262 150,300" fill="#e06a2c"/>
+
+  <!-- глаза на стебельках -->
+  <g stroke="#e06a2c" stroke-width="9" stroke-linecap="round" fill="none">
+    <path d="M128 204 L120 182"/>
+    <path d="M172 204 L180 182"/>
+  </g>
+  <circle cx="117" cy="174" r="18" fill="#ffffff"/>
+  <circle cx="183" cy="174" r="18" fill="#ffffff"/>
+  <circle cx="120" cy="177" r="8" fill="#17212b"/>
+  <circle cx="186" cy="177" r="8" fill="#17212b"/>
+  <circle cx="115" cy="170" r="3.5" fill="#ffffff"/>
+  <circle cx="181" cy="170" r="3.5" fill="#ffffff"/>
+
+  <path d="M136 258 Q150 270 164 258" stroke="#17212b" stroke-width="5" stroke-linecap="round" fill="none"/>
+</svg>

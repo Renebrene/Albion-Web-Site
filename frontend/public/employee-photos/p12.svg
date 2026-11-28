@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400" role="img" aria-label="Low-poly starfish">
+  <defs>
+    <linearGradient id="bg12" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff4dd"/>
+      <stop offset="1" stop-color="#ffd98a"/>
+    </linearGradient>
+    <clipPath id="starBody">
+      <polygon points="150,120 181,193 259,200 200,251 218,328 150,287 82,328 101,251 41,200 119,193"/>
+    </clipPath>
+  </defs>
+  <rect width="300" height="400" fill="url(#bg12)"/>
+
+  <!-- тело -->
+  <polygon points="150,120 181,193 259,200 200,251 218,328 150,287 82,328 101,251 41,200 119,193" fill="#ffb43c"/>
+  <g clip-path="url(#starBody)">
+    <polygon points="150,110 30,190 150,230" fill="#ffce75"/>
+    <polygon points="150,240 270,240 270,340 150,340" fill="#f59a1e"/>
+    <circle cx="150" cy="165" r="8" fill="#f59a1e" opacity="0.5"/>
+    <circle cx="215" cy="215" r="7" fill="#f59a1e" opacity="0.5"/>
+    <circle cx="195" cy="300" r="7" fill="#f59a1e" opacity="0.5"/>
+    <circle cx="105" cy="300" r="7" fill="#f59a1e" opacity="0.5"/>
+    <circle cx="85" cy="215" r="7" fill="#f59a1e" opacity="0.5"/>
+  </g>
+
+  <!-- лицо -->
+  <circle cx="131" cy="225" r="16" fill="#ffffff"/>
+  <circle cx="169" cy="225" r="16" fill="#ffffff"/>
+  <circle cx="134" cy="228" r="8" fill="#17212b"/>
+  <circle cx="172" cy="228" r="8" fill="#17212b"/>
+  <circle cx="129" cy="221" r="4" fill="#ffffff"/>
+  <circle cx="167" cy="221" r="4" fill="#ffffff"/>
+  <path d="M140 256 Q150 266 160 256" stroke="#17212b" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+</svg>

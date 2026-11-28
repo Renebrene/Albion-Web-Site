@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400" role="img" aria-label="Low-poly ladybug">
+  <defs>
+    <linearGradient id="bg4" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffeae6"/>
+      <stop offset="1" stop-color="#ffbdb4"/>
+    </linearGradient>
+    <clipPath id="bugBody">
+      <polygon points="150,163 215,187 247,255 215,323 150,347 85,323 53,255 85,187"/>
+    </clipPath>
+  </defs>
+  <rect width="300" height="400" fill="url(#bg4)"/>
+
+  <!-- лапки -->
+  <g stroke="#2b2b33" stroke-width="8" stroke-linecap="round" fill="none">
+    <path d="M60 225 L24 208"/>
+    <path d="M56 268 L18 275"/>
+    <path d="M66 310 L32 336"/>
+    <path d="M240 225 L276 208"/>
+    <path d="M244 268 L282 275"/>
+    <path d="M234 310 L268 336"/>
+  </g>
+
+  <!-- надкрылья -->
+  <polygon points="150,163 215,187 247,255 215,323 150,347 85,323 53,255 85,187" fill="#e8453c"/>
+  <g clip-path="url(#bugBody)">
+    <polygon points="150,163 100,180 78,225 150,205" fill="#f4736a"/>
+    <rect x="145" y="180" width="10" height="170" fill="#2b2b33"/>
+    <circle cx="108" cy="245" r="21" fill="#2b2b33"/>
+    <circle cx="192" cy="245" r="21" fill="#2b2b33"/>
+    <circle cx="120" cy="305" r="16" fill="#2b2b33"/>
+    <circle cx="180" cy="305" r="16" fill="#2b2b33"/>
+  </g>
+
+  <!-- голова -->
+  <polygon points="150,105 182,117 195,150 182,183 150,195 118,183 105,150 118,117" fill="#2b2b33"/>
+
+  <!-- усы -->
+  <g stroke="#2b2b33" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M128 112 Q112 82 102 72"/>
+    <path d="M172 112 Q188 82 198 72"/>
+  </g>
+  <circle cx="99" cy="69" r="7" fill="#2b2b33"/>
+  <circle cx="201" cy="69" r="7" fill="#2b2b33"/>
+
+  <!-- лицо -->
+  <circle cx="136" cy="146" r="13" fill="#ffffff"/>
+  <circle cx="164" cy="146" r="13" fill="#ffffff"/>
+  <circle cx="138" cy="148" r="6.5" fill="#17212b"/>
+  <circle cx="166" cy="148" r="6.5" fill="#17212b"/>
+  <circle cx="134" cy="143" r="3" fill="#ffffff"/>
+  <circle cx="162" cy="143" r="3" fill="#ffffff"/>
+  <path d="M143 172 Q150 180 157 172" stroke="#ffffff" stroke-width="3.5" stroke-linecap="round" fill="none"/>
+</svg>

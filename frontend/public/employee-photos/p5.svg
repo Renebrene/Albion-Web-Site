@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400" role="img" aria-label="Low-poly virus">
+  <defs>
+    <linearGradient id="bg5" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d9f4f4"/>
+      <stop offset="1" stop-color="#9adcdc"/>
+    </linearGradient>
+  </defs>
+  <rect width="300" height="400" fill="url(#bg5)"/>
+
+  <!-- шипы -->
+  <g stroke="#1b7f7f" stroke-width="8" stroke-linecap="round" fill="none">
+    <path d="M230 235 L268 235"/>
+    <path d="M219 275 L251 294"/>
+    <path d="M190 305 L209 337"/>
+    <path d="M150 315 L150 353"/>
+    <path d="M110 305 L91 337"/>
+    <path d="M81 275 L49 294"/>
+    <path d="M70 235 L32 235"/>
+    <path d="M81 195 L49 176"/>
+    <path d="M110 165 L91 133"/>
+    <path d="M150 155 L150 117"/>
+    <path d="M190 165 L209 133"/>
+    <path d="M219 195 L251 176"/>
+  </g>
+  <g fill="#35c0c0">
+    <circle cx="271" cy="235" r="13"/>
+    <circle cx="254" cy="296" r="13"/>
+    <circle cx="211" cy="340" r="13"/>
+    <circle cx="150" cy="356" r="13"/>
+    <circle cx="89" cy="340" r="13"/>
+    <circle cx="46" cy="296" r="13"/>
+    <circle cx="29" cy="235" r="13"/>
+    <circle cx="46" cy="174" r="13"/>
+    <circle cx="89" cy="130" r="13"/>
+    <circle cx="150" cy="114" r="13"/>
+    <circle cx="211" cy="130" r="13"/>
+    <circle cx="254" cy="174" r="13"/>
+  </g>
+
+  <!-- оболочка -->
+  <polygon points="150,150 200,166 231,209 231,261 200,304 150,320 100,304 69,261 69,209 100,166" fill="#2aa8a8"/>
+  <polygon points="150,150 100,166 69,209 150,200" fill="#57c4c4"/>
+  <polygon points="150,320 200,304 231,261 150,290" fill="#1e8a8a"/>
+
+  <!-- лицо -->
+  <circle cx="130" cy="225" r="16" fill="#ffffff"/>
+  <circle cx="170" cy="225" r="16" fill="#ffffff"/>
+  <circle cx="133" cy="228" r="8" fill="#17212b"/>
+  <circle cx="173" cy="228" r="8" fill="#17212b"/>
+  <circle cx="128" cy="221" r="4" fill="#ffffff"/>
+  <circle cx="168" cy="221" r="4" fill="#ffffff"/>
+  <path d="M140 258 Q150 268 160 258" stroke="#17212b" stroke-width="4.5" stroke-linecap="round" fill="none"/>
+</svg>

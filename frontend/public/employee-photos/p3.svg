@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400" width="300" height="400" role="img" aria-label="Low-poly bee">
+  <defs>
+    <linearGradient id="bg3" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff5d9"/>
+      <stop offset="1" stop-color="#ffe08c"/>
+    </linearGradient>
+    <clipPath id="beeBody">
+      <polygon points="150,160 216,190 240,255 216,320 150,350 84,320 60,255 84,190"/>
+    </clipPath>
+  </defs>
+  <rect width="300" height="400" fill="url(#bg3)"/>
+
+  <!-- крылья -->
+  <ellipse cx="108" cy="175" rx="48" ry="30" transform="rotate(-25 108 175)" fill="#ffffff" opacity="0.8"/>
+  <ellipse cx="192" cy="175" rx="48" ry="30" transform="rotate(25 192 175)" fill="#ffffff" opacity="0.8"/>
+
+  <!-- лапки -->
+  <g stroke="#33323a" stroke-width="7" stroke-linecap="round" fill="none">
+    <path d="M84 290 L44 310"/>
+    <path d="M80 255 L36 262"/>
+    <path d="M216 290 L256 310"/>
+    <path d="M220 255 L264 262"/>
+  </g>
+
+  <!-- тело со штрихами -->
+  <polygon points="150,160 216,190 240,255 216,320 150,350 84,320 60,255 84,190" fill="#ffc93c"/>
+  <g clip-path="url(#beeBody)">
+    <rect x="70" y="150" width="34" height="210" fill="#33323a"/>
+    <rect x="140" y="150" width="34" height="210" fill="#33323a"/>
+    <rect x="210" y="150" width="34" height="210" fill="#33323a"/>
+    <polygon points="150,160 84,190 60,255 150,215" fill="#ffe08a" opacity="0.55"/>
+  </g>
+  <polygon points="150,350 140,378 160,378" fill="#33323a"/>
+
+  <!-- голова -->
+  <polygon points="150,97 184,110 201,145 184,180 150,193 116,180 99,145 116,110" fill="#33323a"/>
+  <polygon points="150,97 124,106 112,130 150,122" fill="#4a4952"/>
+
+  <!-- усики -->
+  <g stroke="#33323a" stroke-width="6" stroke-linecap="round" fill="none">
+    <path d="M135 105 Q120 70 108 58"/>
+    <path d="M165 105 Q180 70 192 58"/>
+  </g>
+  <circle cx="105" cy="55" r="7" fill="#33323a"/>
+  <circle cx="195" cy="55" r="7" fill="#33323a"/>
+
+  <!-- лицо -->
+  <circle cx="135" cy="142" r="14" fill="#ffffff"/>
+  <circle cx="165" cy="142" r="14" fill="#ffffff"/>
+  <circle cx="138" cy="145" r="7" fill="#17212b"/>
+  <circle cx="168" cy="145" r="7" fill="#17212b"/>
+  <circle cx="133" cy="139" r="3.5" fill="#ffffff"/>
+  <circle cx="163" cy="139" r="3.5" fill="#ffffff"/>
+  <path d="M143 168 Q150 176 157 168" stroke="#ffd76b" stroke-width="4" stroke-linecap="round" fill="none"/>
+</svg>
