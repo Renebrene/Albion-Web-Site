@@ -43,14 +43,16 @@ SETTINGS_SCHEMA: list[dict[str, Any]] = [
         "label": "Основной шрифт сайта",
         "type": "select",
         "options": FONT_OPTIONS,
-        "default": "system",
+        # Локальный самохостинг: шрифт лежит в frontend/src/assets/fonts
+        # и подключается @font-face, не зависит от браузера и ОС.
+        "default": "Inter",
     },
     {
         "key": "font_heading",
         "label": "Шрифт заголовков",
         "type": "select",
         "options": FONT_OPTIONS,
-        "default": "system",
+        "default": "Inter",
     },
     {
         "key": "font_size_base",

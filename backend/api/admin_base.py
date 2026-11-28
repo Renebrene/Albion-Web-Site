@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import (
     APIRouter,
     Depends,
@@ -118,6 +120,11 @@ def restore(
             mark_restored(import_key)
 
         return result
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
     except FileNotFoundError as exc:
         raise HTTPException(
             status_code=404,
@@ -128,11 +135,12 @@ def restore(
             status_code=400,
             detail=str(exc),
         ) from exc
-    except Exception as exc:
+    except Exception:
+        logging.exception("Ошибка восстановления архива")
         raise HTTPException(
             status_code=500,
-            detail=f"Ошибка восстановления: {exc}",
-        ) from exc
+            detail="Ошибка восстановления архива",
+        ) from None
 
 
 # ------------------------------------------------ бекапы сайта

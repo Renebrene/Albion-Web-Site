@@ -7,7 +7,8 @@
 Для закладки `traffic-light` поле `content` хранит JSON:
   {
     "image_url": "url изображения светофора",
-    "text": "основной текст",
+    "custom_html": "HTML-блок вместо картинки светофора",
+    "text": "объединённый текст раздела (простой текст, без переключения годов)",
     "photos": [{"url": "...", "label": "..."}, ...]
   }
 """
@@ -17,6 +18,7 @@ import json
 from typing import Any
 
 from backend.services.data_service import get_connection
+from backend.services.html_sanitizer import sanitize_html
 
 
 TAB_KINDS = ("text", "geo", "traffic-light")
@@ -158,7 +160,9 @@ def _parse_traffic_light_content(content_text: str) -> dict:
 
     return {
         "image_url": str(image_url) if image_url else None,
-        "custom_html": str(custom_html),
+        # Второй слой защиты: HTML уже должен быть очищён на сохранении,
+        # но и из БР он отдаётся только в безопасном виде.
+        "custom_html": sanitize_html(custom_html),
         "text": str(text_content),
         "photos": photos,
     }
@@ -169,7 +173,7 @@ def _build_traffic_light_content(data: dict) -> str:
     return json.dumps(
         {
             "image_url": data.get("image_url") or "",
-            "custom_html": data.get("custom_html") or "",
+            "custom_html": sanitize_html(data.get("custom_html") or ""),
             "text": data.get("text") or "",
             "photos": data.get("photos") or [],
         },

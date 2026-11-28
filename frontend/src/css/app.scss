@@ -48,6 +48,20 @@ h6 {
   font-weight: var(--albion-heading-weight);
 }
 
+/* =========================================================
+   КАРТА: ТОТ ЖЕ ШРИФТ, ЧТО И В СПИСКАХ КОНСТРУКЦИЙ
+   Leaflet подключает свой leaflet.css позже app.scss и задаёт
+   .leaflet-container системный «Helvetica Neue», Arial. Из-за этого
+   попапы на карте выглядели иначе, чем карточки списка, и зависели
+   от набора шрифтов в конкретном браузере. Наследуем общий шрифт
+   сайта (локальный @font-face из css/fonts.scss либо системный стек,
+   если так выбрано в настройках).
+   ========================================================= */
+
+.leaflet-container {
+  font-family: var(--albion-font-family) !important;
+}
+
 /* Albion Leaflet markers */
 
 .albion-marker-wrapper {

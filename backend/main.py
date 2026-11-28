@@ -224,7 +224,13 @@ def home_content():
     запрос, поэтому кэш браузера/прокси запрещаем — после обновления базы
     конструкций цифры сразу актуальны.
     """
-    return JSONResponse(content=get_home(), headers={"Cache-Control": "no-store"})
+    return JSONResponse(
+        content=get_home(),
+        headers={
+            "Cache-Control": "no-store",
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
 
 
 @app.get("/api/home/slides/{slide_id}/code", include_in_schema=False)
@@ -345,13 +351,31 @@ def _rate_rule(path: str) -> tuple[str, int, int] | None:
     return best_key, limit, window
 
 
+def _client_ip(request: Request) -> str:
+    """Реальный IP за nginx: X-Real-IP доверяем только от loopback.
+
+    nginx перезаписывает X-Real-IP значением $remote_addr, поэтому снаружи
+    подменить его нельзя. Если backend вызван напрямую (не через прокси),
+    заголовок игнорируем — иначе лимит обходился бы подстановкой IP.
+    """
+    peer = request.client.host if request.client else ""
+
+    if peer in {"127.0.0.1", "::1"}:
+        real_ip = (request.headers.get("x-real-ip") or "").strip()
+
+        if real_ip:
+            return real_ip
+
+    return peer or "unknown"
+
+
 @app.middleware("http")
 async def _rate_limit(request: Request, call_next):
     rule = _rate_rule(request.url.path)
 
     if rule:
         rule_key, limit, window = rule
-        ip = request.client.host if request.client else "unknown"
+        ip = _client_ip(request)
         now = time.monotonic()
         bucket_key = (ip, rule_key)
         bucket = _rate_buckets[bucket_key]

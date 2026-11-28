@@ -214,13 +214,25 @@ def delete_request(request_id: int) -> dict:
 
 
 def export_requests(fmt: str = "csv") -> tuple[bytes, str, str]:
-    """Выгрузка заявок: (содержимое, имя файла, content-type)."""
+    """Выгрузка заявок: (содержимое, имя файла, content-type).
+
+    Поля заявки приходят с публичной формы, поэтому перед записью в
+    таблицу нейтрализуем формулы: иначе имя/комментарий вида
+    ``=HYPERLINK(...)`` выполнится при открытии файла в Excel.
+    """
     from backend.services.account_service import list_all_requests
+    from backend.services.portfolio_export import _spreadsheet_text
 
     if fmt not in EXPORT_FORMATS:
         raise ValueError("Поддерживаются форматы: csv, xlsx")
 
     rows = list_all_requests(limit=1000)
+
+    def cells(row: dict) -> list[str]:
+        return [
+            _spreadsheet_text(getter(row))
+            for _, getter in _COLUMNS
+        ]
 
     if fmt == "csv":
         buffer = io.StringIO()
@@ -228,7 +240,7 @@ def export_requests(fmt: str = "csv") -> tuple[bytes, str, str]:
         writer.writerow([title for title, _ in _COLUMNS])
 
         for row in rows:
-            writer.writerow([str(getter(row)) for _, getter in _COLUMNS])
+            writer.writerow(cells(row))
 
         # BOM — чтобы Excel открыл UTF-8 без «кракозябр».
         content = buffer.getvalue().encode("utf-8-sig")
@@ -245,7 +257,14 @@ def export_requests(fmt: str = "csv") -> tuple[bytes, str, str]:
     sheet.append([title for title, _ in _COLUMNS])
 
     for row in rows:
-        sheet.append([str(getter(row)) for _, getter in _COLUMNS])
+        sheet.append(cells(row))
+
+    # Даже если значение начинается с «=», после _spreadsheet_text оно уже
+    # строка. Дополнительно фиксируем тип ячейки, чтобы openpyxl не решил
+    # иначе при будущих изменениях формата.
+    for row_cells in sheet.iter_rows(min_row=2):
+        for cell in row_cells:
+            cell.data_type = "s"
 
     widths = [6, 20, 18, 18, 18, 40, 40, 40, 12]
 

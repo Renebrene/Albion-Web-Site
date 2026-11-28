@@ -18,10 +18,10 @@ export default defineConfig((/* ctx */) => {
 
     // https://github.com/quasarframework/quasar/tree/dev/extras
     //
-    // 'roboto-font' убран: тема сайта по умолчанию использует системный
-    // шрифт (font_family/font_heading = 'system'). Доступные веб-шрифты
-    // лежат локально в src/assets/fonts и объявлены в src/css/fonts.scss:
-    // внешние запросы к Google Fonts не нужны.
+    // 'roboto-font' убран: шрифты по умолчанию (Inter) и все остальные
+    // доступные в настройках семейства лежат локально в src/assets/fonts
+    // и объявлены в src/css/fonts.scss. Внешние запросы к Google Fonts
+    // не нужны; системный стек остаётся только явным выбором 'system'.
     extras: [
       'material-icons' // optional, you are not bound to it
     ],
@@ -68,6 +68,13 @@ export default defineConfig((/* ctx */) => {
       // vueDevtools: true,
       // https: true,
       open: true,
+
+      // Те же заголовки, что задаёт nginx в проде (frame-ancestors в meta
+      // не работает, поэтому локально проверяем X-Frame-Options).
+      headers: {
+        'X-Frame-Options': 'SAMEORIGIN',
+        'X-Content-Type-Options': 'nosniff'
+      },
 
       proxy: {
         '/api': {

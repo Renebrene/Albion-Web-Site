@@ -975,6 +975,59 @@ def test_generate_scenario_uses_common_agent(admin, monkeypatch):
     assert calls == [((), {})]
 
 
+def test_normalize_scenario_actions_maps_fog_alias():
+    from backend.roadrunner.scenario.engine import (
+        normalize_scenario_actions,
+        validate_scenario,
+    )
+
+    scenario = {
+        "id": "fog",
+        "name": "Туман",
+        "duration": 30,
+        "events": [
+            {"t": 0, "do": "start_fog", "params": {"density": 0.5}},
+            {"t": 10, "do": "stop_fog"},
+            {"t": 20, "do": "end"},
+        ],
+    }
+
+    normalized = normalize_scenario_actions(scenario)
+    assert normalized["events"][0]["do"] == "change_weather"
+    assert normalized["events"][0]["params"]["condition"] == "fog"
+    assert normalized["events"][0]["params"]["density"] == 0.5
+    assert normalized["events"][1]["do"] == "change_weather"
+    assert normalized["events"][1]["params"]["condition"] == "clear"
+    assert validate_scenario(normalized) == []
+
+
+def test_generate_normalizes_unknown_fog_action(admin, monkeypatch):
+    class FakeAgent:
+        async def generate(self, request):
+            return {
+                "id": "fog-test",
+                "name": "Тест тумана",
+                "duration": 20,
+                "events": [{"t": 0, "do": "start_fog"}, {"t": 10, "do": "end"}],
+            }
+
+    monkeypatch.setattr(
+        "backend.api.roadrunner.create_llm_agent", lambda: FakeAgent()
+    )
+
+    async def fake_create(scenario, auth):
+        return None
+
+    monkeypatch.setattr("backend.api.roadrunner.create_scenario", fake_create)
+
+    response = client.post("/api/roadrunner/generate", json={"request": "туман"})
+
+    assert response.status_code == 200, response.text
+    events = response.json()["scenario"]["events"]
+    assert events[0]["do"] == "change_weather"
+    assert events[0]["params"]["condition"] == "fog"
+
+
 @requires_db
 def test_scenario_create_get_list_delete(admin):
     slug = "pytest-roadrunner-" + uuid.uuid4().hex

@@ -2,7 +2,9 @@ from pathlib import Path
 from contextlib import contextmanager
 import datetime
 import json
+import logging
 import os
+import re
 
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -34,6 +36,37 @@ CONSTRUCTIONS_SEQUENCES = tuple(
     f"{table}_id_seq"
     for table in CONSTRUCTIONS_TABLES
 )
+
+# Ключ архива — только имя каталога, без слэшей и «..». Иначе import_key
+# выходил за CONSTRUCTIONS_ARCHIVE_ROOT и читал/копировал чужие файлы.
+_IMPORT_KEY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def validate_import_key(value: str) -> str:
+    """Проверяет ключ архива и возвращает его без пробелов."""
+    key = str(value or "").strip()
+
+    if (
+        not key
+        or not _IMPORT_KEY_RE.fullmatch(key)
+        or ".." in key
+    ):
+        raise ValueError("Некорректный ключ архива")
+
+    return key
+
+
+def _archive_dir(import_key: str) -> Path:
+    """Каталог архива с проверкой вхождения в CONSTRUCTIONS_ARCHIVE_ROOT."""
+    root = CONSTRUCTIONS_ARCHIVE_ROOT.resolve()
+    archive_dir = (root / validate_import_key(import_key)).resolve()
+
+    try:
+        archive_dir.relative_to(root)
+    except ValueError as exc:
+        raise ValueError("Некорректный ключ архива") from exc
+
+    return archive_dir
 
 
 def get_dir_size(path: Path) -> int:
@@ -166,12 +199,18 @@ def _restore_archive_impl(import_key: str, dry_run: bool = False) -> dict:
     import shutil
     import subprocess
 
-    archive_dir = CONSTRUCTIONS_ARCHIVE_ROOT / import_key
+    import_key = validate_import_key(import_key)
+    archive_dir = _archive_dir(import_key)
     dump_file = archive_dir / "database.dump"
     media_src = archive_dir / "media"
 
     if not dump_file.exists():
-        raise RuntimeError(f"Архив PostgreSQL не найден: {dump_file}")
+        # Путь пишем в лог, а не в ответ: админский API не должен
+        # раскрывать структуру файловой системы.
+        logging.getLogger(__name__).warning(
+            "Архив PostgreSQL не найден: %s", dump_file
+        )
+        raise RuntimeError("Архив PostgreSQL не найден")
 
     media_files = (
         [item for item in media_src.rglob("*") if item.is_file()]
@@ -458,6 +497,8 @@ def _process_holds_update_lock() -> bool:
 
 def restore_archive(import_key: str, dry_run: bool = False) -> dict:
     """Публичная точка входа: план без изменений или restore под guard."""
+    import_key = validate_import_key(import_key)
+
     if dry_run:
         return _restore_archive_impl(import_key, dry_run=True)
 

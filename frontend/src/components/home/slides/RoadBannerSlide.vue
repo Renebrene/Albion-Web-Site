@@ -7,10 +7,12 @@
 
     <!--
       Код баннера — отдельный HTML-документ из админки.
-      sandbox="allow-scripts allow-same-origin": iframe имеет тот же origin,
-      что и родитель, поэтому может делать fetch к /api/* (CSP разрешает
-      http://127.0.0.1:*). Скрипт не получает доступ к cookie родителя
-      (sandbox изолирует cookie-хранилище).
+      sandbox="allow-scripts" даёт сцене работать, но оставляет iframe в
+      opaque-origin: документ не читает cookie/sessionStorage родителя и не
+      может дотянуться до его DOM. Запросы баннера к /api/* разрешены
+      CORS-заголовком Access-Control-Allow-Origin: * на нужных эндпоинтах.
+      allow-same-origin сюда добавлять нельзя: для same-origin документа
+      sandbox перестаёт быть защитой (скрипт может снять его сам).
       pointer-events: none — колесо/свайп листают слайды поверх баннера.
     -->
     <div v-if="active && slide.has_code" class="road-slide-stage">
@@ -18,6 +20,7 @@
         ref="frame"
         :src="codeUrl"
         class="road-slide-frame"
+        sandbox="allow-scripts"
         referrerpolicy="no-referrer"
         loading="lazy"
         title="Светофорные объекты — анимированная городская дорога"

@@ -545,7 +545,7 @@ def test_llm_answer_is_none_when_disabled(monkeypatch):
     )
 
 
-def test_chat_rejects_all_null_llm_response(monkeypatch):
+def test_chat_returns_friendly_fallback_for_unrecognized_request(monkeypatch):
     class FakeBridge:
         def default_year(self):
             return 2026
@@ -563,5 +563,8 @@ def test_chat_rejects_all_null_llm_response(monkeypatch):
 
     service = ChatService(bridge=FakeBridge(), store=ChatStore())
 
-    with pytest.raises(ValueError):
-        service.message(ChatMessageRequest(message="непонятный запрос"))
+    response = service.message(ChatMessageRequest(message="непонятный запрос"))
+
+    assert response.pending is False
+    assert "Не удалось распознать запрос" in response.answer
+    assert response.results.count == 0

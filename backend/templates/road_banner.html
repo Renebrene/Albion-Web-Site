@@ -912,13 +912,27 @@ IX.forEach((ix,ixIdx) => {
     lights.push({ ixIdx, bulbs, glow });
   });
 });
-/* Автомобильные светофоры — у обочин, не над центром дороги.
-   Стоящие у обочин светофоры для пешеходов остаются отдельными. */
+/* Автомобильные светофоры — на Г-образных штангах у угла перекрёстка.
+   Стойка стоит на тротуаре перед стоп-линией, консоль выносит головку
+   над полосой: светофор не занимает проезжую часть. Пешеходные
+   светофоры на отдельных стойках остаются как есть. */
 const carLights = [];
 function carLightHead(x, z, faceSign, ixIdx) {
   const g = new THREE.Group();
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07,.09,4.2,8), M.pole);
-  pole.position.y = 2.1; g.add(pole);
+
+  // Вертикальная стойка на тротуаре, у угла перекрёстка.
+  const poleH = 6.1;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.08,.11,poleH,8), M.pole);
+  pole.position.y = poleH/2; g.add(pole);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(.24,.28,.16,10), M.housing);
+  base.position.y = .08; g.add(base);
+
+  // Консоль «Г» идёт от стойки к середине полосы.
+  const armDir = -Math.sign(z);
+  const armLen = Math.abs(z) - LANE_Z;
+  const armY = poleH - .25;
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(.12,.12,armLen), M.pole);
+  arm.position.set(0, armY, armDir*armLen/2); g.add(arm);
 
   const head = new THREE.Group();
   const housing = new THREE.Mesh(new THREE.BoxGeometry(.42,1.55,.55), M.housing);
@@ -932,15 +946,16 @@ function carLightHead(x, z, faceSign, ixIdx) {
   });
   const glow = glowSprite(0x2fe07d, 1.7, .5);
   glow.position.set(faceSign*.34, -.5, 0); head.add(glow);
-  head.position.y = 3.9; g.add(head);
+  // Головка висит над полосой, на конце консоли.
+  head.position.set(0, armY - .45, armDir*armLen); g.add(head);
 
   g.position.set(x, 0, z); scene.add(g);
   carLights.push({ ixIdx, bulbs, glow });
 }
 IX.forEach((ix, ixIdx) => {
-  // По одному светофору с каждой стороны — на обочине, справа по ходу.
-  carLightHead(ix.x, -4.35, -1, ixIdx);
-  carLightHead(ix.x, 4.35, 1, ixIdx);
+  // Стойки перед стоп-линией, справа по ходу каждой полосы.
+  carLightHead(ix.x - (STOP_OFF + .6),  4.7, -1, ixIdx); // поток +x
+  carLightHead(ix.x + (STOP_OFF + .6), -4.7,  1, ixIdx); // поток -x
 });
 
 const BULB_Y = { r:3.92, y:3.5, g:3.08 }, BULB_C = { r:0xff3b4d, y:0xffc233, g:0x2fe07d };

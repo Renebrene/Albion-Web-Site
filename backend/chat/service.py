@@ -683,24 +683,57 @@ class ChatService:
         query: SearchQuery
         clarification_text: str | None = None
 
-        if isinstance(session.pending, PendingSearchQuery):
-            try:
-                query = session.pending.resolve(payload.message, self.dictionary)
-                session.pending = None
-            except ValueError:
+        try:
+            if isinstance(session.pending, PendingSearchQuery):
+                try:
+                    query = session.pending.resolve(payload.message, self.dictionary)
+                    session.pending = None
+                except ValueError:
+                    (
+                        query,
+                        source,
+                        warnings,
+                        clarification_text,
+                    ) = self._parse(payload.message)
+            else:
                 (
                     query,
                     source,
                     warnings,
                     clarification_text,
                 ) = self._parse(payload.message)
-        else:
-            (
-                query,
-                source,
-                warnings,
-                clarification_text,
-            ) = self._parse(payload.message)
+        except ValueError as exc:
+            if "Не удалось распознать запрос" not in str(exc):
+                raise
+            session.pending = None
+            response = self._response(
+                session,
+                query=None,
+                answer=(
+                    "Не удалось распознать запрос. Уточните город, адрес, "
+                    "тип конструкции или период. Например: "
+                    "«Ростов-на-Дону, щиты, свободные в июне»."
+                ),
+                source="rules",
+                warnings=warnings,
+            )
+            self.store.save_state(session)
+            if payload.request_id is not None:
+                self.store.remember_response(
+                    session,
+                    payload.request_id,
+                    response.model_dump(mode="json"),
+                )
+            try:
+                log_turn(
+                    session_id=session.id,
+                    chat_key=payload.chat_key,
+                    question=payload.message,
+                    answer=response.answer,
+                )
+            except Exception:  # noqa: BLE001
+                pass
+            return response
 
         context = payload.context
         if context is not None:

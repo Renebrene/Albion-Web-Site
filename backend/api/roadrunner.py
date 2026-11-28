@@ -70,21 +70,24 @@ async def get_traffic_service() -> TrafficService:
 
 @router.get("/weather")
 async def get_weather():
-    """Текущая погода."""
+    """Текущая погода (публичный read-only для баннера/виджетов)."""
     service = await get_weather_service()
     data = await service.get_current()
 
-    return {
-        "success": True,
-        "data": {
-            "condition": data.condition,
-            "temperature_c": data.temperature_c,
-            "humidity": data.humidity,
-            "wind_speed_kmh": data.wind_speed_kmh,
-            "precipitation_mm": data.precipitation_mm,
-            "source": data.source,
+    return JSONResponse(
+        content={
+            "success": True,
+            "data": {
+                "condition": data.condition,
+                "temperature_c": data.temperature_c,
+                "humidity": data.humidity,
+                "wind_speed_kmh": data.wind_speed_kmh,
+                "precipitation_mm": data.precipitation_mm,
+                "source": data.source,
+            },
         },
-    }
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 
 @router.get("/weather-proxy")
@@ -401,9 +404,13 @@ async def generate_scenario(
         agent = create_llm_agent()
         scenario = await agent.generate(request_text)
 
-        # Валидация
-        from backend.roadrunner.scenario.engine import validate_scenario
+        # Нормализация очевидных алиасов действий LLM, затем валидация.
+        from backend.roadrunner.scenario.engine import (
+            normalize_scenario_actions,
+            validate_scenario,
+        )
 
+        scenario = normalize_scenario_actions(scenario)
         errors = validate_scenario(scenario)
         if errors:
             raise HTTPException(
@@ -419,16 +426,17 @@ async def generate_scenario(
         return {"success": True, "scenario": scenario}
 
     except LLMAgentError as exc:
+        logger.warning("LLM не ответил при генерации сценария: %s", exc)
         raise HTTPException(
-            status_code=502, detail=f"LLM не ответил: {exc}"
-        )
+            status_code=502, detail="LLM не ответил. Попробуйте позже."
+        ) from exc
     except HTTPException:
         raise
     except Exception as exc:
         logger.exception("Ошибка генерации сценария")
         raise HTTPException(
-            status_code=500, detail=f"Ошибка генерации: {exc}"
-        )
+            status_code=500, detail="Ошибка генерации сценария"
+        ) from exc
 
 
 PRESETS_KEY = "camera_presets"
@@ -746,11 +754,15 @@ async def edit_banner_code(payload: dict, auth=Depends(require_admin)):
     try:
         result = await edit_code(instruction, base)
     except CodeEditorError as exc:
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
+        logger.warning("AI-редактор кода не ответил: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="AI-редактор недоступен. Попробуйте позже.",
+        ) from exc
     except Exception as exc:
         logger.exception("Ошибка AI-редактора кода")
         raise HTTPException(
-            status_code=500, detail=f"Ошибка AI-редактора: {exc}"
+            status_code=500, detail="Ошибка AI-редактора"
         ) from exc
 
     return {"success": True, "base_source": base_source, **result}
@@ -791,7 +803,7 @@ def _write_banner_code(code: str, slide_id=None) -> dict:
     except Exception as exc:
         logger.exception("Не удалось применить код баннера")
         raise HTTPException(
-            status_code=500, detail=f"Не удалось сохранить код: {exc}"
+            status_code=500, detail="Не удалось сохранить код баннера"
         ) from exc
 
     if cur.rowcount == 0:

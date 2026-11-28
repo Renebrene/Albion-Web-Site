@@ -25,7 +25,7 @@
       </div>
 
       <section v-else class="info-body" role="tabpanel">
-        <!-- Traffic-light: оглавление + содержимое + фотогалерея -->
+        <!-- Traffic-light: контент + фотогалерея -->
         <div
           v-if="activeTab.kind === 'traffic-light'"
           class="traffic-light-layout"
@@ -34,9 +34,9 @@
             <!-- Колонка 1: светофор (кастомный HTML / картинка / 3D) -->
             <div class="tl-light">
               <div
-                v-if="tlData.custom_html"
+                v-if="safeTlCustomHtml"
                 class="tl-custom-html"
-                v-html="tlData.custom_html"
+                v-html="safeTlCustomHtml"
               ></div>
 
               <img
@@ -55,49 +55,10 @@
               </div>
             </div>
 
-            <!-- Колонка 2: оглавление (ОБЩЕЕ + годы) -->
-            <nav class="tl-toc" aria-label="Оглавление">
-              <button
-                v-for="section in tlSections"
-                :key="section.key"
-                type="button"
-                class="tl-toc-item"
-                :class="{ 'is-active': selectedTlSection === section.key }"
-                :aria-selected="selectedTlSection === section.key"
-                @click="selectedTlSection = section.key"
-              >
-                {{ section.title }}
-              </button>
-            </nav>
-
-            <!-- Колонка 3: содержимое выбранного пункта -->
+            <!-- Колонка 2: объединённый текст -->
             <article class="tl-content" role="tabpanel">
-              <template v-if="currentTlSection">
-                <div
-                  v-for="(desc, i) in currentTlSection.descriptions"
-                  :key="`d-${i}`"
-                  class="tl-desc"
-                >
-                  {{ desc }}
-                </div>
-
-                <div
-                  v-if="currentTlSection.addresses.length"
-                  class="tl-addresses"
-                >
-                  {{ currentTlSection.addresses.join(' · ') }}
-                </div>
-
-                <div
-                  v-if="
-                    !currentTlSection.descriptions.length &&
-                    !currentTlSection.addresses.length
-                  "
-                  class="tl-empty"
-                >
-                  Информация скоро появится.
-                </div>
-              </template>
+              <div v-if="tlText" class="tl-text">{{ tlText }}</div>
+              <div v-else class="tl-empty">Информация скоро появится.</div>
             </article>
           </div>
 
@@ -240,6 +201,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import DOMPurify from 'dompurify'
 import TrafficLight3D from '@/components/common/TrafficLight3D.vue'
 import { usePhotoViewer } from '@/composables/usePhotoViewer'
 
@@ -267,85 +229,13 @@ const tlData = ref({
   photos: []
 })
 
-/* Выбранный пункт оглавления. По умолчанию — «ОБЩЕЕ». */
-const selectedTlSection = ref('general')
-
-/* Строки-описания начинаются с этих слов; остальные — адреса. */
-const DESC_PREFIXES = [
-  'ооо',
-  'установка',
-  'замена',
-  'работы',
-  'альбион',
-  'одной',
-  'рекламное',
-  'автоподъемник',
-  'автоподъёмник'
-]
-
-function isAddressLine(line) {
-  const low = line.trim().toLowerCase()
-  if (!low) return false
-
-  return !DESC_PREFIXES.some(prefix => low.startsWith(prefix))
-}
-
-/*
- * Разбирает текст на секции: вводная часть «ОБЩЕЕ» и годы.
- * Каждая секция: { key, title, descriptions: string[], addresses: string[] }.
- */
-const tlSections = computed(() => {
-  const text = tlData.value.text || ''
-  if (!text.trim()) return []
-
-  const lines = text
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-
-  const sections = []
-  let current = {
-    key: 'general',
-    title: 'ОБЩЕЕ',
-    descriptions: [],
-    addresses: []
-  }
-
-  const flush = () => {
-    if (current.descriptions.length || current.addresses.length) {
-      sections.push(current)
-    }
-  }
-
-  for (const line of lines) {
-    const yearMatch = line.match(/^(\d{4})$/)
-
-    if (yearMatch) {
-      flush()
-      current = {
-        key: yearMatch[1],
-        title: yearMatch[1],
-        descriptions: [],
-        addresses: []
-      }
-    } else if (isAddressLine(line)) {
-      current.addresses.push(line)
-    } else {
-      current.descriptions.push(line)
-    }
-  }
-
-  flush()
-
-  return sections
-})
-
-const currentTlSection = computed(
-  () =>
-    tlSections.value.find(section => section.key === selectedTlSection.value) ||
-    tlSections.value[0] ||
-    null
+/* Админский HTML рендерим через v-html, поэтому обязательно санитизируем. */
+const safeTlCustomHtml = computed(() =>
+  DOMPurify.sanitize(tlData.value.custom_html || '')
 )
+
+/* Объединённый текст раздела (без переключения годов). */
+const tlText = computed(() => (tlData.value.text || '').trim())
 
 function openPhotoViewer(photo, index) {
   const photos = tlData.value.photos
@@ -439,8 +329,6 @@ watch(
   tab => {
     if (tab && tab.kind === 'traffic-light') {
       parseTrafficLightContent(tab.content)
-      // При смене закладки всегда открываем «ОБЩЕЕ».
-      selectedTlSection.value = 'general'
     }
   },
   { immediate: true }
@@ -837,12 +725,12 @@ onMounted(load)
 }
 
 /*
- * Три колонки: светофор → оглавление → содержимое.
- * Светофор и оглавление — слева, описание выбранного пункта — справа.
+ * Две колонки: светофор → содержимое.
+ * Светофор — слева, объединённый текст — справа.
  */
 .tl-layout {
   display: grid;
-  grid-template-columns: 210px 190px minmax(0, 1fr);
+  grid-template-columns: 210px minmax(0, 1fr);
   gap: 22px;
   flex: 1 1 auto;
   min-height: 0;
@@ -893,45 +781,7 @@ onMounted(load)
   border-radius: 12px;
 }
 
-/* Оглавление: ОБЩЕЕ и годы. */
-.tl-toc {
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  border-top: 1px solid #dfe4e7;
-}
-
-.tl-toc-item {
-  flex: 0 0 auto;
-  padding: 12px 16px;
-  border: 0;
-  border-bottom: 1px solid #e7ecee;
-  background: transparent;
-  color: #17212b;
-  font-size: 17px;
-  font-weight: 800;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    padding 0.15s ease;
-}
-
-.tl-toc-item:hover {
-  padding-left: 21px;
-  background: #f4f6f7;
-}
-
-.tl-toc-item.is-active {
-  padding-left: 21px;
-  background: #fff;
-  color: var(--albion-accent, #ff4d3d);
-  box-shadow: inset 3px 0 0 var(--albion-accent, #ff4d3d);
-}
-
-/* Содержимое выбранного пункта. */
+/* Содержимое. */
 .tl-content {
   min-height: 0;
   overflow-y: auto;
@@ -941,21 +791,12 @@ onMounted(load)
   line-height: 1.7;
 }
 
-.tl-desc {
+/* Объединённый текст: сохраняем переносы строк. */
+.tl-text {
   color: #3a4750;
   font-size: 16px;
-  line-height: 1.65;
-  margin-bottom: 12px;
-}
-
-/* Адреса — один компактный абзац с разделителями «·». */
-.tl-addresses {
-  margin-top: 16px;
-  padding-left: 14px;
-  border-left: 2px solid #dfe4e7;
-  color: #17212b;
-  font-size: 15px;
   line-height: 1.7;
+  white-space: pre-wrap;
 }
 
 .tl-empty {
@@ -1075,10 +916,6 @@ onMounted(load)
   .tl-light {
     height: 200px;
     min-height: 0;
-  }
-
-  .tl-toc {
-    max-height: 220px;
   }
 
   .tl-content {
