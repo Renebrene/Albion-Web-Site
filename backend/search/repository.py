@@ -214,6 +214,7 @@ class SitePostgreSQLSearchRepository:
         month: int | None = None,
         address: str | None = None,
         city: str | None = None,
+        district: str | None = None,
         media_type: str | None = None,
         size: str | None = None,
         status: str | None = None,
@@ -273,6 +274,12 @@ class SitePostgreSQLSearchRepository:
                 "LOWER(ci.name) LIKE LOWER(:city)"
             )
             params["city"] = f"%{city.strip()}%"
+
+        if district:
+            conditions.append(
+                "LOWER(COALESCE(c.district, '')) LIKE LOWER(:district)"
+            )
+            params["district"] = f"%{district.strip()}%"
 
         if media_type:
             conditions.append(
@@ -475,6 +482,7 @@ class SitePostgreSQLSearchRepository:
         month: int | None = None,
         address: str | None = None,
         city: str | None = None,
+        district: str | None = None,
         media_type: str | None = None,
         size: str | None = None,
         min_price: int | None = None,
@@ -488,6 +496,7 @@ class SitePostgreSQLSearchRepository:
             month=month,
             address=address,
             city=city,
+            district=district,
             media_type=media_type,
             size=size,
             min_price=min_price,
@@ -507,6 +516,7 @@ class SitePostgreSQLSearchRepository:
         months: list[int],
         address: str | None = None,
         city: str | None = None,
+        district: str | None = None,
         media_type: str | None = None,
         size: str | None = None,
         min_price: int | None = None,
@@ -525,6 +535,7 @@ class SitePostgreSQLSearchRepository:
             months=unique_months,
             address=address,
             city=city,
+            district=district,
             media_type=media_type,
             size=size,
             min_price=min_price,
@@ -546,6 +557,7 @@ class SitePostgreSQLSearchRepository:
         months: list[int],
         address: str | None = None,
         city: str | None = None,
+        district: str | None = None,
         media_type: str | None = None,
         size: str | None = None,
         min_price: int | None = None,
@@ -564,6 +576,7 @@ class SitePostgreSQLSearchRepository:
             months=unique_months,
             address=address,
             city=city,
+            district=district,
             media_type=media_type,
             size=size,
             min_price=min_price,
@@ -585,6 +598,7 @@ class SitePostgreSQLSearchRepository:
         month: int,
         address: str | None = None,
         city: str | None = None,
+        district: str | None = None,
         media_type: str | None = None,
         size: str | None = None,
         min_price: int | None = None,
@@ -598,6 +612,7 @@ class SitePostgreSQLSearchRepository:
             month=month,
             address=address,
             city=city,
+            district=district,
             media_type=media_type,
             size=size,
             status="FREE",
@@ -618,6 +633,7 @@ class SitePostgreSQLSearchRepository:
         months: list[int],
         address: str | None = None,
         city: str | None = None,
+        district: str | None = None,
         media_type: str | None = None,
         size: str | None = None,
         min_price: int | None = None,
@@ -636,6 +652,7 @@ class SitePostgreSQLSearchRepository:
             months=unique_months,
             address=address,
             city=city,
+            district=district,
             media_type=media_type,
             size=size,
             min_price=min_price,
@@ -657,6 +674,7 @@ class SitePostgreSQLSearchRepository:
         months: list[int],
         address: str | None = None,
         city: str | None = None,
+        district: str | None = None,
         media_type: str | None = None,
         size: str | None = None,
         min_price: int | None = None,
@@ -675,6 +693,7 @@ class SitePostgreSQLSearchRepository:
             months=unique_months,
             address=address,
             city=city,
+            district=district,
             media_type=media_type,
             size=size,
             min_price=min_price,
@@ -696,6 +715,7 @@ class SitePostgreSQLSearchRepository:
         months: list[int],
         address: str | None,
         city: str | None,
+        district: str | None,
         media_type: str | None,
         size: str | None,
         min_price: int | None,
@@ -737,6 +757,12 @@ class SitePostgreSQLSearchRepository:
                 "LOWER(ci.name) LIKE LOWER(:city)"
             )
             params["city"] = f"%{city.strip()}%"
+
+        if district:
+            conditions.append(
+                "LOWER(COALESCE(c.district, '')) LIKE LOWER(:district)"
+            )
+            params["district"] = f"%{district.strip()}%"
 
         if media_type:
             conditions.append(

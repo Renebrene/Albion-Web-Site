@@ -161,6 +161,31 @@ API: `GET/PUT /api/admin/settings/synonyms`,
 сравнивает `updated_at` записи перед каждым сообщением и пересобирает
 парсер — правку видят все uvicorn-воркеры.
 
+## Населённый пункт в запросе (поиск вокруг, без записей в БД)
+
+«Найди конструкции в районе посёлка Красный Колос» (и варианты `в посёлке`,
+`в селе`, `рядом с`, `около`, `возле`, `у`) обрабатывается отдельным слоем
+поверх обычного поиска:
+
+- `backend/chat/settlement_intent.py` — `parse_area_intent()` достаёт имя
+  населённого пункта **из текста запроса** и радиус (по умолчанию **50 км**);
+- `backend/services/settlement_search.py` — `search_settlements()` резолвит
+  имя в точку **на лету** всеми источниками и **ничего не сохраняет**:
+  Яндекс Геокодер (`kind=locality`, только Ростовская область, все одноимённые),
+  OSM Overpass (bbox области, `place=city|town|village|hamlet|locality|...`),
+  офлайн `storage/map/rostov.pmtiles` (слой `places`, через
+  `backend/services/pmtiles_places.mjs` и `frontend/node_modules`), плюс
+  канонизация имени по `synonyms`/`cities`. При нескольких одинаковых
+  названиях берутся **все** кандидаты и объединяются;
+- `backend/search/spatial.py` — `find_construction_ids_near()` выбирает id
+  конструкций вокруг каждой точки через `ST_DWithin`/`ST_Distance` по
+  `surfaces.location` (в `constructions.location` данные нет), радиус
+  задаётся параметром, **не пишется в БД**;
+- в `ChatService` найденные id фильтруют результаты обычного поиска
+  (v2 `search_with_meta` или v1 `search_rich`); город/адрес из текста
+  запроса снимаются, `limit=None`, в `answer`/`warnings` добавляется
+  название пункта и радиус. Привязки к трассам и рисунка круга на карте нет.
+
 ## Грабли
 
 - **Мультиворкер:** PostgreSQL-store включается автоматически (`ALBION_CHAT_STORE=auto`)

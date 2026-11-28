@@ -17,6 +17,7 @@ class SearchService:
         common = {
             "address": query.address,
             "city": query.city,
+            "district": query.district,
             "media_type": query.media_type,
             "size": query.size,
             "min_price": query.min_price,
