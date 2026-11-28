@@ -6,8 +6,8 @@
         <h1>AI-РЕДАКТОР КОДА</h1>
         <p>
           Нейросеть добавляет новые функции, элементы сцены и подписи в код
-          баннера. Правки делаются на основе снимка «Дефолт» и не меняют
-          текущий баннер, пока вы не нажмёте «Применить к баннеру».
+          баннера. Правки делаются на основе снимка «Дефолт» и не меняют текущий
+          баннер, пока вы не нажмёте «Применить к баннеру».
         </p>
       </div>
 
@@ -66,7 +66,8 @@
           <span class="model-value">{{ modelLabel }}</span>
         </div>
         <p class="field-hint">
-          Общая модель для сценариев и кода — на вкладке «Настройки АИ и источников».
+          Общая модель для сценариев и кода — на вкладке «Настройки АИ и
+          источников».
         </p>
 
         <div class="default-line">
@@ -144,8 +145,8 @@
         </div>
 
         <p v-if="resultIncomplete || codeHasMarkdown" class="warning-text">
-          Код содержит markdown или неполный документ. Исправьте результат
-          перед применением — иначе баннер покажет резервный рисунок.
+          Код содержит markdown или неполный документ. Исправьте результат перед
+          применением — иначе баннер покажет резервный рисунок.
         </p>
       </section>
 
@@ -218,7 +219,9 @@
         <div v-for="item in presetNames" :key="item" class="preset-row">
           <div class="preset-info">
             <strong>{{ item }}</strong>
-            <span class="preset-date">{{ formatDate(presets[item].created_at) }}</span>
+            <span class="preset-date">{{
+              formatDate(presets[item].created_at)
+            }}</span>
           </div>
           <div class="preset-actions">
             <q-btn
@@ -303,8 +306,11 @@ const modelLabel = computed(() => {
 const defaultStatus = computed(() => {
   if (!baseCode.value) return 'не задан'
 
-  const source = defaultSource.value === 'banner' ? 'из кода баннера' : 'сохранён'
-  const when = defaultUpdatedAt.value ? `, ${formatDate(defaultUpdatedAt.value)}` : ''
+  const source =
+    defaultSource.value === 'banner' ? 'из кода баннера' : 'сохранён'
+  const when = defaultUpdatedAt.value
+    ? `, ${formatDate(defaultUpdatedAt.value)}`
+    : ''
 
   return `${source}${when}`
 })
@@ -421,7 +427,8 @@ async function generate() {
       model.value = { provider: data.provider, model: data.model }
     }
 
-    notice.value = 'Результат готов. Проверьте предпросмотр и примените к баннеру.'
+    notice.value =
+      'Результат готов. Проверьте предпросмотр и примените к баннеру.'
     schedulePreview()
   } catch (exc) {
     error.value = `Не удалось изменить код: ${exc}`
@@ -444,7 +451,8 @@ async function applyCode(code, successText) {
     })
 
     currentBannerCode.value = code
-    notice.value = successText || `Код применён к баннеру (слайд ${data.slide_id}).`
+    notice.value =
+      successText || `Код применён к баннеру (слайд ${data.slide_id}).`
   } catch (exc) {
     error.value = `Не удалось применить код: ${exc}`
   } finally {
@@ -511,7 +519,13 @@ function resetResult() {
 }
 
 async function restoreDefault() {
-  if (!baseCode.value || !window.confirm('Восстановить баннер из «Дефолта»? Текущий код баннера будет заменён.')) return
+  if (
+    !baseCode.value ||
+    !window.confirm(
+      'Восстановить баннер из «Дефолта»? Текущий код баннера будет заменён.'
+    )
+  )
+    return
 
   restoring.value = true
   clearMessages()

@@ -26,12 +26,7 @@
           :disable="!slide || dirty"
           @click="restartPreview"
         />
-        <q-btn
-          flat
-          no-caps
-          label="PDF"
-          @click="downloadPdf"
-        />
+        <q-btn flat no-caps label="PDF" @click="downloadPdf" />
         <q-btn
           flat
           no-caps
@@ -115,68 +110,80 @@
           </div>
 
           <div class="pc-topbar-controls">
-          <q-btn
-            class="pc-play"
-            no-caps
-            :label="settingValue('paused') ? 'Пуск' : 'Пауза'"
-            :icon="settingValue('paused') ? 'play_arrow' : 'pause'"
-            @click="togglePaused"
-          />
+            <q-btn
+              class="pc-play"
+              no-caps
+              :label="settingValue('paused') ? 'Пуск' : 'Пауза'"
+              :icon="settingValue('paused') ? 'play_arrow' : 'pause'"
+              @click="togglePaused"
+            />
 
-          <SettingKnob
-            label="Скорость"
-            :value="settingValue('speedFactor')"
-            :min="0.2"
-            :max="2"
-            :step="0.05"
-            unit="×"
-            @update:value="v => setSetting('speedFactor', v)"
-          />
-          <SettingKnob
-            label="Поток"
-            :value="settingValue('flowDensity')"
-            :min="0.5"
-            :max="3"
-            :step="0.05"
-            unit="×"
-            @update:value="v => setSetting('flowDensity', v)"
-          />
+            <SettingKnob
+              label="Скорость"
+              :value="settingValue('speedFactor')"
+              :min="0.2"
+              :max="2"
+              :step="0.05"
+              unit="×"
+              @update:value="v => setSetting('speedFactor', v)"
+            />
+            <SettingKnob
+              label="Поток"
+              :value="settingValue('flowDensity')"
+              :min="0.5"
+              :max="3"
+              :step="0.05"
+              unit="×"
+              @update:value="v => setSetting('flowDensity', v)"
+            />
 
-          <q-select
-            class="pc-select"
-            dense
-            outlined
-            emit-value
-            map-options
-            :model-value="settingValue('cameraPreset')"
-            :options="cameraPresetOptions"
-            @update:model-value="applyCameraPreset"
-          />
-          <div class="pc-mode-scoped" :class="{ 'pc-disabled': !isCustom }">
-          <q-select
-            class="pc-select"
-            dense
-            outlined
-            emit-value
-            map-options
-            :model-value="settingValue('weatherPreset')"
-            :options="weatherPresetOptions"
-            @update:model-value="applyWeatherPreset"
-          />
-          <q-select
-            class="pc-select"
-            dense
-            outlined
-            emit-value
-            map-options
-            :model-value="settingValue('holidayPreset')"
-            :options="holidayPresetOptions"
-            @update:model-value="applyHolidayPreset"
-          />
-          </div>
+            <q-select
+              class="pc-select"
+              dense
+              outlined
+              emit-value
+              map-options
+              :model-value="settingValue('cameraPreset')"
+              :options="cameraPresetOptions"
+              @update:model-value="applyCameraPreset"
+            />
+            <div class="pc-mode-scoped" :class="{ 'pc-disabled': !isCustom }">
+              <q-select
+                class="pc-select"
+                dense
+                outlined
+                emit-value
+                map-options
+                :model-value="settingValue('weatherPreset')"
+                :options="weatherPresetOptions"
+                @update:model-value="applyWeatherPreset"
+              />
+              <q-select
+                class="pc-select"
+                dense
+                outlined
+                emit-value
+                map-options
+                :model-value="settingValue('holidayPreset')"
+                :options="holidayPresetOptions"
+                @update:model-value="applyHolidayPreset"
+              />
+            </div>
 
-          <q-btn class="pc-action" no-caps icon="shuffle" label="Случайно" @click="randomize" />
-          <q-btn class="pc-action" no-caps icon="restart_alt" label="Сброс" @click="resetProjection" />
+            <q-btn
+              class="pc-action"
+              no-caps
+              icon="shuffle"
+              label="Случайно"
+              @click="randomize"
+            />
+            <q-btn
+              class="pc-action"
+              no-caps
+              icon="restart_alt"
+              label="Сброс"
+              @click="resetProjection"
+            />
           </div>
         </div>
 
@@ -208,7 +215,8 @@
         <div
           class="pc-body"
           :class="{
-            'pc-disabled': !isCustom && ['weather', 'holidays'].includes(projectionTab)
+            'pc-disabled':
+              !isCustom && ['weather', 'holidays'].includes(projectionTab)
           }"
         >
           <div v-if="projectionTab === 'scenarios'" class="pc-section">
@@ -230,8 +238,8 @@
             <h3>Генератор праздников</h3>
             <p>
               Пресет включает набор атрибутов, палитру гирлянд и оформление.
-              Любой из элементов можно включить вручную — пресет станет
-              «Своим набором».
+              Любой из элементов можно включить вручную — пресет станет «Своим
+              набором».
             </p>
             <div class="pc-cards">
               <button
@@ -239,7 +247,9 @@
                 :key="preset.value"
                 type="button"
                 class="pc-card"
-                :class="{ 'is-active': settingValue('holidayPreset') === preset.value }"
+                :class="{
+                  'is-active': settingValue('holidayPreset') === preset.value
+                }"
                 @click="applyHolidayPreset(preset.value)"
               >
                 <span class="pc-card-icon">{{ preset.emoji }}</span>
@@ -250,7 +260,12 @@
             <h4 class="pc-group-title">Оформление</h4>
             <div class="pc-knobs">
               <SettingKnob
-                v-for="key in ['decorDensity','decorSize','decorGlow','precipitation']"
+                v-for="key in [
+                  'decorDensity',
+                  'decorSize',
+                  'decorGlow',
+                  'precipitation'
+                ]"
                 :key="key"
                 :label="settingLabel(key)"
                 :value="settingValue(key)"
@@ -271,7 +286,9 @@
                 @click="setSetting(key, !settingValue(key))"
               >
                 <span>{{ settingLabel(key) }}</span>
-                <small>{{ settingValue(key) ? 'включено' : 'выключено' }}</small>
+                <small>{{
+                  settingValue(key) ? 'включено' : 'выключено'
+                }}</small>
               </button>
             </div>
           </div>
@@ -288,7 +305,9 @@
                 :key="preset.value"
                 type="button"
                 class="pc-card"
-                :class="{ 'is-active': settingValue('weatherPreset') === preset.value }"
+                :class="{
+                  'is-active': settingValue('weatherPreset') === preset.value
+                }"
                 @click="applyWeatherPreset(preset.value)"
               >
                 <span class="pc-card-icon">{{ preset.emoji }}</span>
@@ -299,7 +318,13 @@
             <h4 class="pc-group-title">Атмосфера</h4>
             <div class="pc-knobs">
               <SettingKnob
-                v-for="key in ['precipitation','wind','lightning','fog','brightness']"
+                v-for="key in [
+                  'precipitation',
+                  'wind',
+                  'lightning',
+                  'fog',
+                  'brightness'
+                ]"
                 :key="key"
                 :label="settingLabel(key)"
                 :value="settingValue(key)"
@@ -324,7 +349,9 @@
                 :key="preset.value"
                 type="button"
                 class="pc-card"
-                :class="{ 'is-active': settingValue('cameraPreset') === preset.value }"
+                :class="{
+                  'is-active': settingValue('cameraPreset') === preset.value
+                }"
                 @click="applyCameraPreset(preset.value)"
               >
                 <span class="pc-card-icon">{{ preset.emoji }}</span>
@@ -337,7 +364,7 @@
                 <h4 class="pc-group-title">Ракурс</h4>
                 <div class="pc-knobs">
                   <SettingKnob
-                    v-for="key in ['tilt','rotation','scale']"
+                    v-for="key in ['tilt', 'rotation', 'scale']"
                     :key="key"
                     :label="settingLabel(key)"
                     :value="settingValue(key)"
@@ -356,7 +383,12 @@
                 <h4 class="pc-group-title">Движение</h4>
                 <div class="pc-knobs">
                   <SettingKnob
-                    v-for="key in ['speedFactor','speedWave','speedWavePeriod','dayNightPeriod']"
+                    v-for="key in [
+                      'speedFactor',
+                      'speedWave',
+                      'speedWavePeriod',
+                      'dayNightPeriod'
+                    ]"
                     :key="key"
                     :label="settingLabel(key)"
                     :value="settingValue(key)"
@@ -386,7 +418,7 @@
             </div>
             <div class="pc-toggles">
               <button
-                v-for="key in ['shadows','grid','buses']"
+                v-for="key in ['shadows', 'grid', 'buses']"
                 :key="key"
                 type="button"
                 class="pc-toggle-card"
@@ -394,7 +426,9 @@
                 @click="setSetting(key, !settingValue(key))"
               >
                 <span>{{ settingLabel(key) }}</span>
-                <small>{{ settingValue(key) ? 'включено' : 'выключено' }}</small>
+                <small>{{
+                  settingValue(key) ? 'включено' : 'выключено'
+                }}</small>
               </button>
             </div>
 
@@ -444,8 +478,8 @@
             <p class="pc-scene-hint">
               «Дефолт» — снимок текущего состояния сцены. Остальные пресеты
               создаются на его основе: нажмите «Новый на основе «Дефолта»»,
-              измените количество машин и пешеходов, затем сохраните под
-              новым именем.
+              измените количество машин и пешеходов, затем сохраните под новым
+              именем.
             </p>
             <p
               class="pc-scene-model"
@@ -581,12 +615,26 @@
               outlined
             />
           </div>
-          <div v-if="aiSettings.weather_provider !== 'open-meteo'" class="setting-item">
+          <div
+            v-if="aiSettings.weather_provider !== 'open-meteo'"
+            class="setting-item"
+          >
             <label>
-              Ключ {{ aiSettings.weather_provider === 'gismeteo' ? 'Gismeteo' : 'Я.Погоды' }}
+              Ключ
+              {{
+                aiSettings.weather_provider === 'gismeteo'
+                  ? 'Gismeteo'
+                  : 'Я.Погоды'
+              }}
             </label>
             <q-input
-              v-model="aiSettings[aiSettings.weather_provider === 'gismeteo' ? 'gismeteo_key' : 'yandex_weather_key']"
+              v-model="
+                aiSettings[
+                  aiSettings.weather_provider === 'gismeteo'
+                    ? 'gismeteo_key'
+                    : 'yandex_weather_key'
+                ]
+              "
               type="password"
               dense
               outlined
@@ -738,7 +786,11 @@
                 dense
                 no-caps
                 :icon="showAllSettings ? 'expand_less' : 'expand_more'"
-                :label="showAllSettings ? 'Свернуть' : `Все параметры (${settings.length})`"
+                :label="
+                  showAllSettings
+                    ? 'Свернуть'
+                    : `Все параметры (${settings.length})`
+                "
                 @click="showAllSettings = !showAllSettings"
               />
               <q-btn
@@ -766,7 +818,12 @@
 
           <div v-if="showAllSettings" class="all-settings-knobs">
             <SettingKnob
-              v-for="item in settings.filter(s => s.type === 'number' && s.min !== undefined && s.max !== undefined)"
+              v-for="item in settings.filter(
+                s =>
+                  s.type === 'number' &&
+                  s.min !== undefined &&
+                  s.max !== undefined
+              )"
               :key="item.key"
               :label="item.label"
               :value="item.value"
@@ -944,10 +1001,20 @@ const holidayPresetOptions = [
 
 const cameraCards = [
   { value: 'iso', label: 'Изометрия', emoji: '📐', hint: 'az 32° · el 38°' },
-  { value: 'platformer', label: 'Платформер', emoji: '🎮', hint: 'az 14° · el 0°' },
+  {
+    value: 'platformer',
+    label: 'Платформер',
+    emoji: '🎮',
+    hint: 'az 14° · el 0°'
+  },
   { value: 'top', label: 'Сверху', emoji: '🗺️', hint: 'az 86° · el 0°' },
   { value: 'front', label: 'Фронт', emoji: '🎯', hint: 'az 26° · el 0°' },
-  { value: 'street', label: 'Угол улицы', emoji: '📍', hint: 'az 30° · el 38°' },
+  {
+    value: 'street',
+    label: 'Угол улицы',
+    emoji: '📍',
+    hint: 'az 30° · el 38°'
+  },
   { value: 'stop', label: 'Остановка', emoji: '🚏', hint: 'az 24° · el 30°' }
 ]
 
@@ -955,30 +1022,67 @@ const weatherCards = [
   { value: 'auto', label: 'Реальная', emoji: '🌐', hint: 'погода API' },
   { value: 'clear', label: 'Ясно', emoji: '☀️', hint: 'чистое небо' },
   { value: 'snow', label: 'Снег', emoji: '🌨️', hint: 'снег и мягкий свет' },
-  { value: 'rain', label: 'Дождь', emoji: '🌧️', hint: 'ливень, мокрый асфальт' },
+  {
+    value: 'rain',
+    label: 'Дождь',
+    emoji: '🌧️',
+    hint: 'ливень, мокрый асфальт'
+  },
   { value: 'storm', label: 'Гроза', emoji: '⛈️', hint: 'дождь и молнии' },
   { value: 'night', label: 'Ночь', emoji: '🌙', hint: 'фонари и звёзды' }
 ]
 
 const holidayCards = [
   { value: 'none', label: 'Без праздника', emoji: '✨', hint: 'чистый город' },
-  { value: 'new-year', label: 'Новый год', emoji: '🎄', hint: 'ёлки, снег, гирлянды' },
-  { value: 'women-day', label: '8 Марта', emoji: '🌷', hint: 'цветы и лепестки' },
-  { value: 'victory-day', label: '9 Мая', emoji: '🎖️', hint: 'флаги и георгиевская лента' },
-  { value: 'russia-day', label: 'День России', emoji: '🇷🇺', hint: 'триколор и гирлянды' },
+  {
+    value: 'new-year',
+    label: 'Новый год',
+    emoji: '🎄',
+    hint: 'ёлки, снег, гирлянды'
+  },
+  {
+    value: 'women-day',
+    label: '8 Марта',
+    emoji: '🌷',
+    hint: 'цветы и лепестки'
+  },
+  {
+    value: 'victory-day',
+    label: '9 Мая',
+    emoji: '🎖️',
+    hint: 'флаги и георгиевская лента'
+  },
+  {
+    value: 'russia-day',
+    label: 'День России',
+    emoji: '🇷🇺',
+    hint: 'триколор и гирлянды'
+  },
   { value: 'custom', label: 'Свой набор', emoji: '🧰', hint: 'собрать вручную' }
 ]
 
 const decorKeys = [
-  'decoTrees', 'decoSnowfall', 'decoSnowman',
-  'decoFlowers', 'decoFlags', 'decoGarlands', 'decoStars'
+  'decoTrees',
+  'decoSnowfall',
+  'decoSnowman',
+  'decoFlowers',
+  'decoFlags',
+  'decoGarlands',
+  'decoStars'
 ]
 
 const trafficKnobKeys = [
-  'flowDensity', 'trafficMin', 'trafficMax',
-  'trafficChangeMin', 'trafficChangeMax',
-  'carMin', 'carMax', 'pedMin', 'pedMax',
-  'countChangeMin', 'countChangeMax'
+  'flowDensity',
+  'trafficMin',
+  'trafficMax',
+  'trafficChangeMin',
+  'trafficChangeMax',
+  'carMin',
+  'carMax',
+  'pedMin',
+  'pedMax',
+  'countChangeMin',
+  'countChangeMax'
 ]
 
 /* Предустановки камеры и сцены. */
@@ -990,11 +1094,28 @@ const presetOptions = computed(() =>
 )
 
 const presetKeys = [
-  'tilt', 'rotation', 'scale', 'quality', 'shadows', 'grid', 'buses',
-  'speedFactor', 'flowDensity', 'speedWave', 'speedWavePeriod',
-  'dayNightPeriod', 'trafficMin', 'trafficMax',
-  'trafficChangeMin', 'trafficChangeMax', 'carMin', 'carMax',
-  'pedMin', 'pedMax', 'countChangeMin', 'countChangeMax'
+  'tilt',
+  'rotation',
+  'scale',
+  'quality',
+  'shadows',
+  'grid',
+  'buses',
+  'speedFactor',
+  'flowDensity',
+  'speedWave',
+  'speedWavePeriod',
+  'dayNightPeriod',
+  'trafficMin',
+  'trafficMax',
+  'trafficChangeMin',
+  'trafficChangeMax',
+  'carMin',
+  'carMax',
+  'pedMin',
+  'pedMax',
+  'countChangeMin',
+  'countChangeMax'
 ]
 
 function currentPresetValues() {
@@ -1077,11 +1198,21 @@ const hasSceneDefault = computed(
 /* Только элементы сцены и их количество — камера и погода в пресет не
    входят, иначе «наборы элементов» перестают быть независимыми. */
 const scenePresetKeys = [
-  'flowDensity', 'trafficMin', 'trafficMax',
-  'trafficChangeMin', 'trafficChangeMax',
-  'carMin', 'carMax', 'pedMin', 'pedMax',
-  'countChangeMin', 'countChangeMax',
-  'buses', 'shadows', 'grid', 'speedFactor'
+  'flowDensity',
+  'trafficMin',
+  'trafficMax',
+  'trafficChangeMin',
+  'trafficChangeMax',
+  'carMin',
+  'carMax',
+  'pedMin',
+  'pedMax',
+  'countChangeMin',
+  'countChangeMax',
+  'buses',
+  'shadows',
+  'grid',
+  'speedFactor'
 ]
 
 function currentSceneValues() {
@@ -1258,7 +1389,9 @@ function setMode(value) {
       brightness: 1
     }
 
-    decorKeys.forEach(key => { reset[key] = false })
+    decorKeys.forEach(key => {
+      reset[key] = false
+    })
     Object.entries(reset).forEach(([key, val]) => setSetting(key, val))
   }
 }
@@ -1316,9 +1449,8 @@ function filterOllama(value, done) {
 function onLlmProviderChange(provider) {
   // URL API зависит от провайдера: у Ollama — локальный адрес, у облачных
   // провайдеров поле пустое и пользователь вписывает его сам.
-  aiSettings.value.llm_url = provider === 'ollama'
-    ? 'http://localhost:11434'
-    : ''
+  aiSettings.value.llm_url =
+    provider === 'ollama' ? 'http://localhost:11434' : ''
 
   if (provider === 'ollama') loadOllamaModels()
 }
@@ -1351,15 +1483,45 @@ const CAMERA_PRESETS = {
 const WEATHER_PRESETS = {
   auto: {},
   clear: { precipitation: 0, wind: 0.25, lightning: 0, fog: 0, brightness: 1 },
-  snow: { precipitation: 0.7, wind: 0.25, lightning: 0, fog: 0.1, brightness: 0.95 },
-  rain: { precipitation: 0.65, wind: 0.4, lightning: 0, fog: 0.15, brightness: 0.9 },
-  storm: { precipitation: 0.85, wind: 0.8, lightning: 1.2, fog: 0.3, brightness: 0.75 },
-  night: { precipitation: 0, wind: 0.1, lightning: 0, fog: 0.1, brightness: 0.65 }
+  snow: {
+    precipitation: 0.7,
+    wind: 0.25,
+    lightning: 0,
+    fog: 0.1,
+    brightness: 0.95
+  },
+  rain: {
+    precipitation: 0.65,
+    wind: 0.4,
+    lightning: 0,
+    fog: 0.15,
+    brightness: 0.9
+  },
+  storm: {
+    precipitation: 0.85,
+    wind: 0.8,
+    lightning: 1.2,
+    fog: 0.3,
+    brightness: 0.75
+  },
+  night: {
+    precipitation: 0,
+    wind: 0.1,
+    lightning: 0,
+    fog: 0.1,
+    brightness: 0.65
+  }
 }
 
 const HOLIDAY_PRESETS = {
   none: {},
-  'new-year': { decoTrees: true, decoSnowfall: true, decoSnowman: true, decoGarlands: true, decoStars: true },
+  'new-year': {
+    decoTrees: true,
+    decoSnowfall: true,
+    decoSnowman: true,
+    decoGarlands: true,
+    decoStars: true
+  },
   'women-day': { decoFlowers: true, decoGarlands: true },
   'victory-day': { decoFlags: true },
   'russia-day': { decoFlags: true, decoGarlands: true },
@@ -1424,7 +1586,9 @@ function applyWeatherPreset(value) {
 
 function applyHolidayPreset(value) {
   const values = { __preset: value }
-  decorKeys.forEach(key => { values[key] = false })
+  decorKeys.forEach(key => {
+    values[key] = false
+  })
   Object.assign(values, HOLIDAY_PRESETS[value] || {})
   applyPreset('holidayPreset', values)
 }
@@ -2130,7 +2294,9 @@ h1 {
   background: #111d2e;
   color: #e2e8f0;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition:
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .pc-card:hover {

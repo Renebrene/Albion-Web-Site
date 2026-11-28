@@ -86,7 +86,10 @@ function createStore(key) {
           pending: false
         })
         try {
-          sessionStorage.setItem(roadrunnerStorageKey, JSON.stringify({ until: 0 }))
+          sessionStorage.setItem(
+            roadrunnerStorageKey,
+            JSON.stringify({ until: 0 })
+          )
         } catch {
           /* ignore */
         }
@@ -97,7 +100,9 @@ function createStore(key) {
 
   function restoreRoadrunner() {
     try {
-      const saved = JSON.parse(sessionStorage.getItem(roadrunnerStorageKey) || '{}')
+      const saved = JSON.parse(
+        sessionStorage.getItem(roadrunnerStorageKey) || '{}'
+      )
       const remaining = Number(saved.until || 0) - Date.now()
       if (remaining > 0) {
         roadrunnerActive.value = true

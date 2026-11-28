@@ -39,13 +39,21 @@
       <q-tab name="scenarios" icon="auto_awesome" label="Сценарии" />
       <q-tab name="ai-settings" icon="tune" label="Настройки АИ и источников" />
       <q-tab name="code-editor" icon="code" label="AI-редактор кода" />
-      <q-tab name="docs" icon="menu_book" label="Документация/апи для агентов" />
+      <q-tab
+        name="docs"
+        icon="menu_book"
+        label="Документация/апи для агентов"
+      />
     </q-tabs>
 
     <q-separator />
 
     <div class="rr-panel">
-      <AdministrationBannerPage v-if="tab === 'banner'" embedded view="banner" />
+      <AdministrationBannerPage
+        v-if="tab === 'banner'"
+        embedded
+        view="banner"
+      />
 
       <AdministrationBannerPage
         v-else-if="['camera', 'weather', 'holidays'].includes(tab)"
@@ -86,8 +94,14 @@ import AdministrationRoadrunnerDocsPage from './AdministrationRoadrunnerDocsPage
 import AdministrationScenarioGeneratorPage from './AdministrationScenarioGeneratorPage.vue'
 
 const TABS = [
-  'banner', 'camera', 'weather', 'holidays',
-  'scenarios', 'ai-settings', 'code-editor', 'docs'
+  'banner',
+  'camera',
+  'weather',
+  'holidays',
+  'scenarios',
+  'ai-settings',
+  'code-editor',
+  'docs'
 ]
 
 const route = useRoute()

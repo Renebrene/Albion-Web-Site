@@ -25,12 +25,9 @@
 
     <p v-if="error" class="error-text">{{ error }}</p>
 
-    <div
-      v-if="scenarioDisabled"
-      class="scenario-mode-hint"
-    >
-      Сценарии доступны в режиме «Произвольный». Переключите режим в
-      «Настройках АИ и источников», чтобы создавать и применять сценарии.
+    <div v-if="scenarioDisabled" class="scenario-mode-hint">
+      Сценарии доступны в режиме «Произвольный». Переключите режим в «Настройках
+      АИ и источников», чтобы создавать и применять сценарии.
     </div>
 
     <!-- Готовые сценарии — те же, что в умном чате. -->
@@ -57,8 +54,8 @@
       </div>
 
       <p class="hint ready-hint">
-        Как в умном чате: нажмите «Применить» — баннер переключится сразу,
-        а после окончания вернётся к настройкам из базы.
+        Как в умном чате: нажмите «Применить» — баннер переключится сразу, а
+        после окончания вернётся к настройкам из базы.
       </p>
 
       <p v-if="readyError" class="result-error">{{ readyError }}</p>
@@ -108,14 +105,13 @@
       </div>
     </section>
 
-    <div
-      class="generator-grid"
-      :class="{ 'rr-disabled': scenarioDisabled }"
-    >
+    <div class="generator-grid" :class="{ 'rr-disabled': scenarioDisabled }">
       <section class="panel prompt-panel">
         <div class="panel-head">
           <h2>Описание сценария</h2>
-          <span class="hint">например: «вечерний дождь, машины едут медленно»</span>
+          <span class="hint"
+            >например: «вечерний дождь, машины едут медленно»</span
+          >
         </div>
 
         <q-input
@@ -136,26 +132,35 @@
             :disable="!prompt || generating"
             @click="generate"
           />
-          <q-btn
-            flat
-            no-caps
-            label="Очистить"
-            @click="prompt = ''"
-          />
+          <q-btn flat no-caps label="Очистить" @click="prompt = ''" />
         </div>
 
         <div class="examples">
           <div class="examples-title">Примеры запросов:</div>
-          <div class="example-chip" @click="prompt = 'Вечерний дождь на большой садовой, машины едут медленно'">
+          <div
+            class="example-chip"
+            @click="
+              prompt = 'Вечерний дождь на большой садовой, машины едут медленно'
+            "
+          >
             Вечерний дождь
           </div>
-          <div class="example-chip" @click="prompt = 'Новый год: снег, ёлки, снеговик'">
+          <div
+            class="example-chip"
+            @click="prompt = 'Новый год: снег, ёлки, снеговик'"
+          >
             Новый год
           </div>
-          <div class="example-chip" @click="prompt = 'День Победы: флаги, танки, салют'">
+          <div
+            class="example-chip"
+            @click="prompt = 'День Победы: флаги, танки, салют'"
+          >
             День Победы
           </div>
-          <div class="example-chip" @click="prompt = 'Санта Клаус на санях с оленями'">
+          <div
+            class="example-chip"
+            @click="prompt = 'Санта Клаус на санях с оленями'"
+          >
             Санта Клаус
           </div>
         </div>
@@ -198,19 +203,19 @@
           </div>
         </div>
 
-        <pre v-else class="result-code">{{ JSON.stringify(generatedScenario, null, 2) }}</pre>
+        <pre v-else class="result-code">{{
+          JSON.stringify(generatedScenario, null, 2)
+        }}</pre>
 
         <div v-if="generatedError" class="result-error">
           {{ generatedError }}
         </div>
       </section>
     </div>
-
   </component>
 </template>
 
 <script setup>
-
 defineProps({
   embedded: { type: Boolean, default: false }
 })
@@ -458,7 +463,9 @@ h1 {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   background: #f8fafc;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 
 .ready-card:hover {

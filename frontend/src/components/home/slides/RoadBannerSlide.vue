@@ -84,14 +84,18 @@ function onFrameLoad() {
   postScenario(payload)
 }
 
-onMounted(() => window.addEventListener('albion:roadrunner-scenario', forwardScenario))
-onBeforeUnmount(() => window.removeEventListener('albion:roadrunner-scenario', forwardScenario))
+onMounted(() =>
+  window.addEventListener('albion:roadrunner-scenario', forwardScenario)
+)
+onBeforeUnmount(() =>
+  window.removeEventListener('albion:roadrunner-scenario', forwardScenario)
+)
 
 // iframe существует только на активном слайде; при уходе со слайда
 // считаем его неготовым, чтобы следующий сценарий не потерялся.
 watch(
   () => props.active,
-  (isActive) => {
+  isActive => {
     if (isActive) return
     frameLoaded.value = false
   }
